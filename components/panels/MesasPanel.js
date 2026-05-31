@@ -266,6 +266,7 @@ export default function MesasPanel({ showToast }) {
   const [modalVincular, setModalVincular] = useState(null);
   const [modalBitacora, setModalBitacora] = useState(false);
   const [bitacora, setBitacora] = useState([]);
+  const [modalComanda, setModalComanda] = useState(false);
 
   const [cuentasActivas, setCuentasActivas] = useState([
     { id: 101, cliente: 'Juan Pérez', tiempoJuego: 160, consumos: [{ id: 1, producto: 'Cerveza Corona', precio: 45, cantidad: 2 }, { id: 2, producto: 'Refresco Coca-Cola', precio: 30, cantidad: 1 }], inicio: Date.now() - 1.5*3600000 },
@@ -557,6 +558,9 @@ export default function MesasPanel({ showToast }) {
               </span>
             )}
           </button>
+          <button className="btn btn-secondary btn-sm" style={{ color: 'var(--bronze-light)', borderColor: 'var(--border-bronze)' }} onClick={() => setModalComanda(true)}>
+            <i className="ri-cup-line" /> Comanda
+          </button>
           <button className="btn btn-secondary btn-sm" style={{ color: 'var(--bronze-light)', borderColor: 'var(--border-bronze)' }} onClick={() => setModalAbrirCuenta(true)}>
             <i className="ri-folder-add-line" /> Abrir Cuenta
           </button>
@@ -774,6 +778,17 @@ export default function MesasPanel({ showToast }) {
           bitacora={bitacora}
           onClear={limpiarBitacora}
           onClose={() => setModalBitacora(false)}
+        />
+      )}
+      {modalComanda && (
+        <ModalRegistrarComanda
+          mesas={mesas}
+          setMesas={setMesas}
+          cuentasActivas={cuentasActivas}
+          setCuentasActivas={setCuentasActivas}
+          onClose={() => setModalComanda(false)}
+          showToast={showToast}
+          registrarEvento={registrarEvento}
         />
       )}
     </div>
@@ -1410,6 +1425,306 @@ function ModalBitacora({ bitacora, onClear, onClose }) {
           <button className="btn btn-primary" onClick={onClose}>
             Cerrar Bitácora
           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── MODAL REGISTRAR COMANDA (NUEVO) ──────────────────────
+function ModalRegistrarComanda({ mesas, setMesas, cuentasActivas, setCuentasActivas, onClose, showToast, registrarEvento }) {
+  const [destinoTipo, setDestinoTipo] = useState('mesa'); // 'mesa', 'cuenta', 'llevar'
+  const [destinoId, setDestinoId] = useState('');
+  const [carrito, setCarrito] = useState([]);
+  const [productos, setProductos] = useState([]);
+
+  // Cargar productos con stock desde localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('yoy_billar_stock');
+        if (saved) {
+          setProductos(JSON.parse(saved));
+        } else {
+          const defaultProds = [
+            { id: 1, producto: 'Cerveza Corona', precio: 45, stock: 120 },
+            { id: 2, producto: 'Refresco Coca-Cola', precio: 30, stock: 80 },
+            { id: 3, producto: 'Nachos con Queso', precio: 75, stock: 50 },
+            { id: 4, producto: 'Papas Fritas', precio: 55, stock: 40 },
+            { id: 5, producto: 'Alitas de Pollo x10', precio: 120, stock: 35 },
+            { id: 6, producto: 'Café Americano', precio: 35, stock: 100 },
+            { id: 7, producto: 'Agua Embotellada', precio: 20, stock: 150 },
+          ];
+          setProductos(defaultProds);
+          localStorage.setItem('yoy_billar_stock', JSON.stringify(defaultProds));
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }
+  }, []);
+
+  const mesasOcupadas = mesas.filter(m => m.estado === 'ocupada');
+
+  const agregarAlCarrito = (prod) => {
+    const enCarrito = carrito.find(item => item.id === prod.id);
+    const cantEnCarrito = enCarrito ? enCarrito.cantidad : 0;
+
+    if (prod.stock <= cantEnCarrito) {
+      showToast(`No hay suficiente stock de ${prod.producto}`, 'warning');
+      return;
+    }
+
+    setCarrito(prev => {
+      const existe = prev.find(item => item.id === prod.id);
+      if (existe) {
+        return prev.map(item => item.id === prod.id ? { ...item, cantidad: item.cantidad + 1 } : item);
+      }
+      return [...prev, { ...prod, cantidad: 1 }];
+    });
+  };
+
+  const quitarDelCarrito = (id) => {
+    setCarrito(prev => {
+      const existe = prev.find(item => item.id === id);
+      if (existe && existe.cantidad > 1) {
+        return prev.map(item => item.id === id ? { ...item, cantidad: item.cantidad - 1 } : item);
+      }
+      return prev.filter(item => item.id !== id);
+    });
+  };
+
+  const total = carrito.reduce((sum, item) => sum + (item.precio * item.cantidad), 0);
+
+  const enviarComanda = () => {
+    if (carrito.length === 0) {
+      showToast('El carrito de comanda está vacío.', 'warning');
+      return;
+    }
+
+    if (destinoTipo !== 'llevar' && !destinoId) {
+      showToast('Por favor seleccione el destino de la comanda.', 'warning');
+      return;
+    }
+
+    // Descontar del stock real
+    const stockActualizado = productos.map(p => {
+      const enCart = carrito.find(item => item.id === p.id);
+      if (enCart) {
+        return { ...p, stock: Math.max(0, p.stock - enCart.cantidad) };
+      }
+      return p;
+    });
+
+    localStorage.setItem('yoy_billar_stock', JSON.stringify(stockActualizado));
+
+    // Agregar comanda al destino
+    if (destinoTipo === 'mesa') {
+      const targetMesa = mesas.find(m => m.id === parseInt(destinoId));
+      if (!targetMesa) return;
+
+      const cuentaExistente = cuentasActivas.find(c => c.cliente.toLowerCase() === targetMesa.cliente.toLowerCase());
+
+      if (cuentaExistente) {
+        setCuentasActivas(prev => prev.map(c => {
+          if (c.id === cuentaExistente.id) {
+            const nuevosConsumos = [...c.consumos];
+            carrito.forEach(cartItem => {
+              const existeItem = nuevosConsumos.find(i => i.producto === cartItem.producto);
+              if (existeItem) {
+                existeItem.cantidad += cartItem.cantidad;
+              } else {
+                nuevosConsumos.push({
+                  id: Date.now() + Math.random(),
+                  producto: cartItem.producto,
+                  precio: cartItem.precio,
+                  cantidad: cartItem.cantidad
+                });
+              }
+            });
+            return { ...c, consumos: nuevosConsumos };
+          }
+          return c;
+        }));
+        showToast(`Comanda enviada a la cuenta de ${targetMesa.cliente} (Mesa ${targetMesa.id}) ✓`, 'success');
+        registrarEvento('Comanda a Cuenta', `Comanda de ${carrito.map(i=>`${i.cantidad}x ${i.producto}`).join(', ')} enviada a la cuenta de ${targetMesa.cliente} (Mesa ${targetMesa.id})`, total);
+      } else {
+        const nuevaCuenta = {
+          id: Date.now(),
+          cliente: targetMesa.cliente,
+          tiempoJuego: 0,
+          consumos: carrito.map(item => ({
+            id: Date.now() + Math.random(),
+            producto: item.producto,
+            precio: item.precio,
+            cantidad: item.cantidad
+          })),
+          inicio: Date.now()
+        };
+        setCuentasActivas(prev => [...prev, nuevaCuenta]);
+        showToast(`Comanda cargada a la cuenta de ${targetMesa.cliente} (Mesa ${targetMesa.id}) ✓`, 'success');
+        registrarEvento('Comanda a Mesa', `Comanda de ${carrito.map(i=>`${i.cantidad}x ${i.producto}`).join(', ')} cargada a la cuenta activa de ${targetMesa.cliente} (Mesa ${targetMesa.id})`, total);
+      }
+    } else if (destinoTipo === 'cuenta') {
+      const targetCuenta = cuentasActivas.find(c => c.id === parseInt(destinoId));
+      if (!targetCuenta) return;
+
+      setCuentasActivas(prev => prev.map(c => {
+        if (c.id === targetCuenta.id) {
+          const nuevosConsumos = [...c.consumos];
+          carrito.forEach(cartItem => {
+            const existeItem = nuevosConsumos.find(i => i.producto === cartItem.producto);
+            if (existeItem) {
+              existeItem.cantidad += cartItem.cantidad;
+            } else {
+              nuevosConsumos.push({
+                id: Date.now() + Math.random(),
+                producto: cartItem.producto,
+                precio: cartItem.precio,
+                cantidad: cartItem.cantidad
+              });
+            }
+          });
+          return { ...c, consumos: nuevosConsumos };
+        }
+        return c;
+      }));
+      showToast(`Comanda agregada a la cuenta de ${targetCuenta.cliente} ✓`, 'success');
+      registrarEvento('Comanda a Cuenta', `Comanda de ${carrito.map(i=>`${i.cantidad}x ${i.producto}`).join(', ')} agregada a la cuenta de ${targetCuenta.cliente}`, total);
+    } else if (destinoTipo === 'llevar') {
+      showToast(`Comanda registrada Para Llevar. Total: $${total} MXN ✓`, 'success');
+      registrarEvento('Venta Barra', `Comanda Para Llevar: ${carrito.map(i=>`${i.cantidad}x ${i.producto}`).join(', ')} liquidada al momento`, total);
+    }
+
+    setCarrito([]);
+    onClose();
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" style={{ maxWidth: 740 }} onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <span className="modal-title">
+            <i className="ri-cup-line" style={{ marginRight: 8, color: 'var(--bronze-light)' }} />
+            Registrar Comanda de Consumo
+          </span>
+          <button onClick={onClose} className="btn-icon btn btn-secondary" style={{ background: 'none', border: 'none' }}>
+            <i className="ri-close-line" style={{ fontSize: 20 }} />
+          </button>
+        </div>
+        <div className="modal-body" style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 20 }}>
+          {/* Panel Izquierdo: Productos */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <h4 style={{ fontSize: 12, textTransform: 'uppercase', color: 'var(--text-secondary)' }}>Productos Disponibles</h4>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, maxHeight: 360, overflowY: 'auto', paddingRight: 4 }}>
+              {productos.map(p => (
+                <div
+                  key={p.id}
+                  onClick={() => agregarAlCarrito(p)}
+                  style={{
+                    background: 'var(--bg-elevated)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 10, padding: 10, cursor: 'pointer',
+                    transition: 'all 0.15s',
+                    opacity: p.stock === 0 ? 0.5 : 1
+                  }}
+                  onMouseEnter={e => { if (p.stock > 0) e.currentTarget.style.borderColor = 'var(--border-bronze)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; }}
+                >
+                  <div style={{ fontWeight: 700, fontSize: 12 }}>{p.producto}</div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, alignItems: 'center' }}>
+                    <span style={{ fontSize: 13, color: 'var(--bronze-light)', fontWeight: 800 }}>${p.precio}</span>
+                    <span style={{ fontSize: 10, color: p.stock < 10 ? 'var(--danger)' : 'var(--text-muted)' }}>Stock: {p.stock}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Panel Derecho: Carrito y Destino */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14, borderLeft: '1px solid var(--border)', paddingLeft: 20 }}>
+            <h4 style={{ fontSize: 12, textTransform: 'uppercase', color: 'var(--text-secondary)' }}>Detalle de Comanda</h4>
+            
+            {/* Destino de la comanda */}
+            <div className="form-group">
+              <label className="form-label" style={{ fontSize: 10 }}>Destino</label>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, marginBottom: 8 }}>
+                {[
+                  { id: 'mesa', label: 'Mesa', icon: 'ri-play-circle-line' },
+                  { id: 'cuenta', label: 'Cuenta Cl.', icon: 'ri-folder-open-line' },
+                  { id: 'llevar', label: 'Llevar', icon: 'ri-shopping-bag-line' }
+                ].map(d => (
+                  <button
+                    key={d.id}
+                    onClick={() => { setDestinoTipo(d.id); setDestinoId(''); }}
+                    style={{
+                      background: destinoTipo === d.id ? 'var(--bronze-subtle)' : 'var(--bg-elevated)',
+                      border: `1px solid ${destinoTipo === d.id ? 'var(--border-bronze)' : 'var(--border)'}`,
+                      borderRadius: 8, padding: '6px 4px', fontSize: 10, fontWeight: 600, cursor: 'pointer',
+                      color: destinoTipo === d.id ? 'var(--bronze-light)' : 'var(--text-secondary)',
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4
+                    }}
+                  >
+                    <i className={d.icon} />
+                    {d.label}
+                  </button>
+                ))}
+              </div>
+
+              {destinoTipo === 'mesa' && (
+                <select className="form-select" style={{ fontSize: 12, padding: 6 }} value={destinoId} onChange={e=>setDestinoId(e.target.value)}>
+                  <option value="">-- Seleccionar Mesa Ocupada --</option>
+                  {mesasOcupadas.map(m => (
+                    <option key={m.id} value={m.id}>{m.nombre} - {m.cliente}</option>
+                  ))}
+                </select>
+              )}
+
+              {destinoTipo === 'cuenta' && (
+                <select className="form-select" style={{ fontSize: 12, padding: 6 }} value={destinoId} onChange={e=>setDestinoId(e.target.value)}>
+                  <option value="">-- Seleccionar Cuenta Activa --</option>
+                  {cuentasActivas.map(c => (
+                    <option key={c.id} value={c.id}>{c.cliente} (Juego: ${c.tiempoJuego})</option>
+                  ))}
+                </select>
+              )}
+            </div>
+
+            {/* Artículos */}
+            <div style={{ flex: 1, maxHeight: 180, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {carrito.length === 0 ? (
+                <p style={{ color: 'var(--text-muted)', fontSize: 11, textAlign: 'center', padding: '20px 0' }}>Agregue productos tocando las tarjetas.</p>
+              ) : (
+                carrito.map(item => (
+                  <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11 }}>
+                    <span style={{ flex: 1 }}>{item.producto}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <button onClick={() => quitarDelCarrito(item.id)} style={{ width: 18, height: 18, borderRadius: 4, background: 'var(--bg-elevated)', border: '1px solid var(--border)', cursor: 'pointer', color: 'var(--text-secondary)' }}>-</button>
+                      <span style={{ fontWeight: 700 }}>{item.cantidad}</span>
+                      <button onClick={() => agregarAlCarrito(item)} style={{ width: 18, height: 18, borderRadius: 4, background: 'var(--bronze-subtle)', border: '1px solid var(--border-bronze)', cursor: 'pointer', color: 'var(--bronze-light)' }}>+</button>
+                    </div>
+                    <span style={{ fontWeight: 700, minWidth: 50, textAlign: 'right', color: 'var(--bronze-light)' }}>${item.precio * item.cantidad}</span>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Total y Enviar */}
+            <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10, fontSize: 12 }}>
+                <span>Total Comanda:</span>
+                <span style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 700, color: 'var(--text-primary)' }}>${total} MXN</span>
+              </div>
+              <button
+                className="btn btn-primary"
+                style={{ width: '100%', padding: '8px' }}
+                onClick={enviarComanda}
+                disabled={carrito.length === 0 || (destinoTipo !== 'llevar' && !destinoId)}
+              >
+                <i className="ri-send-plane-line" /> Confirmar y Enviar Comanda
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
