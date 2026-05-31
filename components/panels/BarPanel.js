@@ -1,5 +1,17 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
+
+// ── DATOS HISTÓRICOS IA (RECOMENDACIÓN 2) ──────────────────
+const HISTORICO_DATA = [
+  { name: 'Lun', Cerveza: 80, Refrescos: 60, Snacks: 40 },
+  { name: 'Mar', Cerveza: 95, Refrescos: 72, Snacks: 48 },
+  { name: 'Mié', Cerveza: 110, Refrescos: 85, Snacks: 55 },
+  { name: 'Jue', Cerveza: 140, Refrescos: 90, Snacks: 62 },
+  { name: 'Vie', Cerveza: 220, Refrescos: 150, Snacks: 110 },
+  { name: 'Sáb', Cerveza: 280, Refrescos: 180, Snacks: 130 },
+  { name: 'Dom', Cerveza: 190, Refrescos: 120, Snacks: 90 },
+];
 
 // ── PRODUCTOS INICIALES DEL INVENTARIO ────────────────────
 const DEFAULT_PRODUCTOS = [

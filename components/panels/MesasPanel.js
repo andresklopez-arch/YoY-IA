@@ -276,7 +276,8 @@ export default function MesasPanel({ showToast }) {
           const saved = localStorage.getItem('yoy_billar_stock');
           if (saved) {
             const list = JSON.parse(saved);
-            const bajos = list.filter(p => p.stock <= p.stockMin);
+            // Normalizar para revisión de stock bajo
+            const bajos = list.filter(p => p.stock <= (p.stockMin !== undefined ? p.stockMin : 15));
             setProductosBajos(bajos);
           }
         } catch (err) {
@@ -1500,13 +1501,13 @@ function ModalRegistrarComanda({ mesas, setMesas, cuentasActivas, setCuentasActi
           setProductos(JSON.parse(saved));
         } else {
           const defaultProds = [
-            { id: 1, producto: 'Cerveza Corona', precio: 45, stock: 120 },
-            { id: 2, producto: 'Refresco Coca-Cola', precio: 30, stock: 80 },
-            { id: 3, producto: 'Nachos con Queso', precio: 75, stock: 50 },
-            { id: 4, producto: 'Papas Fritas', precio: 55, stock: 40 },
-            { id: 5, producto: 'Alitas de Pollo x10', precio: 120, stock: 35 },
-            { id: 6, producto: 'Café Americano', precio: 35, stock: 100 },
-            { id: 7, producto: 'Agua Embotellada', precio: 20, stock: 150 },
+            { id: 1, nombre: 'Cerveza Corona Extra', precioVenta: 45, stock: 120 },
+            { id: 2, nombre: 'Refresco Coca-Cola 355ml', precioVenta: 30, stock: 80 },
+            { id: 3, nombre: 'Nachos con Queso Gigantes', precioVenta: 75, stock: 50 },
+            { id: 4, nombre: 'Papas Fritas Crujientes', precioVenta: 55, stock: 40 },
+            { id: 5, nombre: 'Alitas de Pollo x10', precioVenta: 120, stock: 35 },
+            { id: 6, nombre: 'Café Americano Organico', precioVenta: 35, stock: 100 },
+            { id: 7, nombre: 'Agua Embotellada 600ml', precioVenta: 20, stock: 150 },
           ];
           setProductos(defaultProds);
           localStorage.setItem('yoy_billar_stock', JSON.stringify(defaultProds));
@@ -1520,11 +1521,12 @@ function ModalRegistrarComanda({ mesas, setMesas, cuentasActivas, setCuentasActi
   const mesasOcupadas = mesas.filter(m => m.estado === 'ocupada');
 
   const agregarAlCarrito = (prod) => {
+    if (prod.stock <= 0) return; // Recomendación 1: bloqueo
     const enCarrito = carrito.find(item => item.id === prod.id);
     const cantEnCarrito = enCarrito ? enCarrito.cantidad : 0;
 
     if (prod.stock <= cantEnCarrito) {
-      showToast(`No hay suficiente stock de ${prod.producto}`, 'warning');
+      showToast(`No hay suficiente stock de ${prod.nombre}`, 'warning');
       return;
     }
 
@@ -1547,7 +1549,7 @@ function ModalRegistrarComanda({ mesas, setMesas, cuentasActivas, setCuentasActi
     });
   };
 
-  const total = carrito.reduce((sum, item) => sum + (item.precio * item.cantidad), 0);
+  const total = carrito.reduce((sum, item) => sum + (item.precioVenta * item.cantidad), 0);
 
   const enviarComanda = () => {
     if (carrito.length === 0) {
@@ -1575,7 +1577,7 @@ function ModalRegistrarComanda({ mesas, setMesas, cuentasActivas, setCuentasActi
       for (let item of carrito) {
         const frescoItem = stockFresco.find(p => p.id === item.id);
         if (!frescoItem || frescoItem.stock < item.cantidad) {
-          showToast(`⚠️ Conflicto de Inventario: El stock de "${item.producto}" acaba de cambiar. Solo quedan ${frescoItem ? frescoItem.stock : 0} unidades. Por favor rehaga su comanda.`, 'error');
+          showToast(`⚠️ Conflicto de Inventario: El stock de "${item.nombre}" acaba de cambiar. Solo quedan ${frescoItem ? frescoItem.stock : 0} unidades. Por favor rehaga su comanda.`, 'error');
           setProductos(stockFresco);
           return;
         }
@@ -1605,14 +1607,14 @@ function ModalRegistrarComanda({ mesas, setMesas, cuentasActivas, setCuentasActi
           if (c.id === cuentaExistente.id) {
             const nuevosConsumos = [...c.consumos];
             carrito.forEach(cartItem => {
-              const existeItem = nuevosConsumos.find(i => i.producto === cartItem.producto);
+              const existeItem = nuevosConsumos.find(i => i.producto === cartItem.nombre);
               if (existeItem) {
                 existeItem.cantidad += cartItem.cantidad;
               } else {
                 nuevosConsumos.push({
                   id: Date.now() + Math.random(),
-                  producto: cartItem.producto,
-                  precio: cartItem.precio,
+                  producto: cartItem.nombre,
+                  precio: cartItem.precioVenta,
                   cantidad: cartItem.cantidad
                 });
               }
@@ -1622,7 +1624,7 @@ function ModalRegistrarComanda({ mesas, setMesas, cuentasActivas, setCuentasActi
           return c;
         }));
         showToast(`Comanda enviada a la cuenta de ${targetMesa.cliente} (Mesa ${targetMesa.id}) ✓`, 'success');
-        registrarEvento('Comanda a Cuenta', `Comanda de ${carrito.map(i=>`${i.cantidad}x ${i.producto}`).join(', ')} enviada a la cuenta de ${targetMesa.cliente} (Mesa ${targetMesa.id})`, total);
+        registrarEvento('Comanda a Cuenta', `Comanda de ${carrito.map(i=>`${i.cantidad}x ${i.nombre}`).join(', ')} enviada a la cuenta de ${targetMesa.cliente} (Mesa ${targetMesa.id})`, total);
       } else {
         const nuevaCuenta = {
           id: Date.now(),
@@ -1630,15 +1632,15 @@ function ModalRegistrarComanda({ mesas, setMesas, cuentasActivas, setCuentasActi
           tiempoJuego: 0,
           consumos: carrito.map(item => ({
             id: Date.now() + Math.random(),
-            producto: item.producto,
-            precio: item.precio,
+            producto: item.nombre,
+            precio: item.precioVenta,
             cantidad: item.cantidad
           })),
           inicio: Date.now()
         };
         setCuentasActivas(prev => [...prev, nuevaCuenta]);
         showToast(`Comanda cargada a la cuenta de ${targetMesa.cliente} (Mesa ${targetMesa.id}) ✓`, 'success');
-        registrarEvento('Comanda a Mesa', `Comanda de ${carrito.map(i=>`${i.cantidad}x ${i.producto}`).join(', ')} cargada a la cuenta activa de ${targetMesa.cliente} (Mesa ${targetMesa.id})`, total);
+        registrarEvento('Comanda a Mesa', `Comanda de ${carrito.map(i=>`${i.cantidad}x ${i.nombre}`).join(', ')} cargada a la cuenta activa de ${targetMesa.cliente} (Mesa ${targetMesa.id})`, total);
       }
     } else if (destinoTipo === 'cuenta') {
       const targetCuenta = cuentasActivas.find(c => c.id === parseInt(destinoId));
@@ -1648,14 +1650,14 @@ function ModalRegistrarComanda({ mesas, setMesas, cuentasActivas, setCuentasActi
         if (c.id === targetCuenta.id) {
           const nuevosConsumos = [...c.consumos];
           carrito.forEach(cartItem => {
-            const existeItem = nuevosConsumos.find(i => i.producto === cartItem.producto);
+            const existeItem = nuevosConsumos.find(i => i.producto === cartItem.nombre);
             if (existeItem) {
               existeItem.cantidad += cartItem.cantidad;
             } else {
               nuevosConsumos.push({
                 id: Date.now() + Math.random(),
-                producto: cartItem.producto,
-                precio: cartItem.precio,
+                producto: cartItem.nombre,
+                precio: cartItem.precioVenta,
                 cantidad: cartItem.cantidad
               });
             }
@@ -1665,10 +1667,10 @@ function ModalRegistrarComanda({ mesas, setMesas, cuentasActivas, setCuentasActi
         return c;
       }));
       showToast(`Comanda agregada a la cuenta de ${targetCuenta.cliente} ✓`, 'success');
-      registrarEvento('Comanda a Cuenta', `Comanda de ${carrito.map(i=>`${i.cantidad}x ${i.producto}`).join(', ')} agregada a la cuenta de ${targetCuenta.cliente}`, total);
+      registrarEvento('Comanda a Cuenta', `Comanda de ${carrito.map(i=>`${i.cantidad}x ${i.nombre}`).join(', ')} agregada a la cuenta de ${targetCuenta.cliente}`, total);
     } else if (destinoTipo === 'llevar') {
       showToast(`Comanda registrada Para Llevar. Total: $${total} MXN ✓`, 'success');
-      registrarEvento('Venta Barra', `Comanda Para Llevar: ${carrito.map(i=>`${i.cantidad}x ${i.producto}`).join(', ')} liquidada al momento`, total);
+      registrarEvento('Venta Barra', `Comanda Para Llevar: ${carrito.map(i=>`${i.cantidad}x ${i.nombre}`).join(', ')} liquidada al momento`, total);
     }
 
     setCarrito([]);
@@ -1692,27 +1694,40 @@ function ModalRegistrarComanda({ mesas, setMesas, cuentasActivas, setCuentasActi
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <h4 style={{ fontSize: 12, textTransform: 'uppercase', color: 'var(--text-secondary)' }}>Productos Disponibles</h4>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, maxHeight: 360, overflowY: 'auto', paddingRight: 4 }}>
-              {productos.map(p => (
-                <div
-                  key={p.id}
-                  onClick={() => agregarAlCarrito(p)}
-                  style={{
-                    background: 'var(--bg-elevated)',
-                    border: '1px solid var(--border)',
-                    borderRadius: 10, padding: 10, cursor: 'pointer',
-                    transition: 'all 0.15s',
-                    opacity: p.stock === 0 ? 0.5 : 1
-                  }}
-                  onMouseEnter={e => { if (p.stock > 0) e.currentTarget.style.borderColor = 'var(--border-bronze)'; }}
-                  onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; }}
-                >
-                  <div style={{ fontWeight: 700, fontSize: 12 }}>{p.producto}</div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, alignItems: 'center' }}>
-                    <span style={{ fontSize: 13, color: 'var(--bronze-light)', fontWeight: 800 }}>${p.precio}</span>
-                    <span style={{ fontSize: 10, color: p.stock < 10 ? 'var(--danger)' : 'var(--text-muted)' }}>Stock: {p.stock}</span>
+              {productos.map(p => {
+                const agotado = p.stock <= 0;
+                return (
+                  <div
+                    key={p.id}
+                    onClick={() => !agotado && agregarAlCarrito(p)}
+                    style={{
+                      background: 'var(--bg-elevated)',
+                      border: `1px solid ${agotado ? 'rgba(239,68,68,0.2)' : 'var(--border)'}`,
+                      borderRadius: 10, padding: 10, cursor: agotado ? 'not-allowed' : 'pointer',
+                      transition: 'all 0.15s',
+                      opacity: agotado ? 0.4 : 1,
+                      position: 'relative'
+                    }}
+                    onMouseEnter={e => { if (!agotado) e.currentTarget.style.borderColor = 'var(--border-bronze)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = agotado ? 'rgba(239,68,68,0.2)' : 'var(--border)'; }}
+                  >
+                    <div style={{ fontWeight: 700, fontSize: 12, paddingRight: agotado ? 48 : 0 }}>{p.nombre}</div>
+                    
+                    {agotado && (
+                      <span className="badge badge-danger" style={{ position: 'absolute', top: 8, right: 8, fontSize: 8, padding: '1px 4px' }}>
+                        AGOTADO
+                      </span>
+                    )}
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, alignItems: 'center' }}>
+                      <span style={{ fontSize: 13, color: 'var(--bronze-light)', fontWeight: 800 }}>${p.precioVenta}</span>
+                      <span style={{ fontSize: 10, color: p.stock < 10 && !agotado ? 'var(--danger)' : 'var(--text-muted)' }}>
+                        {agotado ? 'Sin stock' : `Stock: ${p.stock}`}
+                      </span>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 
@@ -1772,13 +1787,13 @@ function ModalRegistrarComanda({ mesas, setMesas, cuentasActivas, setCuentasActi
               ) : (
                 carrito.map(item => (
                   <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11 }}>
-                    <span style={{ flex: 1 }}>{item.producto}</span>
+                    <span style={{ flex: 1 }}>{item.nombre}</span>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                       <button onClick={() => quitarDelCarrito(item.id)} style={{ width: 18, height: 18, borderRadius: 4, background: 'var(--bg-elevated)', border: '1px solid var(--border)', cursor: 'pointer', color: 'var(--text-secondary)' }}>-</button>
                       <span style={{ fontWeight: 700 }}>{item.cantidad}</span>
                       <button onClick={() => agregarAlCarrito(item)} style={{ width: 18, height: 18, borderRadius: 4, background: 'var(--bronze-subtle)', border: '1px solid var(--border-bronze)', cursor: 'pointer', color: 'var(--bronze-light)' }}>+</button>
                     </div>
-                    <span style={{ fontWeight: 700, minWidth: 50, textAlign: 'right', color: 'var(--bronze-light)' }}>${item.precio * item.cantidad}</span>
+                    <span style={{ fontWeight: 700, minWidth: 50, textAlign: 'right', color: 'var(--bronze-light)' }}>${item.precioVenta * item.cantidad}</span>
                   </div>
                 ))
               )}
