@@ -160,7 +160,7 @@ export default function BarPanel({ showToast }) {
     return `${dias.toFixed(1)} días`;
   };
 
-  // Registrar Ajuste de Inventario Manual (Auditoría)
+  // Registrar Ajuste de Inventario Manual (Auditoría) (Recomendación 3)
   const aplicarAjusteInventario = () => {
     if (!modalAjuste) return;
     const cant = parseInt(ajusteCant);
@@ -198,6 +198,13 @@ export default function BarPanel({ showToast }) {
     const nuevosLogs = [nuevoLog, ...logs];
     saveState(nuevosProductos, nuevosLogs);
 
+    // Sincronizar con la bitácora general de caja (Recomendación 3)
+    registrarEnBitacoraGeneral(
+      'Ajuste Inv', 
+      `${ajusteTipo === 'entrada' ? 'Entrada' : ajusteTipo === 'merma' ? 'Merma' : 'Salida'} de ${cant} pz de ${prod.nombre} (${nuevoLog.detalle})`,
+      0
+    );
+
     showToast(`Inventario de ${prod.nombre} actualizado con éxito ✓`, 'success');
     setModalAjuste(null);
     setAjusteCant('');
@@ -230,7 +237,7 @@ export default function BarPanel({ showToast }) {
     setModalOrdenCompra(true);
   };
 
-  // Confirmar y cargar la orden de compra sugerida en el stock
+  // Confirmar y cargar la orden de compra sugerida en el stock (Recomendación 3)
   const aprobarCargarOrdenCompra = () => {
     if (ordenSugerida.length === 0) return;
 
@@ -256,17 +263,30 @@ export default function BarPanel({ showToast }) {
     });
 
     saveState(nuevosProductos, nuevosLogs);
+
+    const totalCosto = ordenSugerida.reduce((s,o)=>s+o.costoTotal, 0);
+    // Sincronizar con la bitácora general de caja (Recomendación 3) - costo como egreso
+    registrarEnBitacoraGeneral(
+      'Compra IA', 
+      `Reabastecimiento IA aprobado para ${ordenSugerida.length} productos (${ordenSugerida.map(o=>`${o.cantidadAPedir}x ${o.nombre}`).join(', ')})`,
+      -totalCosto
+    );
+
     showToast('Orden de compra IA aplicada con éxito. Stock actualizado ✓', 'success');
     setModalOrdenCompra(false);
   };
 
+  // Ajustar precio sugerido por IA (Recomendación 3)
   const aplicarAjustePrecioIA = (prodId, nuevoPrecio) => {
+    const prod = productos.find(p => p.id === prodId);
+    if (!prod) return;
+
     const nuevosProductos = productos.map(p => p.id === prodId ? { ...p, precioVenta: nuevoPrecio } : p);
     
     const nuevosLogs = [{
       id: Date.now(),
       fecha: new Date().toISOString(),
-      producto: productos.find(p => p.id === prodId).nombre,
+      producto: prod.nombre,
       tipo: 'ajuste_precio',
       cantidad: 0,
       detalle: `Precio ajustado por sugerencia de IA a $${nuevoPrecio} MXN`,
@@ -274,6 +294,14 @@ export default function BarPanel({ showToast }) {
     }, ...logs];
 
     saveState(nuevosProductos, nuevosLogs);
+
+    // Sincronizar con la bitácora general de caja (Recomendación 3)
+    registrarEnBitacoraGeneral(
+      'Precio IA', 
+      `Precio de ${prod.nombre} ajustado por IA de $${prod.precioVenta} a $${nuevoPrecio} MXN`,
+      0
+    );
+
     showToast(`Precio actualizado con éxito a $${nuevoPrecio} MXN ✓`, 'success');
   };
 
