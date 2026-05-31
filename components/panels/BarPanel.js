@@ -442,6 +442,92 @@ export default function BarPanel({ showToast }) {
             ))}
           </div>
 
+          {/* Modalidades de Inventario y Auditoría IA */}
+          <div style={{
+            background: 'var(--bg-elevated)',
+            border: '1px solid var(--border)',
+            borderRadius: 12,
+            padding: 12,
+            marginBottom: 16,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 10
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--bronze-light)', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'flex', alignItems: 'center', gap: 4 }}>
+                <i className="ri-survey-line" /> Modalidad de Auditoría e Inventario IA
+              </div>
+              <span className="badge badge-bronze" style={{ fontSize: 9 }}>Motor IA Activo</span>
+            </div>
+
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {[
+                { id: 'general', label: 'General', icon: 'ri-archive-line' },
+                { id: 'periodico', label: 'Periódico', icon: 'ri-calendar-todo-line' },
+                { id: 'azar', label: 'Al Azar (Ciego)', icon: 'ri-shuffle-line' },
+                { id: 'producto', label: 'Por Producto', icon: 'ri-search-eye-line' },
+                { id: 'inconsistencia', label: 'Con Inconsistencias', icon: 'ri-error-warning-line' },
+                { id: 'mas_vendidos', label: 'Más Vendidos', icon: 'ri-line-chart-line' },
+                { id: 'menos_vendidos', label: 'Menos Vendidos', icon: 'ri-arrow-down-circle-line' },
+              ].map(m => (
+                <button
+                  key={m.id}
+                  onClick={() => {
+                    setModoInventario(m.id);
+                    if (m.id === 'azar') generarConteoCiego();
+                  }}
+                  className={`btn btn-sm`}
+                  style={{
+                    fontSize: 11,
+                    padding: '6px 10px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 4,
+                    background: modoInventario === m.id ? 'var(--bronze-subtle)' : 'var(--bg-elevated)',
+                    border: `1px solid ${modoInventario === m.id ? 'var(--border-bronze)' : 'var(--border)'}`,
+                    color: modoInventario === m.id ? 'var(--bronze-light)' : 'var(--text-secondary)'
+                  }}
+                >
+                  <i className={m.icon} />
+                  {m.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Opciones extra según modo */}
+            {modoInventario === 'producto' && (
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', animation: 'slideUp 0.15s ease' }}>
+                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Seleccionar Producto:</span>
+                <select
+                  className="form-select"
+                  style={{ width: 240, padding: 6, fontSize: 12, background: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-primary)', borderRadius: 8 }}
+                  value={productoSelId}
+                  onChange={e => setProductoSelId(e.target.value)}
+                >
+                  <option value="">-- Seleccionar --</option>
+                  {productos.map(p => (
+                    <option key={p.id} value={p.id}>{p.nombre}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {modoInventario === 'azar' && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', animation: 'slideUp 0.15s ease' }}>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                  <i className="ri-robot-line" style={{ marginRight: 4 }} />
+                  La IA seleccionó 3 productos ciegos al azar para auditar existencias hoy.
+                </span>
+                <button
+                  className="btn btn-secondary btn-sm"
+                  style={{ fontSize: 10, padding: '4px 8px' }}
+                  onClick={() => generarConteoCiego()}
+                >
+                  <i className="ri-refresh-line" /> Regenerar Auditoría
+                </button>
+              </div>
+            )}
+          </div>
           {/* Tabla de existencias */}
           <div className="card" style={{ padding: 16, overflowX: 'auto' }}>
             <h3 style={{ fontSize: 14, textTransform: 'uppercase', color: 'var(--text-secondary)', marginBottom: 16, fontWeight: 700 }}>Inventario Físico de Existencias</h3>
