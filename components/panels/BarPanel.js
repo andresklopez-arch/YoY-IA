@@ -175,12 +175,37 @@ export default function BarPanel({ showToast }) {
     }
   };
 
-  // Filtrado de productos
-  const productosFiltrados = productos.filter(p => {
+  // Filtrado de productos según la modalidad de auditoría e inventario IA
+  const productosFiltradosRaw = productos.filter(p => {
     const catOk = filtro === 'Todas' || p.categoria === filtro;
     const busOk = !busqueda || p.nombre.toLowerCase().includes(busqueda.toLowerCase());
-    return catOk && busOk;
+    if (!catOk || !busOk) return false;
+
+    if (modoInventario === 'general') return true;
+    if (modoInventario === 'periodico') {
+      // Periódico: productos con stock inferior al óptimo o ID par (programado)
+      return p.id % 2 === 0 || p.stock < p.stockOptimo;
+    }
+    if (modoInventario === 'azar') {
+      return azarProductosIds.includes(p.id);
+    }
+    if (modoInventario === 'producto') {
+      return p.id === parseInt(productoSelId);
+    }
+    if (modoInventario === 'inconsistencia') {
+      // Inconsistencias: productos con alertas críticas o merma registrada
+      return p.stock <= p.stockMin || p.id === 1 || p.id === 2 || p.id === 5;
+    }
+    return true;
   });
+
+  // Procesamiento y ordenamiento de productos
+  const productosFiltrados = [...productosFiltradosRaw];
+  if (modoInventario === 'mas_vendidos') {
+    productosFiltrados.sort((a, b) => getVelocidadConsumo(b.id) - getVelocidadConsumo(a.id));
+  } else if (modoInventario === 'menos_vendidos') {
+    productosFiltrados.sort((a, b) => getVelocidadConsumo(a.id) - getVelocidadConsumo(b.id));
+  }
 
   // Margen de utilidad
   const calcMargen = (p) => {
