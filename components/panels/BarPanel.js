@@ -198,6 +198,16 @@ export default function BarPanel({ showToast }) {
           setLogs(defaultLogs);
           localStorage.setItem('yoy_billar_stock_logs', obfuscate(defaultLogs));
         }
+
+        const savedMesas = localStorage.getItem('yoy_billar_mesas');
+        if (savedMesas) {
+          setMesas(deobfuscate(savedMesas) || []);
+        }
+
+        const savedCuentas = localStorage.getItem('yoy_billar_cuentas');
+        if (savedCuentas) {
+          setCuentasActivas(deobfuscate(savedCuentas) || []);
+        }
       } catch (err) {
         console.error(err);
       }
