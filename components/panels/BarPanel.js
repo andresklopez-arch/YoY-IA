@@ -922,12 +922,29 @@ export default function BarPanel({ showToast }) {
                 </div>
               )}
             </div>
-            <div className="modal-footer">
+            <div className="modal-footer" style={{ gap: 8 }}>
               <button className="btn btn-secondary" onClick={() => setModalOrdenCompra(false)}>Cancelar</button>
               {ordenSugerida.length > 0 && (
-                <button className="btn btn-primary" onClick={aprobarCargarOrdenCompra}>
-                  Aprobar y Recibir Mercancía
-                </button>
+                <>
+                  <button
+                    className="btn btn-success"
+                    style={{ background: '#25D366', color: '#fff', border: 'none', display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', padding: '10px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600 }}
+                    onClick={() => {
+                      const msg = `YoY IA Billar - Orden de Compra Sugerida IA:\n\n` + 
+                        ordenSugerida.map(o => `· *${o.nombre}*: Pedir ${o.cantidadAPedir} pz (Costo: $${o.costoTotal} MXN)`).join('\n') + 
+                        `\n\n*Costo Total*: $${ordenSugerida.reduce((s,o)=>s+o.costoTotal, 0)} MXN\n` +
+                        `*Ganancia Estimada*: $${ordenSugerida.reduce((s,o)=>s+o.gananciaProyectada, 0)} MXN\n` +
+                        `Por favor, confirmar pedido.`;
+                      window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`, '_blank');
+                      showToast('Abriendo enlace de WhatsApp con la plantilla de compra ✓', 'success');
+                    }}
+                  >
+                    <i className="ri-whatsapp-line" style={{ fontSize: 16 }} /> Enviar por WhatsApp
+                  </button>
+                  <button className="btn btn-primary" onClick={aprobarCargarOrdenCompra}>
+                    Aprobar y Recibir Mercancía
+                  </button>
+                </>
               )}
             </div>
           </div>
