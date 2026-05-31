@@ -242,6 +242,37 @@ function ModalCerrarMesa({ mesa, cuentasActivas, onClose, onCerrar, onAgregarACu
   );
 }
 
+// ── UTILIDADES DE ENCRIPTACIÓN/OFUSCACIÓN (SUGERENCIA 1) ────────────────
+const obfuscate = (data) => {
+  if (!data) return '';
+  const str = typeof data === 'string' ? data : JSON.stringify(data);
+  try {
+    if (typeof window !== 'undefined') {
+      return window.btoa(unescape(encodeURIComponent(str)));
+    }
+  } catch (e) {
+    console.error(e);
+  }
+  return str;
+};
+
+const deobfuscate = (str) => {
+  if (!str) return null;
+  try {
+    if (typeof window !== 'undefined') {
+      const decoded = decodeURIComponent(escape(window.atob(str)));
+      return JSON.parse(decoded);
+    }
+  } catch (e) {
+    try {
+      return JSON.parse(str);
+    } catch (err) {
+      return null;
+    }
+  }
+  return null;
+};
+
 // ── TIMER HOOK ────────────────────────────────────────────
 function useLiveTick() {
   const [tick, setTick] = useState(0);
@@ -301,21 +332,21 @@ export default function MesasPanel({ showToast }) {
   ]);
   const tick = useLiveTick();
 
-  // ── PERSISTENCIA LOCAL DE ESTADO (SUGERENCIA 1) ─────────────────
+  // ── PERSISTENCIA LOCAL DE ESTADO OFUSCADA (SUGERENCIA 1) ─────────────────
   useEffect(() => {
     if (typeof window !== 'undefined') {
       try {
         const savedMesas = localStorage.getItem('yoy_billar_mesas');
-        if (savedMesas) setMesas(JSON.parse(savedMesas));
+        if (savedMesas) setMesas(deobfuscate(savedMesas) || INIT_MESAS);
 
         const savedCuentas = localStorage.getItem('yoy_billar_cuentas');
-        if (savedCuentas) setCuentasActivas(JSON.parse(savedCuentas));
+        if (savedCuentas) setCuentasActivas(deobfuscate(savedCuentas) || []);
 
         const savedFila = localStorage.getItem('yoy_billar_fila');
-        if (savedFila) setFila(JSON.parse(savedFila));
+        if (savedFila) setFila(deobfuscate(savedFila) || []);
 
         const savedBitacora = localStorage.getItem('yoy_billar_bitacora');
-        if (savedBitacora) setBitacora(JSON.parse(savedBitacora));
+        if (savedBitacora) setBitacora(deobfuscate(savedBitacora) || []);
       } catch (err) {
         console.error("Error al cargar datos desde localStorage:", err);
       }
@@ -325,7 +356,7 @@ export default function MesasPanel({ showToast }) {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       try {
-        localStorage.setItem('yoy_billar_mesas', JSON.stringify(mesas));
+        localStorage.setItem('yoy_billar_mesas', obfuscate(mesas));
       } catch (err) {
         console.error("Error al guardar mesas:", err);
       }
@@ -335,7 +366,7 @@ export default function MesasPanel({ showToast }) {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       try {
-        localStorage.setItem('yoy_billar_cuentas', JSON.stringify(cuentasActivas));
+        localStorage.setItem('yoy_billar_cuentas', obfuscate(cuentasActivas));
       } catch (err) {
         console.error("Error al guardar cuentas:", err);
       }
@@ -345,14 +376,14 @@ export default function MesasPanel({ showToast }) {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       try {
-        localStorage.setItem('yoy_billar_fila', JSON.stringify(fila));
+        localStorage.setItem('yoy_billar_fila', obfuscate(fila));
       } catch (err) {
         console.error("Error al guardar fila:", err);
       }
     }
   }, [fila]);
 
-  // ── REGISTRO DE AUDITORÍA Y BITÁCORA (SUGERENCIA 2) ──────────────
+  // ── REGISTRO DE AUDITORÍA Y BITÁCORA OFUSCADA (SUGERENCIA 1 Y 2) ──────────
   const registrarEvento = (accion, detalle, monto = 0) => {
     const nuevoEvento = {
       id: Date.now(),
@@ -365,7 +396,7 @@ export default function MesasPanel({ showToast }) {
     setBitacora(prev => {
       const act = [nuevoEvento, ...prev].slice(0, 100);
       try {
-        localStorage.setItem('yoy_billar_bitacora', JSON.stringify(act));
+        localStorage.setItem('yoy_billar_bitacora', obfuscate(act));
       } catch (err) {
         console.error("Error al guardar bitácora:", err);
       }
