@@ -48,7 +48,26 @@ export default function BarPanel({ showToast }) {
       try {
         const savedStock = localStorage.getItem('yoy_billar_stock');
         if (savedStock) {
-          setProductos(JSON.parse(savedStock));
+          const parsed = JSON.parse(savedStock);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            // Normalizar e inyectar claves por defecto
+            const normalizados = parsed.map(p => ({
+              ...p,
+              nombre: p.nombre || p.producto || `Producto #${p.id}`,
+              precioVenta: p.precioVenta !== undefined ? p.precioVenta : (p.precio !== undefined ? p.precio : 0),
+              stock: p.stock !== undefined ? p.stock : 0,
+              stockMin: p.stockMin !== undefined ? p.stockMin : 15,
+              stockOptimo: p.stockOptimo !== undefined ? p.stockOptimo : 50,
+              categoria: p.categoria || 'Bar',
+              unidad: p.unidad || 'pz',
+              precioCosto: p.precioCosto !== undefined ? p.precioCosto : Math.round((p.precioVenta || p.precio || 0) * 0.5)
+            }));
+            setProductos(normalizados);
+            localStorage.setItem('yoy_billar_stock', JSON.stringify(normalizados));
+          } else {
+            setProductos(DEFAULT_PRODUCTOS);
+            localStorage.setItem('yoy_billar_stock', JSON.stringify(DEFAULT_PRODUCTOS));
+          }
         } else {
           setProductos(DEFAULT_PRODUCTOS);
           localStorage.setItem('yoy_billar_stock', JSON.stringify(DEFAULT_PRODUCTOS));
@@ -80,6 +99,28 @@ export default function BarPanel({ showToast }) {
       localStorage.setItem('yoy_billar_stock_logs', JSON.stringify(newLogs));
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  // Sincronización automática con la Bitácora General de Caja (Recomendación 3)
+  const registrarEnBitacoraGeneral = (accion, detalle, monto = 0) => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('yoy_billar_bitacora');
+        const bitacora = saved ? JSON.parse(saved) : [];
+        const nuevoEvento = {
+          id: Date.now() + Math.random(),
+          fecha: new Date().toISOString(),
+          accion,
+          detalle,
+          monto,
+          operador: 'Sistema IA / Inventario'
+        };
+        const actualizada = [nuevoEvento, ...bitacora].slice(0, 100);
+        localStorage.setItem('yoy_billar_bitacora', JSON.stringify(actualizada));
+      } catch (err) {
+        console.error("Error al registrar en bitácora general:", err);
+      }
     }
   };
 

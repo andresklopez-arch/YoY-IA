@@ -628,7 +628,7 @@ export default function MesasPanel({ showToast }) {
             <i className="ri-robot-line" style={{ fontSize: 18, color: 'var(--bronze-light)' }} />
             <div style={{ fontSize: 12 }}>
               <span style={{ fontWeight: 700, color: 'var(--bronze-light)' }}>Asistente IA de Stock:</span>{' '}
-              Se requiere reorden en {productosBajos.length} productos ({productosBajos.map(p=>p.producto).join(', ')}).
+              Se requiere reorden en {productosBajos.length} productos ({productosBajos.map(p=>p.nombre || p.producto).join(', ')}).
             </div>
           </div>
           <button
@@ -1498,16 +1498,44 @@ function ModalRegistrarComanda({ mesas, setMesas, cuentasActivas, setCuentasActi
       try {
         const saved = localStorage.getItem('yoy_billar_stock');
         if (saved) {
-          setProductos(JSON.parse(saved));
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            // Normalizar las claves viejas/nuevas para asegurar consistencia
+            const normalizados = parsed.map(p => ({
+              ...p,
+              nombre: p.nombre || p.producto || `Producto #${p.id}`,
+              precioVenta: p.precioVenta !== undefined ? p.precioVenta : (p.precio !== undefined ? p.precio : 0),
+              stock: p.stock !== undefined ? p.stock : 0,
+              stockMin: p.stockMin !== undefined ? p.stockMin : 15,
+              stockOptimo: p.stockOptimo !== undefined ? p.stockOptimo : 50,
+              categoria: p.categoria || 'Bar',
+              unidad: p.unidad || 'pz'
+            }));
+            setProductos(normalizados);
+            // Sincronizar en localStorage para que todos los paneles lean el formato correcto
+            localStorage.setItem('yoy_billar_stock', JSON.stringify(normalizados));
+          } else {
+            const defaultProds = [
+              { id: 1, nombre: 'Cerveza Corona Extra', categoria: 'Cerveza', precioCosto: 22, precioVenta: 45, stock: 120, stockMin: 30, stockOptimo: 150, unidad: 'bot' },
+              { id: 2, nombre: 'Refresco Coca-Cola 355ml', categoria: 'Refresco', precioCosto: 14, precioVenta: 30, stock: 80, stockMin: 20, stockOptimo: 100, unidad: 'pz' },
+              { id: 3, nombre: 'Nachos con Queso Gigantes', categoria: 'Snack', precioCosto: 32, precioVenta: 75, stock: 50, stockMin: 15, stockOptimo: 60, unidad: 'porc' },
+              { id: 4, nombre: 'Papas Fritas Crujientes', categoria: 'Snack', precioCosto: 20, precioVenta: 55, stock: 40, stockMin: 12, stockOptimo: 50, unidad: 'porc' },
+              { id: 5, nombre: 'Alitas de Pollo x10', categoria: 'Comida', precioCosto: 58, precioVenta: 120, stock: 35, stockMin: 10, stockOptimo: 45, unidad: 'pz' },
+              { id: 6, nombre: 'Café Americano Organico', categoria: 'Bebida', precioCosto: 12, precioVenta: 35, stock: 100, stockMin: 25, stockOptimo: 120, unidad: 'taza' },
+              { id: 7, nombre: 'Agua Embotellada 600ml', categoria: 'Bebida', precioCosto: 8, precioVenta: 20, stock: 150, stockMin: 40, stockOptimo: 180, unidad: 'pz' }
+            ];
+            setProductos(defaultProds);
+            localStorage.setItem('yoy_billar_stock', JSON.stringify(defaultProds));
+          }
         } else {
           const defaultProds = [
-            { id: 1, nombre: 'Cerveza Corona Extra', precioVenta: 45, stock: 120 },
-            { id: 2, nombre: 'Refresco Coca-Cola 355ml', precioVenta: 30, stock: 80 },
-            { id: 3, nombre: 'Nachos con Queso Gigantes', precioVenta: 75, stock: 50 },
-            { id: 4, nombre: 'Papas Fritas Crujientes', precioVenta: 55, stock: 40 },
-            { id: 5, nombre: 'Alitas de Pollo x10', precioVenta: 120, stock: 35 },
-            { id: 6, nombre: 'Café Americano Organico', precioVenta: 35, stock: 100 },
-            { id: 7, nombre: 'Agua Embotellada 600ml', precioVenta: 20, stock: 150 },
+            { id: 1, nombre: 'Cerveza Corona Extra', categoria: 'Cerveza', precioCosto: 22, precioVenta: 45, stock: 120, stockMin: 30, stockOptimo: 150, unidad: 'bot' },
+            { id: 2, nombre: 'Refresco Coca-Cola 355ml', categoria: 'Refresco', precioCosto: 14, precioVenta: 30, stock: 80, stockMin: 20, stockOptimo: 100, unidad: 'pz' },
+            { id: 3, nombre: 'Nachos con Queso Gigantes', categoria: 'Snack', precioCosto: 32, precioVenta: 75, stock: 50, stockMin: 15, stockOptimo: 60, unidad: 'porc' },
+            { id: 4, nombre: 'Papas Fritas Crujientes', categoria: 'Snack', precioCosto: 20, precioVenta: 55, stock: 40, stockMin: 12, stockOptimo: 50, unidad: 'porc' },
+            { id: 5, nombre: 'Alitas de Pollo x10', categoria: 'Comida', precioCosto: 58, precioVenta: 120, stock: 35, stockMin: 10, stockOptimo: 45, unidad: 'pz' },
+            { id: 6, nombre: 'Café Americano Organico', categoria: 'Bebida', precioCosto: 12, precioVenta: 35, stock: 100, stockMin: 25, stockOptimo: 120, unidad: 'taza' },
+            { id: 7, nombre: 'Agua Embotellada 600ml', categoria: 'Bebida', precioCosto: 8, precioVenta: 20, stock: 150, stockMin: 40, stockOptimo: 180, unidad: 'pz' }
           ];
           setProductos(defaultProds);
           localStorage.setItem('yoy_billar_stock', JSON.stringify(defaultProds));
