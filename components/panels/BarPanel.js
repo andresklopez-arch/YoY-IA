@@ -603,7 +603,24 @@ export default function BarPanel({ showToast }) {
           </div>
           {/* Tabla de existencias */}
           <div className="card" style={{ padding: 16, overflowX: 'auto' }}>
-            <h3 style={{ fontSize: 14, textTransform: 'uppercase', color: 'var(--text-secondary)', marginBottom: 16, fontWeight: 700 }}>Inventario Físico de Existencias</h3>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <h3 style={{ fontSize: 14, textTransform: 'uppercase', color: 'var(--text-secondary)', fontWeight: 700, margin: 0 }}>Inventario Físico de Existencias</h3>
+              <button
+                className="btn btn-secondary btn-sm"
+                style={{
+                  fontSize: 11,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  color: 'var(--bronze-light)',
+                  borderColor: 'var(--border-bronze)',
+                  padding: '6px 12px'
+                }}
+                onClick={() => setModalExportar(true)}
+              >
+                <i className="ri-file-pdf-line" /> Exportar Reporte IA
+              </button>
+            </div>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, textAlign: 'left' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--border)', color: 'var(--text-muted)' }}>
