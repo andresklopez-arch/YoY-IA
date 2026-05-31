@@ -16,7 +16,7 @@ import { AuthProvider, useAuth } from '@/lib/auth-context';
 
 function AppContent() {
   const { user, loading } = useAuth();
-  const [activePanel, setActivePanel] = useState('dashboard');
+  const [activePanel, setActivePanel] = useState('mesas');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [toasts, setToasts] = useState([]);
 
