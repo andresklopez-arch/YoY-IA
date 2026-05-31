@@ -26,6 +26,37 @@ const DEFAULT_PRODUCTOS = [
 
 const CATEGORIAS = ['Todas', 'Cerveza', 'Refresco', 'Snack', 'Comida', 'Bebida'];
 
+// ── UTILIDADES DE ENCRIPTACIÓN/OFUSCACIÓN (SUGERENCIA 1) ────────────────
+const obfuscate = (data) => {
+  if (!data) return '';
+  const str = typeof data === 'string' ? data : JSON.stringify(data);
+  try {
+    if (typeof window !== 'undefined') {
+      return window.btoa(unescape(encodeURIComponent(str)));
+    }
+  } catch (e) {
+    console.error(e);
+  }
+  return str;
+};
+
+const deobfuscate = (str) => {
+  if (!str) return null;
+  try {
+    if (typeof window !== 'undefined') {
+      const decoded = decodeURIComponent(escape(window.atob(str)));
+      return JSON.parse(decoded);
+    }
+  } catch (e) {
+    try {
+      return JSON.parse(str);
+    } catch (err) {
+      return null;
+    }
+  }
+  return null;
+};
+
 export default function BarPanel({ showToast }) {
   const [productos, setProductos] = useState([]);
   const [filtro, setFiltro] = useState('Todas');
@@ -42,13 +73,33 @@ export default function BarPanel({ showToast }) {
   const [modalOrdenCompra, setModalOrdenCompra] = useState(false);
   const [ordenSugerida, setOrdenSugerida] = useState([]);
 
-  // Cargar inventario y logs de localStorage
+  // Estados para Auditoría e Inventarios IA seleccionables
+  const [modoInventario, setModoInventario] = useState('general'); // general, periodico, azar, producto, inconsistencia, mas_vendidos, menos_vendidos
+  const [productoSelId, setProductoSelId] = useState('');
+  const [azarProductosIds, setAzarProductosIds] = useState([]);
+
+  const generarConteoCiego = (listaProds = productos) => {
+    if (listaProds.length === 0) return;
+    const shuffled = [...listaProds].sort(() => 0.5 - Math.random());
+    const seleccionados = shuffled.slice(0, 3).map(p => p.id);
+    setAzarProductosIds(seleccionados);
+    showToast('Auditoría Ciega IA: 3 productos seleccionados al azar.', 'success');
+  };
+
+  useEffect(() => {
+    if (productos.length > 0 && azarProductosIds.length === 0) {
+      const shuffled = [...productos].sort(() => 0.5 - Math.random());
+      setAzarProductosIds(shuffled.slice(0, 3).map(p => p.id));
+    }
+  }, [productos]);
+
+  // Cargar inventario y logs de localStorage (Ofuscados)
   useEffect(() => {
     if (typeof window !== 'undefined') {
       try {
         const savedStock = localStorage.getItem('yoy_billar_stock');
         if (savedStock) {
-          const parsed = JSON.parse(savedStock);
+          const parsed = deobfuscate(savedStock);
           if (Array.isArray(parsed) && parsed.length > 0) {
             // Normalizar e inyectar claves por defecto
             const normalizados = parsed.map(p => ({
@@ -63,26 +114,26 @@ export default function BarPanel({ showToast }) {
               precioCosto: p.precioCosto !== undefined ? p.precioCosto : Math.round((p.precioVenta || p.precio || 0) * 0.5)
             }));
             setProductos(normalizados);
-            localStorage.setItem('yoy_billar_stock', JSON.stringify(normalizados));
+            localStorage.setItem('yoy_billar_stock', obfuscate(normalizados));
           } else {
             setProductos(DEFAULT_PRODUCTOS);
-            localStorage.setItem('yoy_billar_stock', JSON.stringify(DEFAULT_PRODUCTOS));
+            localStorage.setItem('yoy_billar_stock', obfuscate(DEFAULT_PRODUCTOS));
           }
         } else {
           setProductos(DEFAULT_PRODUCTOS);
-          localStorage.setItem('yoy_billar_stock', JSON.stringify(DEFAULT_PRODUCTOS));
+          localStorage.setItem('yoy_billar_stock', obfuscate(DEFAULT_PRODUCTOS));
         }
 
         const savedLogs = localStorage.getItem('yoy_billar_stock_logs');
         if (savedLogs) {
-          setLogs(JSON.parse(savedLogs));
+          setLogs(deobfuscate(savedLogs) || []);
         } else {
           const defaultLogs = [
             { id: 1, fecha: new Date(Date.now() - 36*3600000).toISOString(), producto: 'Cerveza Corona Extra', tipo: 'entrada', cantidad: 48, detalle: 'Abastecimiento de bodega principal', operador: 'Admin YoY' },
             { id: 2, fecha: new Date(Date.now() - 12*3600000).toISOString(), producto: 'Alitas de Pollo x10', tipo: 'merma', cantidad: 3, detalle: 'Insumo caducado en refrigeración', operador: 'Admin YoY' }
           ];
           setLogs(defaultLogs);
-          localStorage.setItem('yoy_billar_stock_logs', JSON.stringify(defaultLogs));
+          localStorage.setItem('yoy_billar_stock_logs', obfuscate(defaultLogs));
         }
       } catch (err) {
         console.error(err);
@@ -90,13 +141,13 @@ export default function BarPanel({ showToast }) {
     }
   }, []);
 
-  // Guardar productos y logs
+  // Guardar productos y logs (Ofuscados)
   const saveState = (newProds, newLogs) => {
     setProductos(newProds);
     setLogs(newLogs);
     try {
-      localStorage.setItem('yoy_billar_stock', JSON.stringify(newProds));
-      localStorage.setItem('yoy_billar_stock_logs', JSON.stringify(newLogs));
+      localStorage.setItem('yoy_billar_stock', obfuscate(newProds));
+      localStorage.setItem('yoy_billar_stock_logs', obfuscate(newLogs));
     } catch (err) {
       console.error(err);
     }
@@ -107,7 +158,7 @@ export default function BarPanel({ showToast }) {
     if (typeof window !== 'undefined') {
       try {
         const saved = localStorage.getItem('yoy_billar_bitacora');
-        const bitacora = saved ? JSON.parse(saved) : [];
+        const bitacora = saved ? (deobfuscate(saved) || []) : [];
         const nuevoEvento = {
           id: Date.now() + Math.random(),
           fecha: new Date().toISOString(),
@@ -117,7 +168,7 @@ export default function BarPanel({ showToast }) {
           operador: 'Sistema IA / Inventario'
         };
         const actualizada = [nuevoEvento, ...bitacora].slice(0, 100);
-        localStorage.setItem('yoy_billar_bitacora', JSON.stringify(actualizada));
+        localStorage.setItem('yoy_billar_bitacora', obfuscate(actualizada));
       } catch (err) {
         console.error("Error al registrar en bitácora general:", err);
       }
