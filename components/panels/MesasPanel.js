@@ -267,6 +267,28 @@ export default function MesasPanel({ showToast }) {
   const [modalBitacora, setModalBitacora] = useState(false);
   const [bitacora, setBitacora] = useState([]);
   const [modalComanda, setModalComanda] = useState(false);
+  const [productosBajos, setProductosBajos] = useState([]);
+
+  useEffect(() => {
+    const revisarStockBajo = () => {
+      if (typeof window !== 'undefined') {
+        try {
+          const saved = localStorage.getItem('yoy_billar_stock');
+          if (saved) {
+            const list = JSON.parse(saved);
+            const bajos = list.filter(p => p.stock <= p.stockMin);
+            setProductosBajos(bajos);
+          }
+        } catch (err) {
+          console.error(err);
+        }
+      }
+    };
+
+    revisarStockBajo();
+    const interval = setInterval(revisarStockBajo, 4000);
+    return () => clearInterval(interval);
+  }, [modalComanda, modalCuentas]);
 
   const [cuentasActivas, setCuentasActivas] = useState([
     { id: 101, cliente: 'Juan Pérez', tiempoJuego: 160, consumos: [{ id: 1, producto: 'Cerveza Corona', precio: 45, cantidad: 2 }, { id: 2, producto: 'Refresco Coca-Cola', precio: 30, cantidad: 1 }], inicio: Date.now() - 1.5*3600000 },
@@ -586,6 +608,37 @@ export default function MesasPanel({ showToast }) {
           </div>
         ))}
       </div>
+
+      {/* Alerta de Inventario Crítico IA (Sugerencia 2) */}
+      {productosBajos.length > 0 && (
+        <div style={{
+          background: 'rgba(205,127,50,0.06)',
+          border: '1px solid rgba(205,127,50,0.25)',
+          borderRadius: 12,
+          padding: '12px 16px',
+          marginBottom: 20,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: 12,
+          animation: 'slideUp 0.3s ease'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <i className="ri-robot-line" style={{ fontSize: 18, color: 'var(--bronze-light)' }} />
+            <div style={{ fontSize: 12 }}>
+              <span style={{ fontWeight: 700, color: 'var(--bronze-light)' }}>Asistente IA de Stock:</span>{' '}
+              Se requiere reorden en {productosBajos.length} productos ({productosBajos.map(p=>p.producto).join(', ')}).
+            </div>
+          </div>
+          <button
+            className="btn btn-secondary btn-sm"
+            style={{ fontSize: 10, padding: '4px 10px', color: 'var(--bronze-light)', borderColor: 'var(--border-bronze)' }}
+            onClick={() => showToast('Diríjase al panel de Inventario IA para lanzar la orden de compra.', 'info')}
+          >
+            Lanzar Reorden IA
+          </button>
+        </div>
+      )}
 
       {/* Filtros */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
@@ -1507,8 +1560,30 @@ function ModalRegistrarComanda({ mesas, setMesas, cuentasActivas, setCuentasActi
       return;
     }
 
-    // Descontar del stock real
-    const stockActualizado = productos.map(p => {
+    // ── VALIDACIÓN CONCURRENTE DE STOCK FRESCO (SUGERENCIA 1) ─────
+    let stockFresco = [];
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('yoy_billar_stock');
+        if (saved) stockFresco = JSON.parse(saved);
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    if (stockFresco.length > 0) {
+      for (let item of carrito) {
+        const frescoItem = stockFresco.find(p => p.id === item.id);
+        if (!frescoItem || frescoItem.stock < item.cantidad) {
+          showToast(`⚠️ Conflicto de Inventario: El stock de "${item.producto}" acaba de cambiar. Solo quedan ${frescoItem ? frescoItem.stock : 0} unidades. Por favor rehaga su comanda.`, 'error');
+          setProductos(stockFresco);
+          return;
+        }
+      }
+    }
+
+    // Descontar del stock fresco validado
+    const stockActualizado = (stockFresco.length > 0 ? stockFresco : productos).map(p => {
       const enCart = carrito.find(item => item.id === p.id);
       if (enCart) {
         return { ...p, stock: Math.max(0, p.stock - enCart.cantidad) };
