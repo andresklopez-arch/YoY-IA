@@ -773,12 +773,30 @@ export default function BarPanel({ showToast }) {
                 </button>
               </div>
 
-              {/* Sugerencia 3: Merma sospechosa */}
-              <div style={{ padding: 12, background: 'rgba(239,68,68,0.04)', borderRadius: 10, border: '1px solid rgba(239,68,68,0.15)', display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <div style={{ fontSize: 10, color: 'var(--danger)', fontWeight: 700 }}>AUDITORÍA IA: MERMA SOSPECHOSA</div>
-                <div style={{ fontSize: 11, color: 'var(--text-primary)' }}>Se detecta discrepancia física de -4 refrescos no registrados en comandas ni comandas de barra.</div>
-                <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Se recomienda arqueo de inventario diario en la noche.</div>
-              </div>
+              {/* Sugerencia 3: Cruce Concurrente en Vivo */}
+              {inconsistenciasEnVivo.length === 0 ? (
+                <div style={{ padding: 12, background: 'rgba(34,197,94,0.04)', borderRadius: 10, border: '1px solid rgba(34,197,94,0.15)', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <div style={{ fontSize: 10, color: 'var(--success)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <i className="ri-checkbox-circle-line" /> AUDITORÍA IA: CRUCE CONCURRENTE OK
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-primary)' }}>No se detectan discrepancias entre mesas ocupadas y consumo registrado. Todo en orden.</div>
+                </div>
+              ) : (
+                <div style={{ padding: 12, background: 'rgba(239,68,68,0.04)', borderRadius: 10, border: '1px solid rgba(239,68,68,0.15)', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <div style={{ fontSize: 10, color: 'var(--danger)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <i className="ri-error-warning-line" style={{ fontSize: 13 }} /> CRUCE IA: DISCREPANCIA EN MESAS ({inconsistenciasEnVivo.length})
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxH: 140, overflowY: 'auto' }}>
+                    {inconsistenciasEnVivo.map((inc, index) => (
+                      <div key={index} style={{ fontSize: 11, color: 'var(--text-primary)', borderBottom: index < inconsistenciasEnVivo.length - 1 ? '1px dashed rgba(255,255,255,0.05)' : 'none', paddingBottom: 4 }}>
+                        <strong>{inc.nombre} ({inc.cliente})</strong>
+                        <div style={{ fontSize: 10, color: 'var(--danger)', marginTop: 2 }}>{inc.motivo}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>Cruce en vivo: Mesas ocupadas con consumo de barra en $0. Se sugiere auditoría de comanda.</div>
+                </div>
+              )}
 
             </div>
           </div>
