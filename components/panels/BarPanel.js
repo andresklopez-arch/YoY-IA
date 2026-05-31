@@ -175,6 +175,14 @@ export default function BarPanel({ showToast }) {
   const [cuentasActivas, setCuentasActivas] = useState([]);
   const [inconsistenciasEnVivo, setInconsistenciasEnVivo] = useState([]);
 
+  // Sugerencia 2: Offline-First Supabase Sync
+  const [isOnline, setIsOnline] = useState(true);
+  const [colaSincronizacion, setColaSincronizacion] = useState([]);
+
+  // Sugerencia 3: Escaneo en Conteo Ciego
+  const [modalEscaneo, setModalEscaneo] = useState(null);
+  const [azarEscaneados, setAzarEscaneados] = useState([]);
+
   const generarConteoCiego = (listaProds = productos) => {
     if (listaProds.length === 0) return;
     const shuffled = [...listaProds].sort(() => 0.5 - Math.random());
