@@ -13,7 +13,7 @@ const PANEL_LABELS = {
   config:    'Configuración',
 };
 
-export default function Topbar({ user, activePanel, onToggleSidebar, showToast }) {
+export default function Topbar({ user, activePanel, onToggleSidebar, showToast, onNavigate }) {
   const { logout } = useAuth();
   const [time, setTime] = useState(new Date());
   const [showMenu, setShowMenu] = useState(false);
@@ -42,6 +42,36 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast }
             {PANEL_LABELS[activePanel] || activePanel}
           </span>
         </div>
+      </div>
+
+      {/* Accesos Rápidos en el Centro */}
+      <div className="topbar-quick-actions">
+        {[
+          { label: 'Mesa', icon: 'ri-play-circle-line', color: 'var(--success)', nav: 'mesas' },
+          { label: 'Caja', icon: 'ri-money-dollar-circle-line', color: 'var(--bronze-light)', nav: 'caja' },
+          { label: 'Comanda', icon: 'ri-cup-line', color: 'var(--blue-light)', nav: 'bar' },
+          { label: 'Torneos', icon: 'ri-trophy-line', color: '#ffd700', nav: 'torneos' },
+          { label: 'Reportes', icon: 'ri-bar-chart-2-line', color: 'var(--silver)', nav: 'reportes' },
+          { label: 'Ajustes', icon: 'ri-settings-4-line', color: 'var(--text-muted)', nav: 'config' },
+        ].map((a, i) => (
+          <button
+            key={i}
+            onClick={() => onNavigate(a.nav)}
+            className="topbar-quick-btn"
+            onMouseEnter={e => {
+              e.currentTarget.style.borderColor = a.color;
+              e.currentTarget.style.background = `${a.color}11`;
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.borderColor = 'var(--border)';
+              e.currentTarget.style.background = 'var(--bg-elevated)';
+            }}
+            title={a.label}
+          >
+            <i className={a.icon} style={{ fontSize: 16, color: a.color }} />
+            <span className="topbar-quick-label">{a.label}</span>
+          </button>
+        ))}
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
