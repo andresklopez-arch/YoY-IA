@@ -28,12 +28,40 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
 
   return (
     <header className="topbar">
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         <button
           onClick={onToggleSidebar}
           style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', fontSize: 20, cursor: 'pointer', padding: 4, borderRadius: 6 }}
         >
           <i className="ri-menu-line" />
+        </button>
+
+        <button
+          onClick={() => onNavigate('mesas')}
+          style={{
+            background: 'var(--bg-elevated)',
+            border: '1px solid var(--border)',
+            color: 'var(--bronze-light)',
+            fontSize: 16,
+            cursor: 'pointer',
+            padding: '5px 9px',
+            borderRadius: 8,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            transition: 'all 0.15s'
+          }}
+          onMouseEnter={e => {
+            e.currentTarget.style.borderColor = 'var(--border-bronze)';
+            e.currentTarget.style.background = 'var(--bronze-subtle)';
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.style.borderColor = 'var(--border)';
+            e.currentTarget.style.background = 'var(--bg-elevated)';
+          }}
+          title="Ir a Mesas (Inicio)"
+        >
+          <i className="ri-home-4-line" />
         </button>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
