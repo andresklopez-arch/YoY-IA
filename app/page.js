@@ -17,7 +17,7 @@ import { AuthProvider, useAuth } from '@/lib/auth-context';
 function AppContent() {
   const { user, loading } = useAuth();
   const [activePanel, setActivePanel] = useState('dashboard');
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [toasts, setToasts] = useState([]);
 
   const showToast = (message, type = 'info') => {
@@ -66,19 +66,42 @@ function AppContent() {
 
   return (
     <div className="app-wrapper">
+      {/* Sensor de hover invisible en el borde izquierdo */}
+      <div 
+        onMouseEnter={() => setSidebarOpen(true)}
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          bottom: 0,
+          width: 12,
+          zIndex: 1050,
+          background: 'transparent',
+          cursor: 'pointer'
+        }}
+      />
+
       <Sidebar
         activePanel={activePanel}
-        onNavigate={setActivePanel}
-        collapsed={sidebarCollapsed}
-        onToggle={() => setSidebarCollapsed(p => !p)}
+        onNavigate={(panel) => {
+          setActivePanel(panel);
+          setSidebarOpen(false);
+        }}
+        open={sidebarOpen}
+        onMouseEnter={() => setSidebarOpen(true)}
+        onMouseLeave={() => setSidebarOpen(false)}
         user={user}
       />
-      <div className={`main-content ${sidebarCollapsed ? 'collapsed' : ''}`}>
+      <div className="main-content">
         <Topbar
           user={user}
           activePanel={activePanel}
-          onToggleSidebar={() => setSidebarCollapsed(p => !p)}
+          onToggleSidebar={() => setSidebarOpen(p => !p)}
           showToast={showToast}
+          onNavigate={(panel) => {
+            setActivePanel(panel);
+            setSidebarOpen(false);
+          }}
         />
         <div className="page-content">
           {panels[activePanel] || panels.dashboard}
