@@ -530,7 +530,56 @@ export default function BarPanel({ showToast }) {
             </div>
           </div>
         </div>
+      </div>
 
+      {/* ── GRÁFICA DE TENDENCIAS SEMANALES IA (RECOMENDACIÓN 2) ── */}
+      <div className="card" style={{ padding: 20, marginTop: 20, border: '1px solid var(--border)', borderRadius: 12, background: 'var(--bg-elevated)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <div>
+            <h3 style={{ fontSize: 14, textTransform: 'uppercase', color: 'var(--bronze-light)', fontWeight: 800, display: 'flex', alignItems: 'center', gap: 6, margin: 0 }}>
+              <i className="ri-area-chart-line" />
+              Tendencias Semanales de Consumo IA
+            </h3>
+            <p style={{ fontSize: 11, color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>Gráfico de área de consumo acumulado por categoría (Cervezas, Refrescos y Snacks) durante la última semana.</p>
+          </div>
+          <span className="badge badge-bronze" style={{ padding: '4px 8px', fontSize: 10 }}>Auditoría Visual Activa</span>
+        </div>
+        
+        <div style={{ width: '100%', height: 260 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={HISTORICO_DATA} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <defs>
+                <linearGradient id="colorCerveza" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="var(--bronze-light)" stopOpacity={0.3}/>
+                  <stop offset="95%" stopColor="var(--bronze-light)" stopOpacity={0.0}/>
+                </linearGradient>
+                <linearGradient id="colorRefrescos" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="var(--success)" stopOpacity={0.25}/>
+                  <stop offset="95%" stopColor="var(--success)" stopOpacity={0.0}/>
+                </linearGradient>
+                <linearGradient id="colorSnacks" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="var(--blue-light)" stopOpacity={0.25}/>
+                  <stop offset="95%" stopColor="var(--blue-light)" stopOpacity={0.0}/>
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+              <XAxis dataKey="name" stroke="var(--text-muted)" fontSize={11} tickLine={false} />
+              <YAxis stroke="var(--text-muted)" fontSize={11} tickLine={false} />
+              <Tooltip 
+                contentStyle={{ 
+                  background: 'var(--bg-elevated)', 
+                  border: '1px solid var(--border)', 
+                  borderRadius: 10,
+                  fontSize: 12,
+                  color: 'var(--text-primary)'
+                }} 
+              />
+              <Area type="monotone" dataKey="Cerveza" stroke="var(--bronze-light)" fillOpacity={1} fill="url(#colorCerveza)" strokeWidth={2} />
+              <Area type="monotone" dataKey="Refrescos" stroke="var(--success)" fillOpacity={1} fill="url(#colorRefrescos)" strokeWidth={2} />
+              <Area type="monotone" dataKey="Snacks" stroke="var(--blue-light)" fillOpacity={1} fill="url(#colorSnacks)" strokeWidth={2} />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
       </div>
 
       {/* ── MODAL AJUSTE DE INVENTARIO MANUAL (AUDITORÍA) ─────────── */}
