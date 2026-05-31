@@ -27,6 +27,43 @@ const DEFAULT_PRODUCTOS = [
 const CATEGORIAS = ['Todas', 'Cerveza', 'Refresco', 'Snack', 'Comida', 'Bebida'];
 
 // ── UTILIDADES DE ENCRIPTACIÓN/OFUSCACIÓN (SUGERENCIA 1) ────────────────
+const getSignature = (str, secret) => {
+  let hash = 0;
+  const combined = str + secret;
+  for (let i = 0; i < combined.length; i++) {
+    hash = (hash << 5) - hash + combined.charCodeAt(i);
+    hash |= 0; // Convert to 32bit integer
+  }
+  return Math.abs(hash).toString(16);
+};
+
+const registrarAlertaBrecha = (detalle) => {
+  try {
+    if (typeof window !== 'undefined') {
+      const savedAlerts = localStorage.getItem('yoy_billar_integrity_alerts') || '[]';
+      let alerts = [];
+      try {
+        alerts = JSON.parse(savedAlerts);
+      } catch (e) {
+        alerts = [];
+      }
+      // Evitar duplicar la misma alerta en el mismo minuto
+      const keyMin = new Date().toISOString().substring(0, 16);
+      if (!alerts.some(a => a.detalle === detalle && a.fecha.startsWith(keyMin))) {
+        alerts.push({
+          id: Date.now(),
+          fecha: new Date().toISOString(),
+          detalle,
+          resuelto: false
+        });
+        localStorage.setItem('yoy_billar_integrity_alerts', JSON.stringify(alerts));
+      }
+    }
+  } catch (err) {
+    console.error(err);
+  }
+};
+
 const obfuscate = (data) => {
   if (!data) return '';
   const str = typeof data === 'string' ? data : JSON.stringify(data);
@@ -34,14 +71,15 @@ const obfuscate = (data) => {
     if (typeof window !== 'undefined') {
       const d = new Date();
       const dateStr = `${d.getFullYear()}-${(d.getMonth()+1).toString().padStart(2,'0')}-${d.getDate().toString().padStart(2,'0')}`;
+      const sign = getSignature(str, dateStr);
       const base64 = window.btoa(unescape(encodeURIComponent(str)));
       // XOR dinámico usando la fecha como clave para rotación diaria
       const xor = base64.split('').map((char, index) => {
         const keyChar = dateStr.charCodeAt(index % dateStr.length);
         return String.fromCharCode(char.charCodeAt(0) ^ keyChar);
       }).join('');
-      // Guardar con el prefijo autodescriptivo de fecha
-      return `[${dateStr}]` + window.btoa(unescape(encodeURIComponent(xor)));
+      // Guardar con el prefijo de fecha y firma criptográfica
+      return `[${dateStr}][${sign}]` + window.btoa(unescape(encodeURIComponent(xor)));
     }
   } catch (e) {
     console.error(e);
@@ -55,18 +93,42 @@ const deobfuscate = (str) => {
     if (typeof window !== 'undefined') {
       // Verificar si contiene el prefijo de cifrado dinámico [YYYY-MM-DD]
       if (str.startsWith('[')) {
-        const closingBracket = str.indexOf(']');
-        if (closingBracket > 0) {
-          const dateStr = str.substring(1, closingBracket);
-          const encryptedPart = str.substring(closingBracket + 1);
-          // Decodificar Base64 del XOR
+        const closingBracket1 = str.indexOf(']');
+        if (closingBracket1 > 0) {
+          const dateStr = str.substring(1, closingBracket1);
+          const rest = str.substring(closingBracket1 + 1);
+          if (rest.startsWith('[')) {
+            const closingBracket2 = rest.indexOf(']');
+            if (closingBracket2 > 0) {
+              const signSaved = rest.substring(1, closingBracket2);
+              const encryptedPart = rest.substring(closingBracket2 + 1);
+              // Decodificar Base64 del XOR
+              const xor = decodeURIComponent(escape(window.atob(encryptedPart)));
+              // Revertir el XOR con la fecha de guardado original
+              const base64 = xor.split('').map((char, index) => {
+                const keyChar = dateStr.charCodeAt(index % dateStr.length);
+                return String.fromCharCode(char.charCodeAt(0) ^ keyChar);
+              }).join('');
+              // Decodificar Base64 final
+              const decoded = decodeURIComponent(escape(window.atob(base64)));
+              
+              // Verificar firma de integridad
+              const signCalculated = getSignature(decoded, dateStr);
+              if (signSaved !== signCalculated) {
+                console.warn("⚠️ ALERTA DE INTEGRIDAD: Los datos locales han sido manipulados externamente.");
+                registrarAlertaBrecha("Violación de integridad detectada en almacén local.");
+              }
+              return JSON.parse(decoded);
+            }
+          }
+          
+          // Compatibilidad con formato anterior sin firma (solo fecha)
+          const encryptedPart = rest;
           const xor = decodeURIComponent(escape(window.atob(encryptedPart)));
-          // Revertir el XOR con la fecha de guardado original
           const base64 = xor.split('').map((char, index) => {
             const keyChar = dateStr.charCodeAt(index % dateStr.length);
             return String.fromCharCode(char.charCodeAt(0) ^ keyChar);
           }).join('');
-          // Decodificar Base64 final
           const decoded = decodeURIComponent(escape(window.atob(base64)));
           return JSON.parse(decoded);
         }
