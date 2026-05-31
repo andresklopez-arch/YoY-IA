@@ -28,35 +28,36 @@ const ROLE_LABELS = {
   arbitro: 'Árbitro',
 };
 
-export default function Sidebar({ activePanel, onNavigate, collapsed, onToggle, user }) {
+export default function Sidebar({ activePanel, onNavigate, open, onMouseEnter, onMouseLeave, user }) {
   const { logout } = useAuth();
   const visibleItems = NAV_ITEMS.filter(item => item.roles.includes(user?.role || 'cajero'));
 
   return (
-    <aside className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
+    <aside 
+      className={`sidebar ${open ? 'visible' : ''}`}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+    >
       {/* Logo con Logo Corto */}
-      <div className="sidebar-logo" style={{ gap: collapsed ? 0 : 10, padding: collapsed ? '14px 0' : '16px 16px', display: 'flex', alignItems: 'center', justifyContent: collapsed ? 'center' : 'flex-start' }}>
+      <div className="sidebar-logo" style={{ gap: 10, padding: '16px 16px', display: 'flex', alignItems: 'center', justifyContent: 'flex-start' }}>
         <img 
           src="/logo-corto.png" 
           alt="YoY IA" 
           fetchpriority="high"
           loading="eager"
           style={{
-            width: collapsed ? 32 : 36, 
-            height: collapsed ? 32 : 36, 
+            width: 36, 
+            height: 36, 
             objectFit: 'contain',
-            borderRadius: collapsed ? 8 : 10,
+            borderRadius: 10,
             boxShadow: '0 0 12px rgba(205,127,50,0.18)',
-            transition: 'all 0.2s ease',
             flexShrink: 0
           }} 
         />
-        {!collapsed && (
-          <div className="sidebar-logo-text">
-            <span className="sidebar-logo-name" style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.08em', color: 'var(--text-primary)' }}>YoY IA BILLAR</span>
-            <span className="sidebar-logo-sub" style={{ fontSize: 9, color: 'var(--text-muted)' }}>Gestión Inteligente</span>
-          </div>
-        )}
+        <div className="sidebar-logo-text">
+          <span className="sidebar-logo-name" style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.08em', color: 'var(--text-primary)' }}>YoY IA BILLAR</span>
+          <span className="sidebar-logo-sub" style={{ fontSize: 9, color: 'var(--text-muted)' }}>Gestión Inteligente</span>
+        </div>
       </div>
 
       {/* Navegación */}
@@ -68,7 +69,6 @@ export default function Sidebar({ activePanel, onNavigate, collapsed, onToggle, 
             key={item.id}
             className={`nav-item ${activePanel === item.id ? 'active' : ''}`}
             onClick={() => onNavigate(item.id)}
-            title={collapsed ? item.label : ''}
           >
             <i className={`nav-icon ${item.icon}`} />
             <span className="nav-label">{item.label}</span>
@@ -92,38 +92,25 @@ export default function Sidebar({ activePanel, onNavigate, collapsed, onToggle, 
           }}>
             {user?.avatar || '?'}
           </div>
-          {!collapsed && (
-            <div style={{ overflow: 'hidden', flex: 1 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {user?.name || 'Usuario'}
-              </div>
-              <div style={{ fontSize: 9, color: ROLE_COLORS[user?.role] || 'var(--bronze-light)', textTransform: 'uppercase', letterSpacing: '0.12em', fontWeight: 700 }}>
-                {ROLE_LABELS[user?.role] || user?.role}
-              </div>
+          <div style={{ overflow: 'hidden', flex: 1 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {user?.name || 'Usuario'}
             </div>
-          )}
+            <div style={{ fontSize: 9, color: ROLE_COLORS[user?.role] || 'var(--bronze-light)', textTransform: 'uppercase', letterSpacing: '0.12em', fontWeight: 700 }}>
+              {ROLE_LABELS[user?.role] || user?.role}
+            </div>
+          </div>
         </div>
 
         <button
           className="nav-item"
           onClick={logout}
-          title={collapsed ? 'Cerrar Sesión' : ''}
           style={{ color: 'var(--danger)', borderRadius: 8 }}
           onMouseEnter={e => e.currentTarget.style.background = 'rgba(239,68,68,0.08)'}
           onMouseLeave={e => e.currentTarget.style.background = 'none'}
         >
           <i className="nav-icon ri-logout-box-r-line" />
           <span className="nav-label">Cerrar Sesión</span>
-        </button>
-
-        <button
-          className="nav-item"
-          onClick={onToggle}
-          title={collapsed ? 'Expandir' : 'Colapsar'}
-          style={{ borderRadius: 8 }}
-        >
-          <i className={`nav-icon ri-${collapsed ? 'arrow-right-s' : 'arrow-left-s'}-line`} />
-          <span className="nav-label">{collapsed ? 'Expandir' : 'Colapsar'}</span>
         </button>
       </div>
     </aside>
