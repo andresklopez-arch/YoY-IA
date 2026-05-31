@@ -1523,13 +1523,13 @@ function ModalRegistrarComanda({ mesas, setMesas, cuentasActivas, setCuentasActi
   const [carrito, setCarrito] = useState([]);
   const [productos, setProductos] = useState([]);
 
-  // Cargar productos con stock desde localStorage
+  // Cargar productos con stock desde localStorage (Ofuscado)
   useEffect(() => {
     if (typeof window !== 'undefined') {
       try {
         const saved = localStorage.getItem('yoy_billar_stock');
         if (saved) {
-          const parsed = JSON.parse(saved);
+          const parsed = deobfuscate(saved);
           if (Array.isArray(parsed) && parsed.length > 0) {
             // Normalizar las claves viejas/nuevas para asegurar consistencia
             const normalizados = parsed.map(p => ({
@@ -1544,7 +1544,7 @@ function ModalRegistrarComanda({ mesas, setMesas, cuentasActivas, setCuentasActi
             }));
             setProductos(normalizados);
             // Sincronizar en localStorage para que todos los paneles lean el formato correcto
-            localStorage.setItem('yoy_billar_stock', JSON.stringify(normalizados));
+            localStorage.setItem('yoy_billar_stock', obfuscate(normalizados));
           } else {
             const defaultProds = [
               { id: 1, nombre: 'Cerveza Corona Extra', categoria: 'Cerveza', precioCosto: 22, precioVenta: 45, stock: 120, stockMin: 30, stockOptimo: 150, unidad: 'bot' },
@@ -1556,7 +1556,7 @@ function ModalRegistrarComanda({ mesas, setMesas, cuentasActivas, setCuentasActi
               { id: 7, nombre: 'Agua Embotellada 600ml', categoria: 'Bebida', precioCosto: 8, precioVenta: 20, stock: 150, stockMin: 40, stockOptimo: 180, unidad: 'pz' }
             ];
             setProductos(defaultProds);
-            localStorage.setItem('yoy_billar_stock', JSON.stringify(defaultProds));
+            localStorage.setItem('yoy_billar_stock', obfuscate(defaultProds));
           }
         } else {
           const defaultProds = [
@@ -1569,7 +1569,7 @@ function ModalRegistrarComanda({ mesas, setMesas, cuentasActivas, setCuentasActi
             { id: 7, nombre: 'Agua Embotellada 600ml', categoria: 'Bebida', precioCosto: 8, precioVenta: 20, stock: 150, stockMin: 40, stockOptimo: 180, unidad: 'pz' }
           ];
           setProductos(defaultProds);
-          localStorage.setItem('yoy_billar_stock', JSON.stringify(defaultProds));
+          localStorage.setItem('yoy_billar_stock', obfuscate(defaultProds));
         }
       } catch (err) {
         console.error(err);
@@ -1626,7 +1626,7 @@ function ModalRegistrarComanda({ mesas, setMesas, cuentasActivas, setCuentasActi
     if (typeof window !== 'undefined') {
       try {
         const saved = localStorage.getItem('yoy_billar_stock');
-        if (saved) stockFresco = JSON.parse(saved);
+        if (saved) stockFresco = deobfuscate(saved) || [];
       } catch (err) {
         console.error(err);
       }
@@ -1652,7 +1652,7 @@ function ModalRegistrarComanda({ mesas, setMesas, cuentasActivas, setCuentasActi
       return p;
     });
 
-    localStorage.setItem('yoy_billar_stock', JSON.stringify(stockActualizado));
+    localStorage.setItem('yoy_billar_stock', obfuscate(stockActualizado));
 
     // Agregar comanda al destino
     if (destinoTipo === 'mesa') {
