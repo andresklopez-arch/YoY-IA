@@ -248,7 +248,16 @@ const obfuscate = (data) => {
   const str = typeof data === 'string' ? data : JSON.stringify(data);
   try {
     if (typeof window !== 'undefined') {
-      return window.btoa(unescape(encodeURIComponent(str)));
+      const d = new Date();
+      const dateStr = `${d.getFullYear()}-${(d.getMonth()+1).toString().padStart(2,'0')}-${d.getDate().toString().padStart(2,'0')}`;
+      const base64 = window.btoa(unescape(encodeURIComponent(str)));
+      // XOR dinámico usando la fecha como clave para rotación diaria
+      const xor = base64.split('').map((char, index) => {
+        const keyChar = dateStr.charCodeAt(index % dateStr.length);
+        return String.fromCharCode(char.charCodeAt(0) ^ keyChar);
+      }).join('');
+      // Guardar con el prefijo autodescriptivo de fecha
+      return `[${dateStr}]` + window.btoa(unescape(encodeURIComponent(xor)));
     }
   } catch (e) {
     console.error(e);
@@ -260,10 +269,30 @@ const deobfuscate = (str) => {
   if (!str) return null;
   try {
     if (typeof window !== 'undefined') {
+      // Verificar si contiene el prefijo de cifrado dinámico [YYYY-MM-DD]
+      if (str.startsWith('[')) {
+        const closingBracket = str.indexOf(']');
+        if (closingBracket > 0) {
+          const dateStr = str.substring(1, closingBracket);
+          const encryptedPart = str.substring(closingBracket + 1);
+          // Decodificar Base64 del XOR
+          const xor = decodeURIComponent(escape(window.atob(encryptedPart)));
+          // Revertir el XOR con la fecha de guardado original
+          const base64 = xor.split('').map((char, index) => {
+            const keyChar = dateStr.charCodeAt(index % dateStr.length);
+            return String.fromCharCode(char.charCodeAt(0) ^ keyChar);
+          }).join('');
+          // Decodificar Base64 final
+          const decoded = decodeURIComponent(escape(window.atob(base64)));
+          return JSON.parse(decoded);
+        }
+      }
+      // Compatibilidad con cifrado Base64 anterior sin prefijo
       const decoded = decodeURIComponent(escape(window.atob(str)));
       return JSON.parse(decoded);
     }
   } catch (e) {
+    // Compatibilidad con JSON directo plano de sesiones históricas
     try {
       return JSON.parse(str);
     } catch (err) {
