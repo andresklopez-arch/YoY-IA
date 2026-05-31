@@ -32,7 +32,16 @@ const obfuscate = (data) => {
   const str = typeof data === 'string' ? data : JSON.stringify(data);
   try {
     if (typeof window !== 'undefined') {
-      return window.btoa(unescape(encodeURIComponent(str)));
+      const d = new Date();
+      const dateStr = `${d.getFullYear()}-${(d.getMonth()+1).toString().padStart(2,'0')}-${d.getDate().toString().padStart(2,'0')}`;
+      const base64 = window.btoa(unescape(encodeURIComponent(str)));
+      // XOR dinámico usando la fecha como clave para rotación diaria
+      const xor = base64.split('').map((char, index) => {
+        const keyChar = dateStr.charCodeAt(index % dateStr.length);
+        return String.fromCharCode(char.charCodeAt(0) ^ keyChar);
+      }).join('');
+      // Guardar con el prefijo autodescriptivo de fecha
+      return `[${dateStr}]` + window.btoa(unescape(encodeURIComponent(xor)));
     }
   } catch (e) {
     console.error(e);
@@ -44,10 +53,30 @@ const deobfuscate = (str) => {
   if (!str) return null;
   try {
     if (typeof window !== 'undefined') {
+      // Verificar si contiene el prefijo de cifrado dinámico [YYYY-MM-DD]
+      if (str.startsWith('[')) {
+        const closingBracket = str.indexOf(']');
+        if (closingBracket > 0) {
+          const dateStr = str.substring(1, closingBracket);
+          const encryptedPart = str.substring(closingBracket + 1);
+          // Decodificar Base64 del XOR
+          const xor = decodeURIComponent(escape(window.atob(encryptedPart)));
+          // Revertir el XOR con la fecha de guardado original
+          const base64 = xor.split('').map((char, index) => {
+            const keyChar = dateStr.charCodeAt(index % dateStr.length);
+            return String.fromCharCode(char.charCodeAt(0) ^ keyChar);
+          }).join('');
+          // Decodificar Base64 final
+          const decoded = decodeURIComponent(escape(window.atob(base64)));
+          return JSON.parse(decoded);
+        }
+      }
+      // Compatibilidad con cifrado Base64 anterior sin prefijo
       const decoded = decodeURIComponent(escape(window.atob(str)));
       return JSON.parse(decoded);
     }
   } catch (e) {
+    // Compatibilidad con JSON directo plano de sesiones históricas
     try {
       return JSON.parse(str);
     } catch (err) {
@@ -72,11 +101,17 @@ export default function BarPanel({ showToast }) {
   // Modales IA
   const [modalOrdenCompra, setModalOrdenCompra] = useState(false);
   const [ordenSugerida, setOrdenSugerida] = useState([]);
+  const [modalExportar, setModalExportar] = useState(false);
 
   // Estados para Auditoría e Inventarios IA seleccionables
   const [modoInventario, setModoInventario] = useState('general'); // general, periodico, azar, producto, inconsistencia, mas_vendidos, menos_vendidos
   const [productoSelId, setProductoSelId] = useState('');
   const [azarProductosIds, setAzarProductosIds] = useState([]);
+
+  // Estados para Cruce Concurrente en Vivo (Mesas ocupadas con $0 consumos)
+  const [mesas, setMesas] = useState([]);
+  const [cuentasActivas, setCuentasActivas] = useState([]);
+  const [inconsistenciasEnVivo, setInconsistenciasEnVivo] = useState([]);
 
   const generarConteoCiego = (listaProds = productos) => {
     if (listaProds.length === 0) return;
@@ -92,6 +127,34 @@ export default function BarPanel({ showToast }) {
       setAzarProductosIds(shuffled.slice(0, 3).map(p => p.id));
     }
   }, [productos]);
+
+  // Cruce concurrente de inconsistencias en vivo
+  useEffect(() => {
+    const calcularInconsistencias = () => {
+      const incs = [];
+      mesas.forEach(m => {
+        if (m.estado === 'ocupada') {
+          const cuenta = cuentasActivas.find(c => c.cliente && m.cliente && c.cliente.trim().toLowerCase() === m.cliente.trim().toLowerCase());
+          const sinConsumo = !cuenta || !cuenta.consumos || cuenta.consumos.length === 0;
+          if (sinConsumo) {
+            const hrsJugadas = m.inicio ? ((Date.now() - m.inicio) / 3600000).toFixed(1) : '0';
+            incs.push({
+              mesaId: m.id,
+              nombre: m.nombre,
+              cliente: m.cliente || 'Desconocido',
+              horas: hrsJugadas,
+              motivo: `Mesa activa por ${hrsJugadas} hrs con $0 consumos de barra.`
+            });
+          }
+        }
+      });
+      setInconsistenciasEnVivo(incs);
+    };
+
+    calcularInconsistencias();
+    const interval = setInterval(calcularInconsistencias, 5000);
+    return () => clearInterval(interval);
+  }, [mesas, cuentasActivas]);
 
   // Cargar inventario y logs de localStorage (Ofuscados)
   useEffect(() => {
