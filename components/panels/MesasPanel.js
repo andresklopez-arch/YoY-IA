@@ -264,6 +264,9 @@ export default function MesasPanel({ showToast }) {
   const [modalAbrirCuenta, setModalAbrirCuenta] = useState(false);
   const [modalCambiarMesa, setModalCambiarMesa] = useState(null);
   const [modalVincular, setModalVincular] = useState(null);
+  const [modalBitacora, setModalBitacora] = useState(false);
+  const [bitacora, setBitacora] = useState([]);
+
   const [cuentasActivas, setCuentasActivas] = useState([
     { id: 101, cliente: 'Juan Pérez', tiempoJuego: 160, consumos: [{ id: 1, producto: 'Cerveza Corona', precio: 45, cantidad: 2 }, { id: 2, producto: 'Refresco Coca-Cola', precio: 30, cantidad: 1 }], inicio: Date.now() - 1.5*3600000 },
     { id: 102, cliente: 'Marta S.', tiempoJuego: 0, consumos: [{ id: 3, producto: 'Nachos con Queso', precio: 75, cantidad: 1 }], inicio: Date.now() - 40*60000 }
@@ -273,6 +276,88 @@ export default function MesasPanel({ showToast }) {
     { id: 2, cliente: 'Diana L.', contacto: '55-8765-4321', tipo: 'Snooker', personas: 2, registro: Date.now() - 5*60000 },
   ]);
   const tick = useLiveTick();
+
+  // ── PERSISTENCIA LOCAL DE ESTADO (SUGERENCIA 1) ─────────────────
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const savedMesas = localStorage.getItem('yoy_billar_mesas');
+        if (savedMesas) setMesas(JSON.parse(savedMesas));
+
+        const savedCuentas = localStorage.getItem('yoy_billar_cuentas');
+        if (savedCuentas) setCuentasActivas(JSON.parse(savedCuentas));
+
+        const savedFila = localStorage.getItem('yoy_billar_fila');
+        if (savedFila) setFila(JSON.parse(savedFila));
+
+        const savedBitacora = localStorage.getItem('yoy_billar_bitacora');
+        if (savedBitacora) setBitacora(JSON.parse(savedBitacora));
+      } catch (err) {
+        console.error("Error al cargar datos desde localStorage:", err);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('yoy_billar_mesas', JSON.stringify(mesas));
+      } catch (err) {
+        console.error("Error al guardar mesas:", err);
+      }
+    }
+  }, [mesas]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('yoy_billar_cuentas', JSON.stringify(cuentasActivas));
+      } catch (err) {
+        console.error("Error al guardar cuentas:", err);
+      }
+    }
+  }, [cuentasActivas]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('yoy_billar_fila', JSON.stringify(fila));
+      } catch (err) {
+        console.error("Error al guardar fila:", err);
+      }
+    }
+  }, [fila]);
+
+  // ── REGISTRO DE AUDITORÍA Y BITÁCORA (SUGERENCIA 2) ──────────────
+  const registrarEvento = (accion, detalle, monto = 0) => {
+    const nuevoEvento = {
+      id: Date.now(),
+      fecha: new Date().toISOString(),
+      accion,
+      detalle,
+      monto,
+      operador: 'Cajero Principal'
+    };
+    setBitacora(prev => {
+      const act = [nuevoEvento, ...prev].slice(0, 100);
+      try {
+        localStorage.setItem('yoy_billar_bitacora', JSON.stringify(act));
+      } catch (err) {
+        console.error("Error al guardar bitácora:", err);
+      }
+      return act;
+    });
+  };
+
+  const limpiarBitacora = () => {
+    setBitacora([]);
+    try {
+      localStorage.removeItem('yoy_billar_bitacora');
+    } catch (err) {
+      console.error(err);
+    }
+    showToast('Bitácora limpiada correctamente.', 'info');
+  };
 
   const totales = {
     libres:    mesas.filter(m => m.estado === 'libre').length,
@@ -301,6 +386,7 @@ export default function MesasPanel({ showToast }) {
     
     setModalAbrir(null);
     showToast(`Mesa ${mesaId} iniciada para ${cliente}`, 'success');
+    registrarEvento('Apertura', `Mesa ${mesaId} abierta para ${cliente}${esSocio ? ' (Socio)' : ''}`);
   };
 
   const registrarNuevaMesa = (nueva) => {
@@ -324,6 +410,7 @@ export default function MesasPanel({ showToast }) {
     ]);
     setModalNuevaMesa(false);
     showToast(`Mesa ${mesaId} registrada con éxito.`, 'success');
+    registrarEvento('Nueva Mesa', `Mesa ${mesaId} (${nueva.tipo}) registrada en el catálogo con tarifa $${nueva.tarifa}/hr`);
   };
 
   const asignarClienteDeFila = (clienteEspera) => {
@@ -380,15 +467,19 @@ export default function MesasPanel({ showToast }) {
 
     setModalCambiarMesa(null);
     showToast(`Sesión de juego transferida con éxito de Mesa ${origenId} a Mesa ${destinoId} ✓`, 'success');
+    registrarEvento('Transferencia', `Sesión de juego transferida de Mesa ${origenId} a Mesa ${destinoId} (Cliente: ${mesaOrigen.cliente})`);
   };
 
   const confirmarVincularCliente = (mesaId, nuevoNombre) => {
+    const mesa = mesas.find(m => m.id === mesaId);
+    const ant = mesa ? mesa.cliente : 'Ninguno';
     setMesas(prev => prev.map(m => m.id === mesaId
       ? { ...m, cliente: nuevoNombre }
       : m
     ));
     setModalVincular(null);
     showToast(`Cliente de Mesa ${mesaId} actualizado a ${nuevoNombre} ✓`, 'success');
+    registrarEvento('Vincular Cliente', `Cliente en Mesa ${mesaId} cambiado de "${ant}" a "${nuevoNombre}"`);
   };
 
   const agregarSesionACuenta = ({ costo, cuentaId, nombreNuevo }) => {
@@ -397,7 +488,10 @@ export default function MesasPanel({ showToast }) {
         ? { ...c, tiempoJuego: c.tiempoJuego + costo }
         : c
       ));
+      const targetCuenta = cuentasActivas.find(c => c.id === parseInt(cuentaId));
+      const clientName = targetCuenta ? targetCuenta.cliente : cuentaId;
       showToast(`Mesa cerrada. Costo de $${costo} MXN agregado a la cuenta del cliente.`, 'success');
+      registrarEvento('Mesa a Cuenta', `Mesa ${modalCerrar.nombre} agregada a la cuenta de ${clientName}`, costo);
     } else {
       const nueva = {
         id: Date.now(),
@@ -408,6 +502,7 @@ export default function MesasPanel({ showToast }) {
       };
       setCuentasActivas(prev => [...prev, nueva]);
       showToast(`Mesa cerrada. Cuenta abierta para ${nombreNuevo} con $${costo} MXN de tiempo.`, 'success');
+      registrarEvento('Mesa a Cuenta Nueva', `Mesa ${modalCerrar.nombre} agregada a una cuenta nueva para ${nombreNuevo}`, costo);
     }
 
     setMesas(prev => prev.map(m => m.id === modalCerrar.id
@@ -423,6 +518,8 @@ export default function MesasPanel({ showToast }) {
   };
 
   const confirmarCerrarMesa = (mesaId, { costo, metodo, tiempo }) => {
+    const mesa = mesas.find(m => m.id === mesaId);
+    const clientName = mesa ? mesa.cliente : 'Público';
     setMesas(prev => prev.map(m => m.id === mesaId
       ? { ...m, estado: 'libre', cliente: null, inicio: null, socios: false }
       : m
@@ -430,8 +527,10 @@ export default function MesasPanel({ showToast }) {
     setModalCerrar(null);
     if (costo > 0) {
       showToast(`Cobrado $${costo} MXN por ${metodo} ✓`, 'success');
+      registrarEvento('Cierre Directo', `Mesa ${mesaId} liquidada y cerrada por ${clientName} ($${costo} MXN por ${metodo})`, costo);
     } else {
       showToast(`Mesa cerrada (Socio sin cargo)`, 'info');
+      registrarEvento('Cierre Directo', `Mesa ${mesaId} cerrada (Socio sin cargo: ${clientName})`);
     }
   };
 
@@ -447,6 +546,9 @@ export default function MesasPanel({ showToast }) {
           <p className="page-subtitle">Gestión en tiempo real · {mesas.length} mesas registradas</p>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
+          <button className="btn btn-secondary btn-sm" onClick={() => setModalBitacora(true)}>
+            <i className="ri-history-line" /> Bitácora
+          </button>
           <button className="btn btn-secondary btn-sm" onClick={() => setModalFila(true)}>
             <i className="ri-qr-code-line" /> Fila Virtual
             {fila.length > 0 && (
@@ -640,6 +742,7 @@ export default function MesasPanel({ showToast }) {
           setCuentas={setCuentasActivas}
           onClose={() => setModalCuentas(false)}
           showToast={showToast}
+          registrarEvento={registrarEvento}
         />
       )}
       {modalAbrirCuenta && (
@@ -648,6 +751,7 @@ export default function MesasPanel({ showToast }) {
           setCuentas={setCuentasActivas}
           onClose={() => setModalAbrirCuenta(false)}
           showToast={showToast}
+          registrarEvento={registrarEvento}
         />
       )}
       {modalCambiarMesa && (
@@ -663,6 +767,13 @@ export default function MesasPanel({ showToast }) {
           mesa={modalVincular}
           onClose={() => setModalVincular(null)}
           onConfirm={(nombre) => confirmarVincularCliente(modalVincular.id, nombre)}
+        />
+      )}
+      {modalBitacora && (
+        <ModalBitacora
+          bitacora={bitacora}
+          onClear={limpiarBitacora}
+          onClose={() => setModalBitacora(false)}
         />
       )}
     </div>
@@ -849,7 +960,7 @@ function ModalFilaVirtual({ fila, setFila, mesas, onAssign, onClose, showToast }
 }
 
 // ── MODAL CUENTAS ACTIVAS ────────────────────────────────
-function ModalCuentasActivas({ cuentas, setCuentas, onClose, showToast }) {
+function ModalCuentasActivas({ cuentas, setCuentas, onClose, showToast, registrarEvento }) {
   const [cuentaSel, setCuentaSel] = useState(null);
   const [prodSel, setProdSel] = useState('Corona');
   const [cantSel, setCantSel] = useState(1);
@@ -889,9 +1000,15 @@ function ModalCuentasActivas({ cuentas, setCuentas, onClose, showToast }) {
     }));
 
     showToast(`Agregado ${cantSel}x ${pInfo.producto} ✓`, 'success');
+    if (registrarEvento) {
+      registrarEvento('Agregar Consumo', `Agregado ${cantSel}x ${pInfo.producto} a la cuenta de ${cuentaSel.cliente} (Precio: $${pInfo.precio} c/u)`);
+    }
   };
 
   const eliminarConsumo = (cId, itemId) => {
+    const item = cuentaSel.consumos.find(i => i.id === itemId);
+    const prodName = item ? item.producto : 'Producto';
+    const cant = item ? item.cantidad : 1;
     setCuentas(prev => prev.map(c => {
       if (c.id === cId) {
         const actualizadas = {
@@ -904,12 +1021,19 @@ function ModalCuentasActivas({ cuentas, setCuentas, onClose, showToast }) {
       return c;
     }));
     showToast('Consumo retirado de la cuenta.', 'info');
+    if (registrarEvento) {
+      registrarEvento('Eliminar Consumo', `Retirado ${cant}x ${prodName} de la cuenta de ${cuentaSel.cliente}`);
+    }
   };
 
   const liquidarCuentaDefinitiva = () => {
     if (!cuentaSel) return;
+    const total = calcTotal(cuentaSel);
     setCuentas(prev => prev.filter(c => c.id !== cuentaSel.id));
-    showToast(`Cuenta de ${cuentaSel.cliente} liquidada con éxito por $${calcTotal(cuentaSel)} MXN ✓`, 'success');
+    showToast(`Cuenta de ${cuentaSel.cliente} liquidada con éxito por $${total} MXN ✓`, 'success');
+    if (registrarEvento) {
+      registrarEvento('Liquidar Cuenta', `Cuenta de ${cuentaSel.cliente} cobrada por completo ($${total} MXN por ${metodoPago})`, total);
+    }
     setCuentaSel(null);
     setShowCheckout(false);
   };
@@ -1100,7 +1224,7 @@ function ModalCuentasActivas({ cuentas, setCuentas, onClose, showToast }) {
 }
 
 // ── MODAL ABRIR CUENTA DIRECTA ───────────────────────────
-function ModalAbrirCuentaDirecta({ cuentas, setCuentas, onClose, showToast }) {
+function ModalAbrirCuentaDirecta({ cuentas, setCuentas, onClose, showToast, registrarEvento }) {
   const [cliente, setCliente] = useState('');
 
   const handleCrear = () => {
@@ -1117,6 +1241,9 @@ function ModalAbrirCuentaDirecta({ cuentas, setCuentas, onClose, showToast }) {
     };
     setCuentas(prev => [...prev, nueva]);
     showToast(`Cuenta creada para ${cliente} ✓`, 'success');
+    if (registrarEvento) {
+      registrarEvento('Crear Cuenta', `Cuenta abierta manualmente para ${cliente}`);
+    }
     onClose();
   };
 
@@ -1220,6 +1347,68 @@ function ModalVincularCliente({ mesa, onClose, onConfirm }) {
           <button className="btn btn-secondary" onClick={onClose}>Cancelar</button>
           <button className="btn btn-primary" onClick={() => onConfirm(nombre)}>
             Guardar Cliente
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── MODAL BITÁCORA (SUGERENCIA 2) ────────────────────────
+function ModalBitacora({ bitacora, onClear, onClose }) {
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" style={{ maxWidth: 600 }} onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <span className="modal-title">
+            <i className="ri-history-line" style={{ marginRight: 8, color: 'var(--bronze-light)' }} />
+            Bitácora de Auditoría y Transacciones
+          </span>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            {bitacora.length > 0 && (
+              <button className="btn btn-sm btn-secondary" onClick={onClear} style={{ color: 'var(--danger)', fontSize: 11, padding: '4px 8px' }}>
+                Limpiar
+              </button>
+            )}
+            <button onClick={onClose} className="btn-icon btn btn-secondary" style={{ background: 'none', border: 'none' }}>
+              <i className="ri-close-line" style={{ fontSize: 20 }} />
+            </button>
+          </div>
+        </div>
+        <div className="modal-body">
+          <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>Últimos 100 movimientos de mesas, consumos y caja en este dispositivo.</p>
+          {bitacora.length === 0 ? (
+            <p style={{ color: 'var(--text-muted)', fontSize: 13, textAlign: 'center', padding: '60px 0' }}>No hay registros disponibles en la bitácora.</p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 380, overflowY: 'auto', paddingRight: 4 }}>
+              {bitacora.map(b => {
+                const isPositive = b.monto > 0;
+                return (
+                  <div key={b.id} style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 10, padding: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span className="badge badge-bronze" style={{ fontSize: 9, padding: '2px 6px' }}>{b.accion}</span>
+                        <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+                          {new Date(b.fecha).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })} · {new Date(b.fecha).toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit' })}
+                        </span>
+                      </div>
+                      <span style={{ fontSize: 12, color: 'var(--text-primary)', fontWeight: 600 }}>{b.detalle}</span>
+                      <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Operador: {b.operador}</span>
+                    </div>
+                    {isPositive && (
+                      <div style={{ fontSize: 15, fontWeight: 900, color: 'var(--success)' }}>
+                        +${b.monto} MXN
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+        <div className="modal-footer">
+          <button className="btn btn-primary" onClick={onClose}>
+            Cerrar Bitácora
           </button>
         </div>
       </div>
