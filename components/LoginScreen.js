@@ -63,7 +63,7 @@ export default function LoginScreen({ showToast }) {
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
           <img 
             src="/logo-largo.png" 
-            alt="YoY IA Billar" 
+            alt="YoY IA Billar By Alfonso Iturbide" 
             fetchpriority="high"
             loading="eager"
             style={{
@@ -77,7 +77,7 @@ export default function LoginScreen({ showToast }) {
             }}
           />
           <p style={{ fontSize: 10, color: 'var(--text-muted)', letterSpacing: '0.2em', textTransform: 'uppercase', marginTop: 10 }}>
-            Sistema de Gestión Inteligente
+            Sistema de Gestión Inteligente · By Alfonso Iturbide
           </p>
         </div>
 
@@ -180,7 +180,7 @@ export default function LoginScreen({ showToast }) {
         </div>
 
         <p style={{ textAlign: 'center', fontSize: 10, color: 'var(--text-muted)', marginTop: 20, letterSpacing: '0.1em' }}>
-          YoY IA BILLAR v1.0 · Powered by IA
+          YoY IA BILLAR By Alfonso Iturbide v1.0 · Powered by IA
         </p>
       </div>
     </div>

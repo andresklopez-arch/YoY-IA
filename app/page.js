@@ -125,7 +125,7 @@ function AppContent() {
         <div style={{ textAlign:'center', padding: '24px' }}>
           <img 
             src="/logo-largo.png" 
-            alt="YoY IA Billar" 
+            alt="YoY IA Billar By Alfonso Iturbide" 
             fetchpriority="high"
             loading="eager"
             style={{ 
@@ -304,7 +304,7 @@ function AppContent() {
                 <i className={sonidoAdmin ? 'ri-volume-up-line' : 'ri-volume-mute-line'} />
                 {sonidoAdmin ? 'Chime ON' : 'Silencio'}
               </button>
-              <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>YoY IA Billar</span>
+              <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>YoY IA Billar By Alfonso Iturbide</span>
             </div>
           </div>
         </div>

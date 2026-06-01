@@ -56,7 +56,7 @@ export default function Sidebar({ activePanel, onNavigate, open, onMouseEnter, o
           }} 
         />
         <div className="sidebar-logo-text">
-          <span className="sidebar-logo-name" style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.08em', color: 'var(--text-primary)' }}>YoY IA BILLAR</span>
+          <span className="sidebar-logo-name" style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.04em', color: 'var(--text-primary)' }}>YoY IA BILLAR<br/><span style={{ fontSize: 9, color: 'var(--bronze-light)', fontWeight: 800 }}>By Alfonso Iturbide</span></span>
           <span className="sidebar-logo-sub" style={{ fontSize: 9, color: 'var(--text-muted)' }}>Gestión Inteligente</span>
         </div>
       </div>

@@ -528,7 +528,7 @@ function MeseroContent() {
                 <i className={sonido ? 'ri-volume-up-line' : 'ri-volume-mute-line'} />
                 {sonido ? 'Alarma encendida' : 'Alarma silenciada'}
               </button>
-              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>YoY IA Billar Inteligente</span>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>YoY IA Billar By Alfonso Iturbide</span>
             </div>
           </div>
         </div>

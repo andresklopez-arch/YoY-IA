@@ -235,7 +235,7 @@ export default function MesaClientePage({ params }) {
         <div className="mc-header-logo">
           <div className="mc-header-logo-icon">🎱</div>
           <div>
-            <div className="mc-header-title">YoY IA BILLAR</div>
+            <div className="mc-header-title">YoY IA BILLAR <span style={{ fontSize: 9, color: 'var(--cl-bronze-light)', fontWeight: 800, display: 'block', marginTop: 1 }}>By Alfonso Iturbide</span></div>
             <div className="mc-header-sub">
               <span className="mc-live-dot" style={{ marginRight: 4 }} />
               {mesaInfo?.estado === 'ocupada' ? `${mesaInfo.cliente || 'Cliente'}` : 'Bienvenido'}
