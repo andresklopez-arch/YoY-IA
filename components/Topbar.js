@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth-context';
+import { useAlertasNomina } from '@/components/panels/NominaPanel';
 
 const PANEL_LABELS = {
   dashboard: 'Dashboard',
@@ -18,6 +19,7 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
   const { logout } = useAuth();
   const [time, setTime] = useState(new Date());
   const [showMenu, setShowMenu] = useState(false);
+  const alertasNomina = useAlertasNomina();
 
   useEffect(() => {
     const t = setInterval(() => setTime(new Date()), 1000);
@@ -80,7 +82,7 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
           { label: 'Caja', icon: 'ri-money-dollar-circle-line', color: 'var(--bronze-light)', nav: 'caja' },
           { label: 'Inventario', icon: 'ri-archive-line', color: 'var(--blue-light)', nav: 'bar' },
           { label: 'Torneos', icon: 'ri-trophy-line', color: '#ffd700', nav: 'torneos' },
-          { label: 'Nómina', icon: 'ri-briefcase-4-line', color: 'var(--bronze-light)', nav: 'nomina' },
+          { label: 'Nómina', icon: 'ri-briefcase-4-line', color: 'var(--bronze-light)', nav: 'nomina', badge: alertasNomina.length },
           { label: 'Reportes', icon: 'ri-bar-chart-2-line', color: 'var(--silver)', nav: 'reportes' },
           { label: 'Ajustes', icon: 'ri-settings-4-line', color: 'var(--text-muted)', nav: 'config' },
         ].map((a, i) => (
@@ -98,7 +100,20 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
             }}
             title={a.label}
           >
-            <i className={a.icon} style={{ fontSize: 16, color: a.color }} />
+            <div style={{ position: 'relative', display: 'inline-flex' }}>
+              <i className={a.icon} style={{ fontSize: 16, color: a.color }} />
+              {a.badge > 0 && (
+                <span style={{
+                  position: 'absolute', top: -5, right: -6,
+                  background: 'var(--danger)', color: '#fff',
+                  fontSize: 8, fontWeight: 800, borderRadius: 999,
+                  minWidth: 14, height: 14, display: 'flex', alignItems: 'center',
+                  justifyContent: 'center', padding: '0 2px',
+                  animation: 'pulse 1.5s ease-in-out infinite',
+                  boxShadow: '0 0 6px rgba(239,68,68,0.6)'
+                }}>{a.badge}</span>
+              )}
+            </div>
             <span className="topbar-quick-label">{a.label}</span>
           </button>
         ))}
@@ -117,10 +132,23 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
 
         {/* Notificaciones */}
         <button
-          onClick={() => showToast('Sin notificaciones nuevas', 'info')}
-          style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 10, width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: 16, position: 'relative' }}
+          onClick={() => alertasNomina.length > 0
+            ? onNavigate('nomina')
+            : showToast('Sin notificaciones nuevas', 'info')}
+          style={{ background: alertasNomina.length > 0 ? 'rgba(239,68,68,0.08)' : 'var(--bg-elevated)', border: `1px solid ${alertasNomina.length > 0 ? 'rgba(239,68,68,0.3)' : 'var(--border)'}`, borderRadius: 10, width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: alertasNomina.length > 0 ? 'var(--danger)' : 'var(--text-secondary)', fontSize: 16, position: 'relative', transition: 'all 0.2s' }}
+          title={alertasNomina.length > 0 ? `${alertasNomina.length} alertas de ausencias en nómina` : 'Sin notificaciones'}
         >
-          <i className="ri-notification-3-line" />
+          <i className={alertasNomina.length > 0 ? 'ri-alarm-warning-line' : 'ri-notification-3-line'} />
+          {alertasNomina.length > 0 && (
+            <span style={{
+              position: 'absolute', top: -4, right: -4,
+              background: 'var(--danger)', color: '#fff',
+              fontSize: 9, fontWeight: 800, borderRadius: 999,
+              minWidth: 16, height: 16, display: 'flex', alignItems: 'center',
+              justifyContent: 'center', padding: '0 3px',
+              animation: 'pulse 1.5s ease-in-out infinite'
+            }}>{alertasNomina.length}</span>
+          )}
         </button>
 
         {/* Perfil */}
