@@ -2,6 +2,19 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { useAlertasNomina } from '@/components/panels/NominaPanel';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+
+// Hook: pedidos pendientes de clientes via QR
+function usePedidosPendientes() {
+  const [total, setTotal] = useState(0);
+  useEffect(() => {
+    const q = query(collection(db, 'mesa_pedidos'), where('estado', 'in', ['pendiente', 'en_camino']));
+    const unsub = onSnapshot(q, snap => setTotal(snap.size));
+    return unsub;
+  }, []);
+  return total;
+}
 
 const PANEL_LABELS = {
   dashboard: 'Dashboard',
@@ -20,6 +33,7 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
   const [time, setTime] = useState(new Date());
   const [showMenu, setShowMenu] = useState(false);
   const alertasNomina = useAlertasNomina();
+  const pedidosPendientes = usePedidosPendientes();
 
   useEffect(() => {
     const t = setInterval(() => setTime(new Date()), 1000);
@@ -83,12 +97,13 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
           { label: 'Inventario', icon: 'ri-archive-line', color: 'var(--blue-light)', nav: 'bar' },
           { label: 'Torneos', icon: 'ri-trophy-line', color: '#ffd700', nav: 'torneos' },
           { label: 'Nómina', icon: 'ri-briefcase-4-line', color: 'var(--bronze-light)', nav: 'nomina', badge: alertasNomina.length },
+          { label: 'Mesero', icon: 'ri-customer-service-2-line', color: 'var(--success)', href: '/mesero', badge: pedidosPendientes },
           { label: 'Reportes', icon: 'ri-bar-chart-2-line', color: 'var(--silver)', nav: 'reportes' },
           { label: 'Ajustes', icon: 'ri-settings-4-line', color: 'var(--text-muted)', nav: 'config' },
         ].map((a, i) => (
           <button
             key={i}
-            onClick={() => onNavigate(a.nav)}
+            onClick={() => a.href ? window.open(a.href, '_blank') : onNavigate(a.nav)}
             className="topbar-quick-btn"
             onMouseEnter={e => {
               e.currentTarget.style.borderColor = a.color;

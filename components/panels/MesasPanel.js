@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
+import { QRCodeSVG } from 'qrcode.react';
 
 // ── DATOS INICIALES DE MESAS ───────────────────────────────
 const INIT_MESAS = [
@@ -390,6 +391,7 @@ export default function MesasPanel({ showToast }) {
   const [bitacora, setBitacora] = useState([]);
   const [modalComanda, setModalComanda] = useState(false);
   const [productosBajos, setProductosBajos] = useState([]);
+  const [modalQR, setModalQR] = useState(null); // mesa para mostrar QR
 
   useEffect(() => {
     const revisarStockBajo = () => {
@@ -870,10 +872,11 @@ export default function MesasPanel({ showToast }) {
                 {mesa.estado !== 'ocupada' && (
                   <button
                     className="btn btn-secondary btn-sm btn-icon"
-                    title="Cambiar estado"
-                    onClick={() => showToast('Función en desarrollo', 'info')}
+                    title="Ver QR de Mesa"
+                    onClick={() => setModalQR(mesa)}
+                    style={{ color: 'var(--bronze-light)' }}
                   >
-                    <i className="ri-more-2-line" />
+                    <i className="ri-qr-code-line" />
                   </button>
                 )}
               </div>
@@ -883,6 +886,75 @@ export default function MesasPanel({ showToast }) {
       </div>
 
       {/* Modales */}
+
+      {/* ── MODAL QR DE MESA ─────────────────────────── */}
+      {modalQR && (
+        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setModalQR(null)}>
+          <div className="modal" style={{ maxWidth: 380, textAlign: 'center' }}>
+            <div className="modal-header">
+              <span className="modal-title"><i className="ri-qr-code-line" style={{ marginRight: 8 }} />QR — {modalQR.nombre}</span>
+              <button onClick={() => setModalQR(null)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 20, cursor: 'pointer' }}><i className="ri-close-line" /></button>
+            </div>
+            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20 }}>
+              {/* QR Code */}
+              <div id={`qr-mesa-${modalQR.id}`} style={{ background: '#fff', padding: 20, borderRadius: 16, display: 'inline-block' }}>
+                <QRCodeSVG
+                  value={`https://yoy-ia-billar.vercel.app/mesa/${modalQR.id}`}
+                  size={200}
+                  bgColor="#ffffff"
+                  fgColor="#0a0a0f"
+                  level="H"
+                  includeMargin={false}
+                />
+              </div>
+              {/* Info */}
+              <div>
+                <div style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 800, color: 'var(--bronze-light)', marginBottom: 4 }}>{modalQR.nombre}</div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', wordBreak: 'break-all' }}>yoy-ia-billar.vercel.app/mesa/{modalQR.id}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>{modalQR.tipo} · Tarifa: ${modalQR.tarifa}/hr</div>
+              </div>
+              {/* Instrucciones */}
+              <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 12, padding: 14, textAlign: 'left', width: '100%' }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--bronze-light)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+                  <i className="ri-information-line" /> Instrucciones para el cliente
+                </div>
+                {['Escanea el código QR con tu celular', 'Ordena bebidas y alimentos desde tu mesa', 'Pide asistencia con un solo toque', 'Revisa tu cuenta en tiempo real'].map((txt, i) => (
+                  <div key={i} style={{ fontSize: 12, color: 'var(--text-secondary)', padding: '3px 0', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ color: 'var(--bronze)', fontSize: 14 }}>›</span> {txt}
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-secondary" onClick={() => setModalQR(null)}>Cerrar</button>
+              <button
+                className="btn btn-primary"
+                onClick={() => {
+                  const qrEl = document.getElementById(`qr-mesa-${modalQR.id}`);
+                  const w = window.open('', '_blank');
+                  w.document.write(`
+                    <html><head><title>QR Mesa ${modalQR.id}</title>
+                    <style>body{margin:0;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;background:#fff;font-family:sans-serif;padding:20px;}
+                    h2{color:#cd7f32;margin:16px 0 4px;font-size:22px;}
+                    p{color:#666;font-size:13px;margin:2px 0;}
+                    .qr-box{padding:20px;background:#fff;border:2px dashed #cd7f32;border-radius:12px;margin-bottom:12px;}
+                    </style></head><body>
+                    <div class="qr-box">${qrEl.innerHTML}</div>
+                    <h2>${modalQR.nombre}</h2>
+                    <p>Escanea para ordenar y pedir asistencia</p>
+                    <p style="font-size:11px;color:#aaa;margin-top:8px">yoy-ia-billar.vercel.app/mesa/${modalQR.id}</p>
+                    <script>window.onload=()=>window.print()</script>
+                    </body></html>
+                  `);
+                  w.document.close();
+                }}
+              >
+                <i className="ri-printer-line" /> Imprimir QR
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {modalAbrir && (
         <ModalAbrirMesa
           mesa={modalAbrir}
