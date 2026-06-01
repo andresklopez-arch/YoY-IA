@@ -638,28 +638,14 @@ function NominaTab({ showToast }) {
   const [descontarCaja, setDescontarCaja] = useState(false);
   const [historialEmp, setHistorialEmp] = useState(null);
 
-  useEffect(() => {
-    const unsub1 = onSnapshot(query(collection(db, 'nomina_empleados'), where('estado', '==', 'activo')), snap => setEmpleados(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
-    const unsub2 = onSnapshot(query(collection(db, 'nomina_pagos'), orderBy('fecha', 'desc')), snap => setPagos(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
-    return () => { unsub1(); unsub2(); };
-  }, []);
-
-  useEffect(() => { calcularNomina(); }, [empleados, asistencias, fechaInicio, fechaFin, ventasMesas, ventasBar]);
-
-  const cargarAsistenciasPeriodo = useCallback(async () => {
-    if (!fechaInicio || !fechaFin) return;
-    const q = query(collection(db, 'nomina_asistencia'), where('fecha', '>=', fechaInicio), where('fecha', '<=', fechaFin));
-    const snap = await getDocs(q);
-    setAsistencias(snap.docs.map(d => d.data()));
-  }, [fechaInicio, fechaFin]);
-
-  useEffect(() => { cargarAsistenciasPeriodo(); }, [cargarAsistenciasPeriodo]);
-
   // MEJORA 1 INTEGRADA: leer ventas reales de localStorage
   const { ventasMesas, ventasBar } = useVentasReales(fechaInicio, fechaFin);
 
-  const calcularNomina = () => {
-    if (!empleados.length) return;
+  const calcularNomina = useCallback(() => {
+    if (!empleados.length) {
+      setCalculos([]);
+      return;
+    }
     const dias = Math.max(1, Math.round((new Date(fechaFin) - new Date(fechaInicio)) / 86400000) + 1);
     const result = empleados.map(emp => {
       const asistEmp = asistencias.filter(a => a.empleadoId === emp.id);
@@ -690,7 +676,32 @@ function NominaTab({ showToast }) {
       return { emp, diasTrabajados, tardanzas, sueldoProp, comisionMesas, comisionBar, bonoTurno, deducciones, total, pagado, pendiente: Math.max(0, total - pagado) };
     });
     setCalculos(result);
-  };
+  }, [empleados, asistencias, pagos, fechaInicio, fechaFin, ventasMesas, ventasBar]);
+
+  const cargarAsistenciasPeriodo = useCallback(async () => {
+    if (!fechaInicio || !fechaFin) return;
+    try {
+      const q = query(collection(db, 'nomina_asistencia'), where('fecha', '>=', fechaInicio), where('fecha', '<=', fechaFin));
+      const snap = await getDocs(q);
+      setAsistencias(snap.docs.map(d => d.data()));
+    } catch (e) {
+      console.error("Error al cargar asistencias del periodo:", e);
+    }
+  }, [fechaInicio, fechaFin]);
+
+  useEffect(() => {
+    cargarAsistenciasPeriodo();
+  }, [cargarAsistenciasPeriodo]);
+
+  useEffect(() => {
+    const unsub1 = onSnapshot(query(collection(db, 'nomina_empleados'), where('estado', '==', 'activo')), snap => setEmpleados(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+    const unsub2 = onSnapshot(query(collection(db, 'nomina_pagos'), orderBy('fecha', 'desc')), snap => setPagos(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+    return () => { unsub1(); unsub2(); };
+  }, []);
+
+  useEffect(() => {
+    calcularNomina();
+  }, [calcularNomina]);
 
   const pagar = async (calc, todos = false) => {
     const items = todos ? calculos.filter(c => c.pendiente > 0) : [calc];

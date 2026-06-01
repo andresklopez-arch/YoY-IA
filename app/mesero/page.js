@@ -118,6 +118,29 @@ function MeseroContent() {
               <i className={sonido ? 'ri-volume-up-line' : 'ri-volume-mute-line'} />
               {sonido ? 'Sonido ON' : 'Silencio'}
             </button>
+
+            {/* Botón X — cerrar y volver a Mesas */}
+            <button
+              onClick={() => {
+                window.location.href = 'https://yoy-ia-billar.vercel.app';
+              }}
+              title="Cerrar y volver a Mesas"
+              style={{
+                width: 38, height: 38,
+                background: 'rgba(239,68,68,0.08)',
+                border: '1px solid rgba(239,68,68,0.3)',
+                borderRadius: 10,
+                cursor: 'pointer',
+                color: '#ef4444',
+                fontSize: 20,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                transition: 'all 0.2s',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.18)'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.08)'; }}
+            >
+              <i className="ri-close-line" />
+            </button>
           </div>
         </div>
       </div>
