@@ -9,6 +9,7 @@ const PANEL_LABELS = {
   bar:       'Inventario Inteligente IA',
   clientes:  'Clientes',
   torneos:   'Torneos y Ligas',
+  nomina:    'Nómina & Gastos',
   reportes:  'Reportes',
   config:    'Configuración',
 };
@@ -79,6 +80,7 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
           { label: 'Caja', icon: 'ri-money-dollar-circle-line', color: 'var(--bronze-light)', nav: 'caja' },
           { label: 'Inventario', icon: 'ri-archive-line', color: 'var(--blue-light)', nav: 'bar' },
           { label: 'Torneos', icon: 'ri-trophy-line', color: '#ffd700', nav: 'torneos' },
+          { label: 'Nómina', icon: 'ri-briefcase-4-line', color: 'var(--bronze-light)', nav: 'nomina' },
           { label: 'Reportes', icon: 'ri-bar-chart-2-line', color: 'var(--silver)', nav: 'reportes' },
           { label: 'Ajustes', icon: 'ri-settings-4-line', color: 'var(--text-muted)', nav: 'config' },
         ].map((a, i) => (

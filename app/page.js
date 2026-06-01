@@ -11,6 +11,7 @@ import TorneosPanel from '@/components/panels/TorneosPanel';
 import ReportesPanel from '@/components/panels/ReportesPanel';
 import DashboardPanel from '@/components/panels/DashboardPanel';
 import ConfigPanel from '@/components/panels/ConfigPanel';
+import NominaPanel from '@/components/panels/NominaPanel';
 import LoginScreen from '@/components/LoginScreen';
 import { AuthProvider, useAuth } from '@/lib/auth-context';
 
@@ -60,6 +61,7 @@ function AppContent() {
     bar:       <BarPanel showToast={showToast} />,
     clientes:  <ClientesPanel showToast={showToast} />,
     torneos:   <TorneosPanel showToast={showToast} />,
+    nomina:    <NominaPanel showToast={showToast} />,
     reportes:  <ReportesPanel showToast={showToast} />,
     config:    <ConfigPanel showToast={showToast} />,
   };
