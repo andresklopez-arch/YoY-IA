@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Manual Práctico de Usuario - YoY IA Billar</title>
+  <link href="https://cdn.jsdelivr.net/npm/remixicon@4.2.0/fonts/remixicon.css" rel="stylesheet">
+  <style>
+    /* Estilos Premium YoY IA Billar */
+    :root {
+      --bg-base: #0d0d0f;
+      --bg-card: #151518;
+      --bg-elevated: #1e1e24;
+      --bronze: #cd7f32;
+      --bronze-light: #e3a869;
+      --bronze-subtle: rgba(205, 127, 50, 0.12);
+      --border: rgba(255, 255, 255, 0.08);
+      --border-bronze: rgba(205, 127, 50, 0.25);
+      --text-primary: #f3f4f6;
+      --text-secondary: #9ca3af;
+      --text-muted: #6b7280;
+      --success: #22c55e;
+      --danger: #ef4444;
+      --warning: #f59e0b;
+      --info: #3b82f6;
+      --font-display: 'Inter', system-ui, -apple-system, sans-serif;
+    }
+
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-base);
+      color: var(--text-primary);
+      font-family: var(--font-display);
+      line-height: 1.6;
+      padding: 40px 20px;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      background: var(--bg-card);
+      border: 1px solid var(--border-bronze);
+      border-radius: 24px;
+      padding: 48px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5), 0 0 40px rgba(205, 127, 50, 0.05);
+    }
+
+    /* Cabecera */
+    .header {
+      text-align: center;
+      border-bottom: 2px dashed var(--border-bronze);
+      padding-bottom: 32px;
+      margin-bottom: 40px;
+    }
+
+    .logo {
+      font-size: 56px;
+      margin-bottom: 12px;
+      filter: drop-shadow(0 0 10px rgba(205, 127, 50, 0.3));
+    }
+
+    .title {
+      font-size: 32px;
+      font-weight: 900;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      background: linear-gradient(135deg, var(--bronze-light), #fff);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 6px;
+    }
+
+    .subtitle {
+      font-size: 14px;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.2em;
+      font-weight: 600;
+    }
+
+    .instructions-print {
+      margin-top: 16px;
+      background: rgba(34, 197, 94, 0.06);
+      border: 1px solid rgba(34, 197, 94, 0.2);
+      border-radius: 12px;
+      padding: 10px 16px;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 12px;
+      color: var(--success);
+    }
+
+    /* Secciones */
+    .section {
+      margin-bottom: 48px;
+    }
+
+    .section-title {
+      font-size: 18px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--bronze-light);
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 8px;
+      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .section-title i {
+      font-size: 20px;
+      color: var(--bronze);
+    }
+
+    .section-desc {
+      font-size: 14px;
+      color: var(--text-secondary);
+      margin-bottom: 20px;
+    }
+
+    /* Grilla de Botones */
+    .btn-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 16px;
+    }
+
+    @media (min-width: 600px) {
+      .btn-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+
+    .btn-card {
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 20px;
+      display: flex;
+      gap: 16px;
+      align-items: flex-start;
+      transition: all 0.2s;
+    }
+
+    .btn-card:hover {
+      border-color: var(--border-bronze);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(0,0,0,0.2);
+    }
+
+    .btn-icon-wrapper {
+      width: 42px;
+      height: 42px;
+      border-radius: 10px;
+      background: var(--bronze-subtle);
+      border: 1px solid var(--border-bronze);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      color: var(--bronze-light);
+      flex-shrink: 0;
+    }
+
+    .btn-card.success .btn-icon-wrapper {
+      background: rgba(34, 197, 94, 0.1);
+      border-color: rgba(34, 197, 94, 0.2);
+      color: var(--success);
+    }
+
+    .btn-card.danger .btn-icon-wrapper {
+      background: rgba(239, 68, 68, 0.1);
+      border-color: rgba(239, 68, 68, 0.2);
+      color: var(--danger);
+    }
+
+    .btn-card.info .btn-icon-wrapper {
+      background: rgba(59, 130, 246, 0.1);
+      border-color: rgba(59, 130, 246, 0.2);
+      color: var(--info);
+    }
+
+    .btn-card.warning .btn-icon-wrapper {
+      background: rgba(245, 158, 11, 0.1);
+      border-color: rgba(245, 158, 11, 0.2);
+      color: var(--warning);
+    }
+
+    .btn-name {
+      font-size: 15px;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 4px;
+    }
+
+    .btn-action {
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--bronze-light);
+      margin-bottom: 8px;
+      display: inline-block;
+    }
+
+    .btn-desc {
+      font-size: 13px;
+      color: var(--text-secondary);
+      line-height: 1.4;
+    }
+
+    /* Estilos de Impresión Profesional (Salvar a PDF) */
+    @media print {
+      body {
+        background-color: #fff;
+        color: #000;
+        padding: 0;
+      }
+
+      .container {
+        border: none;
+        box-shadow: none;
+        padding: 0;
+        max-width: 100%;
+        background: #fff;
+      }
+
+      .instructions-print {
+        display: none;
+      }
+
+      .title {
+        background: none;
+        -webkit-text-fill-color: initial;
+        color: #000;
+      }
+
+      .btn-card {
+        background: #fff;
+        border: 1px solid #ddd;
+        page-break-inside: avoid;
+      }
+
+      .btn-name, .btn-action {
+        color: #000;
+      }
+
+      .btn-desc {
+        color: #333;
+      }
+
+      .btn-icon-wrapper {
+        background: #f0f0f0;
+        border-color: #ccc;
+        color: #000;
+      }
+
+      .section-title {
+        color: #000;
+        border-bottom-color: #000;
+      }
+
+      .section {
+        page-break-inside: avoid;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <!-- Cabecera del Manual -->
+    <div class="header">
+      <div class="logo">🎱</div>
+      <h1 class="title">Manual Práctico YoY IA Billar</h1>
+      <p class="subtitle">Guía Visual de Botones y Funciones del Sistema</p>
+      <div class="instructions-print">
+        <i class="ri-printer-line"></i>
+        <span><strong>Consejo:</strong> Presiona <strong>Ctrl + P</strong> en tu navegador y selecciona <strong>"Guardar como PDF"</strong> para obtener tu manual listo en papel.</span>
+      </div>
+    </div>
+
+    <!-- SECCIÓN 1: CONTROL DE MESAS -->
+    <div class="section">
+      <h2 class="section-title"><i class="ri-play-circle-line"></i> 1. Control de Mesas (MesasPanel)</h2>
+      <p class="section-desc">Es la central de control principal del billar. Permite ver el estado actual de las mesas (libre, ocupada, reservada, mantenimiento), contabilizar tiempos y generar los enlaces físicos.</p>
+      
+      <div class="btn-grid">
+        <div class="btn-card success">
+          <div class="btn-icon-wrapper"><i class="ri-play-line"></i></div>
+          <div>
+            <div class="btn-name">Iniciar Mesa</div>
+            <div class="btn-action">Click en Mesa Libre → Confirmar</div>
+            <div class="btn-desc">Arranca el cronómetro de la mesa. Abre un modal donde ingresas el nombre del cliente y seleccionas si es miembro/socio para aplicar tarifas preferenciales.</div>
+          </div>
+        </div>
+
+        <div class="btn-card danger">
+          <div class="btn-icon-wrapper"><i class="ri-stop-fill"></i></div>
+          <div>
+            <div class="btn-name">Cerrar / Cobrar Mesa</div>
+            <div class="btn-action">Click en Mesa Ocupada → Detener</div>
+            <div class="btn-desc">Detiene el tiempo. Ofrece dos opciones: "Liquidar Ahora" (efectivo, tarjeta, SPEI enviando el dinero a caja) o "Agregar a Cuenta" (acumular el costo de tiempo con los consumos de bar del cliente).</div>
+          </div>
+        </div>
+
+        <div class="btn-card info">
+          <div class="btn-icon-wrapper"><i class="ri-qr-code-line"></i></div>
+          <div>
+            <div class="btn-name">Generador de QR</div>
+            <div class="btn-action">Click en Ícono QR de Mesa</div>
+            <div class="btn-desc">Muestra el código QR individual de autoservicio de esa mesa. Incluye el botón "Imprimir QR" para obtener un cartel físico listo para pegar en la mesa.</div>
+          </div>
+        </div>
+
+        <div class="btn-card warning">
+          <div class="btn-icon-wrapper"><i class="ri-history-line"></i></div>
+          <div>
+            <div class="btn-name">Fila Virtual</div>
+            <div class="btn-action">Botón "Fila Virtual" en Cabecera</div>
+            <div class="btn-desc">Abre el gestor de lista de espera. Permite registrar clientes que aguardan mesa indicando su teléfono, y les avisa mediante sonido en pantalla cuando su mesa se libera.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SECCIÓN 2: CAJA Y POS -->
+    <div class="section">
+      <h2 class="section-title"><i class="ri-money-dollar-box-line"></i> 2. Caja y POS (CajaPanel)</h2>
+      <p class="section-desc">Módulo financiero para resguardar el flujo diario de efectivo y terminales. Registra todo el dinero que ingresa por mesas, bar, nóminas o gastos.</p>
+      
+      <div class="btn-grid">
+        <div class="btn-card success">
+          <div class="btn-icon-wrapper"><i class="ri-key-line"></i></div>
+          <div>
+            <div class="btn-name">Apertura de Caja</div>
+            <div class="btn-action">Ingresar monto de fondo inicial</div>
+            <div class="btn-desc">Activa las operaciones del día registrando el efectivo inicial en caja chica (cambio) para control de arqueos.</div>
+          </div>
+        </div>
+
+        <div class="btn-card danger">
+          <div class="btn-icon-wrapper"><i class="ri-lock-password-line"></i></div>
+          <div>
+            <div class="btn-name">Cerrar Caja (Corte)</div>
+            <div class="btn-action">Botón "Cierre de Caja"</div>
+            <div class="btn-desc">Calcula el saldo esperado contra el saldo real. Desglosa los ingresos por Efectivo, Tarjeta y SPEI/QR, y genera el archivo de arqueo conciliado para auditoría.</div>
+          </div>
+        </div>
+
+        <div class="btn-card info">
+          <div class="btn-icon-wrapper"><i class="ri-add-line"></i></div>
+          <div>
+            <div class="btn-name">Registrar Movimiento</div>
+            <div class="btn-action">Botón "Ingreso" o "Egreso"</div>
+            <div class="btn-desc">Permite registrar manualmente dinero extra que entra o sale de la caja chica, como compras rápidas o pagos menores del negocio.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SECCIÓN 3: INVENTARIO INTELIGENTE -->
+    <div class="section">
+      <h2 class="section-title"><i class="ri-archive-line"></i> 3. Bar e Inventario (BarPanel)</h2>
+      <p class="section-desc">Controla las existencias del área de bar, snack y cocina de la sala de billar. Sincronizado en tiempo real con los pedidos de los clientes.</p>
+      
+      <div class="btn-grid">
+        <div class="btn-card success">
+          <div class="btn-icon-wrapper"><i class="ri-add-circle-line"></i></div>
+          <div>
+            <div class="btn-name">Registrar Producto</div>
+            <div class="btn-action">Botón "Nuevo Producto"</div>
+            <div class="btn-desc">Añade productos al inventario del bar. Permite definir nombre, categoría (Cerveza, Bebida, Snack), precio de costo, precio de venta y stock mínimo de alarma.</div>
+          </div>
+        </div>
+
+        <div class="btn-card warning">
+          <div class="btn-icon-wrapper"><i class="ri-loop-left-line"></i></div>
+          <div>
+            <div class="btn-name">Ajuste de Stock</div>
+            <div class="btn-action">Botón "Ajustar Stock" (en fila de ítem)</div>
+            <div class="btn-desc">Abre un editor rápido para corregir existencias en caso de mermas, degustaciones o carga rápida de mercadería comprada.</div>
+          </div>
+        </div>
+
+        <div class="btn-card info">
+          <div class="btn-icon-wrapper"><i class="ri-robot-line"></i></div>
+          <div>
+            <div class="btn-name">Previsiones IA</div>
+            <div class="btn-action">Botón "Previsiones de Compra IA"</div>
+            <div class="btn-desc">Un motor de IA analiza los productos con stock crítico bajo el óptimo y genera una orden de sugerencia de compras para reabastecimiento eficiente del negocio.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SECCIÓN 4: VISTA MESERO -->
+    <div class="section">
+      <h2 class="section-title"><i class="ri-customer-service-2-line"></i> 4. Pantalla del Mesero (/mesero)</h2>
+      <p class="section-desc">La vista móvil del mesero en sala. Muestra en tiempo real qué mesa solicitó bebidas, alimentos, limpieza o cuenta, emitiendo alarmas visuales y sonoras potentes.</p>
+      
+      <div class="btn-grid">
+        <div class="btn-card warning">
+          <div class="btn-icon-wrapper"><i class="ri-shopping-basket-line"></i></div>
+          <div>
+            <div class="btn-name">Capturar Venta</div>
+            <div class="btn-action">Botón "Capturar Venta" en Cabecera</div>
+            <div class="btn-desc">Permite al mesero levantar una orden directamente en la mesa. Selecciona la mesa y añade productos del bar del inventario en tiempo real. Dispara una notificación sutil de 3 segundos en el POS principal.</div>
+          </div>
+        </div>
+
+        <div class="btn-card info">
+          <div class="btn-icon-wrapper"><i class="ri-run-line"></i></div>
+          <div>
+            <div class="btn-name">En Camino</div>
+            <div class="btn-action">Botón "En Camino 🚀" en Pedido</div>
+            <div class="btn-desc">Informa al cliente en su pantalla móvil que el mesero ha tomado su solicitud y se encuentra preparándola o transportándola a la mesa.</div>
+          </div>
+        </div>
+
+        <div class="btn-card success">
+          <div class="btn-icon-wrapper"><i class="ri-check-double-line"></i></div>
+          <div>
+            <div class="btn-name">Completar Pedido</div>
+            <div class="btn-action">Botón "Completado ✓" o "Atendido"</div>
+            <div class="btn-desc">Marca la solicitud como entregada. Silencia instantáneamente las alarmas y notificaciones sonoras activas tanto en su pantalla como en la del administrador central.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SECCIÓN 5: NÓMINA Y GASTOS -->
+    <div class="section">
+      <h2 class="section-title"><i class="ri-briefcase-4-line"></i> 5. Nómina & Gastos (NominaPanel)</h2>
+      <p class="section-desc">Módulo integral para la administración de recursos humanos, control diario de asistencias, cálculo exacto de comisiones y presupuestos de mantenimiento.</p>
+      
+      <div class="btn-grid">
+        <div class="btn-card success">
+          <div class="btn-icon-wrapper"><i class="ri-user-add-line"></i></div>
+          <div>
+            <div class="btn-name">Nuevo Empleado</div>
+            <div class="btn-action">Ficha Empleados → Registrar</div>
+            <div class="btn-desc">Registra personal del billar. Define sueldo base, frecuencia de pago y el esquema de comisiones del bar (en % o $) y mesas para el cálculo autónomo de salarios.</div>
+          </div>
+        </div>
+
+        <div class="btn-card info">
+          <div class="btn-icon-wrapper"><i class="ri-calendar-check-line"></i></div>
+          <div>
+            <div class="btn-name">Pase de Lista / Turno</div>
+            <div class="btn-action">Tocar tarjeta de empleado en Pase de Lista</div>
+            <div class="btn-desc">Permite registrar la asistencia por turno (Mañana, Tarde, Noche). Rota entre Presente ✅, Ausente ❌, Tardanza ⚠️ o Permiso 🏥 con un solo click.</div>
+          </div>
+        </div>
+
+        <div class="btn-card warning">
+          <div class="btn-icon-wrapper"><i class="ri-money-dollar-circle-line"></i></div>
+          <div>
+            <div class="btn-name">Pagar Nómina</div>
+            <div class="btn-action">Pestaña Nómina → "Pagar" o "Pagar Todos"</div>
+            <div class="btn-desc">Calcula automáticamente el salario proporcional de días trabajados, suma las comisiones automáticas de ventas reales del bar y mesas, descuenta tardanzas y registra el pago (con opción de descontar de Caja chica).</div>
+          </div>
+        </div>
+
+        <div class="btn-card danger">
+          <div class="btn-icon-wrapper"><i class="ri-receipt-line"></i></div>
+          <div>
+            <div class="btn-name">Registrar Gasto operativo</div>
+            <div class="btn-action">Ficha Gastos → Nuevo Gasto</div>
+            <div class="btn-desc">Registra egresos operativos clasificándolos en categorías (Mesas, Accesorios, Servicios, Limpieza). Soporta gastos fijos, recurrentes y notas adicionales.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>
