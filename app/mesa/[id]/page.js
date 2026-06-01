@@ -37,10 +37,12 @@ function decodeBarStock(raw) {
 
 // ── TIPOS DE ASISTENCIA POR DEFECTO ───────────────────────
 const DEFAULT_ASISTENCIAS = [
-  { id: 'mesero',   label: 'Llamar Mesero', icon: '🙋',   color: '#cd7f32' },
-  { id: 'limpieza', label: 'Limpieza',      icon: '🧹',   color: '#22c55e' },
-  { id: 'ayuda',    label: 'Orientación',   icon: '❓',   color: '#3b82f6' },
-  { id: 'urgente',  label: 'Urgente',       icon: '🚨',   color: '#ef4444' },
+  { id: 'mesero',       label: 'Llamar Mesero',        icon: '🙋', color: '#cd7f32' },
+  { id: 'limpiar_mesa',  label: 'Limpiar mesa',         icon: '🧹', color: '#22c55e' },
+  { id: 'cerrar_tiempo', label: 'Cerrar tiempo',        icon: '⏱️', color: '#f59e0b' },
+  { id: 'tiempo_nuevo',  label: 'Tiempo y tiempo nuevo',icon: '🔄', color: '#3b82f6' },
+  { id: 'orientacion',   label: 'Orientación',          icon: '❓', color: '#a78bfa' },
+  { id: 'urgente',       label: 'Urgente',              icon: '🚨', color: '#ef4444' },
 ];
 
 // ═══════════════════════════════════════════════════════════

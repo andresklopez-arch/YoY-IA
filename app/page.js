@@ -14,12 +14,104 @@ import ConfigPanel from '@/components/panels/ConfigPanel';
 import NominaPanel from '@/components/panels/NominaPanel';
 import LoginScreen from '@/components/LoginScreen';
 import { AuthProvider, useAuth } from '@/lib/auth-context';
+import { collection, query, where, orderBy, limit, onSnapshot, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 function AppContent() {
   const { user, loading } = useAuth();
   const [activePanel, setActivePanel] = useState('mesas');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [toasts, setToasts] = useState([]);
+
+  // Alerta de captura de mesero (3 segundos)
+  const [capturaAlert, setCapturaAlert] = useState(null); // { mesaId, total }
+  
+  // Alertas de asistencia pendientes para popup principal
+  const [alertasAsistencia, setAlertasAsistencia] = useState([]);
+  const [sonidoAdmin, setSonidoAdmin] = useState(true);
+
+  // 1. Escuchar capturas de venta del mesero
+  useEffect(() => {
+    if (!user) return;
+    const q = query(
+      collection(db, 'mesa_pedidos'),
+      where('origen', '==', 'mesero_captura'),
+      orderBy('createdAt', 'desc'),
+      limit(1)
+    );
+    const unsub = onSnapshot(q, snap => {
+      if (snap.empty) return;
+      const dData = snap.docs[0].data();
+      const creado = dData.createdAt?.toDate ? dData.createdAt.toDate().getTime() : Date.now();
+      
+      // Si fue creado en los últimos 10 segundos, disparar el popup de 3 segundos
+      if (Date.now() - creado < 10000) {
+        setCapturaAlert({ mesaId: dData.mesaId, total: dData.total });
+        const timer = setTimeout(() => {
+          setCapturaAlert(null);
+        }, 3000);
+        return () => clearTimeout(timer);
+      }
+    });
+    return unsub;
+  }, [user]);
+
+  // 2. Escuchar asistencias pendientes para alerta emergente admin
+  useEffect(() => {
+    if (!user) return;
+    const q = query(
+      collection(db, 'mesa_pedidos'),
+      where('tipo', '==', 'asistencia'),
+      where('estado', '==', 'pendiente')
+    );
+    const unsub = onSnapshot(q, snap => {
+      const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      setAlertasAsistencia(items);
+    });
+    return unsub;
+  }, [user]);
+
+  // 3. Alarma sonora sutil para el administrador
+  useEffect(() => {
+    if (!user || !sonidoAdmin || alertasAsistencia.length === 0) return;
+    
+    const sonarChime = () => {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.frequency.value = 523.25; // C5
+        gain.gain.value = 0.15;
+        osc.start(); osc.stop(ctx.currentTime + 0.15);
+        
+        setTimeout(() => {
+          const osc2 = ctx.createOscillator();
+          const gain2 = ctx.createGain();
+          osc2.connect(gain2); gain2.connect(ctx.destination);
+          osc2.frequency.value = 659.25; // E5
+          gain2.gain.value = 0.15;
+          osc2.start(); osc2.stop(ctx.currentTime + 0.3);
+        }, 150);
+      } catch { /* sin audio */ }
+    };
+
+    sonarChime();
+    const t = setInterval(sonarChime, 5000);
+    return () => clearInterval(t);
+  }, [user, sonidoAdmin, alertasAsistencia.length]);
+
+  const marcarAtendidoAdmin = async (id) => {
+    try {
+      await updateDoc(doc(db, 'mesa_pedidos', id), {
+        estado: 'atendido',
+        atendidoAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   const showToast = (message, type = 'info') => {
     const id = Date.now();
@@ -110,6 +202,113 @@ function AppContent() {
         </div>
       </div>
       <ToastContainer toasts={toasts} />
+
+      {/* ── STYLE TAG FOR CUSTOM ANIMATIONS ── */}
+      <style>{`
+        @keyframes shrinkWidth {
+          from { width: 100%; }
+          to { width: 0%; }
+        }
+        @keyframes slideDownAlert {
+          from { transform: translate(-50%, -40px); opacity: 0; }
+          to { transform: translate(-50%, 0); opacity: 1; }
+        }
+        @keyframes scaleUpAlert {
+          from { transform: scale(0.95); opacity: 0; }
+          to { transform: scale(1); opacity: 1; }
+        }
+      `}</style>
+
+      {/* ── ALERTA TEMPORAL 3 SEG: CAPTURA DE VENTA POR MESERO ── */}
+      {capturaAlert && (
+        <div style={{
+          position: 'fixed', top: 24, left: '50%', transform: 'translateX(-50%)',
+          background: 'linear-gradient(135deg, #1e1b18, #0f0d0c)',
+          border: '2px solid var(--bronze-light)',
+          boxShadow: '0 10px 30px rgba(205,127,50,0.3), var(--shadow-bronze)',
+          borderRadius: 16, padding: '16px 24px', zIndex: 2000,
+          display: 'flex', alignItems: 'center', gap: 14,
+          animation: 'slideDownAlert 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275)'
+        }}>
+          <div style={{ fontSize: 24, background: 'var(--bronze-subtle)', width: 44, height: 44, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--bronze-light)' }}>
+            🛍️
+          </div>
+          <div style={{ textAlign: 'left' }}>
+            <div style={{ fontSize: 11, color: 'var(--bronze-light)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.12em' }}>Venta Capturada Directa</div>
+            <div style={{ fontSize: 15, fontWeight: 800, color: '#fff', marginTop: 2 }}>Mesa {capturaAlert.mesaId} · <span style={{ color: 'var(--success)' }}>${capturaAlert.total}</span></div>
+          </div>
+          
+          {/* Barra de progreso de 3 segundos */}
+          <div style={{
+            position: 'absolute', bottom: 0, left: 0, height: 3, background: 'var(--bronze-light)',
+            width: '100%', animation: 'shrinkWidth 3s linear forwards', borderBottomLeftRadius: 16, borderBottomRightRadius: 16
+          }} />
+        </div>
+      )}
+
+      {/* ── VENTANA EMERGENTE ADMIN: ALERTA DE SERVICIO PENDIENTE ── */}
+      {alertasAsistencia.length > 0 && (
+        <div className="modal-overlay" style={{ zIndex: 1999, background: 'rgba(13,13,15,0.8)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}>
+          <div className="modal" style={{ maxWidth: 440, border: '2px solid var(--danger)', boxShadow: '0 0 30px rgba(239,68,68,0.25)', animation: 'scaleUpAlert 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)' }}>
+            <div className="modal-header" style={{ borderBottom: '1px solid rgba(239,68,68,0.15)', paddingBottom: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span className="modal-title" style={{ color: 'var(--danger)', display: 'flex', alignItems: 'center', gap: 8, fontSize: 16, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                🚨 Alerta de Servicio (Cliente)
+              </span>
+              <span style={{ fontSize: 10, background: 'rgba(239,68,68,0.12)', color: 'var(--danger)', padding: '1px 6px', borderRadius: 999, fontWeight: 800 }}>
+                {alertasAsistencia.length} PENDIENTE
+              </span>
+            </div>
+            <div className="modal-body" style={{ maxHeight: 300, overflowY: 'auto', padding: '12px 0' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {alertasAsistencia.map((alerta) => (
+                  <div key={alerta.id} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 12, padding: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <span style={{ fontSize: 26 }}>{alerta.icono || '🙋'}</span>
+                      <div style={{ textAlign: 'left' }}>
+                        <div style={{ fontSize: 14, fontWeight: 800, color: '#fff' }}>Mesa {alerta.mesaId}</div>
+                        <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>{alerta.etiqueta}</div>
+                        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>{alerta.cliente}</div>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => marcarAtendidoAdmin(alerta.id)}
+                      style={{
+                        background: 'rgba(34,197,94,0.12)',
+                        border: '1px solid rgba(34,197,94,0.3)',
+                        color: 'var(--success)',
+                        padding: '6px 12px',
+                        borderRadius: 8,
+                        fontWeight: 700,
+                        fontSize: 12,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 4,
+                        transition: 'all 0.15s',
+                        flexShrink: 0
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.background = 'rgba(34,197,94,0.2)'; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = 'rgba(34,197,94,0.12)'; }}
+                    >
+                      <i className="ri-check-line" /> Atendido
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="modal-footer" style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <button
+                onClick={() => setSonidoAdmin(!sonidoAdmin)}
+                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 11, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+              >
+                <i className={sonidoAdmin ? 'ri-volume-up-line' : 'ri-volume-mute-line'} />
+                {sonidoAdmin ? 'Chime ON' : 'Silencio'}
+              </button>
+              <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>YoY IA Billar</span>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
