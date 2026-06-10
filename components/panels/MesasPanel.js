@@ -348,6 +348,32 @@ function ModalCerrarMesa({ mesa, cuentasActivas, onClose, onCerrar, onAgregarACu
   const [camaraActiva, setCamaraActiva] = useState(false);
 
   useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        if (document.activeElement && 
+            (document.activeElement.tagName === 'INPUT' || 
+             document.activeElement.tagName === 'SELECT' || 
+             document.activeElement.tagName === 'TEXTAREA')) {
+          document.activeElement.blur();
+          return;
+        }
+        if (camaraActiva) {
+          setCamaraActiva(false);
+          return;
+        }
+        if (pagaCon || referencia || fotoComprobante) {
+          if (!window.confirm('¿Deseas cancelar el cierre? Se perderán los datos del pago.')) {
+            return;
+          }
+        }
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [camaraActiva, pagaCon, referencia, fotoComprobante, onClose]);
+
+  useEffect(() => {
     const t = setInterval(() => setElapsed(Date.now() - (mesa.inicio || Date.now())), 1000);
     return () => clearInterval(t);
   }, [mesa.inicio]);
@@ -764,23 +790,35 @@ export default function MesasPanel({ showToast }) {
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
+        if (document.activeElement && 
+            (document.activeElement.tagName === 'INPUT' || 
+             document.activeElement.tagName === 'SELECT' || 
+             document.activeElement.tagName === 'TEXTAREA')) {
+          document.activeElement.blur();
+          return;
+        }
+
+        if (modalComanda || 
+            modalNuevaMesa || 
+            modalFila || 
+            modalCuentas || 
+            modalAbrirCuenta || 
+            modalCerrar || 
+            mostrarCobroManual ||
+            modalVincular) {
+          return;
+        }
+
         setModalAbrir(null);
-        setModalCerrar(null);
-        setModalNuevaMesa(false);
-        setModalFila(false);
-        setModalCuentas(false);
-        setModalAbrirCuenta(false);
         setModalCambiarMesa(null);
         setModalVincular(null);
         setModalBitacora(false);
-        setModalComanda(false);
         setModalQR(null);
-        setMostrarCobroManual(false);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [modalComanda, modalNuevaMesa, modalFila, modalCuentas, modalAbrirCuenta, modalCerrar, mostrarCobroManual, modalVincular]);
 
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
@@ -1532,9 +1570,32 @@ export default function MesasPanel({ showToast }) {
 
 // ── MODAL NUEVA MESA ─────────────────────────────────────
 function ModalNuevaMesa({ mesas, onClose, onConfirm }) {
-  const [id, setId] = useState(mesas.length > 0 ? Math.max(...mesas.map(m => m.id)) + 1 : 1);
+  const defaultId = mesas.length > 0 ? Math.max(...mesas.map(m => m.id)) + 1 : 1;
+  const [id, setId] = useState(defaultId);
   const [tipo, setTipo] = useState('Carambola 3B');
   const [tarifa, setTarifa] = useState(80);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        if (document.activeElement && 
+            (document.activeElement.tagName === 'INPUT' || 
+             document.activeElement.tagName === 'SELECT' || 
+             document.activeElement.tagName === 'TEXTAREA')) {
+          document.activeElement.blur();
+          return;
+        }
+        if (id !== defaultId || tipo !== 'Carambola 3B' || parseFloat(tarifa) !== 80) {
+          if (!window.confirm('¿Deseas salir? Perderás los datos ingresados para la nueva mesa.')) {
+            return;
+          }
+        }
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [id, defaultId, tipo, tarifa, onClose]);
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -1584,6 +1645,28 @@ function ModalFilaVirtual({ fila, setFila, mesas, onAssign, onClose, showToast }
   const [contacto, setContacto] = useState('');
   const [tipo, setTipo] = useState('Carambola 3B');
   const [personas, setPersonas] = useState(2);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        if (document.activeElement && 
+            (document.activeElement.tagName === 'INPUT' || 
+             document.activeElement.tagName === 'SELECT' || 
+             document.activeElement.tagName === 'TEXTAREA')) {
+          document.activeElement.blur();
+          return;
+        }
+        if (cliente || contacto) {
+          if (!window.confirm('¿Deseas salir? Perderás los datos ingresados en la fila virtual.')) {
+            return;
+          }
+        }
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [cliente, contacto, onClose]);
 
   const agregarFila = () => {
     if (!cliente) {
@@ -1725,6 +1808,36 @@ function ModalCuentasActivas({ cuentas, setCuentas, onClose, showToast, registra
   const [referencia, setReferencia] = useState('');
   const [fotoComprobante, setFotoComprobante] = useState('');
   const [camaraActiva, setCamaraActiva] = useState(false);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        if (document.activeElement && 
+            (document.activeElement.tagName === 'INPUT' || 
+             document.activeElement.tagName === 'SELECT' || 
+             document.activeElement.tagName === 'TEXTAREA')) {
+          document.activeElement.blur();
+          return;
+        }
+        if (camaraActiva) {
+          setCamaraActiva(false);
+          return;
+        }
+        if (showCheckout) {
+          if (pagaCon || referencia || fotoComprobante) {
+            if (!window.confirm('¿Deseas cancelar el pago? Se perderán los datos ingresados.')) {
+              return;
+            }
+          }
+          setShowCheckout(false);
+          return;
+        }
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [camaraActiva, showCheckout, pagaCon, referencia, fotoComprobante, onClose]);
 
   // Limpiar campos al cambiar de método o cuenta
   useEffect(() => {
@@ -2158,6 +2271,28 @@ function ModalCuentasActivas({ cuentas, setCuentas, onClose, showToast, registra
 function ModalAbrirCuentaDirecta({ cuentas, setCuentas, onClose, showToast, registrarEvento }) {
   const [cliente, setCliente] = useState('');
 
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        if (document.activeElement && 
+            (document.activeElement.tagName === 'INPUT' || 
+             document.activeElement.tagName === 'SELECT' || 
+             document.activeElement.tagName === 'TEXTAREA')) {
+          document.activeElement.blur();
+          return;
+        }
+        if (cliente) {
+          if (!window.confirm('¿Deseas salir? Perderás el nombre ingresado.')) {
+            return;
+          }
+        }
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [cliente, onClose]);
+
   const handleCrear = () => {
     if (!cliente) {
       showToast('Por favor ingrese el nombre del cliente.', 'warning');
@@ -2259,6 +2394,28 @@ function ModalCambiarMesa({ mesa, mesas, onClose, onConfirm }) {
 function ModalVincularCliente({ mesa, onClose, onConfirm }) {
   const [nombre, setNombre] = useState(mesa.cliente || '');
 
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        if (document.activeElement && 
+            (document.activeElement.tagName === 'INPUT' || 
+             document.activeElement.tagName === 'SELECT' || 
+             document.activeElement.tagName === 'TEXTAREA')) {
+          document.activeElement.blur();
+          return;
+        }
+        if (nombre !== (mesa.cliente || '')) {
+          if (!window.confirm('¿Deseas salir sin guardar los cambios del cliente?')) {
+            return;
+          }
+        }
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [nombre, mesa.cliente, onClose]);
+
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={e => e.stopPropagation()}>
@@ -2353,6 +2510,28 @@ function ModalRegistrarComanda({ mesas, setMesas, cuentasActivas, setCuentasActi
   const [destinoId, setDestinoId] = useState('');
   const [carrito, setCarrito] = useState([]);
   const [productos, setProductos] = useState([]);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        if (document.activeElement && 
+            (document.activeElement.tagName === 'INPUT' || 
+             document.activeElement.tagName === 'SELECT' || 
+             document.activeElement.tagName === 'TEXTAREA')) {
+          document.activeElement.blur();
+          return;
+        }
+        if (carrito.length > 0) {
+          if (!window.confirm('¿Deseas salir? Perderás los artículos agregados a la comanda.')) {
+            return;
+          }
+        }
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [carrito, onClose]);
 
   // Cargar productos con stock desde localStorage (Ofuscado)
   useEffect(() => {
@@ -2716,6 +2895,28 @@ function ModalRegistrarComanda({ mesas, setMesas, cuentasActivas, setCuentasActi
 
 // ── MODAL COBRO MANUAL ───────────────────────────────────
 function ModalCobroManual({ nuevoMonto, setNuevoMonto, nuevaDesc, setNuevaDesc, nuevoMetodo, setNuevoMetodo, pinAutorizacion, setPinAutorizacion, onClose, onConfirm }) {
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        if (document.activeElement && 
+            (document.activeElement.tagName === 'INPUT' || 
+             document.activeElement.tagName === 'SELECT' || 
+             document.activeElement.tagName === 'TEXTAREA')) {
+          document.activeElement.blur();
+          return;
+        }
+        if (nuevoMonto || nuevaDesc || pinAutorizacion) {
+          if (!window.confirm('¿Deseas salir? Perderás los datos ingresados en el cobro manual.')) {
+            return;
+          }
+        }
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [nuevoMonto, nuevaDesc, pinAutorizacion, onClose]);
+
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={e => e.stopPropagation()}>
