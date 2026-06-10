@@ -2,6 +2,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { obfuscate, deobfuscate } from '@/lib/crypto';
+import { db } from '@/lib/firebase';
+import { doc, onSnapshot } from 'firebase/firestore';
 
 // ── DATOS INICIALES DE MESAS ───────────────────────────────
 const INIT_MESAS = [
@@ -709,6 +711,111 @@ export default function MesasPanel({ showToast }) {
   const [productosBajos, setProductosBajos] = useState([]);
   const [modalQR, setModalQR] = useState(null); // mesa para mostrar QR
 
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [mostrarCobroManual, setMostrarCobroManual] = useState(false);
+  const [nuevoMonto, setNuevoMonto] = useState('');
+  const [nuevaDesc, setNuevaDesc] = useState('');
+  const [nuevoMetodo, setNuevoMetodo] = useState('efectivo');
+  const [pinAutorizacion, setPinAutorizacion] = useState('');
+  const [adminPinHash, setAdminPinHash] = useState('170440'); // Hash of '1111'
+
+  const hashPassword = (pwd) => {
+    if (!pwd) return '';
+    let hash = 0;
+    for (let i = 0; i < pwd.length; i++) {
+      hash = (hash << 5) - hash + pwd.charCodeAt(i);
+      hash |= 0;
+    }
+    return Math.abs(hash).toString(16);
+  };
+
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, 'config', 'seguridad'), snap => {
+      if (snap.exists() && snap.data().adminPinHash) {
+        const hash = snap.data().adminPinHash;
+        setAdminPinHash(hash);
+        localStorage.setItem('yoy_admin_pin_hash', hash);
+      } else {
+        if (typeof window !== 'undefined') {
+          const localHash = localStorage.getItem('yoy_admin_pin_hash');
+          if (localHash) setAdminPinHash(localHash);
+        }
+      }
+    }, err => {
+      console.warn("Firestore seguridad sync error (offline fallback):", err);
+      if (typeof window !== 'undefined') {
+        const localHash = localStorage.getItem('yoy_admin_pin_hash');
+        if (localHash) setAdminPinHash(localHash);
+      }
+    });
+    return unsub;
+  }, []);
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().then(() => {
+        setIsFullscreen(true);
+      }).catch((err) => {
+        showToast('Error al activar modo kiosco', 'error');
+      });
+    } else {
+      document.exitFullscreen();
+      setIsFullscreen(false);
+    }
+  };
+
+  const registrarCobroManual = () => {
+    if (!nuevoMonto || !nuevaDesc) {
+      showToast('Completa todos los campos', 'warning');
+      return;
+    }
+    if (hashPassword(pinAutorizacion) !== adminPinHash) {
+      showToast('PIN de autorización incorrecto', 'danger');
+      return;
+    }
+    const monto = parseFloat(nuevoMonto);
+
+    let currentCobros = [];
+    try {
+      const saved = localStorage.getItem('yoy_caja_cobros');
+      if (saved) {
+        currentCobros = JSON.parse(saved);
+      } else {
+        currentCobros = [
+          { id: 1, tipo: 'mesa', descripcion: 'Mesa 2 - 1.5h', cliente: 'Carlos R.', monto: 120, metodo: 'efectivo', hora: '14:30', color: 'var(--success)' },
+          { id: 2, tipo: 'bar',  descripcion: 'Comanda - 4 Coronas + Botana', cliente: 'Mesa 7', monto: 280, metodo: 'efectivo', hora: '13:15', color: 'var(--success)' },
+          { id: 3, tipo: 'mesa', descripcion: 'Mesa 3 - 2h', cliente: 'Pedro M.', monto: 160, metodo: 'spei', hora: '12:00', color: 'var(--success)' },
+          { id: 4, tipo: 'gasto',descripcion: 'Compra de bebidas', cliente: 'Proveedor ABC', monto: -650, metodo: 'efectivo', hora: '11:00', color: 'var(--danger)' },
+          { id: 5, tipo: 'mesa', descripcion: 'Mesa 1 - 3h', cliente: 'Torneo Local', monto: 240, metodo: 'efectivo', hora: '09:30', color: 'var(--success)' },
+        ];
+      }
+    } catch (err) {
+      console.error(err);
+    }
+
+    const nuevoCobro = {
+      id: Date.now(),
+      tipo: 'manual',
+      descripcion: nuevaDesc,
+      cliente: 'Manual (Autorizado)',
+      monto: monto,
+      metodo: nuevoMetodo,
+      hora: new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }),
+      color: monto > 0 ? 'var(--success)' : 'var(--danger)',
+    };
+
+    const updatedCobros = [nuevoCobro, ...currentCobros];
+    localStorage.setItem('yoy_caja_cobros', JSON.stringify(updatedCobros));
+    
+    registrarEvento('Cobro Manual', `Cobro manual de $${monto} registrado (${nuevaDesc}) por ${nuevoMetodo}`, monto);
+    showToast(`Cobro manual de $${monto} registrado`, 'success');
+
+    setMostrarCobroManual(false);
+    setNuevoMonto('');
+    setNuevaDesc('');
+    setPinAutorizacion('');
+  };
+
   useEffect(() => {
     const revisarStockBajo = () => {
       if (typeof window !== 'undefined') {
@@ -1017,15 +1124,20 @@ export default function MesasPanel({ showToast }) {
     .reduce((sum, m) => sum + calcCosto(m), 0);
 
   return (
-    <div>
+    <div style={{ minHeight: isFullscreen ? '100vh' : 'auto', padding: isFullscreen ? '20px' : '0', background: isFullscreen ? 'var(--bg-main)' : 'transparent' }}>
       <div className="page-header">
         <div>
           <h1 className="page-title gradient-bronze">Control de Mesas</h1>
-          <p className="page-subtitle">Gestión en tiempo real · {mesas.length} mesas registradas</p>
+          <p className="page-subtitle">Gestión en tiempo real · {mesas.length} mesas registradas · {isFullscreen ? 'Modo Kiosco Activo' : 'Modo Estándar'}</p>
         </div>
-        <div style={{ display: 'flex', gap: 10 }}>
-          <button className="btn btn-secondary btn-sm" onClick={() => setModalBitacora(true)}>
-            <i className="ri-history-line" /> Bitácora
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          {/* Botón de Modo Kiosco */}
+          <button className="btn btn-secondary btn-sm" onClick={toggleFullscreen} title="Activar Modo Kiosco">
+            <i className={isFullscreen ? 'ri-fullscreen-exit-fill' : 'ri-fullscreen-fill'} style={{ marginRight: 4 }} />
+            {isFullscreen ? 'Salir Kiosco' : 'Modo Kiosco'}
+          </button>
+          <button className="btn btn-primary btn-sm" onClick={() => setMostrarCobroManual(true)}>
+            <i className="ri-add-circle-line" /> Cobro Manual
           </button>
           <button className="btn btn-secondary btn-sm" onClick={() => setModalFila(true)}>
             <i className="ri-qr-code-line" /> Fila Virtual
@@ -1369,6 +1481,20 @@ export default function MesasPanel({ showToast }) {
           registrarEvento={registrarEvento}
         />
       )}
+      {mostrarCobroManual && (
+        <ModalCobroManual
+          nuevoMonto={nuevoMonto}
+          setNuevoMonto={setNuevoMonto}
+          nuevaDesc={nuevaDesc}
+          setNuevaDesc={setNuevaDesc}
+          nuevoMetodo={nuevoMetodo}
+          setNuevoMetodo={setNuevoMetodo}
+          pinAutorizacion={pinAutorizacion}
+          setPinAutorizacion={setPinAutorizacion}
+          onClose={() => setMostrarCobroManual(false)}
+          onConfirm={registrarCobroManual}
+        />
+      )}
     </div>
   );
 }
@@ -1546,6 +1672,9 @@ function ModalFilaVirtual({ fila, setFila, mesas, onAssign, onClose, showToast }
               Añadir a la Fila
             </button>
           </div>
+        </div>
+        <div className="modal-footer">
+          <button className="btn btn-secondary" onClick={onClose}>Cerrar</button>
         </div>
       </div>
     </div>
@@ -1985,6 +2114,9 @@ function ModalCuentasActivas({ cuentas, setCuentas, onClose, showToast, registra
               )}
             </div>
           )}
+        </div>
+        <div className="modal-footer">
+          <button className="btn btn-secondary" onClick={onClose}>Cerrar</button>
         </div>
       </div>
     </div>
@@ -2532,16 +2664,75 @@ function ModalRegistrarComanda({ mesas, setMesas, cuentasActivas, setCuentasActi
                 <span>Total Comanda:</span>
                 <span style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 700, color: 'var(--text-primary)' }}>${total} MXN</span>
               </div>
-              <button
-                className="btn btn-primary"
-                style={{ width: '100%', padding: '8px' }}
-                onClick={enviarComanda}
-                disabled={carrito.length === 0 || (destinoTipo !== 'llevar' && !destinoId)}
-              >
-                <i className="ri-send-plane-line" /> Confirmar y Enviar Comanda
-              </button>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button className="btn btn-secondary" style={{ flex: 1, padding: '8px' }} onClick={onClose}>Cancelar</button>
+                <button
+                  className="btn btn-primary"
+                  style={{ flex: 2, padding: '8px' }}
+                  onClick={enviarComanda}
+                  disabled={carrito.length === 0 || (destinoTipo !== 'llevar' && !destinoId)}
+                >
+                  <i className="ri-send-plane-line" /> Confirmar y Enviar
+                </button>
+              </div>
             </div>
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── MODAL COBRO MANUAL ───────────────────────────────────
+function ModalCobroManual({ nuevoMonto, setNuevoMonto, nuevaDesc, setNuevaDesc, nuevoMetodo, setNuevoMetodo, pinAutorizacion, setPinAutorizacion, onClose, onConfirm }) {
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <span className="modal-title">
+            <i className="ri-add-circle-line" style={{ marginRight: 8, color: 'var(--bronze-light)' }} />
+            Registrar Cobro Manual
+          </span>
+          <button onClick={onClose} className="btn-icon btn btn-secondary" style={{ background: 'none', border: 'none' }}>
+            <i className="ri-close-line" style={{ fontSize: 20 }} />
+          </button>
+        </div>
+        <div className="modal-body">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div className="form-group">
+              <label className="form-label">Descripción</label>
+              <input className="form-input" placeholder="Ej: Torneo especial, Renta privada..." value={nuevaDesc} onChange={e => setNuevaDesc(e.target.value)} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Monto (negativo = gasto)</label>
+              <input className="form-input" type="number" placeholder="Ej: 500 o -200" value={nuevoMonto} onChange={e => setNuevoMonto(e.target.value)} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Método de Pago</label>
+              <select className="form-select" value={nuevoMetodo} onChange={e => setNuevoMetodo(e.target.value)}>
+                <option value="efectivo">💵 Efectivo</option>
+                <option value="spei">📱 SPEI / QR CoDi</option>
+                <option value="tarjeta">💳 Tarjeta</option>
+              </select>
+            </div>
+            <div className="form-group" style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 12 }}>
+              <label className="form-label" style={{ color: 'var(--bronze-light)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <i className="ri-shield-user-line" /> Contraseña de Autorización Admin
+              </label>
+              <input
+                className="form-input"
+                type="password"
+                placeholder="Ingrese PIN (1111)"
+                value={pinAutorizacion}
+                onChange={e => setPinAutorizacion(e.target.value)}
+                style={{ borderColor: 'var(--border-bronze)' }}
+              />
+            </div>
+          </div>
+        </div>
+        <div className="modal-footer">
+          <button className="btn btn-secondary" onClick={onClose}>Cancelar</button>
+          <button className="btn btn-primary" onClick={onConfirm}>Registrar</button>
         </div>
       </div>
     </div>

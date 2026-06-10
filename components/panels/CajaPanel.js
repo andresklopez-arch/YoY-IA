@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { db } from '@/lib/firebase';
 import { doc, onSnapshot } from 'firebase/firestore';
+import { deobfuscate, obfuscate } from '@/lib/crypto';
 
 const TRANSACCIONES = [
   { id: 1, tipo: 'mesa', descripcion: 'Mesa 2 - 1.5h', cliente: 'Carlos R.', monto: 120, metodo: 'efectivo', hora: '14:30', color: 'var(--success)' },
@@ -31,20 +32,15 @@ export default function CajaPanel({ showToast }) {
   const [isAdminUnlocked, setIsAdminUnlocked] = useState(false);
   const [adminPassword, setAdminPassword] = useState('');
   const [adminPinHash, setAdminPinHash] = useState('170440'); // Hash of '1111'
-  const [cobros, setCobros] = useState(TRANSACCIONES);
-  const [mostrarCobroManual, setMostrarCobroManual] = useState(false);
-  const [nuevoMonto, setNuevoMonto] = useState('');
-  const [nuevaDesc, setNuevaDesc] = useState('');
-  const [nuevoMetodo, setNuevoMetodo] = useState('efectivo');
-  const [pinAutorizacion, setPinAutorizacion] = useState('');
-
+  const [cobros, setCobros] = useState([]);
   const [mostrarCorte, setMostrarCorte] = useState(false);
   const [cantidades, setCantidades] = useState({
     1000: '', 500: '', 200: '', 100: '', 50: '', 20: '', 10: '', 5: '', 2: '', 1: '', 0.5: ''
   });
 
-  // Modo Kiosco (Pantalla completa)
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  // Estados de Bitácora
+  const [bitacora, setBitacora] = useState([]);
+  const [mostrarBitacora, setMostrarBitacora] = useState(false);
 
   // Cola de impresión térmica
   const [colaImpresion, setColaImpresion] = useState([
@@ -76,7 +72,7 @@ export default function CajaPanel({ showToast }) {
     return unsub;
   }, []);
 
-  // Cargar borrador de corte de caja en mount
+  // Cargar borrador de corte de caja en mount y cobros desde LocalStorage
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const draft = localStorage.getItem('yoy_caja_corte_draft');
@@ -87,14 +83,50 @@ export default function CajaPanel({ showToast }) {
           console.error(e);
         }
       }
-    }
 
-    const handleFsChange = () => {
-      setIsFullscreen(!!document.fullscreenElement);
-    };
-    document.addEventListener('fullscreenchange', handleFsChange);
-    return () => document.removeEventListener('fullscreenchange', handleFsChange);
+      try {
+        const saved = localStorage.getItem('yoy_caja_cobros');
+        if (saved) {
+          setCobros(JSON.parse(saved));
+        } else {
+          setCobros(TRANSACCIONES);
+          localStorage.setItem('yoy_caja_cobros', JSON.stringify(TRANSACCIONES));
+        }
+      } catch (err) {
+        console.error(err);
+        setCobros(TRANSACCIONES);
+      }
+    }
   }, []);
+
+  // Sincronizar cobros en localStorage al cambiar
+  useEffect(() => {
+    if (typeof window !== 'undefined' && cobros.length > 0) {
+      localStorage.setItem('yoy_caja_cobros', JSON.stringify(cobros));
+    }
+  }, [cobros]);
+
+  // Cargar bitácora desde localStorage al mostrar
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('yoy_billar_bitacora');
+        if (saved) setBitacora(deobfuscate(saved) || []);
+      } catch (err) {
+        console.error(err);
+      }
+    }
+  }, [mostrarBitacora]);
+
+  const limpiarBitacora = () => {
+    setBitacora([]);
+    try {
+      localStorage.removeItem('yoy_billar_bitacora');
+    } catch (err) {
+      console.error(err);
+    }
+    showToast('Bitácora limpiada correctamente.', 'info');
+  };
 
   const handleCantidadChange = (den, val) => {
     const updated = { ...cantidades, [den]: val };
@@ -123,31 +155,6 @@ export default function CajaPanel({ showToast }) {
     }
   };
 
-  const registrarCobro = () => {
-    if (!nuevoMonto || !nuevaDesc) { showToast('Completa todos los campos', 'warning'); return; }
-    if (hashPassword(pinAutorizacion) !== adminPinHash) {
-      showToast('PIN de autorización incorrecto', 'danger');
-      return;
-    }
-    const monto = parseFloat(nuevoMonto);
-    setCobros(prev => [{
-      id: Date.now(),
-      tipo: 'manual',
-      descripcion: nuevaDesc,
-      cliente: 'Manual (Autorizado)',
-      monto: monto,
-      metodo: nuevoMetodo,
-      hora: new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }),
-      color: monto > 0 ? 'var(--success)' : 'var(--danger)',
-    }, ...prev]);
-    showToast(`Cobro de $${monto} registrado`, 'success');
-
-    // Registrar comanda simulada en la cola de impresión
-    triggerSimulatedPrint('caja', `Ticket de Venta (Manual) - $${monto}`);
-
-    setMostrarCobroManual(false);
-    setNuevoMonto(''); setNuevaDesc(''); setPinAutorizacion('');
-  };
 
   const guardarCorteCaja = () => {
     setCobros(prev => [{
@@ -170,18 +177,6 @@ export default function CajaPanel({ showToast }) {
     });
   };
 
-  const toggleFullscreen = () => {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().then(() => {
-        setIsFullscreen(true);
-      }).catch((err) => {
-        showToast('Error al activar modo kiosco', 'error');
-      });
-    } else {
-      document.exitFullscreen();
-      setIsFullscreen(false);
-    }
-  };
 
   const triggerSimulatedPrint = (tipo, detalle) => {
     const nuevoPrint = {
@@ -200,25 +195,20 @@ export default function CajaPanel({ showToast }) {
   };
 
   return (
-    <div style={{ minHeight: isFullscreen ? '100vh' : 'auto', padding: isFullscreen ? '20px' : '0', background: isFullscreen ? 'var(--bg-main)' : 'transparent' }}>
+    <div>
       <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <h1 className="page-title gradient-bronze">Caja y POS</h1>
-          <p className="page-subtitle">Corte del día · Turno actual · {isFullscreen ? 'Modo Kiosco Activo' : 'Modo Estándar'}</p>
+          <p className="page-subtitle">Corte del día · Turno actual · Modo Estándar</p>
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          {/* Botón de Modo Kiosco */}
-          <button className="btn btn-secondary btn-sm" onClick={toggleFullscreen} title="Activar Modo Kiosco">
-            <i className={isFullscreen ? 'ri-fullscreen-exit-fill' : 'ri-fullscreen-fill'} style={{ marginRight: 4 }} />
-            {isFullscreen ? 'Salir Kiosco' : 'Modo Kiosco'}
-          </button>
           {isAdminUnlocked && (
             <>
+              <button className="btn btn-secondary btn-sm" onClick={() => setMostrarBitacora(true)}>
+                <i className="ri-history-line" /> Bitácora
+              </button>
               <button className="btn btn-secondary btn-sm" onClick={() => setMostrarCorte(true)}>
                 <i className="ri-file-list-3-line" /> Corte de Caja
-              </button>
-              <button className="btn btn-primary btn-sm" onClick={() => setMostrarCobroManual(true)}>
-                <i className="ri-add-circle-line" /> Cobro Manual
               </button>
             </>
           )}
@@ -362,54 +352,6 @@ export default function CajaPanel({ showToast }) {
         </>
       )}
 
-      {/* Modal cobro manual */}
-      {mostrarCobroManual && (
-        <div className="modal-overlay" onClick={() => setMostrarCobroManual(false)}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
-            <div className="modal-header">
-              <span className="modal-title">Registrar Cobro Manual</span>
-              <button onClick={() => setMostrarCobroManual(false)} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 20 }}>✕</button>
-            </div>
-            <div className="modal-body">
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                <div className="form-group">
-                  <label className="form-label">Descripción</label>
-                  <input className="form-input" placeholder="Ej: Torneo especial, Renta privada..." value={nuevaDesc} onChange={e => setNuevaDesc(e.target.value)} />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Monto (negativo = gasto)</label>
-                  <input className="form-input" type="number" placeholder="Ej: 500 o -200" value={nuevoMonto} onChange={e => setNuevoMonto(e.target.value)} />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Método de Pago</label>
-                  <select className="form-select" value={nuevoMetodo} onChange={e => setNuevoMetodo(e.target.value)}>
-                    <option value="efectivo">💵 Efectivo</option>
-                    <option value="spei">📱 SPEI / QR CoDi</option>
-                    <option value="tarjeta">💳 Tarjeta</option>
-                  </select>
-                </div>
-                <div className="form-group" style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 12 }}>
-                  <label className="form-label" style={{ color: 'var(--bronze-light)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <i className="ri-shield-user-line" /> Contraseña de Autorización Admin
-                  </label>
-                  <input
-                    className="form-input"
-                    type="password"
-                    placeholder="Ingrese PIN (1234)"
-                    value={pinAutorizacion}
-                    onChange={e => setPinAutorizacion(e.target.value)}
-                    style={{ borderColor: 'var(--border-bronze)' }}
-                  />
-                </div>
-              </div>
-            </div>
-            <div className="modal-footer">
-              <button className="btn btn-secondary" onClick={() => setMostrarCobroManual(false)}>Cancelar</button>
-              <button className="btn btn-primary" onClick={registrarCobro}>Registrar</button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Modal Corte de Caja por Denominaciones */}
       {mostrarCorte && (
@@ -486,6 +428,76 @@ export default function CajaPanel({ showToast }) {
           </div>
         </div>
       )}
+      {mostrarBitacora && (
+        <ModalBitacora
+          bitacora={bitacora}
+          onClear={limpiarBitacora}
+          onClose={() => setMostrarBitacora(false)}
+        />
+      )}
     </div>
   );
 }
+
+// ── MODAL BITÁCORA ───────────────────────────────────────
+function ModalBitacora({ bitacora, onClear, onClose }) {
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" style={{ maxWidth: 600 }} onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <span className="modal-title">
+            <i className="ri-history-line" style={{ marginRight: 8, color: 'var(--bronze-light)' }} />
+            Bitácora de Auditoría y Transacciones
+          </span>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            {bitacora.length > 0 && (
+              <button className="btn btn-sm btn-secondary" onClick={onClear} style={{ color: 'var(--danger)', fontSize: 11, padding: '4px 8px' }}>
+                Limpiar
+              </button>
+            )}
+            <button onClick={onClose} className="btn-icon btn btn-secondary" style={{ background: 'none', border: 'none' }}>
+              <i className="ri-close-line" style={{ fontSize: 20 }} />
+            </button>
+          </div>
+        </div>
+        <div className="modal-body">
+          <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>Últimos 100 movimientos de mesas, consumos y caja en este dispositivo.</p>
+          {bitacora.length === 0 ? (
+            <p style={{ color: 'var(--text-muted)', fontSize: 13, textAlign: 'center', padding: '60px 0' }}>No hay registros disponibles en la bitácora.</p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 380, overflowY: 'auto', paddingRight: 4 }}>
+              {bitacora.map(b => {
+                const isPositive = b.monto > 0;
+                return (
+                  <div key={b.id} style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 10, padding: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span className="badge badge-bronze" style={{ fontSize: 9, padding: '2px 6px' }}>{b.accion}</span>
+                        <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+                          {new Date(b.fecha).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })} · {new Date(b.fecha).toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit' })}
+                        </span>
+                      </div>
+                      <span style={{ fontSize: 12, color: 'var(--text-primary)', fontWeight: 600 }}>{b.detalle}</span>
+                      <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Operador: {b.operador}</span>
+                    </div>
+                    {isPositive && (
+                      <div style={{ fontSize: 15, fontWeight: 900, color: 'var(--success)' }}>
+                        +${b.monto} MXN
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+        <div className="modal-footer">
+          <button className="btn btn-primary" onClick={onClose}>
+            Cerrar Bitácora
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+

@@ -82,8 +82,8 @@
   --z-base:    1;
   --z-card:    10;
   --z-nav:     100;
-  --z-modal:   200;
-  --z-toast:   300;
+  --z-modal:   2000;
+  --z-toast:   3000;
 }
 
 /* ── RESET Y BASE ─────────────────────────────────────────── */
@@ -193,6 +193,8 @@ input, select, textarea {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  position: relative;
+  z-index: 1;
 }
 
 .topbar {
