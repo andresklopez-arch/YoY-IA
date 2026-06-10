@@ -856,6 +856,10 @@ tbody td {
   from { transform: translateX(-50%) scale(0); opacity: 0; }
   to { transform: translateX(-50%) scale(1); opacity: 1; }
 }
+@keyframes slideDownOut {
+  from { transform: translateY(0); opacity: 1; }
+  to { transform: translateY(16px); opacity: 0; }
+}
 
 .animate-spin { animation: spin 1s linear infinite; }
 .animate-pulse { animation: pulse 1.4s infinite; }

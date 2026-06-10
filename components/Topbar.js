@@ -47,10 +47,19 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
   const pedidosPendientes = usePedidosPendientes();
   const [locale, setLocale] = useState('es-MX');
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [isDismissing, setIsDismissing] = useState(false);
+
+  const dismissOnboarding = () => {
+    localStorage.setItem('yoy_shortcuts_onboarding_shown_v1', 'true');
+    setIsDismissing(true);
+    setTimeout(() => {
+      setShowOnboarding(false);
+    }, 280);
+  };
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const shown = localStorage.getItem('yoy_shortcuts_onboarding_shown');
+      const shown = localStorage.getItem('yoy_shortcuts_onboarding_shown_v1');
       if (!shown) {
         setShowOnboarding(true);
       }
@@ -61,10 +70,13 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
     const handleKeyDown = (e) => {
       const activeEl = document.activeElement;
       
-      // Desenfoque rápido con Escape si estamos en un campo de texto
+      // Desenfoque rápido con Escape o cierre de onboarding
       if (e.key === 'Escape') {
         if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.isContentEditable)) {
           activeEl.blur();
+          return;
+        } else if (showOnboarding && !isDismissing) {
+          dismissOnboarding();
           return;
         }
       }
@@ -91,7 +103,7 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onNavigate]);
+  }, [onNavigate, showOnboarding, isDismissing]);
 
   useEffect(() => {
     if (typeof window !== 'undefined' && navigator.language) {
@@ -100,11 +112,6 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
     const t = setInterval(() => setTime(new Date()), 10000); // Actualiza cada 10 segundos
     return () => clearInterval(t);
   }, []);
-
-  const dismissOnboarding = () => {
-    localStorage.setItem('yoy_shortcuts_onboarding_shown', 'true');
-    setShowOnboarding(false);
-  };
 
   const timeStr = time.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
   const dateStr = time.toLocaleDateString(locale, { weekday: 'short', day: 'numeric', month: 'short' });
@@ -305,7 +312,7 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
           padding: 16,
           maxWidth: 320,
           boxShadow: 'var(--shadow-lg), var(--shadow-bronze)',
-          animation: 'slideUp 0.3s ease-out',
+          animation: isDismissing ? 'slideDownOut 0.28s ease-in forwards' : 'slideUp 0.3s ease-out',
           display: 'flex',
           flexDirection: 'column',
           gap: 12,
