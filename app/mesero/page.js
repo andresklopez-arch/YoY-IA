@@ -91,18 +91,61 @@ function MeseroContent() {
   }, [showCapturarModal]);
 
   // ── Suscripción a pedidos activos ────────────────────────
+  const [listosNotificados, setListosNotificados] = useState(new Set());
+
   useEffect(() => {
     const q = query(
       collection(db, 'mesa_pedidos'),
-      where('estado', 'in', ['pendiente', 'en_camino']),
+      where('estado', 'in', ['pendiente', 'listo', 'en_camino']),
       orderBy('createdAt', 'desc')
     );
     const unsub = onSnapshot(q, snap => {
       const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       setPedidos(items);
 
-      // Sonido de alerta sutil en nuevos pedidos/cambios ordinarios
-      if (sonido && items.length > ultimoCount && ultimoCount > 0) {
+      // 1. Detectar si hay algún pedido recién puesto en 'listo'
+      let nuevoListoDetectado = false;
+      const nuevosListos = new Set(listosNotificados);
+      
+      items.forEach(item => {
+        if (item.estado === 'listo' && !listosNotificados.has(item.id)) {
+          nuevoListoDetectado = true;
+          nuevosListos.add(item.id);
+        }
+      });
+
+      if (nuevoListoDetectado) {
+        setListosNotificados(nuevosListos);
+        // Reproducir sonido especial de campana de cocina (high-low double chime)
+        try {
+          const ctx = new (window.AudioContext || window.webkitAudioContext)();
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.connect(gain); gain.connect(ctx.destination);
+          osc.frequency.setValueAtTime(1046.50, ctx.currentTime); // C6
+          gain.gain.setValueAtTime(0.25, ctx.currentTime);
+          osc.start(); osc.stop(ctx.currentTime + 0.15);
+          setTimeout(() => {
+            const osc2 = ctx.createOscillator();
+            const gain2 = ctx.createGain();
+            osc2.connect(gain2); gain2.connect(ctx.destination);
+            osc2.frequency.setValueAtTime(1318.51, ctx.currentTime); // E6
+            gain2.gain.setValueAtTime(0.25, ctx.currentTime);
+            osc2.start(); osc2.stop(ctx.currentTime + 0.35);
+          }, 150);
+
+          // Disparar notificación del sistema también si está en background
+          if (typeof window !== 'undefined' && document.hidden && Notification.permission === 'granted') {
+            new Notification(`🍳 ¡Pedido Listo en Cocina!`, {
+              body: `El pedido de la Mesa ha sido preparado.`,
+              icon: '/icon.png'
+            });
+          }
+        } catch { /* sin audio */ }
+      }
+
+      // 2. Sonido de alerta sutil en nuevos pedidos/cambios ordinarios (solo si no se disparó el de 'listo')
+      if (!nuevoListoDetectado && sonido && items.length > ultimoCount && ultimoCount > 0) {
         try {
           const ctx = new (window.AudioContext || window.webkitAudioContext)();
           const osc = ctx.createOscillator();
@@ -116,7 +159,7 @@ function MeseroContent() {
       setUltimoCount(items.length);
     });
     return unsub;
-  }, [sonido, ultimoCount]);
+  }, [sonido, ultimoCount, listosNotificados]);
 
   // ── Suscripción a asistencias pendientes (Alertas Emergentes) ──
   useEffect(() => {
@@ -376,20 +419,20 @@ function MeseroContent() {
 
               return (
                 <div key={pedido.id} style={{
-                  background: cfg.bg,
-                  border: `1px solid ${cfg.color}30`,
-                  borderLeft: `4px solid ${cfg.color}`,
+                  background: pedido.estado === 'listo' ? 'rgba(34,197,94,0.06)' : cfg.bg,
+                  border: pedido.estado === 'listo' ? '1px solid var(--success)' : `1px solid ${cfg.color}30`,
+                  borderLeft: pedido.estado === 'listo' ? '4px solid var(--success)' : `4px solid ${cfg.color}`,
                   borderRadius: 16,
                   padding: 18,
-                  animation: 'slideUp 0.25s ease',
-                  boxShadow: urgente ? `0 0 20px ${cfg.color}20` : 'none',
+                  animation: pedido.estado === 'listo' ? 'pulseBorder 2s infinite, slideUp 0.25s ease' : 'slideUp 0.25s ease',
+                  boxShadow: pedido.estado === 'listo' ? '0 0 20px rgba(34,197,94,0.18)' : urgente ? `0 0 20px ${cfg.color}20` : 'none',
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                      <div style={{ fontSize: 28 }}>{pedido.icono || cfg.icon}</div>
+                      <div style={{ fontSize: 28 }}>{pedido.icono || (pedido.estado === 'listo' ? '🍳' : cfg.icon)}</div>
                       <div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 800, color: cfg.color }}>
+                          <span style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 800, color: pedido.estado === 'listo' ? 'var(--success)' : cfg.color }}>
                             Mesa {pedido.mesaId}
                           </span>
                           {urgente && <span style={{ fontSize: 9, background: 'var(--danger)', color: '#fff', padding: '2px 6px', borderRadius: 999, fontWeight: 800 }}>URGENTE</span>}
@@ -405,10 +448,11 @@ function MeseroContent() {
                       )}
                       <div style={{
                         fontSize: 10, fontWeight: 800, marginTop: 4, padding: '3px 8px', borderRadius: 999,
-                        background: pedido.estado === 'en_camino' ? 'rgba(245,158,11,0.15)' : 'rgba(59,130,246,0.15)',
-                        color: pedido.estado === 'en_camino' ? 'var(--warning)' : 'var(--info)',
+                        background: pedido.estado === 'listo' ? 'rgba(34,197,94,0.15)' : pedido.estado === 'en_camino' ? 'rgba(245,158,11,0.15)' : 'rgba(59,130,246,0.15)',
+                        color: pedido.estado === 'listo' ? 'var(--success)' : pedido.estado === 'en_camino' ? 'var(--warning)' : 'var(--info)',
+                        border: pedido.estado === 'listo' ? '1px solid var(--success)' : 'none',
                       }}>
-                        {pedido.estado === 'en_camino' ? '🚀 En camino' : '⏳ Pendiente'}
+                        {pedido.estado === 'listo' ? '🍳 ¡Listo en Cocina!' : pedido.estado === 'en_camino' ? '🚀 En camino' : '⏳ Pendiente'}
                       </div>
                     </div>
                   </div>
@@ -442,10 +486,10 @@ function MeseroContent() {
 
                   {/* Acciones */}
                   <div style={{ display: 'flex', gap: 8 }}>
-                    {pedido.estado === 'pendiente' && (
+                    {(pedido.estado === 'pendiente' || pedido.estado === 'listo') && (
                       <button
                         onClick={() => marcarEnCamino(pedido.id)}
-                        style={{ flex: 1, padding: '10px 14px', background: `${cfg.color}15`, border: `1px solid ${cfg.color}40`, borderRadius: 10, color: cfg.color, fontWeight: 700, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                        style={{ flex: 1, padding: '10px 14px', background: pedido.estado === 'listo' ? 'rgba(245,158,11,0.12)' : `${cfg.color}15`, border: `1px solid ${pedido.estado === 'listo' ? 'var(--warning)' : `${cfg.color}40`}`, borderRadius: 10, color: pedido.estado === 'listo' ? 'var(--warning)' : cfg.color, fontWeight: 700, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
                       >
                         <i className="ri-run-line" /> En camino
                       </button>

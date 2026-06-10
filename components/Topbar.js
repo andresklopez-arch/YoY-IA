@@ -16,6 +16,17 @@ function usePedidosPendientes() {
   return total;
 }
 
+// Hook: pedidos pendientes en cocina
+function usePedidosCocina() {
+  const [total, setTotal] = useState(0);
+  useEffect(() => {
+    const q = query(collection(db, 'mesa_pedidos'), where('tipo', '==', 'pedido'), where('estado', '==', 'pendiente'));
+    const unsub = onSnapshot(q, snap => setTotal(snap.size));
+    return unsub;
+  }, []);
+  return total;
+}
+
 const PANEL_LABELS = {
   dashboard: 'Dashboard',
   mesas:     'Control de Mesas',
@@ -37,6 +48,7 @@ const QUICK_NAV_TARGETS = [
   { href: '/mesero' },
   { nav: 'reportes' },
   { nav: 'config' },
+  { href: '/cocina' },
 ];
 
 export default function Topbar({ user, activePanel, onToggleSidebar, showToast, onNavigate }) {
@@ -45,6 +57,7 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
   const [showMenu, setShowMenu] = useState(false);
   const alertasNomina = useAlertasNomina();
   const pedidosPendientes = usePedidosPendientes();
+  const pedidosCocina = usePedidosCocina();
   const [locale, setLocale] = useState('es-MX');
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [isDismissing, setIsDismissing] = useState(false);
@@ -171,7 +184,7 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
       const isAltShortcut = e.altKey && !e.ctrlKey && !e.shiftKey;
       const isCtrlShiftShortcut = e.ctrlKey && e.shiftKey && !e.altKey;
 
-      if ((isAltShortcut || isCtrlShiftShortcut) && !isNaN(e.key) && e.key >= '1' && e.key <= '8') {
+      if ((isAltShortcut || isCtrlShiftShortcut) && !isNaN(e.key) && e.key >= '1' && e.key <= '9') {
         const index = parseInt(e.key) - 1;
         const target = QUICK_NAV_TARGETS[index];
         if (target) {
@@ -256,6 +269,7 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
           { label: 'Torneos', icon: 'ri-trophy-line', color: '#ffd700', nav: 'torneos', shortcut: 'Alt + 4' },
           { label: 'Nómina', icon: 'ri-briefcase-4-line', color: 'var(--bronze-light)', nav: 'nomina', badge: alertasNomina.length, shortcut: 'Alt + 5' },
           { label: 'Mesero', icon: 'ri-customer-service-2-line', color: 'var(--success)', href: '/mesero', badge: pedidosPendientes, shortcut: 'Alt + 6' },
+          { label: 'Cocina', icon: 'ri-restaurant-line', color: 'var(--blue-light)', href: '/cocina', badge: pedidosCocina, shortcut: 'Alt + 9' },
           { label: 'Reportes', icon: 'ri-bar-chart-2-line', color: 'var(--silver)', nav: 'reportes', shortcut: 'Alt + 7' },
           { label: 'Ajustes', icon: 'ri-settings-4-line', color: 'var(--text-muted)', nav: 'config', shortcut: 'Alt + 8' },
         ].map((a, i) => {
@@ -407,7 +421,7 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
             <div style={{ textAlign: 'left' }}>
               <h4 style={{ fontSize: 13, fontWeight: 700, color: 'var(--bronze-light)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Atajos de Navegación</h4>
               <p style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4, lineHeight: 1.4 }}>
-                Navega al instante usando <strong style={{ color: '#fff' }}>Alt + [1-8]</strong> o <strong style={{ color: '#fff' }}>Ctrl + Shift + [1-8]</strong>.
+                Navega al instante usando <strong style={{ color: '#fff' }}>Alt + [1-9]</strong> o <strong style={{ color: '#fff' }}>Ctrl + Shift + [1-9]</strong>.
               </p>
               <p style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>
                 Si estás escribiendo, presiona <strong style={{ color: 'var(--bronze-light)' }}>Esc</strong> para desenfocar e interactuar.

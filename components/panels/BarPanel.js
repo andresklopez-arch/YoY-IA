@@ -1,6 +1,8 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
+import { db } from '@/lib/firebase';
+import { doc, onSnapshot, setDoc, serverTimestamp } from 'firebase/firestore';
 
 // ── DATOS HISTÓRICOS IA (RECOMENDACIÓN 2) ──────────────────
 const HISTORICO_DATA = [
@@ -227,36 +229,10 @@ export default function BarPanel({ showToast }) {
   }, [mesas, cuentasActivas]);
 
   // Cargar inventario y logs de localStorage (Ofuscados)
+  // Cargar inventario y logs de localStorage (Ofuscados) y sincronizar con Firestore
   useEffect(() => {
     if (typeof window !== 'undefined') {
       try {
-        const savedStock = localStorage.getItem('yoy_billar_stock');
-        if (savedStock) {
-          const parsed = deobfuscate(savedStock);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            // Normalizar e inyectar claves por defecto
-            const normalizados = parsed.map(p => ({
-              ...p,
-              nombre: p.nombre || p.producto || `Producto #${p.id}`,
-              precioVenta: p.precioVenta !== undefined ? p.precioVenta : (p.precio !== undefined ? p.precio : 0),
-              stock: p.stock !== undefined ? p.stock : 0,
-              stockMin: p.stockMin !== undefined ? p.stockMin : 15,
-              stockOptimo: p.stockOptimo !== undefined ? p.stockOptimo : 50,
-              categoria: p.categoria || 'Bar',
-              unidad: p.unidad || 'pz',
-              precioCosto: p.precioCosto !== undefined ? p.precioCosto : Math.round((p.precioVenta || p.precio || 0) * 0.5)
-            }));
-            setProductos(normalizados);
-            localStorage.setItem('yoy_billar_stock', obfuscate(normalizados));
-          } else {
-            setProductos(DEFAULT_PRODUCTOS);
-            localStorage.setItem('yoy_billar_stock', obfuscate(DEFAULT_PRODUCTOS));
-          }
-        } else {
-          setProductos(DEFAULT_PRODUCTOS);
-          localStorage.setItem('yoy_billar_stock', obfuscate(DEFAULT_PRODUCTOS));
-        }
-
         const savedLogs = localStorage.getItem('yoy_billar_stock_logs');
         if (savedLogs) {
           setLogs(deobfuscate(savedLogs) || []);
@@ -282,15 +258,43 @@ export default function BarPanel({ showToast }) {
         console.error(err);
       }
     }
+
+    // Escucha en tiempo real de Firestore para los productos
+    const unsub = onSnapshot(doc(db, 'config', 'inventario'), snap => {
+      if (snap.exists()) {
+        const firestoreProds = snap.data().productos || [];
+        if (firestoreProds.length > 0) {
+          setProductos(firestoreProds);
+          try {
+            localStorage.setItem('yoy_billar_stock', obfuscate(firestoreProds));
+          } catch (e) {}
+        }
+      } else {
+        // Sembrar en firestore si no existe
+        const localRaw = localStorage.getItem('yoy_billar_stock');
+        const localProds = deobfuscate(localRaw) || DEFAULT_PRODUCTOS;
+        setProductos(localProds);
+        localStorage.setItem('yoy_billar_stock', obfuscate(localProds));
+        setDoc(doc(db, 'config', 'inventario'), { productos: localProds, updatedAt: serverTimestamp() });
+      }
+    });
+
+    return unsub;
   }, []);
 
   // Guardar productos y logs (Ofuscados)
-  const saveState = (newProds, newLogs) => {
+  const saveState = async (newProds, newLogs) => {
     setProductos(newProds);
     setLogs(newLogs);
     try {
       localStorage.setItem('yoy_billar_stock', obfuscate(newProds));
       localStorage.setItem('yoy_billar_stock_logs', obfuscate(newLogs));
+      
+      // Sincronizar stock con Firestore
+      await setDoc(doc(db, 'config', 'inventario'), {
+        productos: newProds,
+        updatedAt: serverTimestamp()
+      });
     } catch (err) {
       console.error(err);
     }
