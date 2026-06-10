@@ -40,7 +40,7 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
     return () => clearInterval(t);
   }, []);
 
-  const timeStr = time.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const timeStr = time.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
   const dateStr = time.toLocaleDateString('es-MX', { weekday: 'short', day: 'numeric', month: 'short' });
 
   return (
@@ -136,11 +136,11 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
         {/* Reloj */}
-        <div style={{ textAlign: 'right' }}>
-          <div style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 700, letterSpacing: '0.1em', color: 'var(--text-primary)', lineHeight: 1 }}>
+        <div style={{ textAlign: 'right', flexShrink: 0 }}>
+          <div style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 700, letterSpacing: '0.1em', color: 'var(--text-primary)', lineHeight: 1, whiteSpace: 'nowrap' }}>
             {timeStr}
           </div>
-          <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginTop: 2 }}>
+          <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginTop: 2, whiteSpace: 'nowrap' }}>
             {dateStr}
           </div>
         </div>
