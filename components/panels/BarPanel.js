@@ -65,6 +65,19 @@ export default function BarPanel({ showToast }) {
   const [modalEscaneo, setModalEscaneo] = useState(null);
   const [azarEscaneados, setAzarEscaneados] = useState([]);
 
+  // Estado para Nuevo Producto Modal
+  const [showNuevoProducto, setShowNuevoProducto] = useState(false);
+  const [formNuevo, setFormNuevo] = useState({
+    nombre: '',
+    categoria: 'Cerveza',
+    precioCosto: '',
+    precioVenta: '',
+    stock: '',
+    stockMin: '',
+    stockOptimo: '',
+    unidad: 'pz'
+  });
+
   const generarConteoCiego = (listaProds = productos) => {
     if (listaProds.length === 0) return;
     const shuffled = [...listaProds].sort(() => 0.5 - Math.random());
@@ -348,6 +361,75 @@ export default function BarPanel({ showToast }) {
     setAjusteMotivo('');
   };
 
+  // Registrar Nuevo Producto
+  const handleRegistrarProducto = () => {
+    const { nombre, categoria, precioCosto, precioVenta, stock, stockMin, stockOptimo, unidad } = formNuevo;
+    if (!nombre.trim() || !precioCosto || !precioVenta) {
+      showToast('Por favor complete los campos obligatorios: Nombre, Costo y Venta.', 'warning');
+      return;
+    }
+
+    const costoVal = parseFloat(precioCosto);
+    const ventaVal = parseFloat(precioVenta);
+    const stockVal = parseInt(stock) || 0;
+    const minVal = parseInt(stockMin) || 0;
+    const optimoVal = parseInt(stockOptimo) || 0;
+
+    if (isNaN(costoVal) || costoVal < 0 || isNaN(ventaVal) || ventaVal < 0) {
+      showToast('Los precios deben ser valores numéricos positivos.', 'warning');
+      return;
+    }
+
+    const newId = productos.reduce((max, p) => p.id > max ? p.id : max, 0) + 1;
+    const nuevoProd = {
+      id: newId,
+      nombre: nombre.trim(),
+      categoria,
+      precioCosto: costoVal,
+      precioVenta: ventaVal,
+      stock: stockVal,
+      stockMin: minVal,
+      stockOptimo: optimoVal,
+      unidad: unidad || 'pz',
+      lastModified: Date.now()
+    };
+
+    const nuevosLogs = [...logs];
+    if (stockVal > 0) {
+      nuevosLogs.unshift({
+        id: Date.now(),
+        fecha: new Date().toISOString(),
+        producto: nuevoProd.nombre,
+        tipo: 'entrada',
+        cantidad: stockVal,
+        detalle: 'Registro inicial de producto',
+        operador: 'Admin YoY'
+      });
+    }
+
+    const nuevosProductos = [...productos, nuevoProd];
+    saveState(nuevosProductos, nuevosLogs);
+
+    registrarEnBitacoraGeneral(
+      'Registro Prod',
+      `Nuevo producto registrado: ${nuevoProd.nombre} con stock inicial de ${stockVal} ${nuevoProd.unidad}`,
+      0
+    );
+
+    showToast(`Producto ${nuevoProd.nombre} registrado con éxito ✓`, 'success');
+    setShowNuevoProducto(false);
+    setFormNuevo({
+      nombre: '',
+      categoria: 'Cerveza',
+      precioCosto: '',
+      precioVenta: '',
+      stock: '',
+      stockMin: '',
+      stockOptimo: '',
+      unidad: 'pz'
+    });
+  };
+
   // Generar Orden de Compra Sugerida IA
   const generarOrdenCompraIA = () => {
     const orden = productos
@@ -455,7 +537,7 @@ export default function BarPanel({ showToast }) {
           <button className="btn btn-secondary btn-sm" onClick={generarOrdenCompraIA} style={{ color: 'var(--bronze-light)', borderColor: 'var(--border-bronze)' }}>
             <i className="ri-robot-line" style={{ marginRight: 6 }} /> Orden de Compra IA
           </button>
-          <button className="btn btn-primary btn-sm" onClick={() => showToast('Para añadir nuevos productos, edite INIT_PRODUCTOS.', 'info')}>
+          <button className="btn btn-primary btn-sm" onClick={() => setShowNuevoProducto(true)}>
             <i className="ri-add-line" /> Registrar Producto
           </button>
         </div>
@@ -1157,6 +1239,130 @@ export default function BarPanel({ showToast }) {
                 }}
               >
                 <i className="ri-printer-line" /> Imprimir Reporte / PDF
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL REGISTRAR NUEVO PRODUCTO ─────────────────── */}
+      {showNuevoProducto && (
+        <div className="modal-overlay" onClick={() => setShowNuevoProducto(false)}>
+          <div className="modal" style={{ maxWidth: 500 }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <span className="modal-title">
+                <i className="ri-add-box-line" style={{ marginRight: 8, color: 'var(--bronze-light)' }} />
+                Registrar Nuevo Producto
+              </span>
+              <button onClick={() => setShowNuevoProducto(false)} className="btn-icon btn btn-secondary" style={{ background: 'none', border: 'none' }}>
+                <i className="ri-close-line" style={{ fontSize: 20 }} />
+              </button>
+            </div>
+            <div className="modal-body">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div className="form-group">
+                  <label className="form-label">Nombre del Producto *</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="Ej: Cerveza Victoria 355ml"
+                    value={formNuevo.nombre}
+                    onChange={e => setFormNuevo({ ...formNuevo, nombre: e.target.value })}
+                  />
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <div className="form-group">
+                    <label className="form-label">Categoría</label>
+                    <select
+                      className="form-select"
+                      value={formNuevo.categoria}
+                      onChange={e => setFormNuevo({ ...formNuevo, categoria: e.target.value })}
+                    >
+                      {CATEGORIAS.filter(c => c !== 'Todas').map(c => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Unidad de Medida</label>
+                    <select
+                      className="form-select"
+                      value={formNuevo.unidad}
+                      onChange={e => setFormNuevo({ ...formNuevo, unidad: e.target.value })}
+                    >
+                      <option value="pz">Pieza (pz)</option>
+                      <option value="bot">Botella (bot)</option>
+                      <option value="porc">Porción (porc)</option>
+                      <option value="taza">Taza (taza)</option>
+                      <option value="l">Litro (l)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+                  <div className="form-group">
+                    <label className="form-label">Stock Inicial</label>
+                    <input
+                      type="number"
+                      className="form-input"
+                      placeholder="0"
+                      value={formNuevo.stock}
+                      onChange={e => setFormNuevo({ ...formNuevo, stock: e.target.value })}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Stock Mínimo</label>
+                    <input
+                      type="number"
+                      className="form-input"
+                      placeholder="0"
+                      value={formNuevo.stockMin}
+                      onChange={e => setFormNuevo({ ...formNuevo, stockMin: e.target.value })}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Stock Óptimo</label>
+                    <input
+                      type="number"
+                      className="form-input"
+                      placeholder="0"
+                      value={formNuevo.stockOptimo}
+                      onChange={e => setFormNuevo({ ...formNuevo, stockOptimo: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <div className="form-group">
+                    <label className="form-label">Precio de Costo ($) *</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      className="form-input"
+                      placeholder="0.00"
+                      value={formNuevo.precioCosto}
+                      onChange={e => setFormNuevo({ ...formNuevo, precioCosto: e.target.value })}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Precio de Venta ($) *</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      className="form-input"
+                      placeholder="0.00"
+                      value={formNuevo.precioVenta}
+                      onChange={e => setFormNuevo({ ...formNuevo, precioVenta: e.target.value })}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-secondary" onClick={() => setShowNuevoProducto(false)}>Cancelar</button>
+              <button className="btn btn-primary" onClick={handleRegistrarProducto}>
+                Registrar Producto
               </button>
             </div>
           </div>
