@@ -448,7 +448,7 @@ export default function ConfigPanel({ showToast }) {
 
     const nuevosProductos = productos.map(p => {
       if (p.id === recetaEditando.productoId) {
-        return { ...p, precioCosto: Math.round(nuevoCosto) };
+        return { ...p, precioCosto: Math.round(nuevoCosto), lastModified: Date.now() };
       }
       return p;
     });

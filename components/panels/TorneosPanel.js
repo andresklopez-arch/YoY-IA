@@ -249,10 +249,23 @@ export default function TorneosPanel({ showToast }) {
     const elo1 = p1 ? p1.elo : 1500;
     const elo2 = p2 ? p2.elo : 1500;
 
-    // Calcular nuevos ELOs
-    let K = 32;
-    if (tipoPartida === 'amistoso') K = 16;
-    if (tipoPartida === 'final') K = 48;
+    // Calcular factor K dinámico según tipo de partida y experiencia (Sugerencia 3)
+    const getKFactor = (playerStats, matchType) => {
+      let baseK = 32;
+      if (playerStats && playerStats.pj >= 20) {
+        baseK = 16; // FIDE-style veterano
+      }
+      if (matchType === 'amistoso') {
+        return Math.max(8, Math.round(baseK * 0.5));
+      } else if (matchType === 'final') {
+        return Math.round(baseK * 1.5);
+      }
+      return baseK;
+    };
+
+    const K1 = getKFactor(p1, tipoPartida);
+    const K2 = getKFactor(p2, tipoPartida);
+
     const expected1 = 1 / (1 + Math.pow(10, (elo2 - elo1) / 400));
     const expected2 = 1 / (1 + Math.pow(10, (elo1 - elo2) / 400));
 
@@ -266,8 +279,8 @@ export default function TorneosPanel({ showToast }) {
       valOutcome2 = 1;
     }
 
-    const newElo1 = Math.round(elo1 + K * (valOutcome1 - expected1));
-    const newElo2 = Math.round(elo2 + K * (valOutcome2 - expected2));
+    const newElo1 = Math.round(elo1 + K1 * (valOutcome1 - expected1));
+    const newElo2 = Math.round(elo2 + K2 * (valOutcome2 - expected2));
 
     // Actualizar ranking stats
     const updatedRanking = torneoActivo.ranking.map(r => {

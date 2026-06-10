@@ -139,15 +139,49 @@ export default function BarPanel({ showToast }) {
       }
     }
 
-    // Escucha en tiempo real de Firestore para los productos
+    // Escucha en tiempo real de Firestore para los productos con reconciliación offline LWW
     const unsub = onSnapshot(doc(db, 'config', 'inventario'), snap => {
       if (snap.exists()) {
         const firestoreProds = snap.data().productos || [];
         if (firestoreProds.length > 0) {
-          setProductos(firestoreProds);
+          let localRaw = null;
           try {
-            localStorage.setItem('yoy_billar_stock', obfuscate(firestoreProds));
+            localRaw = localStorage.getItem('yoy_billar_stock');
           } catch (e) {}
+          const localProds = localRaw ? (deobfuscate(localRaw) || []) : [];
+          
+          // CRDT LWW (Last-Write-Wins) merge
+          const mergedProds = [...localProds];
+          firestoreProds.forEach(fp => {
+            const localIdx = mergedProds.findIndex(lp => lp.id === fp.id);
+            if (localIdx === -1) {
+              mergedProds.push(fp);
+            } else {
+              const lp = mergedProds[localIdx];
+              const lpTime = lp.lastModified || 0;
+              const fpTime = fp.lastModified || 0;
+              if (fpTime > lpTime) {
+                mergedProds[localIdx] = fp;
+              }
+            }
+          });
+          
+          setProductos(mergedProds);
+          try {
+            localStorage.setItem('yoy_billar_stock', obfuscate(mergedProds));
+          } catch (e) {}
+          
+          // Reconciliar de vuelta a Firestore si tenemos cambios locales offline más nuevos
+          const localHasNewerUpdates = mergedProds.some(mp => {
+            const fp = firestoreProds.find(f => f.id === mp.id);
+            return mp.lastModified > (fp?.lastModified || 0);
+          });
+          if (localHasNewerUpdates) {
+            setDoc(doc(db, 'config', 'inventario'), {
+              productos: mergedProds,
+              updatedAt: serverTimestamp()
+            }).catch(err => console.error("Error reconciling to firestore:", err));
+          }
         }
       } else {
         // Sembrar en firestore si no existe
@@ -286,7 +320,7 @@ export default function BarPanel({ showToast }) {
       nuevoStock -= cant;
     }
 
-    const nuevosProductos = productos.map(p => p.id === prod.id ? { ...p, stock: nuevoStock } : p);
+    const nuevosProductos = productos.map(p => p.id === prod.id ? { ...p, stock: nuevoStock, lastModified: Date.now() } : p);
 
     const nuevoLog = {
       id: Date.now(),
@@ -347,7 +381,7 @@ export default function BarPanel({ showToast }) {
     const nuevosProductos = productos.map(p => {
       const itemOrden = ordenSugerida.find(o => o.id === p.id);
       if (itemOrden) {
-        return { ...p, stock: p.stock + itemOrden.cantidadAPedir };
+        return { ...p, stock: p.stock + itemOrden.cantidadAPedir, lastModified: Date.now() };
       }
       return p;
     });
@@ -384,7 +418,7 @@ export default function BarPanel({ showToast }) {
     const prod = productos.find(p => p.id === prodId);
     if (!prod) return;
 
-    const nuevosProductos = productos.map(p => p.id === prodId ? { ...p, precioVenta: nuevoPrecio } : p);
+    const nuevosProductos = productos.map(p => p.id === prodId ? { ...p, precioVenta: nuevoPrecio, lastModified: Date.now() } : p);
     
     const nuevosLogs = [{
       id: Date.now(),

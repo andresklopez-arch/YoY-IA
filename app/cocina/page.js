@@ -217,7 +217,7 @@ function CocinaContent() {
   const modificarProductoStock = async (id, delta) => {
     const actualizados = productos.map(p => {
       if (p.id === id) {
-        return { ...p, stock: Math.max(0, p.stock + delta) };
+        return { ...p, stock: Math.max(0, p.stock + delta), lastModified: Date.now() };
       }
       return p;
     });

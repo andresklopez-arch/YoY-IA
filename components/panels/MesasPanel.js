@@ -1729,7 +1729,7 @@ function ModalRegistrarComanda({ mesas, setMesas, cuentasActivas, setCuentasActi
     const stockActualizado = (stockFresco.length > 0 ? stockFresco : productos).map(p => {
       const enCart = carrito.find(item => item.id === p.id);
       if (enCart) {
-        return { ...p, stock: Math.max(0, p.stock - enCart.cantidad) };
+        return { ...p, stock: Math.max(0, p.stock - enCart.cantidad), lastModified: Date.now() };
       }
       return p;
     });
