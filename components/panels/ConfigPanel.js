@@ -2,17 +2,7 @@
 import { useState, useEffect } from 'react';
 import { db } from '@/lib/firebase';
 import { collection, getDocs, addDoc, query, orderBy, deleteDoc, doc, where, setDoc, serverTimestamp } from 'firebase/firestore';
-
-// ── UTILIDADES DE ENCRIPTACIÓN/OFUSCACIÓN DE MESAS ────────────────
-const getSignature = (str, secret) => {
-  let hash = 0;
-  const combined = str + secret;
-  for (let i = 0; i < combined.length; i++) {
-    hash = (hash << 5) - hash + combined.charCodeAt(i);
-    hash |= 0;
-  }
-  return Math.abs(hash).toString(16);
-};
+import { obfuscate, deobfuscate } from '@/lib/crypto';
 
 const hashPassword = (pwd) => {
   if (!pwd) return '';
@@ -22,65 +12,6 @@ const hashPassword = (pwd) => {
     hash |= 0;
   }
   return Math.abs(hash).toString(16);
-};
-
-const obfuscate = (data) => {
-  if (!data) return '';
-  const str = typeof data === 'string' ? data : JSON.stringify(data);
-  try {
-    if (typeof window !== 'undefined') {
-      const d = new Date();
-      const dateStr = `${d.getFullYear()}-${(d.getMonth()+1).toString().padStart(2,'0')}-${d.getDate().toString().padStart(2,'0')}`;
-      const sign = getSignature(str, dateStr);
-      const base64 = window.btoa(unescape(encodeURIComponent(str)));
-      const xor = base64.split('').map((char, index) => {
-        const keyChar = dateStr.charCodeAt(index % dateStr.length);
-        return String.fromCharCode(char.charCodeAt(0) ^ keyChar);
-      }).join('');
-      return `[${dateStr}][${sign}]` + window.btoa(unescape(encodeURIComponent(xor)));
-    }
-  } catch (e) {
-    console.error(e);
-  }
-  return str;
-};
-
-const deobfuscate = (str) => {
-  if (!str) return null;
-  try {
-    if (typeof window !== 'undefined') {
-      if (str.startsWith('[')) {
-        const closingBracket1 = str.indexOf(']');
-        if (closingBracket1 > 0) {
-          const dateStr = str.substring(1, closingBracket1);
-          const rest = str.substring(closingBracket1 + 1);
-          if (rest.startsWith('[')) {
-            const closingBracket2 = rest.indexOf(']');
-            if (closingBracket2 > 0) {
-              const signSaved = rest.substring(1, closingBracket2);
-              const encryptedPart = rest.substring(closingBracket2 + 1);
-              const xor = decodeURIComponent(escape(window.atob(encryptedPart)));
-              const base64 = xor.split('').map((char, index) => {
-                const keyChar = dateStr.charCodeAt(index % dateStr.length);
-                return String.fromCharCode(char.charCodeAt(0) ^ keyChar);
-              }).join('');
-              const decoded = decodeURIComponent(escape(window.atob(base64)));
-              return JSON.parse(decoded);
-            }
-          }
-        }
-      }
-      const decoded = decodeURIComponent(escape(window.atob(str)));
-      return JSON.parse(decoded);
-    }
-  } catch (e) {
-    try {
-      return JSON.parse(str);
-    } catch (err) {
-      return null;
-    }
-  }
-  return null;
 };
 
 export default function ConfigPanel({ showToast }) {

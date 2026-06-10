@@ -4,45 +4,8 @@ import { useAuth } from '@/lib/auth-context';
 import { useAlertasNomina } from '@/components/panels/NominaPanel';
 import { collection, query, where, onSnapshot, doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { deobfuscate } from '@/lib/crypto';
 
-// ── UTILIDAD DE DEOBFUSCACION PARA STOCK LOCAL ──────────────────
-const deobfuscate = (str) => {
-  if (!str) return null;
-  try {
-    if (typeof window !== 'undefined') {
-      if (str.startsWith('[')) {
-        const closingBracket1 = str.indexOf(']');
-        if (closingBracket1 > 0) {
-          const dateStr = str.substring(1, closingBracket1);
-          const rest = str.substring(closingBracket1 + 1);
-          if (rest.startsWith('[')) {
-            const closingBracket2 = rest.indexOf(']');
-            if (closingBracket2 > 0) {
-              const signSaved = rest.substring(1, closingBracket2);
-              const encryptedPart = rest.substring(closingBracket2 + 1);
-              const xor = decodeURIComponent(escape(window.atob(encryptedPart)));
-              const base64 = xor.split('').map((char, index) => {
-                const keyChar = dateStr.charCodeAt(index % dateStr.length);
-                return String.fromCharCode(char.charCodeAt(0) ^ keyChar);
-              }).join('');
-              const decoded = decodeURIComponent(escape(window.atob(base64)));
-              return JSON.parse(decoded);
-            }
-          }
-        }
-      }
-      const decoded = decodeURIComponent(escape(window.atob(str)));
-      return JSON.parse(decoded);
-    }
-  } catch (e) {
-    try {
-      return JSON.parse(str);
-    } catch (err) {
-      return null;
-    }
-  }
-  return null;
-};
 
 // Hook: pedidos pendientes de clientes via QR
 function usePedidosPendientes() {

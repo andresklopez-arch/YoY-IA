@@ -1,75 +1,8 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { obfuscate, deobfuscate } from '@/lib/crypto';
 
-// ── UTILIDADES DE ENCRIPTACIÓN/OFUSCACIÓN DE TORNEOS ────────────────
-const getSignature = (str, secret) => {
-  let hash = 0;
-  const combined = str + secret;
-  for (let i = 0; i < combined.length; i++) {
-    hash = (hash << 5) - hash + combined.charCodeAt(i);
-    hash |= 0;
-  }
-  return Math.abs(hash).toString(16);
-};
 
-const obfuscate = (data) => {
-  if (!data) return '';
-  const str = typeof data === 'string' ? data : JSON.stringify(data);
-  try {
-    if (typeof window !== 'undefined') {
-      const d = new Date();
-      const dateStr = `${d.getFullYear()}-${(d.getMonth()+1).toString().padStart(2,'0')}-${d.getDate().toString().padStart(2,'0')}`;
-      const sign = getSignature(str, dateStr);
-      const base64 = window.btoa(unescape(encodeURIComponent(str)));
-      const xor = base64.split('').map((char, index) => {
-        const keyChar = dateStr.charCodeAt(index % dateStr.length);
-        return String.fromCharCode(char.charCodeAt(0) ^ keyChar);
-      }).join('');
-      return `[${dateStr}][${sign}]` + window.btoa(unescape(encodeURIComponent(xor)));
-    }
-  } catch (e) {
-    console.error(e);
-  }
-  return str;
-};
-
-const deobfuscate = (str) => {
-  if (!str) return null;
-  try {
-    if (typeof window !== 'undefined') {
-      if (str.startsWith('[')) {
-        const closingBracket1 = str.indexOf(']');
-        if (closingBracket1 > 0) {
-          const dateStr = str.substring(1, closingBracket1);
-          const rest = str.substring(closingBracket1 + 1);
-          if (rest.startsWith('[')) {
-            const closingBracket2 = rest.indexOf(']');
-            if (closingBracket2 > 0) {
-              const signSaved = rest.substring(1, closingBracket2);
-              const encryptedPart = rest.substring(closingBracket2 + 1);
-              const xor = decodeURIComponent(escape(window.atob(encryptedPart)));
-              const base64 = xor.split('').map((char, index) => {
-                const keyChar = dateStr.charCodeAt(index % dateStr.length);
-                return String.fromCharCode(char.charCodeAt(0) ^ keyChar);
-              }).join('');
-              const decoded = decodeURIComponent(escape(window.atob(base64)));
-              return JSON.parse(decoded);
-            }
-          }
-        }
-      }
-      const decoded = decodeURIComponent(escape(window.atob(str)));
-      return JSON.parse(decoded);
-    }
-  } catch (e) {
-    try {
-      return JSON.parse(str);
-    } catch (err) {
-      return null;
-    }
-  }
-  return null;
-};
 
 const INIT_TORNEOS = [
   {
@@ -124,6 +57,7 @@ export default function TorneosPanel({ showToast }) {
   const [partidaJ2, setPartidaJ2] = useState('');
   const [scoreJ1, setScoreJ1] = useState('0');
   const [scoreJ2, setScoreJ2] = useState('0');
+  const [tipoPartida, setTipoPartida] = useState('regular');
 
   // Formulario Registrar Jugador
   const [nuevoJugadorNombre, setNuevoJugadorNombre] = useState('');
@@ -316,7 +250,9 @@ export default function TorneosPanel({ showToast }) {
     const elo2 = p2 ? p2.elo : 1500;
 
     // Calcular nuevos ELOs
-    const K = 32;
+    let K = 32;
+    if (tipoPartida === 'amistoso') K = 16;
+    if (tipoPartida === 'final') K = 48;
     const expected1 = 1 / (1 + Math.pow(10, (elo2 - elo1) / 400));
     const expected2 = 1 / (1 + Math.pow(10, (elo1 - elo2) / 400));
 
@@ -398,6 +334,7 @@ export default function TorneosPanel({ showToast }) {
     setPartidaJ2('');
     setScoreJ1('0');
     setScoreJ2('0');
+    setTipoPartida('regular');
 
     showToast(`Partida registrada. ELOs actualizados: ${partidaJ1} (${elo1} -> ${newElo1}) · ${partidaJ2} (${elo2} -> ${newElo2})`, 'success');
   };
@@ -724,6 +661,14 @@ export default function TorneosPanel({ showToast }) {
                     <label className="form-label">Marcador J2</label>
                     <input className="form-input" type="number" min={0} value={scoreJ2} onChange={e => setScoreJ2(e.target.value)} />
                   </div>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Tipo de Partida (Factor K ELO)</label>
+                  <select className="form-select" value={tipoPartida} onChange={e => setTipoPartida(e.target.value)}>
+                    <option value="amistoso">Amistoso (K = 16)</option>
+                    <option value="regular">Regular / Liga (K = 32)</option>
+                    <option value="final">Final / Torneo Principal (K = 48)</option>
+                  </select>
                 </div>
               </div>
               <div className="modal-footer">
