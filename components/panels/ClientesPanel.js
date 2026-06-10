@@ -8,7 +8,6 @@ const INIT_CLIENTES = [
   { id: 3, codigo: 'YOY-2026-1003', nombre: 'Ana García',       tipo: 'Socio', puntos: 2100, partidas: 145, nivel: 'Diamante', ultima: '2026-05-28', gasto: 15200, telefono: '55-5555-1234', saldo: 1200, historialSaldo: [{ fecha: '2026-05-28', monto: 1200, concepto: 'Recarga Bono Premium' }] },
   { id: 4, codigo: 'YOY-2026-1004', nombre: 'Luis Hernández',   tipo: 'Público', puntos: 80, partidas: 8, nivel: 'Bronce', ultima: '2026-05-20', gasto: 640, telefono: '55-3333-7777', saldo: 0, historialSaldo: [] },
   { id: 5, codigo: 'YOY-2026-1005', nombre: 'Socio #12',        tipo: 'Socio', puntos: 890, partidas: 62, nivel: 'Oro', ultima: '2026-05-28', gasto: 4800, telefono: '55-1111-2222', saldo: 150, historialSaldo: [{ fecha: '2026-05-28', monto: 150, concepto: 'Cashback 5% Acreditado' }] },
-]; },
 ];
 
 const NIVEL_COLORS = {
