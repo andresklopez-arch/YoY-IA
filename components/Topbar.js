@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { useAlertasNomina } from '@/components/panels/NominaPanel';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
 // Hook: pedidos pendientes de clientes via QR
@@ -67,12 +67,22 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
     }
   };
 
-  const dismissOnboarding = () => {
+  const dismissOnboarding = async () => {
+    // 1. Guardar en LocalStorage
     try {
       localStorage.setItem('yoy_shortcuts_onboarding_shown_v1', 'true');
-    } catch (e) {
-      console.warn('LocalStorage no disponible:', e);
+    } catch (e) {}
+
+    // 2. Guardar en Firestore si es usuario real
+    if (user?.uid && user.uid !== 'bypass-admin') {
+      try {
+        const userDocRef = doc(db, 'users', user.uid);
+        await setDoc(userDocRef, { shortcutsOnboardingShown_v1: true }, { merge: true });
+      } catch (err) {
+        console.warn('Error al guardar onboarding en Firestore:', err);
+      }
     }
+
     setIsDismissing(true);
     setTimeout(() => {
       setShowOnboarding(false);
@@ -82,18 +92,46 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
     }, 280);
   };
 
+  // Carga inicial: comprobar localStorage y Firestore
   useEffect(() => {
-    try {
-      if (typeof window !== 'undefined') {
-        const shown = localStorage.getItem('yoy_shortcuts_onboarding_shown_v1');
-        if (!shown) {
-          setShowOnboarding(true);
+    const checkOnboardingStatus = async () => {
+      try {
+        const localShown = localStorage.getItem('yoy_shortcuts_onboarding_shown_v1');
+        if (localShown === 'true') {
+          return;
+        }
+      } catch (e) {}
+
+      if (user?.uid && user.uid !== 'bypass-admin') {
+        try {
+          const userDocRef = doc(db, 'users', user.uid);
+          const userDoc = await getDoc(userDocRef);
+          if (userDoc.exists() && userDoc.data().shortcutsOnboardingShown_v1) {
+            try {
+              localStorage.setItem('yoy_shortcuts_onboarding_shown_v1', 'true');
+            } catch (e) {}
+            return;
+          }
+        } catch (err) {
+          console.warn('Error al leer onboarding de Firestore:', err);
         }
       }
-    } catch (e) {
-      console.warn('LocalStorage no disponible:', e);
+
+      setShowOnboarding(true);
+    };
+
+    checkOnboardingStatus();
+  }, [user]);
+
+  // Auto-ocultar el tutorial tras 30 segundos de inactividad
+  useEffect(() => {
+    if (showOnboarding && !isDismissing) {
+      const timer = setTimeout(() => {
+        dismissOnboarding();
+      }, 30000); // 30 segundos
+      return () => clearTimeout(timer);
     }
-  }, []);
+  }, [showOnboarding, isDismissing]);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -138,6 +176,7 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
         const target = QUICK_NAV_TARGETS[index];
         if (target) {
           e.preventDefault();
+          setShowMenu(false); // Cerrar panel flotante de perfil si estuviera abierto
           if (target.href) {
             window.open(target.href, '_blank');
           } else {
