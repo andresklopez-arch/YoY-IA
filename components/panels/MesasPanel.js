@@ -98,45 +98,46 @@ function ModalCerrarMesa({ mesa, cuentasActivas, onClose, onCerrar, onAgregarACu
   const hrs = (elapsed / 3600000).toFixed(2);
 
   return (
+  return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" onClick={e => e.stopPropagation()}>
-        <div className="modal-header">
-          <span className="modal-title"><i className="ri-stop-circle-line" style={{ marginRight: 8, color: 'var(--danger)' }} />Cerrar {mesa.nombre}</span>
+      <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 440 }}>
+        <div className="modal-header" style={{ padding: '12px 18px' }}>
+          <span className="modal-title" style={{ fontSize: 14 }}><i className="ri-stop-circle-line" style={{ marginRight: 8, color: 'var(--danger)' }} />Cerrar {mesa.nombre}</span>
           <button onClick={onClose} className="btn btn-secondary" style={{ background: 'none', border: 'none', padding: 4 }}>
             <i className="ri-close-line" style={{ fontSize: 20 }} />
           </button>
         </div>
-        <div className="modal-body">
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div className="modal-body" style={{ padding: '12px 18px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {/* Resumen */}
-            <div style={{ background: 'var(--bg-elevated)', borderRadius: 12, padding: 16, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div style={{ background: 'var(--bg-elevated)', borderRadius: 12, padding: '10px 14px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
               <div>
-                <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 4 }}>Tiempo</div>
-                <div style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, letterSpacing: '0.08em', color: 'var(--bronze-light)' }}>{formatTime(elapsed)}</div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{hrs} hrs · ${mesa.tarifa}/hr</div>
+                <div style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 2 }}>Tiempo</div>
+                <div style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 700, letterSpacing: '0.08em', color: 'var(--bronze-light)' }}>{formatTime(elapsed)}</div>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{hrs} hrs · ${mesa.tarifa}/hr</div>
               </div>
               <div>
-                <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 4 }}>Total de Mesa</div>
-                <div style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 900, color: mesa.socios ? 'var(--success)' : 'var(--text-primary)' }}>
+                <div style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 2 }}>Total de Mesa</div>
+                <div style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 900, color: mesa.socios ? 'var(--success)' : 'var(--text-primary)' }}>
                   {mesa.socios ? 'SOCIO' : `$${costo}`}
                 </div>
-                {!mesa.socios && <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>MXN</div>}
+                {!mesa.socios && <div style={{ fontSize: 10, color: 'var(--text-muted)', lineHeight: 1 }}>MXN</div>}
               </div>
             </div>
 
             {/* Opciones de Cierre */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
               <button
                 className={`btn btn-sm ${tipoCierre === 'liquidar' ? 'btn-primary' : 'btn-secondary'}`}
                 onClick={() => setTipoCierre('liquidar')}
-                style={{ flex: 1 }}
+                style={{ flex: 1, padding: '6px 10px', fontSize: 11 }}
               >
                 Liquidar Ahora
               </button>
               <button
                 className={`btn btn-sm ${tipoCierre === 'cuenta' ? 'btn-primary' : 'btn-secondary'}`}
                 onClick={() => setTipoCierre('cuenta')}
-                style={{ flex: 1 }}
+                style={{ flex: 1, padding: '6px 10px', fontSize: 11 }}
               >
                 Agregar a Cuenta
               </button>
@@ -145,14 +146,14 @@ function ModalCerrarMesa({ mesa, cuentasActivas, onClose, onCerrar, onAgregarACu
             {/* Panel de Liquidación */}
             {tipoCierre === 'liquidar' ? (
               <>
-                <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+                <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
                   <i className="ri-user-line" style={{ marginRight: 6 }} />
                   {mesa.cliente || 'Público General'}
                 </div>
 
                 {!mesa.socios && (
-                  <div className="form-group">
-                    <label className="form-label">Método de Pago</label>
+                  <div className="form-group" style={{ gap: 4 }}>
+                    <label className="form-label" style={{ fontSize: 10 }}>Método de Pago</label>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
                       {[
                         { id: 'efectivo', label: 'Efectivo', icon: 'ri-money-dollar-circle-line' },
@@ -165,13 +166,13 @@ function ModalCerrarMesa({ mesa, cuentasActivas, onClose, onCerrar, onAgregarACu
                           style={{
                             background: metodo === m.id ? 'var(--bronze-subtle)' : 'var(--bg-elevated)',
                             border: `1px solid ${metodo === m.id ? 'var(--border-bronze)' : 'var(--border)'}`,
-                            borderRadius: 10, padding: '10px 8px', cursor: 'pointer',
+                            borderRadius: 10, padding: '6px 8px', cursor: 'pointer',
                             color: metodo === m.id ? 'var(--bronze-light)' : 'var(--text-secondary)',
                             display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
-                            fontSize: 11, fontWeight: 600, transition: 'all 0.15s',
+                            fontSize: 10, fontWeight: 600, transition: 'all 0.15s',
                           }}
                         >
-                          <i className={m.icon} style={{ fontSize: 20 }} />
+                          <i className={m.icon} style={{ fontSize: 16 }} />
                           {m.label}
                         </button>
                       ))}
@@ -181,11 +182,12 @@ function ModalCerrarMesa({ mesa, cuentasActivas, onClose, onCerrar, onAgregarACu
               </>
             ) : (
               /* Panel de Agregar a Cuenta */
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <div className="form-group">
-                  <label className="form-label">Seleccionar Cuenta Activa</label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div className="form-group" style={{ gap: 4 }}>
+                  <label className="form-label" style={{ fontSize: 10 }}>Seleccionar Cuenta Activa</label>
                   <select
                     className="form-select"
+                    style={{ padding: '8px 12px', fontSize: 13 }}
                     value={cuentaSeleccionada}
                     onChange={e => {
                       setCuentaSeleccionada(e.target.value);
@@ -200,10 +202,11 @@ function ModalCerrarMesa({ mesa, cuentasActivas, onClose, onCerrar, onAgregarACu
                 </div>
 
                 {cuentaSeleccionada === '' && (
-                  <div className="form-group">
-                    <label className="form-label">Nombre del Nuevo Cliente Temporal</label>
+                  <div className="form-group" style={{ gap: 4 }}>
+                    <label className="form-label" style={{ fontSize: 10 }}>Nombre del Nuevo Cliente Temporal</label>
                     <input
                       className="form-input"
+                      style={{ padding: '8px 12px', fontSize: 13 }}
                       placeholder="Ej: Pedro Domínguez"
                       value={nuevoCliente}
                       onChange={e => setNuevoCliente(e.target.value)}
@@ -214,13 +217,13 @@ function ModalCerrarMesa({ mesa, cuentasActivas, onClose, onCerrar, onAgregarACu
             )}
           </div>
         </div>
-        <div className="modal-footer">
-          <button className="btn btn-secondary" onClick={onClose}>Cancelar</button>
+        <div className="modal-footer" style={{ padding: '10px 18px' }}>
+          <button className="btn btn-secondary" style={{ padding: '8px 14px', fontSize: 12 }} onClick={onClose}>Cancelar</button>
           {tipoCierre === 'liquidar' ? (
             <button
               className="btn btn-primary"
               onClick={() => onCerrar({ costo, metodo, tiempo: elapsed })}
-              style={{ background: 'linear-gradient(135deg, var(--danger), #ff6b6b)' }}
+              style={{ background: 'linear-gradient(135deg, var(--danger), #ff6b6b)', padding: '8px 14px', fontSize: 12 }}
             >
               <i className="ri-stop-circle-line" /> Cerrar y Cobrar
             </button>
@@ -232,7 +235,7 @@ function ModalCerrarMesa({ mesa, cuentasActivas, onClose, onCerrar, onAgregarACu
                 cuentaId: cuentaSeleccionada,
                 nombreNuevo: nuevoCliente || 'Cliente Temporal'
               })}
-              style={{ background: 'linear-gradient(135deg, var(--bronze), var(--bronze-light))' }}
+              style={{ background: 'linear-gradient(135deg, var(--bronze), var(--bronze-light))', padding: '8px 14px', fontSize: 12 }}
             >
               <i className="ri-folder-add-line" /> Guardar en Cuenta
             </button>
