@@ -760,6 +760,28 @@ export default function MesasPanel({ showToast }) {
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
   }, []);
 
+  // Cerrar ventanas emergentes al presionar la tecla Escape
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setModalAbrir(null);
+        setModalCerrar(null);
+        setModalNuevaMesa(false);
+        setModalFila(false);
+        setModalCuentas(false);
+        setModalAbrirCuenta(false);
+        setModalCambiarMesa(null);
+        setModalVincular(null);
+        setModalBitacora(false);
+        setModalComanda(false);
+        setModalQR(null);
+        setMostrarCobroManual(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
       document.documentElement.requestFullscreen().then(() => {

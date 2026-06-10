@@ -94,6 +94,18 @@ export default function CajaPanel({ showToast }) {
     return () => window.removeEventListener('storage', handleStorage);
   }, []);
 
+  // Cerrar ventanas emergentes al presionar la tecla Escape
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setMostrarCorte(false);
+        setMostrarBitacora(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   // Cargar borrador de corte de caja en mount y cobros desde LocalStorage
   useEffect(() => {
     if (typeof window !== 'undefined') {
