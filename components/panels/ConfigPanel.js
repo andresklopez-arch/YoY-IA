@@ -3,6 +3,76 @@ import { useState, useEffect } from 'react';
 import { db } from '@/lib/firebase';
 import { collection, getDocs, addDoc, query, orderBy, deleteDoc, doc, where } from 'firebase/firestore';
 
+// ── UTILIDADES DE ENCRIPTACIÓN/OFUSCACIÓN DE MESAS ────────────────
+const getSignature = (str, secret) => {
+  let hash = 0;
+  const combined = str + secret;
+  for (let i = 0; i < combined.length; i++) {
+    hash = (hash << 5) - hash + combined.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash).toString(16);
+};
+
+const obfuscate = (data) => {
+  if (!data) return '';
+  const str = typeof data === 'string' ? data : JSON.stringify(data);
+  try {
+    if (typeof window !== 'undefined') {
+      const d = new Date();
+      const dateStr = `${d.getFullYear()}-${(d.getMonth()+1).toString().padStart(2,'0')}-${d.getDate().toString().padStart(2,'0')}`;
+      const sign = getSignature(str, dateStr);
+      const base64 = window.btoa(unescape(encodeURIComponent(str)));
+      const xor = base64.split('').map((char, index) => {
+        const keyChar = dateStr.charCodeAt(index % dateStr.length);
+        return String.fromCharCode(char.charCodeAt(0) ^ keyChar);
+      }).join('');
+      return `[${dateStr}][${sign}]` + window.btoa(unescape(encodeURIComponent(xor)));
+    }
+  } catch (e) {
+    console.error(e);
+  }
+  return str;
+};
+
+const deobfuscate = (str) => {
+  if (!str) return null;
+  try {
+    if (typeof window !== 'undefined') {
+      if (str.startsWith('[')) {
+        const closingBracket1 = str.indexOf(']');
+        if (closingBracket1 > 0) {
+          const dateStr = str.substring(1, closingBracket1);
+          const rest = str.substring(closingBracket1 + 1);
+          if (rest.startsWith('[')) {
+            const closingBracket2 = rest.indexOf(']');
+            if (closingBracket2 > 0) {
+              const signSaved = rest.substring(1, closingBracket2);
+              const encryptedPart = rest.substring(closingBracket2 + 1);
+              const xor = decodeURIComponent(escape(window.atob(encryptedPart)));
+              const base64 = xor.split('').map((char, index) => {
+                const keyChar = dateStr.charCodeAt(index % dateStr.length);
+                return String.fromCharCode(char.charCodeAt(0) ^ keyChar);
+              }).join('');
+              const decoded = decodeURIComponent(escape(window.atob(base64)));
+              return JSON.parse(decoded);
+            }
+          }
+        }
+      }
+      const decoded = decodeURIComponent(escape(window.atob(str)));
+      return JSON.parse(decoded);
+    }
+  } catch (e) {
+    try {
+      return JSON.parse(str);
+    } catch (err) {
+      return null;
+    }
+  }
+  return null;
+};
+
 export default function ConfigPanel({ showToast }) {
   const [tarifas, setTarifas] = useState({
     carambola: 80,
@@ -33,6 +103,23 @@ export default function ConfigPanel({ showToast }) {
   const [newUser, setNewUser] = useState({ name: '', email: '', password: '', role: 'mesero' });
   const [savingUser, setSavingUser] = useState(false);
 
+  // --- Estados de Mesas Config ---
+  const [mesas, setMesas] = useState([]);
+  const [nuevaMesa, setNuevaMesa] = useState({ id: '', nombre: '', tarifa: '', tipo: 'Pool' });
+  const [editingMesaId, setEditingMesaId] = useState(null);
+
+  // --- Estados de Ticket Config ---
+  const [ticketConfig, setTicketConfig] = useState({
+    showNombre: true,
+    showDireccion: true,
+    showTelefono: true,
+    showFechaHora: true,
+    showConsumos: true,
+    showCliente: true,
+    showCuenta: true,
+    fontSize: '14px',
+  });
+
   const fetchUsuarios = async () => {
     setLoadingUsuarios(true);
     try {
@@ -53,6 +140,31 @@ export default function ConfigPanel({ showToast }) {
 
   useEffect(() => {
     fetchUsuarios();
+    if (typeof window !== 'undefined') {
+      try {
+        const savedMesas = localStorage.getItem('yoy_billar_mesas');
+        if (savedMesas) {
+          setMesas(deobfuscate(savedMesas) || []);
+        } else {
+          const defaultMesas = [
+            { id: 1, nombre: 'Mesa 1', tipo: 'Carambola', estado: 'libre', cliente: null, inicio: null, tarifa: 80, socios: false },
+            { id: 2, nombre: 'Mesa 2', tipo: 'Carambola', estado: 'libre', cliente: null, inicio: null, tarifa: 80, socios: false },
+            { id: 3, nombre: 'Mesa 3', tipo: 'Pool', estado: 'libre', cliente: null, inicio: null, tarifa: 60, socios: false },
+            { id: 4, nombre: 'Mesa 4', tipo: 'Pool', estado: 'libre', cliente: null, inicio: null, tarifa: 60, socios: false },
+            { id: 5, nombre: 'Mesa 5', tipo: 'Snooker', estado: 'libre', cliente: null, inicio: null, tarifa: 100, socios: false },
+          ];
+          setMesas(defaultMesas);
+          localStorage.setItem('yoy_billar_mesas', obfuscate(defaultMesas));
+        }
+
+        const savedTicket = localStorage.getItem('yoy_ticket_config');
+        if (savedTicket) {
+          setTicketConfig(JSON.parse(savedTicket));
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }
   }, []);
 
   const handleAddUser = async (e) => {
@@ -134,6 +246,162 @@ export default function ConfigPanel({ showToast }) {
     { name: 'Cajero Principal', email: 'cajero@yoybillar.mx', role: 'cajero' },
     { name: 'Mesero #1', email: 'mesero@yoybillar.mx', role: 'mesero' },
   ];
+
+  const handleSaveMesa = (e) => {
+    e.preventDefault();
+    if (!nuevaMesa.id || !nuevaMesa.nombre || !nuevaMesa.tarifa) {
+      showToast('Completa todos los campos de la mesa', 'warning');
+      return;
+    }
+    const mId = parseInt(nuevaMesa.id);
+    const mTarifa = parseFloat(nuevaMesa.tarifa);
+
+    if (editingMesaId === null && mesas.some(m => m.id === mId)) {
+      showToast(`La mesa con número ${mId} ya existe.`, 'warning');
+      return;
+    }
+
+    let updatedMesas;
+    if (editingMesaId !== null) {
+      updatedMesas = mesas.map(m => m.id === editingMesaId ? {
+        ...m,
+        id: mId,
+        nombre: nuevaMesa.nombre,
+        tarifa: mTarifa,
+        tipo: nuevaMesa.tipo
+      } : m);
+      showToast('Mesa actualizada con éxito', 'success');
+    } else {
+      const newM = {
+        id: mId,
+        nombre: nuevaMesa.nombre,
+        tipo: nuevaMesa.tipo,
+        estado: 'libre',
+        cliente: null,
+        inicio: null,
+        tarifa: mTarifa,
+        socios: false
+      };
+      updatedMesas = [...mesas, newM];
+      showToast('Mesa agregada con éxito', 'success');
+    }
+
+    setMesas(updatedMesas);
+    localStorage.setItem('yoy_billar_mesas', obfuscate(updatedMesas));
+    setNuevaMesa({ id: '', nombre: '', tarifa: '', tipo: 'Pool' });
+    setEditingMesaId(null);
+  };
+
+  const handleEditMesa = (m) => {
+    setNuevaMesa({ id: m.id.toString(), nombre: m.nombre, tarifa: m.tarifa.toString(), tipo: m.tipo });
+    setEditingMesaId(m.id);
+  };
+
+  const handleDeleteMesa = (mId) => {
+    if (!window.confirm(`¿Estás seguro de que deseas eliminar la Mesa ${mId}?`)) return;
+    const updated = mesas.filter(m => m.id !== mId);
+    setMesas(updated);
+    localStorage.setItem('yoy_billar_mesas', obfuscate(updated));
+    showToast(`Mesa ${mId} eliminada`, 'success');
+  };
+
+  const imprimirQRs = (mesaId) => {
+    const targetMesas = mesaId ? mesas.filter(m => m.id === mesaId) : mesas;
+    if (targetMesas.length === 0) {
+      showToast('No hay mesas para imprimir QRs', 'warning');
+      return;
+    }
+    
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Impresión de Etiquetas QR - YoY IA Billar</title>
+          <style>
+            body {
+              font-family: 'Outfit', 'Inter', sans-serif;
+              background: #fff;
+              color: #000;
+              margin: 0;
+              padding: 20px;
+              text-align: center;
+            }
+            .grid {
+              display: grid;
+              grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+              gap: 20px;
+              justify-items: center;
+            }
+            .label-card {
+              border: 2px dashed #000;
+              border-radius: 12px;
+              padding: 16px;
+              width: 160px;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              box-sizing: border-box;
+              page-break-inside: avoid;
+            }
+            .logo {
+              font-weight: 900;
+              font-size: 14px;
+              margin-bottom: 8px;
+              text-transform: uppercase;
+              letter-spacing: 0.1em;
+            }
+            .table-name {
+              font-size: 16px;
+              font-weight: 800;
+              margin-top: 8px;
+            }
+            .instruction {
+              font-size: 10px;
+              color: #555;
+              margin-top: 4px;
+              max-width: 140px;
+            }
+            @media print {
+              body { padding: 0; }
+              .label-card { border: 2px solid #000; }
+            }
+          </style>
+        </head>
+        <body>
+          <h2 style="margin-bottom: 20px; font-weight: 900;">YoY IA Billar - ETIQUETAS QR</h2>
+          <div class="grid">
+            ${targetMesas.map(m => `
+              <div class="label-card">
+                <div class="logo">🎱 YoY IA Billar</div>
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent('https://yoy-ia-billar.vercel.app/mesa/' + m.id)}" width="120" height="120" />
+                <div class="table-name">${m.nombre}</div>
+                <div class="instruction">Escanea para solicitar servicio, ver menú o pedir tiempo nuevo</div>
+              </div>
+            `).join('')}
+          </div>
+          <script>
+            window.onload = function() {
+              window.print();
+              window.onafterprint = function() { window.close(); }
+            }
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
+  const handleTicketToggle = (field) => {
+    const updated = { ...ticketConfig, [field]: !ticketConfig[field] };
+    setTicketConfig(updated);
+    localStorage.setItem('yoy_ticket_config', JSON.stringify(updated));
+  };
+
+  const handleTicketFontSize = (size) => {
+    const updated = { ...ticketConfig, fontSize: size };
+    setTicketConfig(updated);
+    localStorage.setItem('yoy_ticket_config', JSON.stringify(updated));
+  };
 
   return (
     <div>
@@ -330,6 +598,259 @@ export default function ConfigPanel({ showToast }) {
                 );
               })
             )}
+          </div>
+        </div>
+
+        {/* Configuración de Mesas */}
+        <div className="card">
+          <div className="card-header" style={{ marginBottom: 20 }}>
+            <h3 className="card-title"><i className="ri-grid-line" style={{ marginRight: 6 }} />Configuración de Mesas</h3>
+          </div>
+          <form onSubmit={handleSaveMesa} style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20, background: 'var(--bg-elevated)', padding: 14, borderRadius: 12, border: '1px solid var(--border)' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr', gap: 10 }}>
+              <div className="form-group">
+                <label className="form-label">Número</label>
+                <input
+                  type="number"
+                  className="form-input"
+                  placeholder="Num"
+                  value={nuevaMesa.id}
+                  onChange={e => setNuevaMesa(p => ({ ...p, id: e.target.value }))}
+                  disabled={editingMesaId !== null}
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Nombre</label>
+                <input
+                  className="form-input"
+                  placeholder="Ej: Mesa 1"
+                  value={nuevaMesa.nombre}
+                  onChange={e => setNuevaMesa(p => ({ ...p, nombre: e.target.value }))}
+                  required
+                />
+              </div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <div className="form-group">
+                <label className="form-label">Tarifa ($/hr)</label>
+                <input
+                  type="number"
+                  className="form-input"
+                  placeholder="60"
+                  value={nuevaMesa.tarifa}
+                  onChange={e => setNuevaMesa(p => ({ ...p, tarifa: e.target.value }))}
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Tipo de Mesa</label>
+                <select
+                  className="form-select"
+                  value={nuevaMesa.tipo}
+                  onChange={e => setNuevaMesa(p => ({ ...p, tipo: e.target.value }))}
+                  style={{ background: 'var(--bg-elevated)', color: 'var(--text-main)', border: '1px solid var(--border)', height: 38 }}
+                >
+                  <option value="Pool">Pool</option>
+                  <option value="Carambola">Carambola</option>
+                  <option value="Snooker">Snooker</option>
+                  <option value="Dominó">Dominó</option>
+                  <option value="Consumo">Consumo</option>
+                </select>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+              {editingMesaId !== null && (
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  style={{ flex: 1 }}
+                  onClick={() => {
+                    setEditingMesaId(null);
+                    setNuevaMesa({ id: '', nombre: '', tarifa: '', tipo: 'Pool' });
+                  }}
+                >
+                  Cancelar
+                </button>
+              )}
+              <button type="submit" className="btn btn-primary" style={{ flex: 2 }}>
+                {editingMesaId !== null ? 'Guardar Cambios' : 'Agregar Mesa'}
+              </button>
+            </div>
+          </form>
+
+          {/* Listado de Mesas */}
+          <div style={{ maxHeight: 220, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {mesas.map(m => (
+              <div key={m.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)', borderRadius: 10 }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700 }}>{m.nombre} <span style={{ fontSize: 10, color: 'var(--bronze-light)' }}>({m.tipo})</span></div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Tarifa: ${m.tarifa}/hr</div>
+                </div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button className="btn btn-secondary btn-icon" style={{ width: 28, height: 28, minWidth: 28, padding: 0 }} onClick={() => handleEditMesa(m)}>
+                    <i className="ri-pencil-line" />
+                  </button>
+                  <button className="btn btn-secondary btn-icon" style={{ width: 28, height: 28, minWidth: 28, padding: 0, color: '#ef4444' }} onClick={() => handleDeleteMesa(m.id)}>
+                    <i className="ri-delete-bin-line" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Impresión de Etiquetas QR */}
+        <div className="card">
+          <div className="card-header" style={{ marginBottom: 20 }}>
+            <h3 className="card-title"><i className="ri-qr-code-line" style={{ marginRight: 6 }} />Impresión de QRs por Mesa</h3>
+          </div>
+          <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 14 }}>
+            Genera y descarga códigos QR para pegar en las mesas. Permite a los clientes pedir servicio o recargar tiempo en su celular.
+          </p>
+          <button
+            className="btn btn-primary"
+            onClick={() => imprimirQRs(null)}
+            style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 16 }}
+          >
+            <i className="ri-printer-line" /> Imprimir Todos los QRs
+          </button>
+          
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 310, overflowY: 'auto' }}>
+            {mesas.map(m => (
+              <div key={m.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <img src={`https://api.qrserver.com/v1/create-qr-code/?size=60x60&data=${encodeURIComponent('https://yoy-ia-billar.vercel.app/mesa/' + m.id)}`} width="36" height="36" style={{ borderRadius: 6, background: '#fff', padding: 2 }} />
+                  <div>
+                    <span style={{ fontSize: 13, fontWeight: 700 }}>{m.nombre}</span>
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Mesa ID: {m.id}</div>
+                  </div>
+                </div>
+                <button
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => imprimirQRs(m.id)}
+                  style={{ fontSize: 11, padding: '4px 10px' }}
+                >
+                  <i className="ri-printer-line" /> Imprimir
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Diseño de Impresión de Tickets Térmicos */}
+      <div className="card" style={{ marginTop: 20 }}>
+        <div className="card-header" style={{ marginBottom: 20 }}>
+          <h3 className="card-title"><i className="ri-file-text-line" style={{ marginRight: 6 }} />Diseño de Tickets Térmicos</h3>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 20, alignItems: 'start' }}>
+          {/* Controles de Configuración */}
+          <div>
+            <h4 style={{ fontSize: 14, fontWeight: 800, color: 'var(--bronze-light)', marginBottom: 12 }}>Campos Visibles en Ticket</h4>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 20 }}>
+              {[
+                { id: 'showNombre', label: 'Nombre del Negocio' },
+                { id: 'showDireccion', label: 'Dirección física' },
+                { id: 'showTelefono', label: 'Teléfono de contacto' },
+                { id: 'showFechaHora', label: 'Fecha y Hora' },
+                { id: 'showCliente', label: 'Nombre del Cliente' },
+                { id: 'showCuenta', label: 'ID de la Cuenta' },
+                { id: 'showConsumos', label: 'Detalle de Consumos' },
+              ].map(item => (
+                <label key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: 'var(--bg-elevated)', borderRadius: 10, border: '1px solid var(--border)', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={ticketConfig[item.id]}
+                    onChange={() => handleTicketToggle(item.id)}
+                    style={{ accentColor: 'var(--bronze)' }}
+                  />
+                  <span style={{ fontSize: 12, fontWeight: 600 }}>{item.label}</span>
+                </label>
+              ))}
+            </div>
+
+            <h4 style={{ fontSize: 14, fontWeight: 800, color: 'var(--bronze-light)', marginBottom: 12 }}>Tamaño de Fuente</h4>
+            <div style={{ display: 'flex', gap: 10 }}>
+              {[
+                { id: '11px', label: 'Chica (11px)' },
+                { id: '14px', label: 'Mediana (14px)' },
+                { id: '18px', label: 'Grande (18px)' },
+              ].map(item => (
+                <button
+                  key={item.id}
+                  className={`btn ${ticketConfig.fontSize === item.id ? 'btn-primary' : 'btn-secondary'}`}
+                  onClick={() => handleTicketFontSize(item.id)}
+                  style={{ flex: 1, fontSize: 12 }}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+            
+            <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 16 }}>
+              Nota: El pie de página centralizado <strong>"YoY IA by Alfonso Iturbide"</strong> es un sello obligatorio de YoY IA y no puede ser alterado ni desactivado.
+            </p>
+          </div>
+
+          {/* Vista Previa en Vivo */}
+          <div>
+            <h4 style={{ fontSize: 13, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)', fontWeight: 800, marginBottom: 10, textAlign: 'center' }}>Vista Previa en Vivo</h4>
+            <div style={{ background: '#fff', color: '#000', padding: 20, fontFamily: 'monospace', fontSize: ticketConfig.fontSize, width: '100%', maxWidth: 280, margin: '0 auto', border: '1px solid #ccc', boxShadow: '0 4px 12px rgba(0,0,0,0.5)', borderRadius: 6 }}>
+              <div style={{ textAlign: 'center', marginBottom: 10 }}>
+                {ticketConfig.showNombre && <div style={{ fontWeight: 'bold', fontSize: '1.2em' }}>{sucursal.nombre}</div>}
+                {ticketConfig.showDireccion && <div style={{ fontSize: '0.85em', marginTop: 2 }}>{sucursal.direccion}</div>}
+                {ticketConfig.showTelefono && <div style={{ fontSize: '0.85em' }}>Tel: {sucursal.telefono}</div>}
+              </div>
+              
+              <div style={{ borderBottom: '1px dashed #000', margin: '8px 0' }} />
+              
+              <div style={{ fontSize: '0.85em', lineHeight: 1.4 }}>
+                {ticketConfig.showCliente && <div>CLIENTE: Juan Pérez</div>}
+                {ticketConfig.showCuenta && <div>CUENTA: #1024</div>}
+                {ticketConfig.showFechaHora && <div>FECHA: {new Date().toLocaleString('es-MX')}</div>}
+              </div>
+
+              <div style={{ borderBottom: '1px dashed #000', margin: '8px 0' }} />
+
+              {ticketConfig.showConsumos && (
+                <div style={{ fontSize: '0.85em' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold' }}>
+                    <span>PRODUCTO</span>
+                    <span>TOTAL</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', margin: '3px 0' }}>
+                    <span>2x Cerveza Corona</span>
+                    <span>$90.00</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', margin: '3px 0' }}>
+                    <span>1x Papas Fritas</span>
+                    <span>$55.00</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', margin: '3px 0' }}>
+                    <span>1.5h Mesa Pool</span>
+                    <span>$90.00</span>
+                  </div>
+                </div>
+              )}
+
+              <div style={{ borderBottom: '1px dashed #000', margin: '8px 0' }} />
+              
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '1.05em' }}>
+                <span>TOTAL:</span>
+                <span>$235.00 MXN</span>
+              </div>
+
+              <div style={{ borderBottom: '1px dashed #000', margin: '8px 0' }} />
+              
+              <div style={{ textAlign: 'center', fontSize: '9px', marginTop: 10, color: '#333', fontWeight: 'bold' }}>
+                *** GRACIAS POR SU VISITA ***
+              </div>
+              
+              <div style={{ textAlign: 'center', fontSize: '8px', color: '#666', marginTop: 8, fontStyle: 'italic' }}>
+                YoY IA by Alfonso Iturbide
+              </div>
+            </div>
           </div>
         </div>
       </div>
