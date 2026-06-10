@@ -243,7 +243,7 @@ export default function ConfigPanel({ showToast }) {
       return;
     }
     const actualHash = hashPassword(actualPin);
-    let savedHash = '170842';
+    let savedHash = '170440';
     if (typeof window !== 'undefined') {
       const localHash = localStorage.getItem('yoy_admin_pin_hash');
       if (localHash) savedHash = localHash;

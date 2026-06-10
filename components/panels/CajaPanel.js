@@ -30,7 +30,7 @@ const hashPassword = (pwd) => {
 export default function CajaPanel({ showToast }) {
   const [isAdminUnlocked, setIsAdminUnlocked] = useState(false);
   const [adminPassword, setAdminPassword] = useState('');
-  const [adminPinHash, setAdminPinHash] = useState('170842'); // Hash of '1234'
+  const [adminPinHash, setAdminPinHash] = useState('170440'); // Hash of '1111'
   const [cobros, setCobros] = useState(TRANSACCIONES);
   const [mostrarCobroManual, setMostrarCobroManual] = useState(false);
   const [nuevoMonto, setNuevoMonto] = useState('');
