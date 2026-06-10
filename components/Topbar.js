@@ -104,38 +104,44 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
           { label: 'Mesero', icon: 'ri-customer-service-2-line', color: 'var(--success)', href: '/mesero', badge: pedidosPendientes },
           { label: 'Reportes', icon: 'ri-bar-chart-2-line', color: 'var(--silver)', nav: 'reportes' },
           { label: 'Ajustes', icon: 'ri-settings-4-line', color: 'var(--text-muted)', nav: 'config' },
-        ].map((a, i) => (
-          <button
-            key={i}
-            onClick={() => a.href ? window.open(a.href, '_blank') : onNavigate(a.nav)}
-            className="topbar-quick-btn"
-            onMouseEnter={e => {
-              e.currentTarget.style.borderColor = a.color;
-              e.currentTarget.style.background = `${a.color}11`;
-            }}
-            onMouseLeave={e => {
-              e.currentTarget.style.borderColor = 'var(--border)';
-              e.currentTarget.style.background = 'var(--bg-elevated)';
-            }}
-            title={a.label}
-          >
-            <div style={{ position: 'relative', display: 'inline-flex' }}>
-              <i className={a.icon} style={{ fontSize: 16, color: a.color }} />
-              {a.badge > 0 && (
-                <span style={{
-                  position: 'absolute', top: -5, right: -6,
-                  background: 'var(--danger)', color: '#fff',
-                  fontSize: 8, fontWeight: 800, borderRadius: 999,
-                  minWidth: 14, height: 14, display: 'flex', alignItems: 'center',
-                  justifyContent: 'center', padding: '0 2px',
-                  animation: 'pulse 1.5s ease-in-out infinite',
-                  boxShadow: '0 0 6px rgba(239,68,68,0.6)'
-                }}>{a.badge}</span>
-              )}
-            </div>
-            <span className="topbar-quick-label">{a.label}</span>
-          </button>
-        ))}
+        ].map((a, i) => {
+          const isActive = activePanel === a.nav;
+          return (
+            <button
+              key={i}
+              onClick={() => a.href ? window.open(a.href, '_blank') : onNavigate(a.nav)}
+              className={`topbar-quick-btn ${isActive ? 'active' : ''}`}
+              style={{
+                '--btn-color': a.color,
+                '--btn-bg-hover': `${a.color}11`,
+                '--btn-glow-hover': `${a.color}22`,
+                '--btn-bg-active': `${a.color}22`,
+                '--btn-glow-active': `${a.color}44`,
+                '--btn-glow-inset': `${a.color}15`,
+                '--btn-bg-active-hover': `${a.color}33`,
+                '--btn-glow-active-hover': `${a.color}66`,
+                '--btn-glow-inset-hover': `${a.color}25`,
+              }}
+              title={a.label}
+            >
+              <div style={{ position: 'relative', display: 'inline-flex' }}>
+                <i className={a.icon} style={{ fontSize: 16, color: a.color }} />
+                {a.badge > 0 && (
+                  <span style={{
+                    position: 'absolute', top: -5, right: -6,
+                    background: 'var(--danger)', color: '#fff',
+                    fontSize: 8, fontWeight: 800, borderRadius: 999,
+                    minWidth: 14, height: 14, display: 'flex', alignItems: 'center',
+                    justifyContent: 'center', padding: '0 2px',
+                    animation: 'pulse 1.5s ease-in-out infinite',
+                    boxShadow: '0 0 6px rgba(239,68,68,0.6)'
+                  }}>{a.badge}</span>
+                )}
+              </div>
+              <span className="topbar-quick-label">{a.label}</span>
+            </button>
+          );
+        })}
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>

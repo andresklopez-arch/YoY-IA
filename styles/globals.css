@@ -932,7 +932,7 @@ tbody td {
 
 .topbar-quick-btn {
   background: var(--bg-elevated);
-  border: 1px solid var(--border) !important;
+  border: 1px solid var(--border);
   border-radius: 20px !important;
   padding: 6px 14px !important;
   display: flex;
@@ -946,7 +946,21 @@ tbody td {
 .topbar-quick-btn:hover {
   transform: translateY(-1px);
   color: var(--text-primary);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  border-color: var(--btn-color) !important;
+  background: var(--btn-bg-hover) !important;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3), 0 0 8px var(--btn-glow-hover) !important;
+}
+
+.topbar-quick-btn.active {
+  border-color: var(--btn-color) !important;
+  background: var(--btn-bg-active) !important;
+  box-shadow: 0 0 12px var(--btn-glow-active), inset 0 0 8px var(--btn-glow-inset) !important;
+  color: var(--text-primary) !important;
+}
+
+.topbar-quick-btn.active:hover {
+  background: var(--btn-bg-active-hover) !important;
+  box-shadow: 0 0 16px var(--btn-glow-active-hover), inset 0 0 10px var(--btn-glow-inset-hover) !important;
 }
 
 .topbar-quick-label {
