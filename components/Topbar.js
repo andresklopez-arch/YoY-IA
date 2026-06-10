@@ -5,6 +5,45 @@ import { useAlertasNomina } from '@/components/panels/NominaPanel';
 import { collection, query, where, onSnapshot, doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
+// ── UTILIDAD DE DEOBFUSCACION PARA STOCK LOCAL ──────────────────
+const deobfuscate = (str) => {
+  if (!str) return null;
+  try {
+    if (typeof window !== 'undefined') {
+      if (str.startsWith('[')) {
+        const closingBracket1 = str.indexOf(']');
+        if (closingBracket1 > 0) {
+          const dateStr = str.substring(1, closingBracket1);
+          const rest = str.substring(closingBracket1 + 1);
+          if (rest.startsWith('[')) {
+            const closingBracket2 = rest.indexOf(']');
+            if (closingBracket2 > 0) {
+              const signSaved = rest.substring(1, closingBracket2);
+              const encryptedPart = rest.substring(closingBracket2 + 1);
+              const xor = decodeURIComponent(escape(window.atob(encryptedPart)));
+              const base64 = xor.split('').map((char, index) => {
+                const keyChar = dateStr.charCodeAt(index % dateStr.length);
+                return String.fromCharCode(char.charCodeAt(0) ^ keyChar);
+              }).join('');
+              const decoded = decodeURIComponent(escape(window.atob(base64)));
+              return JSON.parse(decoded);
+            }
+          }
+        }
+      }
+      const decoded = decodeURIComponent(escape(window.atob(str)));
+      return JSON.parse(decoded);
+    }
+  } catch (e) {
+    try {
+      return JSON.parse(str);
+    } catch (err) {
+      return null;
+    }
+  }
+  return null;
+};
+
 // Hook: pedidos pendientes de clientes via QR
 function usePedidosPendientes() {
   const [total, setTotal] = useState(0);
@@ -62,6 +101,11 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [isDismissing, setIsDismissing] = useState(false);
 
+  // Estados de Notificaciones Drawer
+  const [showNotificationDrawer, setShowNotificationDrawer] = useState(false);
+  const [pedidosAlerts, setPedidosAlerts] = useState([]);
+  const [stockAlerts, setStockAlerts] = useState([]);
+
   const playUISound = () => {
     try {
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -81,12 +125,10 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
   };
 
   const dismissOnboarding = async () => {
-    // 1. Guardar en LocalStorage
     try {
       localStorage.setItem('yoy_shortcuts_onboarding_shown_v1', 'true');
     } catch (e) {}
 
-    // 2. Guardar en Firestore si es usuario real
     if (user?.uid && user.uid !== 'bypass-admin') {
       try {
         const userDocRef = doc(db, 'users', user.uid);
@@ -99,13 +141,12 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
     setIsDismissing(true);
     setTimeout(() => {
       setShowOnboarding(false);
-      // Foco automático al cerrar tutorial (Sugerencia 7)
       const activeBtn = document.querySelector('.topbar-quick-btn.active');
       if (activeBtn) activeBtn.focus();
     }, 280);
   };
 
-  // Carga inicial: comprobar localStorage y Firestore
+  // Carga inicial: comprobar onboarding
   useEffect(() => {
     const checkOnboardingStatus = async () => {
       try {
@@ -136,21 +177,73 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
     checkOnboardingStatus();
   }, [user]);
 
-  // Auto-ocultar el tutorial tras 30 segundos de inactividad
+  // Carga de Alertas de Pedidos en Tiempo Real (Firestore)
+  useEffect(() => {
+    const q = query(collection(db, 'mesa_pedidos'), where('estado', '==', 'pendiente'));
+    const unsub = onSnapshot(q, snap => {
+      const list = [];
+      snap.forEach(doc => {
+        const data = doc.data();
+        list.push({
+          id: doc.id,
+          tipo: data.tipo || 'asistencia',
+          titulo: data.tipo === 'pedido' ? `Pedido Mesa ${data.mesaId}` : `Llamada Mesa ${data.mesaId}`,
+          desc: data.detalle || (data.tipo === 'pedido' ? 'Solicitó menú preparado' : 'Solicita mesero en mesa'),
+          fecha: 'Pendiente'
+        });
+      });
+      setPedidosAlerts(list);
+    }, err => {
+      console.warn("Mesa pedidos alerts offline:", err);
+    });
+    return unsub;
+  }, []);
+
+  // Carga de Alertas de Stock Bajo
+  useEffect(() => {
+    const checkStockAlerts = () => {
+      const savedStock = localStorage.getItem('yoy_billar_stock');
+      if (savedStock) {
+        try {
+          const stockData = deobfuscate(savedStock);
+          if (stockData) {
+            const lowStockList = stockData
+              .filter(p => p.stock <= p.stockMin)
+              .map(p => ({
+                id: 'stock_' + p.id,
+                tipo: 'stock',
+                titulo: `Stock Bajo: ${p.nombre}`,
+                desc: `Existencia: ${p.stock} ${p.unidad} (Mínimo: ${p.stockMin})`,
+                fecha: 'Inventario'
+              }));
+            setStockAlerts(lowStockList);
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      }
+    };
+
+    checkStockAlerts();
+    const intv = setInterval(checkStockAlerts, 10000);
+    return () => clearInterval(intv);
+  }, []);
+
+  // Auto-ocultar onboarding
   useEffect(() => {
     if (showOnboarding && !isDismissing) {
       const timer = setTimeout(() => {
         dismissOnboarding();
-      }, 30000); // 30 segundos
+      }, 30000);
       return () => clearTimeout(timer);
     }
   }, [showOnboarding, isDismissing]);
 
+  // Atajos de Teclado
   useEffect(() => {
     const handleKeyDown = (e) => {
       const activeEl = document.activeElement;
       
-      // Desenfoque rápido con Escape o cierre de onboarding
       if (e.key === 'Escape') {
         if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.isContentEditable)) {
           activeEl.blur();
@@ -161,13 +254,11 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
         }
       }
 
-      // Bloqueo de atajos si hay modales activos (Sugerencia 1)
       const hasOpenModal = document.querySelector('.modal-overlay');
       if (hasOpenModal) {
         return;
       }
 
-      // Reabrir onboarding con Alt + ? / Alt + h (Sugerencia 3)
       const isAltHelp = e.altKey && (e.key === '?' || e.key === 'h' || e.key === 'H');
       const isCtrlShiftHelp = e.ctrlKey && e.shiftKey && (e.key === 'h' || e.key === 'H');
       if (isAltHelp || isCtrlShiftHelp) {
@@ -189,11 +280,11 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
         const target = QUICK_NAV_TARGETS[index];
         if (target) {
           e.preventDefault();
-          setShowMenu(false); // Cerrar panel flotante de perfil si estuviera abierto
+          setShowMenu(false);
           if (target.href) {
             window.open(target.href, '_blank');
           } else {
-            playUISound(); // Feedback sonoro (Sugerencia 6)
+            playUISound();
             onNavigate(target.nav);
           }
         }
@@ -207,12 +298,25 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
     if (typeof window !== 'undefined' && navigator.language) {
       setLocale(navigator.language);
     }
-    const t = setInterval(() => setTime(new Date()), 10000); // Actualiza cada 10 segundos
+    const t = setInterval(() => setTime(new Date()), 10000);
     return () => clearInterval(t);
   }, []);
 
   const timeStr = time.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
   const dateStr = time.toLocaleDateString(locale, { weekday: 'short', day: 'numeric', month: 'short' });
+
+  // Lista unificada de notificaciones
+  const allNotifications = [
+    ...alertasNomina.map((n, i) => ({
+      id: 'nomina_' + i,
+      tipo: 'nomina',
+      titulo: 'Alerta de Nómina',
+      desc: n.descripcion || n,
+      fecha: 'Nómina'
+    })),
+    ...pedidosAlerts,
+    ...stockAlerts
+  ];
 
   return (
     <header className="topbar">
@@ -260,7 +364,7 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
         </div>
       </div>
 
-      {/* Accesos Rápidos en el Centro */}
+      {/* Accesos Rápidos */}
       <div className="topbar-quick-actions">
         {[
           { label: 'Mesa', icon: 'ri-play-circle-line', color: 'var(--success)', nav: 'mesas', shortcut: 'Alt + 1' },
@@ -342,16 +446,20 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
           </div>
         </div>
 
-        {/* Notificaciones */}
+        {/* Notificaciones Botón (Abre Drawer Lateral) */}
         <button
-          onClick={() => alertasNomina.length > 0
-            ? onNavigate('nomina')
-            : showToast('Sin notificaciones nuevas', 'info')}
-          style={{ background: alertasNomina.length > 0 ? 'rgba(239,68,68,0.08)' : 'var(--bg-elevated)', border: `1px solid ${alertasNomina.length > 0 ? 'rgba(239,68,68,0.3)' : 'var(--border)'}`, borderRadius: 10, width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: alertasNomina.length > 0 ? 'var(--danger)' : 'var(--text-secondary)', fontSize: 16, position: 'relative', transition: 'all 0.2s' }}
-          title={alertasNomina.length > 0 ? `${alertasNomina.length} alertas de ausencias en nómina` : 'Sin notificaciones'}
+          onClick={() => setShowNotificationDrawer(!showNotificationDrawer)}
+          style={{
+            background: allNotifications.length > 0 ? 'rgba(239,68,68,0.08)' : 'var(--bg-elevated)',
+            border: `1px solid ${allNotifications.length > 0 ? 'rgba(239,68,68,0.3)' : 'var(--border)'}`,
+            borderRadius: 10, width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: 'pointer', color: allNotifications.length > 0 ? 'var(--danger)' : 'var(--text-secondary)',
+            fontSize: 16, position: 'relative', transition: 'all 0.2s'
+          }}
+          title={allNotifications.length > 0 ? `${allNotifications.length} alertas pendientes` : 'Sin notificaciones'}
         >
-          <i className={alertasNomina.length > 0 ? 'ri-alarm-warning-line' : 'ri-notification-3-line'} />
-          {alertasNomina.length > 0 && (
+          <i className={allNotifications.length > 0 ? 'ri-alarm-warning-line' : 'ri-notification-3-line'} />
+          {allNotifications.length > 0 && (
             <span style={{
               position: 'absolute', top: -4, right: -4,
               background: 'var(--danger)', color: '#fff',
@@ -359,7 +467,7 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
               minWidth: 16, height: 16, display: 'flex', alignItems: 'center',
               justifyContent: 'center', padding: '0 3px',
               animation: 'pulse 1.5s ease-in-out infinite'
-            }}>{alertasNomina.length}</span>
+            }}>{allNotifications.length}</span>
           )}
         </button>
 
@@ -398,6 +506,7 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
         </div>
       </div>
 
+      {/* Tutorial Shortcuts Onboarding */}
       {showOnboarding && (
         <div style={{
           position: 'fixed',
@@ -455,6 +564,99 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
           >
             ¡Entendido!
           </button>
+        </div>
+      )}
+
+      {/* PANEL LATERAL DE NOTIFICACIONES (DRAWER DESLIZABLE) */}
+      {showNotificationDrawer && (
+        <div style={{
+          position: 'fixed', top: 0, right: 0, bottom: 0, width: 330,
+          background: 'rgba(20, 20, 25, 0.98)', borderLeft: '1px solid var(--border-bronze)',
+          zIndex: 2000, boxShadow: '-5px 0 25px rgba(0,0,0,0.85)',
+          display: 'flex', flexDirection: 'column',
+          backdropFilter: 'blur(10px)',
+          animation: 'slideLeft 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards'
+        }}>
+          <div style={{ padding: '20px 16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h3 style={{ fontSize: 13, fontWeight: 800, color: 'var(--bronze-light)', textTransform: 'uppercase', letterSpacing: '0.1em', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <i className="ri-notification-3-line" /> Alertas ({allNotifications.length})
+            </h3>
+            <button
+              onClick={() => setShowNotificationDrawer(false)}
+              style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 18 }}
+            >
+              ✕
+            </button>
+          </div>
+          
+          <div style={{ flex: 1, overflowY: 'auto', padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {allNotifications.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '60px 10px', color: 'var(--text-muted)', fontSize: 12 }}>
+                <i className="ri-checkbox-circle-line" style={{ fontSize: 36, display: 'block', marginBottom: 10, color: 'var(--success)' }} />
+                ¡Todo al día! No hay alertas ni avisos pendientes.
+              </div>
+            ) : (
+              allNotifications.map(n => {
+                let icon = 'ri-notification-line';
+                let color = 'var(--bronze-light)';
+                if (n.tipo === 'stock') { icon = 'ri-error-warning-line'; color = 'var(--danger)'; }
+                if (n.tipo === 'nomina') { icon = 'ri-briefcase-line'; color = 'var(--warning)'; }
+                if (n.tipo === 'pedido') { icon = 'ri-restaurant-line'; color = 'var(--blue-light)'; }
+                if (n.tipo === 'asistencia') { icon = 'ri-user-voice-line'; color = 'var(--success)'; }
+
+                return (
+                  <div
+                    key={n.id}
+                    onClick={() => {
+                      setShowNotificationDrawer(false);
+                      if (n.tipo === 'stock') onNavigate('bar');
+                      if (n.tipo === 'nomina') onNavigate('nomina');
+                      if (n.tipo === 'pedido' || n.tipo === 'asistencia') onNavigate('mesas');
+                    }}
+                    style={{
+                      background: 'var(--bg-elevated)', border: '1px solid var(--border)',
+                      borderRadius: 10, padding: 12, cursor: 'pointer',
+                      transition: 'all 0.2s', position: 'relative'
+                    }}
+                    onMouseEnter={e => {
+                      e.currentTarget.style.borderColor = 'var(--border-bronze)';
+                      e.currentTarget.style.background = 'rgba(255,255,255,0.02)';
+                    }}
+                    onMouseLeave={e => {
+                      e.currentTarget.style.borderColor = 'var(--border)';
+                      e.currentTarget.style.background = 'var(--bg-elevated)';
+                    }}
+                  >
+                    <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                      <div style={{ width: 28, height: 28, borderRadius: 6, background: 'rgba(255,255,255,0.02)', border: `1px solid ${color}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color, flexShrink: 0 }}>
+                        <i className={icon} />
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: '#fff' }}>{n.titulo}</div>
+                        <p style={{ fontSize: 10, color: 'var(--text-secondary)', marginTop: 2, lineHeight: 1.4, margin: 0 }}>{n.desc}</p>
+                        <span style={{ fontSize: 8, color: 'var(--text-muted)', marginTop: 6, display: 'block' }}>{n.fecha}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+          
+          {allNotifications.length > 0 && (
+            <div style={{ padding: 12, borderTop: '1px solid var(--border)', display: 'flex', gap: 10 }}>
+              <button
+                className="btn btn-secondary btn-sm"
+                onClick={() => {
+                  showToast('Notificaciones marcadas como leídas', 'success');
+                  setShowNotificationDrawer(false);
+                }}
+                style={{ width: '100%' }}
+              >
+                Limpiar Drawer
+              </button>
+            </div>
+          )}
         </div>
       )}
     </header>

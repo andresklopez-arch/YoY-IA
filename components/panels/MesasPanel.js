@@ -31,15 +31,23 @@ function formatTime(ms) {
 }
 
 function calcCosto(mesa) {
-  if (!mesa.inicio || mesa.socios) return 0;
+  if (!mesa.inicio) return 0;
   const hrs = (Date.now() - mesa.inicio) / 3600000;
-  return Math.ceil(hrs * mesa.tarifa);
+  let baseCosto = mesa.socios ? 0 : Math.ceil(hrs * mesa.tarifa);
+  let premiumCosto = 0;
+  if (mesa.rentarTaco) premiumCosto += Math.ceil(hrs * 25);
+  if (mesa.rentarBolas) premiumCosto += Math.ceil(hrs * 35);
+  if (mesa.rentarTiza) premiumCosto += 10;
+  return baseCosto + premiumCosto;
 }
 
 // ── MODAL ABRIR MESA ──────────────────────────────────────
 function ModalAbrirMesa({ mesa, onClose, onConfirm }) {
   const [cliente, setCliente] = useState(mesa.cliente || '');
   const [esSocio, setEsSocio] = useState(mesa.esSocio || false);
+  const [rentarTaco, setRentarTaco] = useState(false);
+  const [rentarBolas, setRentarBolas] = useState(false);
+  const [rentarTiza, setRentarTiza] = useState(false);
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -68,11 +76,29 @@ function ModalAbrirMesa({ mesa, onClose, onConfirm }) {
               <span style={{ fontSize: 13, fontWeight: 600 }}>Es miembro / socio mensual</span>
               <span className="badge badge-bronze" style={{ marginLeft: 'auto' }}>Sin cargo</span>
             </label>
+
+            <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--bronze-light)', marginBottom: 8 }}>Equipamiento Premium (Opcional)</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+                  <input type="checkbox" checked={rentarTaco} onChange={e => setRentarTaco(e.target.checked)} style={{ width: 16, height: 16, accentColor: 'var(--bronze)' }} />
+                  <span style={{ fontSize: 12 }}>Taco de Fibra de Carbono (+$25/hr)</span>
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+                  <input type="checkbox" checked={rentarBolas} onChange={e => setRentarBolas(e.target.checked)} style={{ width: 16, height: 16, accentColor: 'var(--bronze)' }} />
+                  <span style={{ fontSize: 12 }}>Bolas Profesionales Aramith (+$35/hr)</span>
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+                  <input type="checkbox" checked={rentarTiza} onChange={e => setRentarTiza(e.target.checked)} style={{ width: 16, height: 16, accentColor: 'var(--bronze)' }} />
+                  <span style={{ fontSize: 12 }}>Tiza Kamui Especial (+$10 tarifa única)</span>
+                </label>
+              </div>
+            </div>
           </div>
         </div>
         <div className="modal-footer">
           <button className="btn btn-secondary" onClick={onClose}>Cancelar</button>
-          <button className="btn btn-primary" onClick={() => onConfirm({ cliente: cliente || 'Público', esSocio })}>
+          <button className="btn btn-primary" onClick={() => onConfirm({ cliente: cliente || 'Público', esSocio, rentarTaco, rentarBolas, rentarTiza })}>
             <i className="ri-play-circle-line" /> Iniciar Mesa
           </button>
         </div>
@@ -117,12 +143,23 @@ function ModalCerrarMesa({ mesa, cuentasActivas, onClose, onCerrar, onAgregarACu
               </div>
               <div>
                 <div style={{ fontSize: 8, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 1 }}>Total de Mesa</div>
-                <div style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 900, color: mesa.socios ? 'var(--success)' : 'var(--text-primary)', lineHeight: 1.2 }}>
-                  {mesa.socios ? 'SOCIO' : `$${costo}`}
+                <div style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 900, color: mesa.socios && costo === 0 ? 'var(--success)' : 'var(--text-primary)', lineHeight: 1.2 }}>
+                  {mesa.socios && costo === 0 ? 'SOCIO' : `$${costo}`}
                 </div>
-                {!mesa.socios && <div style={{ fontSize: 9, color: 'var(--text-muted)', lineHeight: 1 }}>MXN</div>}
+                {(!mesa.socios || costo > 0) && <div style={{ fontSize: 9, color: 'var(--text-muted)', lineHeight: 1 }}>MXN</div>}
               </div>
             </div>
+
+            {(mesa.rentarTaco || mesa.rentarBolas || mesa.rentarTiza) && (
+              <div style={{ fontSize: 10, color: 'var(--bronze-light)', padding: '6px 10px', background: 'var(--bg-elevated)', borderRadius: 8, border: '1px solid var(--border)' }}>
+                <strong>Equipamiento Rentado:</strong>
+                <ul style={{ margin: '4px 0 0 14px', padding: 0, fontSize: 9, color: 'var(--text-muted)' }}>
+                  {mesa.rentarTaco && <li>Taco de Carbono (+$25/hr)</li>}
+                  {mesa.rentarBolas && <li>Bolas Aramith (+$35/hr)</li>}
+                  {mesa.rentarTiza && <li>Tiza Kamui (+$10 única)</li>}
+                </ul>
+              </div>
+            )}
 
             {/* Opciones de Cierre */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
@@ -524,9 +561,9 @@ export default function MesasPanel({ showToast }) {
     setModalAbrir(mesa);
   };
 
-  const confirmarAbrirMesa = (mesaId, { cliente, esSocio }) => {
+  const confirmarAbrirMesa = (mesaId, { cliente, esSocio, rentarTaco, rentarBolas, rentarTiza }) => {
     setMesas(prev => prev.map(m => m.id === mesaId
-      ? { ...m, estado: 'ocupada', cliente, inicio: Date.now(), socios: esSocio }
+      ? { ...m, estado: 'ocupada', cliente, inicio: Date.now(), socios: esSocio, rentarTaco, rentarBolas, rentarTiza }
       : m
     ));
     
@@ -536,7 +573,7 @@ export default function MesasPanel({ showToast }) {
     
     setModalAbrir(null);
     showToast(`Mesa ${mesaId} iniciada para ${cliente}`, 'success');
-    registrarEvento('Apertura', `Mesa ${mesaId} abierta para ${cliente}${esSocio ? ' (Socio)' : ''}`);
+    registrarEvento('Apertura', `Mesa ${mesaId} abierta para ${cliente}${esSocio ? ' (Socio)' : ''} ${rentarTaco ? '[Taco Premium] ' : ''}${rentarBolas ? '[Bolas Aramith] ' : ''}${rentarTiza ? '[Tiza Kamui]' : ''}`);
   };
 
   const registrarNuevaMesa = (nueva) => {

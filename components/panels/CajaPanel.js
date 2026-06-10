@@ -17,7 +17,6 @@ const METODO_ICONS = {
   tarjeta:  'ri-bank-card-line',
 };
 
-// ── HASH DE CONTRASEÑA ───────────────────────────────────
 const hashPassword = (pwd) => {
   if (!pwd) return '';
   let hash = 0;
@@ -44,7 +43,17 @@ export default function CajaPanel({ showToast }) {
     1000: '', 500: '', 200: '', 100: '', 50: '', 20: '', 10: '', 5: '', 2: '', 1: '', 0.5: ''
   });
 
-  // Escuchar PIN de Administrador desde Firestore config/seguridad
+  // Modo Kiosco (Pantalla completa)
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // Cola de impresión térmica
+  const [colaImpresion, setColaImpresion] = useState([
+    { id: 1, hora: '14:31', tipo: 'caja', detalle: 'Ticket de Venta #1024 (Mesa 2) - $120', estado: 'Impreso ✓' },
+    { id: 2, hora: '13:16', tipo: 'cocina', detalle: 'Comanda Cocina #882 (Nachos + Alitas) - Mesa 7', estado: 'Impreso ✓' },
+    { id: 3, hora: '13:15', tipo: 'barra', detalle: 'Comanda Barra #881 (4 Coronas) - Mesa 7', estado: 'Impreso ✓' }
+  ]);
+
+  // Escuchar PIN de Administrador desde Firestore
   useEffect(() => {
     const unsub = onSnapshot(doc(db, 'config', 'seguridad'), snap => {
       if (snap.exists() && snap.data().adminPinHash) {
@@ -79,6 +88,12 @@ export default function CajaPanel({ showToast }) {
         }
       }
     }
+
+    const handleFsChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFsChange);
+    return () => document.removeEventListener('fullscreenchange', handleFsChange);
   }, []);
 
   const handleCantidadChange = (den, val) => {
@@ -126,6 +141,10 @@ export default function CajaPanel({ showToast }) {
       color: monto > 0 ? 'var(--success)' : 'var(--danger)',
     }, ...prev]);
     showToast(`Cobro de $${monto} registrado`, 'success');
+
+    // Registrar comanda simulada en la cola de impresión
+    triggerSimulatedPrint('caja', `Ticket de Venta (Manual) - $${monto}`);
+
     setMostrarCobroManual(false);
     setNuevoMonto(''); setNuevaDesc(''); setPinAutorizacion('');
   };
@@ -143,6 +162,7 @@ export default function CajaPanel({ showToast }) {
     }, ...prev]);
 
     showToast(`Corte registrado. Diferencia: $${diferencia.toLocaleString()}`, diferencia >= 0 ? 'success' : 'danger');
+    triggerSimulatedPrint('caja', `Reporte de Corte de Caja - Diferencia: $${diferencia}`);
     setMostrarCorte(false);
     localStorage.removeItem('yoy_caja_corte_draft');
     setCantidades({
@@ -150,23 +170,59 @@ export default function CajaPanel({ showToast }) {
     });
   };
 
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().then(() => {
+        setIsFullscreen(true);
+      }).catch((err) => {
+        showToast('Error al activar modo kiosco', 'error');
+      });
+    } else {
+      document.exitFullscreen();
+      setIsFullscreen(false);
+    }
+  };
+
+  const triggerSimulatedPrint = (tipo, detalle) => {
+    const nuevoPrint = {
+      id: Date.now(),
+      hora: new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }),
+      tipo,
+      detalle,
+      estado: 'Enviando...'
+    };
+    setColaImpresion(prev => [nuevoPrint, ...prev]);
+
+    setTimeout(() => {
+      setColaImpresion(prev => prev.map(p => p.id === nuevoPrint.id ? { ...p, estado: 'Impreso ✓' } : p));
+      showToast(`Ticket impreso correctamente en impresora ${tipo.toUpperCase()}`, 'success');
+    }, 1200);
+  };
+
   return (
-    <div>
-      <div className="page-header">
+    <div style={{ minHeight: isFullscreen ? '100vh' : 'auto', padding: isFullscreen ? '20px' : '0', background: isFullscreen ? 'var(--bg-main)' : 'transparent' }}>
+      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <h1 className="page-title gradient-bronze">Caja y POS</h1>
-          <p className="page-subtitle">Corte del día · Turno actual</p>
+          <p className="page-subtitle">Corte del día · Turno actual · {isFullscreen ? 'Modo Kiosco Activo' : 'Modo Estándar'}</p>
         </div>
-        {isAdminUnlocked && (
-          <div style={{ display: 'flex', gap: 10 }}>
-            <button className="btn btn-secondary btn-sm" onClick={() => setMostrarCorte(true)}>
-              <i className="ri-file-list-3-line" /> Corte de Caja
-            </button>
-            <button className="btn btn-primary btn-sm" onClick={() => setMostrarCobroManual(true)}>
-              <i className="ri-add-circle-line" /> Cobro Manual
-            </button>
-          </div>
-        )}
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          {/* Botón de Modo Kiosco */}
+          <button className="btn btn-secondary btn-sm" onClick={toggleFullscreen} title="Activar Modo Kiosco">
+            <i className={isFullscreen ? 'ri-fullscreen-exit-fill' : 'ri-fullscreen-fill'} style={{ marginRight: 4 }} />
+            {isFullscreen ? 'Salir Kiosco' : 'Modo Kiosco'}
+          </button>
+          {isAdminUnlocked && (
+            <>
+              <button className="btn btn-secondary btn-sm" onClick={() => setMostrarCorte(true)}>
+                <i className="ri-file-list-3-line" /> Corte de Caja
+              </button>
+              <button className="btn btn-primary btn-sm" onClick={() => setMostrarCobroManual(true)}>
+                <i className="ri-add-circle-line" /> Cobro Manual
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
       {!isAdminUnlocked ? (
@@ -225,6 +281,40 @@ export default function CajaPanel({ showToast }) {
                 </div>
               );
             })}
+          </div>
+
+          {/* Cola de Impresión Térmica */}
+          <div className="card" style={{ marginBottom: 24 }}>
+            <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <div>
+                <h3 className="card-title"><i className="ri-printer-line" style={{ marginRight: 6 }} />Historial de Colas de Impresión (Red/USB)</h3>
+                <p style={{ fontSize: 10, color: 'var(--text-muted)', margin: 0 }}>Simulador de envío de tickets directos a comandas de cocina y barra</p>
+              </div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button className="btn btn-secondary btn-xs" onClick={() => triggerSimulatedPrint('caja', 'Ticket de Prueba - Impresora Caja')}>Test Caja</button>
+                <button className="btn btn-secondary btn-xs" onClick={() => triggerSimulatedPrint('cocina', 'Comanda de Prueba - Impresora Cocina')}>Test Cocina</button>
+                <button className="btn btn-secondary btn-xs" onClick={() => triggerSimulatedPrint('barra', 'Comanda de Prueba - Impresora Barra')}>Test Barra</button>
+              </div>
+            </div>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 150, overflowY: 'auto' }}>
+              {colaImpresion.map(p => (
+                <div key={p.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'rgba(255,255,255,0.01)', border: '1px solid var(--border)', borderRadius: 10 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{ width: 26, height: 26, borderRadius: 6, background: 'var(--bg-elevated)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, color: 'var(--bronze-light)' }}>
+                      <i className="ri-printer-line" />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 11, fontWeight: 700 }}>{p.detalle}</div>
+                      <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>Tipo: {p.tipo.toUpperCase()} · {p.hora}</span>
+                    </div>
+                  </div>
+                  <span className={`badge ${p.estado.includes('Impreso') ? 'badge-success' : 'badge-warning'}`} style={{ fontSize: 9 }}>
+                    {p.estado}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
 
           {/* Tabla de transacciones */}
