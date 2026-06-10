@@ -949,6 +949,7 @@ tbody td {
   cursor: pointer;
   transition: all var(--t-fast);
   color: var(--text-secondary);
+  opacity: 0.7;
 }
 
 .topbar-quick-btn:hover {
@@ -957,6 +958,7 @@ tbody td {
   border-color: var(--btn-color) !important;
   background: var(--btn-bg-hover) !important;
   box-shadow: 0 4px 12px rgba(0,0,0,0.3), 0 0 8px var(--btn-glow-hover) !important;
+  opacity: 1 !important;
 }
 
 .topbar-quick-btn.active {
@@ -964,11 +966,13 @@ tbody td {
   background: var(--btn-bg-active) !important;
   box-shadow: 0 0 12px var(--btn-glow-active), inset 0 0 8px var(--btn-glow-inset) !important;
   color: var(--text-primary) !important;
+  opacity: 1 !important;
 }
 
 .topbar-quick-btn.active:hover {
   background: var(--btn-bg-active-hover) !important;
   box-shadow: 0 0 16px var(--btn-glow-active-hover), inset 0 0 10px var(--btn-glow-inset-hover) !important;
+  opacity: 1 !important;
 }
 
 .topbar-quick-label {

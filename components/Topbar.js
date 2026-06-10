@@ -49,20 +49,49 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [isDismissing, setIsDismissing] = useState(false);
 
+  const playUISound = () => {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.frequency.setValueAtTime(800, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(1200, ctx.currentTime + 0.05);
+      gain.gain.setValueAtTime(0.04, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.05);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.06);
+    } catch (err) {
+      // Fallback silencioso
+    }
+  };
+
   const dismissOnboarding = () => {
-    localStorage.setItem('yoy_shortcuts_onboarding_shown_v1', 'true');
+    try {
+      localStorage.setItem('yoy_shortcuts_onboarding_shown_v1', 'true');
+    } catch (e) {
+      console.warn('LocalStorage no disponible:', e);
+    }
     setIsDismissing(true);
     setTimeout(() => {
       setShowOnboarding(false);
+      // Foco automático al cerrar tutorial (Sugerencia 7)
+      const activeBtn = document.querySelector('.topbar-quick-btn.active');
+      if (activeBtn) activeBtn.focus();
     }, 280);
   };
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const shown = localStorage.getItem('yoy_shortcuts_onboarding_shown_v1');
-      if (!shown) {
-        setShowOnboarding(true);
+    try {
+      if (typeof window !== 'undefined') {
+        const shown = localStorage.getItem('yoy_shortcuts_onboarding_shown_v1');
+        if (!shown) {
+          setShowOnboarding(true);
+        }
       }
+    } catch (e) {
+      console.warn('LocalStorage no disponible:', e);
     }
   }, []);
 
@@ -81,6 +110,22 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
         }
       }
 
+      // Bloqueo de atajos si hay modales activos (Sugerencia 1)
+      const hasOpenModal = document.querySelector('.modal-overlay');
+      if (hasOpenModal) {
+        return;
+      }
+
+      // Reabrir onboarding con Alt + ? / Alt + h (Sugerencia 3)
+      const isAltHelp = e.altKey && (e.key === '?' || e.key === 'h' || e.key === 'H');
+      const isCtrlShiftHelp = e.ctrlKey && e.shiftKey && (e.key === 'h' || e.key === 'H');
+      if (isAltHelp || isCtrlShiftHelp) {
+        e.preventDefault();
+        setIsDismissing(false);
+        setShowOnboarding(true);
+        return;
+      }
+
       if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.isContentEditable)) {
         return;
       }
@@ -96,6 +141,7 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
           if (target.href) {
             window.open(target.href, '_blank');
           } else {
+            playUISound(); // Feedback sonoro (Sugerencia 6)
             onNavigate(target.nav);
           }
         }
