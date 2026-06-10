@@ -5,6 +5,8 @@ import {
   onSnapshot, query, orderBy, where, getDocs, Timestamp, serverTimestamp
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { hashNip } from '@/lib/crypto';
+
 
 // ─────────────────────────────────────────────
 // CONSTANTES
@@ -283,7 +285,11 @@ function EmpleadosTab({ showToast }) {
       return showToast('El NIP debe tener entre 4 y 6 dígitos', 'error');
     }
     try {
-      const data = { ...form, updatedAt: serverTimestamp() };
+      let finalNip = form.nip;
+      if (finalNip && /^\d{4,6}$/.test(finalNip)) {
+        finalNip = await hashNip(finalNip);
+      }
+      const data = { ...form, nip: finalNip, updatedAt: serverTimestamp() };
       if (editando) {
         await updateDoc(doc(db, 'nomina_empleados', editando), data);
         showToast('Empleado actualizado ✅', 'success');

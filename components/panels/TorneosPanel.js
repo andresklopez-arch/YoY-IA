@@ -1,6 +1,8 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { obfuscate, deobfuscate } from '@/lib/crypto';
+import { db } from '@/lib/firebase';
+import { doc, setDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
 
 
 
@@ -77,22 +79,70 @@ export default function TorneosPanel({ showToast }) {
   const [nuevoJugadorPts, setNuevoJugadorPts] = useState(0);
 
   useEffect(() => {
-    const saved = localStorage.getItem('yoy_billar_torneos');
-    if (saved) {
-      const data = deobfuscate(saved);
-      if (data && data.length > 0) {
-        setTorneos(data);
-        setTorneoActivo(data[0]);
+    // Escucha en tiempo real de Firestore para los torneos con reconciliación offline LWW
+    const unsub = onSnapshot(doc(db, 'config', 'torneos'), snap => {
+      if (snap.exists()) {
+        const firestoreTorneos = snap.data().torneos || [];
+        if (firestoreTorneos.length > 0) {
+          let localRaw = null;
+          try {
+            localRaw = localStorage.getItem('yoy_billar_torneos');
+          } catch (e) {}
+          const localTorneos = localRaw ? (deobfuscate(localRaw) || []) : [];
+          
+          // CRDT LWW merge
+          const mergedTorneos = [...localTorneos];
+          firestoreTorneos.forEach(ft => {
+            const localIdx = mergedTorneos.findIndex(lt => lt.id === ft.id);
+            if (localIdx === -1) {
+              mergedTorneos.push(ft);
+            } else {
+              const lt = mergedTorneos[localIdx];
+              const ltTime = lt.lastModified || 0;
+              const ftTime = ft.lastModified || 0;
+              if (ftTime > ltTime) {
+                mergedTorneos[localIdx] = ft;
+              }
+            }
+          });
+          
+          setTorneos(mergedTorneos);
+          try {
+            localStorage.setItem('yoy_billar_torneos', obfuscate(mergedTorneos));
+          } catch (e) {}
+          
+          const localHasNewerUpdates = mergedTorneos.some(mt => {
+            const ft = firestoreTorneos.find(f => f.id === mt.id);
+            return (mt.lastModified || 0) > (ft?.lastModified || 0);
+          });
+          
+          if (localHasNewerUpdates) {
+            setDoc(doc(db, 'config', 'torneos'), {
+              torneos: mergedTorneos,
+              updatedAt: serverTimestamp()
+            }).catch(err => console.error("Error reconciling torneos:", err));
+          }
+          
+          setTorneoActivo(prev => {
+            if (!prev) return mergedTorneos[0];
+            const act = mergedTorneos.find(t => t.id === prev.id);
+            return act || mergedTorneos[0];
+          });
+        }
       } else {
-        setTorneos(INIT_TORNEOS);
-        setTorneoActivo(INIT_TORNEOS[0]);
-        localStorage.setItem('yoy_billar_torneos', obfuscate(INIT_TORNEOS));
+        let localRaw = null;
+        try {
+          localRaw = localStorage.getItem('yoy_billar_torneos');
+        } catch (e) {}
+        const localTorneos = localRaw ? (deobfuscate(localRaw) || []) : INIT_TORNEOS;
+        const mappedTorneos = localTorneos.map(t => ({ ...t, lastModified: t.lastModified || Date.now() }));
+        setTorneos(mappedTorneos);
+        try {
+          localStorage.setItem('yoy_billar_torneos', obfuscate(mappedTorneos));
+        } catch (e) {}
+        setDoc(doc(db, 'config', 'torneos'), { torneos: mappedTorneos, updatedAt: serverTimestamp() });
       }
-    } else {
-      setTorneos(INIT_TORNEOS);
-      setTorneoActivo(INIT_TORNEOS[0]);
-      localStorage.setItem('yoy_billar_torneos', obfuscate(INIT_TORNEOS));
-    }
+    });
 
     // Cargar mesas
     const savedMesas = localStorage.getItem('yoy_billar_mesas');
@@ -112,13 +162,24 @@ export default function TorneosPanel({ showToast }) {
       setMesas(defaultMesas);
       localStorage.setItem('yoy_billar_mesas', obfuscate(defaultMesas));
     }
+
+    return () => unsub();
   }, []);
 
-  const saveTorneos = (newTorneos) => {
-    setTorneos(newTorneos);
-    localStorage.setItem('yoy_billar_torneos', obfuscate(newTorneos));
+  const saveTorneos = async (newTorneos) => {
+    const updatedWithTime = newTorneos.map(t => ({ ...t, lastModified: Date.now() }));
+    setTorneos(updatedWithTime);
+    try {
+      localStorage.setItem('yoy_billar_torneos', obfuscate(updatedWithTime));
+      await setDoc(doc(db, 'config', 'torneos'), {
+        torneos: updatedWithTime,
+        updatedAt: serverTimestamp()
+      });
+    } catch (err) {
+      console.error("Error saving torneos:", err);
+    }
     if (torneoActivo) {
-      const updatedAct = newTorneos.find(t => t.id === torneoActivo.id);
+      const updatedAct = updatedWithTime.find(t => t.id === torneoActivo.id);
       if (updatedAct) {
         setTorneoActivo(updatedAct);
       }

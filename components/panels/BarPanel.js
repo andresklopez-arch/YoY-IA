@@ -65,6 +65,10 @@ export default function BarPanel({ showToast }) {
   const [modalEscaneo, setModalEscaneo] = useState(null);
   const [azarEscaneados, setAzarEscaneados] = useState([]);
 
+  // Estado para Optimización IA de Stock
+  const [showModalOptimizacion, setShowModalOptimizacion] = useState(false);
+  const [productosSugeridosOpt, setProductosSugeridosOpt] = useState([]);
+
   // Estado para Nuevo Producto Modal
   const [showNuevoProducto, setShowNuevoProducto] = useState(false);
   const [formNuevo, setFormNuevo] = useState({
@@ -430,6 +434,91 @@ export default function BarPanel({ showToast }) {
     });
   };
 
+  // Optimizar Stock con IA en base a logs de consumo
+  const optimizarStockConIA = () => {
+    const unMesAtras = Date.now() - 30 * 24 * 60 * 60 * 1000;
+    const salidasRecientes = logs.filter(l => 
+      (l.tipo === 'salida' || l.tipo === 'merma' || l.tipo === 'ajuste_salida') && 
+      new Date(l.fecha).getTime() > unMesAtras
+    );
+
+    const consumoPorProducto = {};
+    salidasRecientes.forEach(l => {
+      const pId = parseInt(l.productoId);
+      if (!consumoPorProducto[pId]) consumoPorProducto[pId] = 0;
+      consumoPorProducto[pId] += Math.abs(parseFloat(l.cantidad) || 0);
+    });
+
+    const sugerencias = productos.map(p => {
+      const totalConsumo = consumoPorProducto[p.id] || 0;
+      const promedioSemanal = totalConsumo / 4;
+      
+      let nuevoMin = p.stockMin;
+      let nuevoOptimo = p.stockOptimo;
+
+      if (promedioSemanal > 0) {
+        nuevoMin = Math.max(5, Math.ceil(promedioSemanal * 1.5));
+        nuevoOptimo = Math.max(15, Math.ceil(promedioSemanal * 4.0));
+      } else {
+        if (p.stockOptimo > 20) {
+          nuevoMin = Math.max(5, Math.ceil(p.stockMin * 0.9));
+          nuevoOptimo = Math.max(15, Math.ceil(p.stockOptimo * 0.9));
+        }
+      }
+
+      if (nuevoMin >= nuevoOptimo) {
+        nuevoMin = Math.max(2, Math.floor(nuevoOptimo * 0.3));
+      }
+
+      return {
+        id: p.id,
+        nombre: p.nombre,
+        categoria: p.categoria,
+        minActual: p.stockMin,
+        optimoActual: p.stockOptimo,
+        minSugerido: nuevoMin,
+        optimoSugerido: nuevoOptimo,
+        promedioSemanal: promedioSemanal.toFixed(1)
+      };
+    });
+
+    const filtrados = sugerencias.filter(s => 
+      s.minActual !== s.minSugerido || s.optimoActual !== s.optimoSugerido
+    );
+
+    if (filtrados.length === 0) {
+      showToast("El inventario actual ya está óptimo en base al consumo mensual 👍", "info");
+      return;
+    }
+
+    setProductosSugeridosOpt(filtrados);
+    setShowModalOptimizacion(true);
+  };
+
+  const aplicarOptimizacionStock = () => {
+    const nuevosProductos = productos.map(p => {
+      const sugerencia = productosSugeridosOpt.find(s => s.id === p.id);
+      if (sugerencia) {
+        return {
+          ...p,
+          stockMin: sugerencia.minSugerido,
+          stockOptimo: sugerencia.optimoSugerido,
+          lastModified: Date.now()
+        };
+      }
+      return p;
+    });
+
+    saveState(nuevosProductos, logs);
+    registrarEnBitacoraGeneral(
+      'Optimizacion Stock IA',
+      `Optimización IA aplicada a ${productosSugeridosOpt.length} productos del inventario`,
+      0
+    );
+    showToast(`Optimización de stock aplicada con éxito a ${productosSugeridosOpt.length} productos ✅`, 'success');
+    setShowModalOptimizacion(false);
+  };
+
   // Generar Orden de Compra Sugerida IA
   const generarOrdenCompraIA = () => {
     const orden = productos
@@ -534,6 +623,9 @@ export default function BarPanel({ showToast }) {
           <p className="page-subtitle">Monitoreo de stock, auditoría física y motor predictivo de compras</p>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
+          <button className="btn btn-secondary btn-sm" onClick={optimizarStockConIA} style={{ color: 'var(--bronze-light)', borderColor: 'var(--border-bronze)' }}>
+            <i className="ri-magic-line" style={{ marginRight: 6 }} /> Optimizar Stock con IA
+          </button>
           <button className="btn btn-secondary btn-sm" onClick={generarOrdenCompraIA} style={{ color: 'var(--bronze-light)', borderColor: 'var(--border-bronze)' }}>
             <i className="ri-robot-line" style={{ marginRight: 6 }} /> Orden de Compra IA
           </button>
@@ -1029,6 +1121,65 @@ export default function BarPanel({ showToast }) {
               <button className="btn btn-secondary" onClick={() => setModalAjuste(null)}>Cancelar</button>
               <button className="btn btn-primary" onClick={aplicarAjusteInventario}>
                 Ajustar Existencia
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL OPTIMIZACIÓN IA DE STOCK ────────────────────────── */}
+      {showModalOptimizacion && (
+        <div className="modal-overlay" onClick={() => setShowModalOptimizacion(false)}>
+          <div className="modal" style={{ maxWidth: 700 }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <span className="modal-title">
+                <i className="ri-magic-line" style={{ marginRight: 8, color: 'var(--bronze-light)' }} />
+                Optimización de Niveles de Stock IA
+              </span>
+              <button onClick={() => setShowModalOptimizacion(false)} className="btn-icon btn btn-secondary" style={{ background: 'none', border: 'none' }}>
+                <i className="ri-close-line" style={{ fontSize: 20 }} />
+              </button>
+            </div>
+            <div className="modal-body" style={{ maxHeight: '60vh', overflowY: 'auto' }}>
+              <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 14 }}>
+                El motor de IA analizó la bitácora de consumo de los últimos 30 días para recalcular de manera óptima los niveles de stock mínimo y óptimo. A continuación se detallan las recomendaciones adaptadas al flujo real del negocio:
+              </p>
+
+              <div className="table-container">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Producto</th>
+                      <th>Cat.</th>
+                      <th style={{ textAlign: 'center' }}>Ventas/Sem.</th>
+                      <th style={{ textAlign: 'center' }}>Mínimo (Actual → Sugerido)</th>
+                      <th style={{ textAlign: 'center' }}>Máximo (Actual → Sugerido)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {productosSugeridosOpt.map((s, idx) => (
+                      <tr key={idx}>
+                        <td style={{ fontWeight: 600 }}>{s.nombre}</td>
+                        <td><span className="badge badge-secondary">{s.categoria}</span></td>
+                        <td style={{ textAlign: 'center', color: 'var(--bronze-light)' }}>{s.promedioSemanal} pz</td>
+                        <td style={{ textAlign: 'center' }}>
+                          <span style={{ textDecoration: 'line-through', color: 'var(--text-muted)', marginRight: 6 }}>{s.minActual}</span>
+                          <span style={{ color: 'var(--success)', fontWeight: 600 }}>→ {s.minSugerido}</span>
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
+                          <span style={{ textDecoration: 'line-through', color: 'var(--text-muted)', marginRight: 6 }}>{s.optimoActual}</span>
+                          <span style={{ color: 'var(--success)', fontWeight: 600 }}>→ {s.optimoSugerido}</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-secondary" onClick={() => setShowModalOptimizacion(false)}>Ignorar Recomendaciones</button>
+              <button className="btn btn-primary" onClick={aplicarOptimizacionStock}>
+                <i className="ri-check-line" style={{ marginRight: 6 }} /> Aplicar Ajustes IA
               </button>
             </div>
           </div>
