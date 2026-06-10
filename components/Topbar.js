@@ -46,14 +46,37 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
   const alertasNomina = useAlertasNomina();
   const pedidosPendientes = usePedidosPendientes();
   const [locale, setLocale] = useState('es-MX');
+  const [showOnboarding, setShowOnboarding] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const shown = localStorage.getItem('yoy_shortcuts_onboarding_shown');
+      if (!shown) {
+        setShowOnboarding(true);
+      }
+    }
+  }, []);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
       const activeEl = document.activeElement;
+      
+      // Desenfoque rápido con Escape si estamos en un campo de texto
+      if (e.key === 'Escape') {
+        if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.isContentEditable)) {
+          activeEl.blur();
+          return;
+        }
+      }
+
       if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.isContentEditable)) {
         return;
       }
-      if (e.altKey && !isNaN(e.key) && e.key >= '1' && e.key <= '8') {
+
+      const isAltShortcut = e.altKey && !e.ctrlKey && !e.shiftKey;
+      const isCtrlShiftShortcut = e.ctrlKey && e.shiftKey && !e.altKey;
+
+      if ((isAltShortcut || isCtrlShiftShortcut) && !isNaN(e.key) && e.key >= '1' && e.key <= '8') {
         const index = parseInt(e.key) - 1;
         const target = QUICK_NAV_TARGETS[index];
         if (target) {
@@ -77,6 +100,11 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
     const t = setInterval(() => setTime(new Date()), 10000); // Actualiza cada 10 segundos
     return () => clearInterval(t);
   }, []);
+
+  const dismissOnboarding = () => {
+    localStorage.setItem('yoy_shortcuts_onboarding_shown', 'true');
+    setShowOnboarding(false);
+  };
 
   const timeStr = time.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
   const dateStr = time.toLocaleDateString(locale, { weekday: 'short', day: 'numeric', month: 'short' });
@@ -263,6 +291,66 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
           )}
         </div>
       </div>
+
+      {showOnboarding && (
+        <div style={{
+          position: 'fixed',
+          bottom: 80,
+          right: 24,
+          zIndex: 1500,
+          background: 'rgba(26, 26, 32, 0.95)',
+          backdropFilter: 'blur(8px)',
+          border: '1px solid var(--border-bronze)',
+          borderRadius: 16,
+          padding: 16,
+          maxWidth: 320,
+          boxShadow: 'var(--shadow-lg), var(--shadow-bronze)',
+          animation: 'slideUp 0.3s ease-out',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 12,
+        }}>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+            <span style={{ fontSize: 20 }}>💡</span>
+            <div style={{ textAlign: 'left' }}>
+              <h4 style={{ fontSize: 13, fontWeight: 700, color: 'var(--bronze-light)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Atajos de Navegación</h4>
+              <p style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4, lineHeight: 1.4 }}>
+                Navega al instante usando <strong style={{ color: '#fff' }}>Alt + [1-8]</strong> o <strong style={{ color: '#fff' }}>Ctrl + Shift + [1-8]</strong>.
+              </p>
+              <p style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>
+                Si estás escribiendo, presiona <strong style={{ color: 'var(--bronze-light)' }}>Esc</strong> para desenfocar e interactuar.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={dismissOnboarding}
+            style={{
+              alignSelf: 'flex-end',
+              background: 'var(--bronze-subtle)',
+              border: '1px solid var(--border-bronze)',
+              color: 'var(--bronze-light)',
+              fontSize: 10,
+              fontWeight: 700,
+              padding: '5px 12px',
+              borderRadius: 8,
+              cursor: 'pointer',
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em',
+              transition: 'all 0.15s',
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.background = 'var(--bronze)';
+              e.currentTarget.style.color = '#000';
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.background = 'var(--bronze-subtle)';
+              e.currentTarget.style.color = 'var(--bronze-light)';
+            }}
+          >
+            ¡Entendido!
+          </button>
+        </div>
+      )}
     </header>
   );
 }
