@@ -8,13 +8,20 @@ export default function LoginScreen({ showToast }) {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPass, setShowPass] = useState(false);
+  const [loginMethod, setLoginMethod] = useState('correo'); // 'correo' o 'nip'
+  const [nip, setNip] = useState('');
 
   const handleLogin = async (e) => {
     e.preventDefault();
-    if (!email || !password) return;
     setLoading(true);
     try {
-      await login(email, password);
+      if (loginMethod === 'nip') {
+        if (!nip) return;
+        await login(nip, '');
+      } else {
+        if (!email || !password) return;
+        await login(email, password);
+      }
     } catch (err) {
       showToast(err.message, 'error');
     } finally {
@@ -89,48 +96,89 @@ export default function LoginScreen({ showToast }) {
           padding: 32,
           boxShadow: 'var(--shadow-lg), 0 0 40px rgba(205,127,50,0.08)',
         }}>
-          <h2 style={{ fontSize: 14, fontWeight: 700, marginBottom: 24, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-            Iniciar Sesión
-          </h2>
+          <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', marginBottom: 20 }}>
+            <button
+              type="button"
+              onClick={() => setLoginMethod('correo')}
+              style={{
+                flex: 1, padding: '10px 0', background: 'none', border: 'none',
+                borderBottom: loginMethod === 'correo' ? '2px solid var(--bronze-light)' : 'none',
+                color: loginMethod === 'correo' ? 'var(--bronze-light)' : 'var(--text-muted)',
+                fontWeight: 700, fontSize: 12, cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.05em'
+              }}
+            >
+              Correo Electrónico
+            </button>
+            <button
+              type="button"
+              onClick={() => setLoginMethod('nip')}
+              style={{
+                flex: 1, padding: '10px 0', background: 'none', border: 'none',
+                borderBottom: loginMethod === 'nip' ? '2px solid var(--bronze-light)' : 'none',
+                color: loginMethod === 'nip' ? 'var(--bronze-light)' : 'var(--text-muted)',
+                fontWeight: 700, fontSize: 12, cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.05em'
+              }}
+            >
+              Ingreso por NIP
+            </button>
+          </div>
 
           <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <div className="form-group">
-              <label className="form-label">Correo Electrónico</label>
-              <input
-                className="form-input"
-                type="email"
-                placeholder="usuario@yoybillar.mx"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                required
-              />
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Contraseña / PIN</label>
-              <div style={{ position: 'relative' }}>
+            {loginMethod === 'nip' ? (
+              <div className="form-group">
+                <label className="form-label">NIP del Empleado</label>
                 <input
                   className="form-input"
-                  type={showPass ? 'text' : 'password'}
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  style={{ paddingRight: 44 }}
+                  type="password"
+                  maxLength={6}
+                  placeholder="••••"
+                  value={nip}
+                  onChange={e => setNip(e.target.value.replace(/\D/g, ''))}
+                  style={{ textAlign: 'center', fontSize: 20, letterSpacing: '0.3em' }}
                   required
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowPass(p => !p)}
-                  style={{
-                    position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
-                    background: 'none', border: 'none', color: 'var(--text-muted)',
-                    cursor: 'pointer', fontSize: 16, padding: 4,
-                  }}
-                >
-                  <i className={`ri-eye${showPass ? '-off' : ''}-line`} />
-                </button>
               </div>
-            </div>
+            ) : (
+              <>
+                <div className="form-group">
+                  <label className="form-label">Correo Electrónico</label>
+                  <input
+                    className="form-input"
+                    type="email"
+                    placeholder="usuario@yoybillar.mx"
+                    value={email}
+                    onChange={e => setEmail(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Contraseña</label>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      className="form-input"
+                      type={showPass ? 'text' : 'password'}
+                      placeholder="••••••••"
+                      value={password}
+                      onChange={e => setPassword(e.target.value)}
+                      style={{ paddingRight: 44 }}
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPass(p => !p)}
+                      style={{
+                        position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
+                        background: 'none', border: 'none', color: 'var(--text-muted)',
+                        cursor: 'pointer', fontSize: 16, padding: 4,
+                      }}
+                    >
+                      <i className={`ri-eye${showPass ? '-off' : ''}-line`} />
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
 
             <button
               type="submit"

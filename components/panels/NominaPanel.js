@@ -247,18 +247,41 @@ function EmpleadosTab({ showToast }) {
 
   const abrirNuevo = () => {
     setEditando(null);
-    setForm({ nombre: '', apellido: '', telefono: '', email: '', departamento: 'Mesas', rol: 'Mesero', fechaIngreso: today(), estado: 'activo', frecuenciaPago: 'quincenal', sueldoBase: '', comisionMesas: '', comisionMesasTipo: 'porcentaje', comisionBar: '', comisionBarTipo: 'porcentaje', comisionTurno: '', comisionTurnoTipo: 'porcentaje', bonoTurno: '', notas: '' });
+    setForm({
+      nombre: '', apellido: '', telefono: '', email: '', departamento: 'Mesas', rol: 'Mesero', fechaIngreso: today(), estado: 'activo', frecuenciaPago: 'quincenal', sueldoBase: '', comisionMesas: '', comisionMesasTipo: 'porcentaje', comisionBar: '', comisionBarTipo: 'porcentaje', comisionTurno: '', comisionTurnoTipo: 'porcentaje', bonoTurno: '', notas: '',
+      nip: '',
+      permisos: {
+        dashboard: true,
+        mesas: true,
+        caja: true,
+        bar: true,
+        clientes: true,
+        torneos: false,
+        nomina: false,
+        reportes: false,
+        config: false
+      }
+    });
     setShowModal(true);
   };
 
   const abrirEditar = (emp) => {
     setEditando(emp.id);
-    setForm({ ...emp });
+    setForm({
+      nip: '',
+      permisos: {
+        dashboard: false, mesas: false, caja: false, bar: false, clientes: false, torneos: false, nomina: false, reportes: false, config: false
+      },
+      ...emp
+    });
     setShowModal(true);
   };
 
   const guardar = async () => {
     if (!form.nombre.trim()) return showToast('El nombre es requerido', 'error');
+    if (form.nip && (form.nip.length < 4 || form.nip.length > 6)) {
+      return showToast('El NIP debe tener entre 4 y 6 dígitos', 'error');
+    }
     try {
       const data = { ...form, updatedAt: serverTimestamp() };
       if (editando) {
@@ -406,6 +429,45 @@ function EmpleadosTab({ showToast }) {
                   </select>
                 </F>
                 <F label="Sueldo Base ($)"><input className="form-input" type="number" value={form.sueldoBase} onChange={e => setForm(p => ({ ...p, sueldoBase: e.target.value }))} placeholder="0.00" /></F>
+                <F label="NIP de Ingreso (4-6 dígitos)"><input className="form-input" maxLength={6} type="password" value={form.nip || ''} onChange={e => setForm(p => ({ ...p, nip: e.target.value.replace(/\D/g, '') }))} placeholder="Ej: 1234" /></F>
+              </div>
+
+              <div style={{ marginTop: 20, padding: 16, background: 'var(--bg-elevated)', borderRadius: 12, border: '1px solid var(--border)' }}>
+                <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--bronze-light)', marginBottom: 14 }}>
+                  <i className="ri-shield-keyhole-line" /> Permisos de Acceso a Módulos
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+                  {[
+                    { id: 'dashboard', label: 'Dashboard' },
+                    { id: 'mesas', label: 'Mesas' },
+                    { id: 'caja', label: 'Caja / POS' },
+                    { id: 'bar', label: 'Inventario IA' },
+                    { id: 'clientes', label: 'Clientes' },
+                    { id: 'torneos', label: 'Torneos' },
+                    { id: 'nomina', label: 'Nómina & Gastos' },
+                    { id: 'reportes', label: 'Reportes' },
+                    { id: 'config', label: 'Configuración' },
+                  ].map(p => (
+                    <label key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={!!form.permisos?.[p.id]}
+                        onChange={e => {
+                          const prevPermisos = form.permisos || {};
+                          setForm(prev => ({
+                            ...prev,
+                            permisos: {
+                              ...prevPermisos,
+                              [p.id]: e.target.checked
+                            }
+                          }));
+                        }}
+                        style={{ accentColor: 'var(--bronze)' }}
+                      />
+                      <span>{p.label}</span>
+                    </label>
+                  ))}
+                </div>
               </div>
 
               <div style={{ marginTop: 20, padding: 16, background: 'var(--bg-elevated)', borderRadius: 12, border: '1px solid var(--border)' }}>

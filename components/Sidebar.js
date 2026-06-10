@@ -31,7 +31,12 @@ const ROLE_LABELS = {
 
 export default function Sidebar({ activePanel, onNavigate, open, onMouseEnter, onMouseLeave, user }) {
   const { logout } = useAuth();
-  const visibleItems = NAV_ITEMS.filter(item => item.roles.includes(user?.role || 'cajero'));
+  const visibleItems = NAV_ITEMS.filter(item => {
+    if (user && user.permisos && typeof user.permisos[item.id] !== 'undefined') {
+      return user.permisos[item.id] === true;
+    }
+    return item.roles.includes(user?.role || 'cajero');
+  });
 
   return (
     <aside 

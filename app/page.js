@@ -30,6 +30,19 @@ function AppContent() {
   const [alertasAsistencia, setAlertasAsistencia] = useState([]);
   const [sonidoAdmin, setSonidoAdmin] = useState(true);
 
+  // Redirigir si no tiene permisos para el panel activo
+  useEffect(() => {
+    if (user && user.permisos) {
+      if (user.permisos[activePanel] !== true) {
+        const primerPermitido = ['dashboard', 'mesas', 'caja', 'bar', 'clientes', 'torneos', 'nomina', 'reportes', 'config']
+          .find(key => user.permisos[key] === true);
+        if (primerPermitido) {
+          setActivePanel(primerPermitido);
+        }
+      }
+    }
+  }, [user, activePanel]);
+
   // 1. Escuchar capturas de venta del mesero
   useEffect(() => {
     if (!user) return;
@@ -198,7 +211,15 @@ function AppContent() {
           }}
         />
         <div className="page-content">
-          {panels[activePanel] || panels.dashboard}
+          {user && user.permisos && user.permisos[activePanel] !== true ? (
+            <div className="card" style={{ padding: 40, textAlign: 'center', border: '1px solid var(--border-bronze)', maxWidth: 500, margin: '40px auto' }}>
+              <i className="ri-shield-keyhole-line" style={{ fontSize: 48, color: 'var(--bronze-light)', marginBottom: 16, display: 'block' }} />
+              <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Acceso Restringido</h3>
+              <p style={{ color: 'var(--text-secondary)', fontSize: 13 }}>No tienes los permisos requeridos para visualizar este panel. Consulta al administrador.</p>
+            </div>
+          ) : (
+            panels[activePanel] || panels.dashboard
+          )}
         </div>
       </div>
       <ToastContainer toasts={toasts} />
