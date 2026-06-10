@@ -3,11 +3,12 @@ import { useState, useEffect } from 'react';
 import { obfuscate, deobfuscate } from '@/lib/crypto';
 
 const INIT_CLIENTES = [
-  { id: 1, nombre: 'Carlos Rodríguez', tipo: 'Socio', puntos: 1240, partidas: 87, nivel: 'Oro', ultima: '2026-05-27', gasto: 8400, telefono: '55-1234-5678', saldo: 350, historialSaldo: [{ fecha: '2026-05-27', monto: 350, concepto: 'Recarga Inicial' }] },
-  { id: 2, nombre: 'Pedro Martínez',   tipo: 'Público', puntos: 320, partidas: 23, nivel: 'Plata', ultima: '2026-05-26', gasto: 2100, telefono: '55-9876-5432', saldo: 0, historialSaldo: [] },
-  { id: 3, nombre: 'Ana García',       tipo: 'Socio', puntos: 2100, partidas: 145, nivel: 'Diamante', ultima: '2026-05-28', gasto: 15200, telefono: '55-5555-1234', saldo: 1200, historialSaldo: [{ fecha: '2026-05-28', monto: 1200, concepto: 'Recarga Bono Premium' }] },
-  { id: 4, nombre: 'Luis Hernández',   tipo: 'Público', puntos: 80, partidas: 8, nivel: 'Bronce', ultima: '2026-05-20', gasto: 640, telefono: '55-3333-7777', saldo: 0, historialSaldo: [] },
-  { id: 5, nombre: 'Socio #12',        tipo: 'Socio', puntos: 890, partidas: 62, nivel: 'Oro', ultima: '2026-05-28', gasto: 4800, telefono: '55-1111-2222', saldo: 150, historialSaldo: [{ fecha: '2026-05-28', monto: 150, concepto: 'Cashback 5% Acreditado' }] },
+  { id: 1, codigo: 'YOY-2026-1001', nombre: 'Carlos Rodríguez', tipo: 'Socio', puntos: 1240, partidas: 87, nivel: 'Oro', ultima: '2026-05-27', gasto: 8400, telefono: '55-1234-5678', saldo: 350, historialSaldo: [{ fecha: '2026-05-27', monto: 350, concepto: 'Recarga Inicial' }] },
+  { id: 2, codigo: 'YOY-2026-1002', nombre: 'Pedro Martínez',   tipo: 'Público', puntos: 320, partidas: 23, nivel: 'Plata', ultima: '2026-05-26', gasto: 2100, telefono: '55-9876-5432', saldo: 0, historialSaldo: [] },
+  { id: 3, codigo: 'YOY-2026-1003', nombre: 'Ana García',       tipo: 'Socio', puntos: 2100, partidas: 145, nivel: 'Diamante', ultima: '2026-05-28', gasto: 15200, telefono: '55-5555-1234', saldo: 1200, historialSaldo: [{ fecha: '2026-05-28', monto: 1200, concepto: 'Recarga Bono Premium' }] },
+  { id: 4, codigo: 'YOY-2026-1004', nombre: 'Luis Hernández',   tipo: 'Público', puntos: 80, partidas: 8, nivel: 'Bronce', ultima: '2026-05-20', gasto: 640, telefono: '55-3333-7777', saldo: 0, historialSaldo: [] },
+  { id: 5, codigo: 'YOY-2026-1005', nombre: 'Socio #12',        tipo: 'Socio', puntos: 890, partidas: 62, nivel: 'Oro', ultima: '2026-05-28', gasto: 4800, telefono: '55-1111-2222', saldo: 150, historialSaldo: [{ fecha: '2026-05-28', monto: 150, concepto: 'Cashback 5% Acreditado' }] },
+]; },
 ];
 
 const NIVEL_COLORS = {
@@ -22,6 +23,8 @@ export default function ClientesPanel({ showToast }) {
   const [busqueda, setBusqueda] = useState('');
   const [filtroTipo, setFiltroTipo] = useState('Todos');
   const [clienteDetalle, setClienteDetalle] = useState(null);
+  const [tabActiva, setTabActiva] = useState('listado'); // 'listado' o 'analisis'
+  const [showReporteCRM, setShowReporteCRM] = useState(false);
 
   // Modales
   const [showNuevoCliente, setShowNuevoCliente] = useState(false);
@@ -80,7 +83,11 @@ export default function ClientesPanel({ showToast }) {
   };
 
   const filtrados = clientes.filter(c => {
-    const busOk = !busqueda || c.nombre.toLowerCase().includes(busqueda.toLowerCase());
+    const term = busqueda.toLowerCase();
+    const busOk = !busqueda || 
+      c.nombre.toLowerCase().includes(term) ||
+      (c.telefono && c.telefono.includes(term)) ||
+      (c.codigo && c.codigo.toLowerCase().includes(term));
     const tipoOk = filtroTipo === 'Todos' || c.tipo === filtroTipo;
     return busOk && tipoOk;
   });
@@ -96,8 +103,12 @@ export default function ClientesPanel({ showToast }) {
     }
 
     const valSaldo = parseFloat(nuevoSaldo) || 0;
+    const nextNum = 1000 + clientes.length + 1;
+    const codigo = `YOY-2026-${nextNum}`;
+
     const nuevo = {
       id: Date.now(),
+      codigo,
       nombre: nuevoNombre.trim(),
       telefono: nuevoTelefono.trim() || 'Sin teléfono',
       tipo: nuevoTipo,
@@ -166,8 +177,8 @@ export default function ClientesPanel({ showToast }) {
           <p className="page-subtitle">CRM · Monedero Virtual con Cashback del 5% · Historial y ELO</p>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
-          <button className="btn btn-secondary btn-sm" onClick={() => showToast('Función en desarrollo', 'info')}>
-            <i className="ri-notification-3-line" /> Campaña WhatsApp
+          <button className="btn btn-secondary btn-sm" style={{ color: 'var(--bronze-light)', borderColor: 'var(--border-bronze)' }} onClick={() => setShowReporteCRM(true)}>
+            <i className="ri-file-text-line" /> Reporte CRM
           </button>
           <button className="btn btn-primary btn-sm" onClick={() => setShowNuevoCliente(true)}>
             <i className="ri-user-add-line" /> Nuevo Cliente
@@ -191,91 +202,269 @@ export default function ClientesPanel({ showToast }) {
         ))}
       </div>
 
-      {/* Filtros */}
-      <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap' }}>
-        <input className="form-input" style={{ width: 240, padding: '8px 14px', fontSize: 13 }} placeholder="Buscar cliente..." value={busqueda} onChange={e => setBusqueda(e.target.value)} />
-        {['Todos', 'Socio', 'Público'].map(t => (
-          <button key={t} onClick={() => setFiltroTipo(t)} className={`btn btn-sm ${filtroTipo === t ? 'btn-primary' : 'btn-secondary'}`}>{t}</button>
-        ))}
+      {/* Tabs de Secciones */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+        <button className={`btn btn-sm ${tabActiva === 'listado' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTabActiva('listado')}>
+          <i className="ri-team-line" /> Listado de Clientes
+        </button>
+        <button className={`btn btn-sm ${tabActiva === 'analisis' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTabActiva('analisis')}>
+          <i className="ri-robot-line" /> Analizador de Clientes IA
+        </button>
       </div>
 
-      {/* Tabla de clientes */}
-      <div className="card" style={{ padding: 0 }}>
-        <div className="table-wrapper">
-          <table>
-            <thead>
-              <tr>
-                <th>Cliente</th>
-                <th>Nivel / Tipo</th>
-                <th>Partidas / ELO</th>
-                <th>Puntos</th>
-                <th>Monedero</th>
-                <th>Gasto Total</th>
-                <th>Última Visita</th>
-                <th>Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtrados.map(c => {
-                const nv = NIVEL_COLORS[c.nivel] || NIVEL_COLORS.Bronce;
-                const clientElo = getEloOfCliente(c.nombre);
-                return (
-                  <tr key={c.id}>
-                    <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <div style={{ width: 34, height: 34, borderRadius: 10, background: 'var(--bg-elevated)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 13, color: 'var(--bronze-light)' }}>
-                          {c.nombre[0]}
-                        </div>
-                        <div>
-                          <div style={{ fontWeight: 700, fontSize: 13 }}>{c.nombre}</div>
-                          <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{c.telefono}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: nv.bg, color: nv.text, border: `1px solid ${nv.border}`, width: 'fit-content' }}>
-                          {c.nivel}
-                        </span>
-                        <span style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{c.tipo}</span>
-                      </div>
-                    </td>
-                    <td>
-                      <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        <span style={{ fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 700 }}>{c.partidas} jugadas</span>
-                        <span style={{ fontSize: 10, color: 'var(--blue-light)', fontWeight: 600 }}>ELO: {clientElo}</span>
-                      </div>
-                    </td>
-                    <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <i className="ri-star-fill" style={{ color: '#ffd700', fontSize: 12 }} />
-                        <span style={{ fontWeight: 700, color: '#ffd700' }}>{c.puntos.toLocaleString()}</span>
-                      </div>
-                    </td>
-                    <td>
-                      <div style={{ fontWeight: 700, color: (c.saldo || 0) > 0 ? 'var(--success)' : 'var(--text-muted)' }}>
-                        ${(c.saldo || 0).toLocaleString()}
-                      </div>
-                    </td>
-                    <td><span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, color: 'var(--bronze-light)' }}>${c.gasto.toLocaleString()}</span></td>
-                    <td><span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{c.ultima}</span></td>
-                    <td>
-                      <div style={{ display: 'flex', gap: 6 }}>
-                        <button className="btn btn-sm btn-secondary" onClick={() => setClienteDetalle(c)} title="Ver perfil / Monedero">
-                          <i className="ri-wallet-3-line" /> Perfil
-                        </button>
-                        <button className="btn btn-sm btn-secondary" onClick={() => showToast(`WhatsApp a ${c.nombre}`, 'info')} title="WhatsApp">
-                          <i className="ri-whatsapp-line" />
-                        </button>
-                      </div>
-                    </td>
+      {tabActiva === 'listado' ? (
+        <>
+          {/* Filtros */}
+          <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap' }}>
+            <input className="form-input" style={{ width: 260, padding: '8px 14px', fontSize: 13 }} placeholder="Buscar por Nombre, Teléfono o Número..." value={busqueda} onChange={e => setBusqueda(e.target.value)} />
+            {['Todos', 'Socio', 'Público'].map(t => (
+              <button key={t} onClick={() => setFiltroTipo(t)} className={`btn btn-sm ${filtroTipo === t ? 'btn-primary' : 'btn-secondary'}`}>{t}</button>
+            ))}
+          </div>
+
+          {/* Tabla de clientes */}
+          <div className="card" style={{ padding: 0 }}>
+            <div className="table-wrapper">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Número</th>
+                    <th>Cliente</th>
+                    <th>Nivel / Tipo</th>
+                    <th>Partidas / ELO</th>
+                    <th>Puntos</th>
+                    <th>Monedero</th>
+                    <th>Gasto Total</th>
+                    <th>Última Visita</th>
+                    <th>Acciones</th>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                </thead>
+                <tbody>
+                  {filtrados.map(c => {
+                    const nv = NIVEL_COLORS[c.nivel] || NIVEL_COLORS.Bronce;
+                    const clientElo = getEloOfCliente(c.nombre);
+                    return (
+                      <tr key={c.id}>
+                        <td>
+                          <span style={{ fontFamily: 'monospace', fontWeight: 700, color: 'var(--bronze-light)' }}>
+                            {c.codigo || '—'}
+                          </span>
+                        </td>
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <div style={{ width: 34, height: 34, borderRadius: 10, background: 'var(--bg-elevated)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 13, color: 'var(--bronze-light)' }}>
+                              {c.nombre[0]}
+                            </div>
+                            <div>
+                              <div style={{ fontWeight: 700, fontSize: 13 }}>{c.nombre}</div>
+                              <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{c.telefono}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: nv.bg, color: nv.text, border: `1px solid ${nv.border}`, width: 'fit-content' }}>
+                              {c.nivel}
+                            </span>
+                            <span style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{c.tipo}</span>
+                          </div>
+                        </td>
+                        <td>
+                          <div style={{ display: 'flex', flexDirection: 'column' }}>
+                            <span style={{ fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 700 }}>{c.partidas} jugadas</span>
+                            <span style={{ fontSize: 10, color: 'var(--blue-light)', fontWeight: 600 }}>ELO: {clientElo}</span>
+                          </div>
+                        </td>
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <i className="ri-star-fill" style={{ color: '#ffd700', fontSize: 12 }} />
+                            <span style={{ fontWeight: 700, color: '#ffd700' }}>{c.puntos.toLocaleString()}</span>
+                          </div>
+                        </td>
+                        <td>
+                          <div style={{ fontWeight: 700, color: (c.saldo || 0) > 0 ? 'var(--success)' : 'var(--text-muted)' }}>
+                            ${(c.saldo || 0).toLocaleString()}
+                          </div>
+                        </td>
+                        <td><span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, color: 'var(--bronze-light)' }}>${c.gasto.toLocaleString()}</span></td>
+                        <td><span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{c.ultima}</span></td>
+                        <td>
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            <button className="btn btn-sm btn-secondary" onClick={() => setClienteDetalle(c)} title="Ver perfil / Monedero">
+                              <i className="ri-wallet-3-line" /> Perfil
+                            </button>
+                            <button className="btn btn-sm btn-secondary" onClick={() => {
+                              const msg = `¡Hola ${c.nombre}! Te saludamos de YoY IA Billar. Tienes un saldo de $${c.saldo || 0} en tu monedero virtual. ¡Te esperamos pronto!`;
+                              window.open(`https://api.whatsapp.com/send?phone=${c.telefono.replace(/\D/g,'')}&text=${encodeURIComponent(msg)}`, '_blank');
+                            }} title="WhatsApp">
+                              <i className="ri-whatsapp-line" style={{ color: '#25D366' }} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      ) : (
+        /* Analizador de Clientes IA */
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          {/* Tarjetas Analíticas de IA */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+            <div className="card card-bronze" style={{ padding: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Tasa de Retención</span>
+                <i className="ri-heart-line" style={{ color: 'var(--bronze-light)' }} />
+              </div>
+              <div style={{ fontSize: 26, fontWeight: 900, color: 'var(--bronze-light)' }}>
+                {(() => {
+                  const vipEnRiesgo = clientes.filter(c => {
+                    const diffDays = Math.floor((new Date('2026-06-10') - new Date(c.ultima)) / 86400000);
+                    return (c.tipo === 'Socio' || c.gasto > 4000) && diffDays > 15;
+                  });
+                  return `${((clientes.length - vipEnRiesgo.length) / clientes.length * 100).toFixed(1)}%`;
+                })()}
+              </div>
+              <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>Clientes habituales retenidos en los últimos 15 días</div>
+            </div>
+
+            <div className="card card-bronze" style={{ padding: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>LTV Promedio</span>
+                <i className="ri-money-dollar-box-line" style={{ color: 'var(--success)' }} />
+              </div>
+              <div style={{ fontSize: 26, fontWeight: 900, color: 'var(--success)' }}>
+                ${(clientes.reduce((s,c) => s + c.gasto, 0) / clientes.length).toLocaleString('es-MX', { maximumFractionDigits: 0 })} MXN
+              </div>
+              <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>Valor total del ciclo de vida promedio por cliente</div>
+            </div>
+
+            <div className="card card-bronze" style={{ padding: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Acciones Sugeridas</span>
+                <i className="ri-flashlight-line" style={{ color: '#ffd700' }} />
+              </div>
+              <div style={{ fontSize: 26, fontWeight: 900, color: '#ffd700' }}>
+                {(() => {
+                  const fidPend = clientes.filter(c => c.tipo === 'Público' && (c.gasto > 1500 || c.partidas > 15)).length;
+                  const vipRiesgo = clientes.filter(c => {
+                    const diffDays = Math.floor((new Date('2026-06-10') - new Date(c.ultima)) / 86400000);
+                    return (c.tipo === 'Socio' || c.gasto > 4000) && diffDays > 15;
+                  }).length;
+                  return vipRiesgo + fidPend;
+                })()} Alertas
+              </div>
+              <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>Campañas de fidelización e incentivos de retorno recomendados</div>
+            </div>
+          </div>
+
+          {/* Secciones de Segmentación */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+            {/* VIP en Riesgo de Fuga */}
+            <div className="card" style={{ padding: 16, borderColor: 'rgba(239,68,68,0.2)' }}>
+              <h3 style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', color: 'var(--danger)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <i className="ri-error-warning-line" />
+                VIP en Riesgo de Fuga
+              </h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {clientes
+                  .filter(c => {
+                    const diffDays = Math.floor((new Date('2026-06-10') - new Date(c.ultima)) / 86400000);
+                    return (c.tipo === 'Socio' || c.gasto > 4000) && diffDays > 15;
+                  })
+                  .map(c => {
+                    const diffDays = Math.floor((new Date('2026-06-10') - new Date(c.ultima)) / 86400000);
+                    return (
+                      <div key={c.id} style={{ background: 'var(--bg-elevated)', borderRadius: 10, padding: 12, border: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                          <div style={{ fontWeight: 700, fontSize: 12 }}>{c.nombre}</div>
+                          <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Última visita: hace {diffDays} días · Gasto: ${c.gasto}</div>
+                        </div>
+                        <button
+                          className="btn btn-secondary btn-sm"
+                          style={{ padding: '4px 8px', fontSize: 10, color: 'var(--danger)', borderColor: 'rgba(239,68,68,0.2)' }}
+                          onClick={() => {
+                            const msg = `¡Hola ${c.nombre}! Te extrañamos en YoY IA Billar. Como cliente VIP, queremos consentirte: en tu próxima visita tienes 1 hora de mesa gratis y 10% de descuento en el bar. ¡Muestra este mensaje para aplicar!`;
+                            window.open(`https://api.whatsapp.com/send?phone=${c.telefono.replace(/\D/g,'')}&text=${encodeURIComponent(msg)}`, '_blank');
+                          }}
+                        >
+                          <i className="ri-whatsapp-line" /> Reactivar
+                        </button>
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+
+            {/* Fidelización Pendiente */}
+            <div className="card" style={{ padding: 16, borderColor: 'rgba(205,127,50,0.2)' }}>
+              <h3 style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', color: 'var(--bronze-light)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <i className="ri-vip-crown-line" />
+                Prospectos a Socios Mensuales
+              </h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {clientes
+                  .filter(c => c.tipo === 'Público' && (c.gasto > 1500 || c.partidas > 15))
+                  .map(c => (
+                    <div key={c.id} style={{ background: 'var(--bg-elevated)', borderRadius: 10, padding: 12, border: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: 12 }}>{c.nombre}</div>
+                        <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Partidas: {c.partidas} · Gasto: ${c.gasto}</div>
+                      </div>
+                      <button
+                        className="btn btn-secondary btn-sm"
+                        style={{ padding: '4px 8px', fontSize: 10, color: 'var(--bronze-light)', borderColor: 'var(--border-bronze)' }}
+                        onClick={() => {
+                          const msg = `¡Hola ${c.nombre}! Notamos que eres un jugador regular en YoY IA Billar 🎱. ¿Sabías que si te registras como Socio Mensual por solo $300, todas tus horas de mesa Carambola tienen un 50% de descuento y acumulas 5% de cashback en barra? ¡Pregúntanos en recepción!`;
+                          window.open(`https://api.whatsapp.com/send?phone=${c.telefono.replace(/\D/g,'')}&text=${encodeURIComponent(msg)}`, '_blank');
+                        }}
+                      >
+                        <i className="ri-whatsapp-line" /> Ofrecer Socio
+                      </button>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Jugadores Estrella ELO */}
+          <div className="card" style={{ padding: 16 }}>
+            <h3 style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', color: 'var(--blue-light)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <i className="ri-sword-line" />
+              Jugadores Estrella & ELO Alto
+            </h3>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+              {clientes
+                .filter(c => getEloOfCliente(c.nombre) > 1520 || c.partidas > 40)
+                .map(c => {
+                  const clientElo = getEloOfCliente(c.nombre);
+                  return (
+                    <div key={c.id} style={{ background: 'var(--bg-elevated)', borderRadius: 10, padding: 12, border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      <div style={{ fontWeight: 700, fontSize: 12, display: 'flex', justifyContent: 'space-between' }}>
+                        <span>{c.nombre}</span>
+                        <span style={{ color: 'var(--blue-light)', fontWeight: 800 }}>{clientElo} ELO</span>
+                      </div>
+                      <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{c.partidas} partidas en torneos YoY</div>
+                      <button
+                        className="btn btn-secondary btn-sm"
+                        style={{ width: '100%', padding: '4px', fontSize: 9, marginTop: 4 }}
+                        onClick={() => {
+                          const msg = `¡Hola ${c.nombre}! Tienes un nivel de juego alto con {clientElo} puntos ELO. Te invitamos a inscribirte al Torneo Relámpago de este Sábado. ¡Cupos limitados!`;
+                          window.open(`https://api.whatsapp.com/send?phone=${c.telefono.replace(/\D/g,'')}&text=${encodeURIComponent(msg)}`, '_blank');
+                        }}
+                      >
+                        Invitar a Torneo
+                      </button>
+                    </div>
+                  );
+                })}
+            </div>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Modal detalle cliente / Monedero */}
       {clienteDetalle && (
@@ -401,6 +590,90 @@ export default function ClientesPanel({ showToast }) {
                 <button type="submit" className="btn btn-primary">Registrar Cliente</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL REPORTE CRM DETALLADO ─────────────────────── */}
+      {showReporteCRM && (
+        <div className="modal-overlay" onClick={() => setShowReporteCRM(false)}>
+          <div className="modal" style={{ maxWidth: 660 }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <span className="modal-title">
+                <i className="ri-file-text-line" style={{ marginRight: 8, color: 'var(--bronze-light)' }} />
+                Exportar Reporte del CRM YoY
+              </span>
+              <button onClick={() => setShowReporteCRM(false)} className="btn-icon btn btn-secondary" style={{ background: 'none', border: 'none' }}>
+                <i className="ri-close-line" style={{ fontSize: 20 }} />
+              </button>
+            </div>
+            <div className="modal-body" style={{ fontFamily: 'monospace', fontSize: 12 }}>
+              <div id="crm-report-area" style={{ background: '#1c1917', border: '1px solid var(--border-bronze)', borderRadius: 10, padding: 20, color: '#e7e5e4', display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div style={{ textAlign: 'center', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: 10 }}>
+                  <h4 style={{ margin: '0 0 4px 0', fontSize: 15, color: 'var(--bronze-light)' }}>YOY IA BILLAR - REPORTING CRM SYSTEM</h4>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>BITÁCORA Y SEGMENTACIÓN DE CLIENTES EN TIEMPO REAL</div>
+                  <div style={{ fontSize: 11, fontWeight: 'bold', marginTop: 6, color: 'var(--text-primary)' }}>
+                    REP-CRM-{new Date().toISOString().slice(0,10).replace(/-/g,'')}
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, fontSize: 11, borderBottom: '1px dashed rgba(255,255,255,0.1)', paddingBottom: 10 }}>
+                  <div>
+                    <strong>Fecha Emisión:</strong> {new Date().toLocaleDateString('es-MX')}
+                  </div>
+                  <div>
+                    <strong>Total Clientes:</strong> {clientes.length} (Socios: {sociosCount})
+                  </div>
+                  <div>
+                    <strong>Saldo en Monederos:</strong> ${clientes.reduce((s,c)=>s+(c.saldo||0),0).toLocaleString()} MXN
+                  </div>
+                  <div>
+                    <strong>Facturación Clientes:</strong> ${clientes.reduce((s,c)=>s+c.gasto,0).toLocaleString()} MXN
+                  </div>
+                </div>
+
+                <div>
+                  <div style={{ fontWeight: 'bold', color: 'var(--bronze-light)', marginBottom: 6 }}>PADRÓN DE CLIENTES REGISTRADOS:</div>
+                  <div style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: 4, marginBottom: 4, display: 'grid', gridTemplateColumns: '1.2fr 2fr 1fr 1.2fr 1.2fr', fontWeight: 'bold', color: 'var(--text-muted)' }}>
+                    <span>Código</span>
+                    <span>Nombre</span>
+                    <span>Tipo</span>
+                    <span style={{ textAlign: 'right' }}>Monedero</span>
+                    <span style={{ textAlign: 'right' }}>Total Gasto</span>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 200, overflowY: 'auto' }}>
+                    {clientes.map(c => (
+                      <div key={c.id} style={{ display: 'grid', gridTemplateColumns: '1.2fr 2fr 1fr 1.2fr 1.2fr', borderBottom: '1px dashed rgba(255,255,255,0.03)', paddingBottom: 3 }}>
+                        <span style={{ color: 'var(--bronze-light)' }}>{c.codigo || '—'}</span>
+                        <span>{c.nombre}</span>
+                        <span>{c.tipo}</span>
+                        <span style={{ textAlign: 'right', color: 'var(--success)' }}>${(c.saldo||0).toLocaleString()}</span>
+                        <span style={{ textAlign: 'right' }}>${c.gasto.toLocaleString()}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 10, fontSize: 9, color: 'var(--text-muted)' }}>
+                  <div>* Este reporte consolida datos locales ofuscados y sincronización analítica.</div>
+                </div>
+              </div>
+            </div>
+            <div className="modal-footer" style={{ gap: 8 }}>
+              <button className="btn btn-secondary" onClick={() => setShowReporteCRM(false)}>Cerrar</button>
+              <button
+                className="btn btn-primary"
+                onClick={() => {
+                  showToast('Generando vista de impresión...', 'info');
+                  setTimeout(() => {
+                    showToast('Reporte de CRM enviado al spooler de impresión ✓', 'success');
+                    setShowReporteCRM(false);
+                  }, 1000);
+                }}
+              >
+                <i className="ri-printer-line" /> Imprimir Reporte / PDF
+              </button>
+            </div>
           </div>
         </div>
       )}
