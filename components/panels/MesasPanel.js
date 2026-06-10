@@ -42,6 +42,228 @@ function calcCosto(mesa) {
   return baseCosto + premiumCosto;
 }
 
+// ── MANEJADOR DE CÁMARA (QR Y COMPROBANTE) ────────────────
+function CameraHandler({ mode, onCapture }) {
+  const [stream, setStream] = useState(null);
+  const [error, setError] = useState('');
+  const [capturedImg, setCapturedImg] = useState('');
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+
+  useEffect(() => {
+    let activeStream = null;
+    const startCam = async () => {
+      try {
+        const constraints = { video: { facingMode: 'environment' } };
+        const mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+        activeStream = mediaStream;
+        setStream(mediaStream);
+        if (videoRef.current) {
+          videoRef.current.srcObject = mediaStream;
+        }
+      } catch (err) {
+        console.error("Camera access error:", err);
+        setError('No se pudo acceder a la cámara. Verifique permisos.');
+      }
+    };
+
+    startCam();
+
+    let simTimeout = null;
+    if (mode === 'qr') {
+      simTimeout = setTimeout(() => {
+        simulateQRScan();
+      }, 3500);
+    }
+
+    return () => {
+      if (activeStream) {
+        activeStream.getTracks().forEach(track => track.stop());
+      }
+      if (simTimeout) clearTimeout(simTimeout);
+    };
+  }, [mode]);
+
+  const simulateQRScan = () => {
+    playBeepSound();
+    const randomRef = `QR_STP_${Math.floor(100000 + Math.random() * 900000)}`;
+    onCapture({ reference: randomRef });
+  };
+
+  const takePhoto = () => {
+    if (videoRef.current && canvasRef.current) {
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      canvas.width = video.videoWidth || 640;
+      canvas.height = video.videoHeight || 480;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const dataUrl = canvas.toDataURL('image/jpeg');
+      setCapturedImg(dataUrl);
+      playBeepSound();
+    }
+  };
+
+  const playBeepSound = () => {
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (AudioCtx) {
+        const ctx = new AudioCtx();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = 'sine';
+        osc.frequency.value = 1200;
+        gain.gain.setValueAtTime(0.1, ctx.currentTime);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.15);
+      }
+    } catch (e) {
+      console.warn("AudioContext beep failed", e);
+    }
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'center', marginTop: 10 }}>
+      <style dangerouslySetInnerHTML={{ __html: `
+        @keyframes scanLaser {
+          0% { top: 0%; }
+          50% { top: 100%; }
+          100% { top: 0%; }
+        }
+      `}} />
+      {error ? (
+        <div style={{ color: 'var(--danger)', fontSize: 11, textAlign: 'center', background: 'rgba(239,68,68,0.1)', padding: 8, borderRadius: 8, width: '100%' }}>
+          <i className="ri-error-warning-line" style={{ marginRight: 4 }} />
+          {error}
+          <div style={{ marginTop: 8 }}>
+            <button 
+              type="button"
+              className="btn btn-secondary btn-sm" 
+              onClick={simulateQRScan}
+              style={{ width: '100%', textTransform: 'none' }}
+            >
+              {mode === 'qr' ? 'Simular Lectura de QR' : 'Simular Captura de Foto'}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div style={{ position: 'relative', width: '100%', maxWidth: 280, height: 180, borderRadius: 12, overflow: 'hidden', border: '2px solid var(--border-bronze)', background: '#000' }}>
+          {!capturedImg ? (
+            <>
+              <video 
+                ref={videoRef} 
+                autoPlay 
+                playsInline 
+                muted 
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+              />
+              {mode === 'qr' ? (
+                <>
+                  <div style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: '2px',
+                    background: 'var(--bronze-light)',
+                    boxShadow: '0 0 8px var(--bronze)',
+                    animation: 'scanLaser 2s linear infinite'
+                  }} />
+                  <div style={{
+                    position: 'absolute',
+                    inset: 20,
+                    border: '2px dashed rgba(255,255,255,0.4)',
+                    borderRadius: 8,
+                    pointerEvents: 'none'
+                  }} />
+                  <div style={{
+                    position: 'absolute',
+                    bottom: 8,
+                    left: 0,
+                    right: 0,
+                    textAlign: 'center',
+                    fontSize: 9,
+                    color: '#fff',
+                    textShadow: '1px 1px 2px #000'
+                  }}>
+                    Alinee el código QR
+                  </div>
+                </>
+              ) : (
+                <div style={{
+                  position: 'absolute',
+                  bottom: 8,
+                  left: 0,
+                  right: 0,
+                  textAlign: 'center',
+                  fontSize: 9,
+                  color: '#fff',
+                  textShadow: '1px 1px 2px #000'
+                }}>
+                  Enfoque el comprobante
+                </div>
+              )}
+            </>
+          ) : (
+            <img src={capturedImg} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="Captura" />
+          )}
+        </div>
+      )}
+
+      {!error && (
+        <div style={{ display: 'flex', gap: 6, width: '100%' }}>
+          {mode === 'qr' ? (
+            <button 
+              type="button"
+              className="btn btn-secondary btn-sm" 
+              onClick={simulateQRScan} 
+              style={{ flex: 1, textTransform: 'none', fontSize: 10 }}
+            >
+              <i className="ri-qr-scan-line" /> Simular Escaneo
+            </button>
+          ) : (
+            <>
+              {!capturedImg ? (
+                <button 
+                  type="button"
+                  className="btn btn-primary btn-sm" 
+                  onClick={takePhoto} 
+                  style={{ flex: 1, textTransform: 'none', fontSize: 10 }}
+                >
+                  <i className="ri-camera-lens-line" /> Capturar Foto
+                </button>
+              ) : (
+                <>
+                  <button 
+                    type="button"
+                    className="btn btn-secondary btn-sm" 
+                    onClick={() => setCapturedImg('')} 
+                    style={{ flex: 1, textTransform: 'none', fontSize: 10 }}
+                  >
+                    Repetir
+                  </button>
+                  <button 
+                    type="button"
+                    className="btn btn-primary btn-sm" 
+                    onClick={() => onCapture({ photo: capturedImg })} 
+                    style={{ flex: 1, textTransform: 'none', fontSize: 10 }}
+                  >
+                    Confirmar Foto
+                  </button>
+                </>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      <canvas ref={canvasRef} style={{ display: 'none' }} />
+    </div>
+  );
+}
+
 // ── MODAL ABRIR MESA ──────────────────────────────────────
 function ModalAbrirMesa({ mesa, onClose, onConfirm }) {
   const [cliente, setCliente] = useState(mesa.cliente || '');
@@ -109,6 +331,7 @@ function ModalAbrirMesa({ mesa, onClose, onConfirm }) {
 }
 
 // ── MODAL CERRAR MESA ────────────────────────────────────
+// ── MODAL CERRAR MESA ────────────────────────────────────
 function ModalCerrarMesa({ mesa, cuentasActivas, onClose, onCerrar, onAgregarACuenta }) {
   const [elapsed, setElapsed] = useState(Date.now() - (mesa.inicio || Date.now()));
   const [metodo, setMetodo] = useState('efectivo');
@@ -116,13 +339,41 @@ function ModalCerrarMesa({ mesa, cuentasActivas, onClose, onCerrar, onAgregarACu
   const [cuentaSeleccionada, setCuentaSeleccionada] = useState('');
   const [nuevoCliente, setNuevoCliente] = useState(mesa.cliente || '');
 
+  // Nuevos estados para cálculo de cambio, QR y transferencia con foto
+  const [pagaCon, setPagaCon] = useState('');
+  const [referencia, setReferencia] = useState('');
+  const [fotoComprobante, setFotoComprobante] = useState('');
+  const [camaraActiva, setCamaraActiva] = useState(false);
+
   useEffect(() => {
     const t = setInterval(() => setElapsed(Date.now() - (mesa.inicio || Date.now())), 1000);
     return () => clearInterval(t);
   }, [mesa.inicio]);
 
+  // Limpiar campos al cambiar de método
+  useEffect(() => {
+    setPagaCon('');
+    setReferencia('');
+    setFotoComprobante('');
+    setCamaraActiva(false);
+  }, [metodo]);
+
   const costo = calcCosto({ ...mesa, inicio: mesa.inicio });
   const hrs = (elapsed / 3600000).toFixed(2);
+
+  // Lógica de cálculo de efectivo
+  const pagaConVal = parseFloat(pagaCon) || 0;
+  const cambio = pagaConVal >= costo ? pagaConVal - costo : 0;
+  
+  const billetes = [50, 100, 200, 500, 1000];
+  const quickBills = Array.from(new Set([costo, ...billetes.filter(b => b > costo)])).slice(0, 5);
+
+  // Validación de cierre
+  const isCerrarDisabled = tipoCierre === 'liquidar' && !mesa.socios && costo > 0 && (
+    (metodo === 'efectivo' && pagaConVal < costo) ||
+    (metodo === 'transferencia' && !referencia.trim()) ||
+    (metodo === 'qr' && !referencia.trim())
+  );
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -191,29 +442,161 @@ function ModalCerrarMesa({ mesa, cuentasActivas, onClose, onCerrar, onAgregarACu
                 {!mesa.socios && (
                   <div className="form-group" style={{ gap: 2 }}>
                     <label className="form-label" style={{ fontSize: 9, marginBottom: 2 }}>Método de Pago</label>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 4 }}>
                       {[
                         { id: 'efectivo', label: 'Efectivo', icon: 'ri-money-dollar-circle-line' },
-                        { id: 'spei',     label: 'SPEI/QR',  icon: 'ri-qr-code-line' },
-                        { id: 'tarjeta',  label: 'Tarjeta',  icon: 'ri-bank-card-line' },
+                        { id: 'transferencia', label: 'Transf.', icon: 'ri-bank-line' },
+                        { id: 'qr', label: 'Pago QR', icon: 'ri-qr-code-line' },
+                        { id: 'tarjeta', label: 'Tarjeta', icon: 'ri-bank-card-line' },
                       ].map(m => (
                         <button
                           key={m.id}
+                          type="button"
                           onClick={() => setMetodo(m.id)}
                           style={{
                             background: metodo === m.id ? 'var(--bronze-subtle)' : 'var(--bg-elevated)',
                             border: `1px solid ${metodo === m.id ? 'var(--border-bronze)' : 'var(--border)'}`,
-                            borderRadius: 8, padding: '4px 6px', cursor: 'pointer',
+                            borderRadius: 8, padding: '6px 2px', cursor: 'pointer',
                             color: metodo === m.id ? 'var(--bronze-light)' : 'var(--text-secondary)',
                             display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
-                            fontSize: 9, fontWeight: 600, transition: 'all 0.15s',
+                            fontSize: 8, fontWeight: 600, transition: 'all 0.15s',
                           }}
                         >
-                          <i className={m.icon} style={{ fontSize: 14 }} />
+                          <i className={m.icon} style={{ fontSize: 12 }} />
                           {m.label}
                         </button>
                       ))}
                     </div>
+                  </div>
+                )}
+
+                {/* Sub-Paneles Condicionales de Liquidación */}
+                {!mesa.socios && metodo === 'efectivo' && costo > 0 && (
+                  <div style={{
+                    background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 10, padding: 10, display: 'flex', flexDirection: 'column', gap: 6, animation: 'fadeIn 0.2s ease'
+                  }}>
+                    <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--bronze-light)' }}><i className="ri-coins-line" style={{ marginRight: 4 }} />CÁLCULO DE CAMBIO</div>
+                    <div className="form-group" style={{ gap: 2 }}>
+                      <label className="form-label" style={{ fontSize: 8 }}>Monto Recibido</label>
+                      <input
+                        type="number"
+                        className="form-input"
+                        style={{ padding: '6px 10px', fontSize: 12 }}
+                        placeholder="0.00"
+                        value={pagaCon}
+                        onChange={e => setPagaCon(e.target.value)}
+                      />
+                      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 2 }}>
+                        {quickBills.map((b, i) => (
+                          <button
+                            key={i}
+                            type="button"
+                            onClick={() => setPagaCon(b.toFixed(0))}
+                            style={{
+                              background: parseFloat(pagaCon) === b ? 'var(--bronze-subtle)' : 'var(--bg-hover)',
+                              border: `1px solid ${parseFloat(pagaCon) === b ? 'var(--bronze)' : 'var(--border)'}`,
+                              borderRadius: 4, padding: '2px 4px', fontSize: 8,
+                              color: parseFloat(pagaCon) === b ? 'var(--bronze-light)' : 'var(--text-secondary)',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            {b === costo ? 'Exacto' : `$${b}`}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    {pagaConVal > 0 && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border)', paddingTop: 6, marginTop: 2 }}>
+                        <span style={{ fontSize: 10, color: 'var(--text-secondary)' }}>Cambio a Entregar:</span>
+                        <span style={{ fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 900, color: pagaConVal >= costo ? 'var(--success)' : 'var(--danger)' }}>
+                          {pagaConVal >= costo ? `$${cambio.toFixed(2)} MXN` : 'Monto insuficiente'}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {!mesa.socios && metodo === 'transferencia' && costo > 0 && (
+                  <div style={{
+                    background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 10, padding: 10, display: 'flex', flexDirection: 'column', gap: 6, animation: 'fadeIn 0.2s ease'
+                  }}>
+                    <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--bronze-light)', display: 'flex', justifyContent: 'space-between' }}>
+                      <span><i className="ri-bank-line" style={{ marginRight: 4 }} />DATOS BANCARIOS (SPEI)</span>
+                    </div>
+                    <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px dashed var(--border-bronze)', borderRadius: 6, padding: '4px 8px', fontSize: 9, color: 'var(--text-secondary)', lineHeight: 1.3 }}>
+                      <div><strong>Banco:</strong> STP / YoY Billar Club</div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span><strong>CLABE:</strong> 123456789012345678</span>
+                        <span onClick={() => { navigator.clipboard.writeText('123456789012345678'); showToast('CLABE copiada ✓', 'success'); }} style={{ color: 'var(--bronze-light)', cursor: 'pointer' }}><i className="ri-file-copy-line" /></span>
+                      </div>
+                    </div>
+                    <div className="form-group" style={{ gap: 2 }}>
+                      <label className="form-label" style={{ fontSize: 8 }}>Referencia de Transferencia</label>
+                      <input
+                        type="text"
+                        className="form-input"
+                        style={{ padding: '6px 10px', fontSize: 11 }}
+                        placeholder="Ingrese ref / clave de rastreo"
+                        value={referencia}
+                        onChange={e => setReferencia(e.target.value)}
+                      />
+                    </div>
+                    <div style={{ borderTop: '1px solid var(--border)', paddingTop: 6, marginTop: 2 }}>
+                      <label className="form-label" style={{ fontSize: 8, marginBottom: 4, display: 'block' }}>Comprobante de Pago (Foto)</label>
+                      {fotoComprobante ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(34,197,94,0.08)', padding: 4, borderRadius: 6, border: '1px solid rgba(34,197,94,0.2)' }}>
+                          <div style={{ width: 32, height: 32, borderRadius: 4, overflow: 'hidden', border: '1px solid var(--border)', background: '#000' }}>
+                            <img src={fotoComprobante} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="Comp" />
+                          </div>
+                          <span style={{ fontSize: 9, color: 'var(--success)', fontWeight: 700, flex: 1 }}>Foto Cargada ✓</span>
+                          <span onClick={() => setFotoComprobante('')} style={{ color: 'var(--danger)', cursor: 'pointer', padding: 4 }}><i className="ri-close-fill" /></span>
+                        </div>
+                      ) : (
+                        <>
+                          {camaraActiva ? (
+                            <CameraHandler
+                              mode="photo"
+                              onCapture={({ photo }) => {
+                                setFotoComprobante(photo);
+                                setCamaraActiva(false);
+                              }}
+                            />
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => setCamaraActiva(true)}
+                              className="btn btn-secondary btn-sm"
+                              style={{ width: '100%', fontSize: 9, textTransform: 'none', display: 'flex', justifyContent: 'center', gap: 4, padding: '4px 8px' }}
+                            >
+                              <i className="ri-camera-line" /> Tomar Foto del Comprobante
+                            </button>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {!mesa.socios && metodo === 'qr' && costo > 0 && (
+                  <div style={{
+                    background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 10, padding: 10, display: 'flex', flexDirection: 'column', gap: 6, animation: 'fadeIn 0.2s ease'
+                  }}>
+                    <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--bronze-light)' }}><i className="ri-qr-code-line" style={{ marginRight: 4 }} />ESCANEO DE QR DE PAGO</div>
+                    {referencia ? (
+                      <div style={{ background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 6, padding: 6, textAlign: 'center' }}>
+                        <div style={{ color: 'var(--success)', fontWeight: 800, fontSize: 10 }}>QR Escaneado ✓</div>
+                        <div style={{ fontSize: 9, color: 'var(--text-secondary)', marginTop: 2 }}>ID Transacción: {referencia}</div>
+                        <span onClick={() => setReferencia('')} style={{ fontSize: 8, color: 'var(--bronze-light)', cursor: 'pointer', textDecoration: 'underline', marginTop: 4, display: 'block' }}>Volver a Escanear</span>
+                      </div>
+                    ) : (
+                      <CameraHandler
+                        mode="qr"
+                        onCapture={({ reference }) => {
+                          setReferencia(reference);
+                          showToast('Código QR leído ✓', 'success');
+                        }}
+                      />
+                    )}
                   </div>
                 )}
               </>
@@ -259,8 +642,22 @@ function ModalCerrarMesa({ mesa, cuentasActivas, onClose, onCerrar, onAgregarACu
           {tipoCierre === 'liquidar' ? (
             <button
               className="btn btn-primary"
-              onClick={() => onCerrar({ costo, metodo, tiempo: elapsed })}
-              style={{ background: 'linear-gradient(135deg, var(--danger), #ff6b6b)', padding: '6px 12px', fontSize: 11 }}
+              onClick={() => onCerrar({ 
+                costo, 
+                metodo, 
+                tiempo: elapsed,
+                referencia,
+                pagaCon: pagaConVal,
+                cambio,
+                fotoAdjunta: !!fotoComprobante
+              })}
+              disabled={isCerrarDisabled}
+              style={{ 
+                background: isCerrarDisabled ? 'var(--bg-hover)' : 'linear-gradient(135deg, var(--danger), #ff6b6b)', 
+                padding: '6px 12px', 
+                fontSize: 11,
+                cursor: isCerrarDisabled ? 'not-allowed' : 'pointer'
+              }}
             >
               <i className="ri-stop-circle-line" /> Cerrar y Cobrar
             </button>
@@ -584,7 +981,7 @@ export default function MesasPanel({ showToast }) {
     setModalCerrar(null);
   };
 
-  const confirmarCerrarMesa = (mesaId, { costo, metodo, tiempo }) => {
+  const confirmarCerrarMesa = (mesaId, { costo, metodo, tiempo, referencia, pagaCon, cambio, fotoAdjunta }) => {
     const mesa = mesas.find(m => m.id === mesaId);
     const clientName = mesa ? mesa.cliente : 'Público';
     setMesas(prev => prev.map(m => m.id === mesaId
@@ -593,8 +990,22 @@ export default function MesasPanel({ showToast }) {
     ));
     setModalCerrar(null);
     if (costo > 0) {
-      showToast(`Cobrado $${costo} MXN por ${metodo} ✓`, 'success');
-      registrarEvento('Cierre Directo', `Mesa ${mesaId} liquidada y cerrada por ${clientName} ($${costo} MXN por ${metodo})`, costo);
+      let metodoLabel = metodo;
+      let detalleExtra = '';
+      if (metodo === 'efectivo') {
+        metodoLabel = 'Efectivo';
+        detalleExtra = ` | Pagó con: $${pagaCon} | Cambio: $${cambio}`;
+      } else if (metodo === 'transferencia') {
+        metodoLabel = 'Transferencia';
+        detalleExtra = ` | Ref: ${referencia}${fotoAdjunta ? ' (Con foto comprobante)' : ' (Sin foto)'}`;
+      } else if (metodo === 'qr') {
+        metodoLabel = 'Código QR';
+        detalleExtra = ` | Ref QR: ${referencia}`;
+      } else if (metodo === 'tarjeta') {
+        metodoLabel = 'Tarjeta';
+      }
+      showToast(`Cobrado $${costo} MXN por ${metodoLabel} ✓`, 'success');
+      registrarEvento('Cierre Directo', `Mesa ${mesaId} liquidada y cerrada por ${clientName} ($${costo} MXN por ${metodoLabel}${detalleExtra})`, costo);
     } else {
       showToast(`Mesa cerrada (Socio sin cargo)`, 'info');
       registrarEvento('Cierre Directo', `Mesa ${mesaId} cerrada (Socio sin cargo: ${clientName})`);
@@ -1149,6 +1560,20 @@ function ModalCuentasActivas({ cuentas, setCuentas, onClose, showToast, registra
   const [metodoPago, setMetodoPago] = useState('efectivo');
   const [showCheckout, setShowCheckout] = useState(false);
 
+  // Estados de cálculo de cambio, escáner QR y comprobante con foto
+  const [pagaCon, setPagaCon] = useState('');
+  const [referencia, setReferencia] = useState('');
+  const [fotoComprobante, setFotoComprobante] = useState('');
+  const [camaraActiva, setCamaraActiva] = useState(false);
+
+  // Limpiar campos al cambiar de método o cuenta
+  useEffect(() => {
+    setPagaCon('');
+    setReferencia('');
+    setFotoComprobante('');
+    setCamaraActiva(false);
+  }, [metodoPago, cuentaSel]);
+
   const PRODUCTOS = [
     { producto: 'Cerveza Corona', precio: 45 },
     { producto: 'Refresco Coca-Cola', precio: 30 },
@@ -1208,13 +1633,33 @@ function ModalCuentasActivas({ cuentas, setCuentas, onClose, showToast, registra
     }
   };
 
+  const totalNeto = calcTotal(cuentaSel);
+  const totalPagaCon = parseFloat(pagaCon) || 0;
+  const cambio = totalPagaCon >= totalNeto ? totalPagaCon - totalNeto : 0;
+
   const liquidarCuentaDefinitiva = () => {
     if (!cuentaSel) return;
     const total = calcTotal(cuentaSel);
     setCuentas(prev => prev.filter(c => c.id !== cuentaSel.id));
+    
+    let metodoLabel = metodoPago;
+    let detalleExtra = '';
+    if (metodoPago === 'efectivo') {
+      metodoLabel = 'Efectivo';
+      detalleExtra = ` | Pagó con: $${totalPagaCon} | Cambio: $${cambio}`;
+    } else if (metodoPago === 'transferencia') {
+      metodoLabel = 'Transferencia';
+      detalleExtra = ` | Ref: ${referencia}${fotoComprobante ? ' (Con foto comprobante)' : ' (Sin foto)'}`;
+    } else if (metodoPago === 'qr') {
+      metodoLabel = 'Código QR';
+      detalleExtra = ` | Ref QR: ${referencia}`;
+    } else if (metodoPago === 'tarjeta') {
+      metodoLabel = 'Tarjeta';
+    }
+
     showToast(`Cuenta de ${cuentaSel.cliente} liquidada con éxito por $${total} MXN ✓`, 'success');
     if (registrarEvento) {
-      registrarEvento('Liquidar Cuenta', `Cuenta de ${cuentaSel.cliente} cobrada por completo ($${total} MXN por ${metodoPago})`, total);
+      registrarEvento('Liquidar Cuenta', `Cuenta de ${cuentaSel.cliente} cobrada por completo ($${total} MXN por ${metodoLabel}${detalleExtra})`, total);
     }
     setCuentaSel(null);
     setShowCheckout(false);
@@ -1337,7 +1782,7 @@ function ModalCuentasActivas({ cuentas, setCuentas, onClose, showToast, registra
                 </>
               ) : (
                 /* Detalle Checkout */
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <button className="btn btn-secondary btn-icon sm" onClick={() => setShowCheckout(false)} style={{ border: 'none', background: 'none' }}>
                       <i className="ri-arrow-left-line" style={{ fontSize: 18 }} />
@@ -1345,54 +1790,195 @@ function ModalCuentasActivas({ cuentas, setCuentas, onClose, showToast, registra
                     <h3 style={{ fontSize: 16, fontWeight: 800 }}>Liquidar Cuenta: {cuentaSel.cliente}</h3>
                   </div>
 
-                  <div style={{ background: 'var(--bg-elevated)', padding: 14, borderRadius: 10 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border)', pb: 6, fontSize: 12 }}>
+                  <div style={{ background: 'var(--bg-elevated)', padding: 10, borderRadius: 10 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border)', pb: 4, fontSize: 11 }}>
                       <span>Tiempo de Juego</span>
                       <span>${cuentaSel.tiempoJuego} MXN</span>
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, mt: 6, borderBottom: '1px solid var(--border)', pb: 6 }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 4, borderBottom: '1px solid var(--border)', pb: 4 }}>
                       {cuentaSel.consumos.map(item => (
-                        <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-secondary)' }}>
+                        <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--text-secondary)' }}>
                           <span>{item.cantidad}x {item.producto}</span>
                           <span>${item.precio * item.cantidad} MXN</span>
                         </div>
                       ))}
                     </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', mt: 8, fontWeight: 900, fontSize: 16 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', mt: 6, fontWeight: 900, fontSize: 14 }}>
                       <span>Total Neto</span>
-                      <span style={{ color: 'var(--bronze-light)' }}>${calcTotal(cuentaSel)} MXN</span>
+                      <span style={{ color: 'var(--bronze-light)' }}>${totalNeto} MXN</span>
                     </div>
                   </div>
 
                   {/* Método */}
-                  <div className="form-group">
-                    <label className="form-label">Método de Pago</label>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+                  <div className="form-group" style={{ gap: 2 }}>
+                    <label className="form-label" style={{ fontSize: 9 }}>Método de Pago</label>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 4 }}>
                       {[
                         { id: 'efectivo', label: 'Efectivo', icon: 'ri-money-dollar-circle-line' },
-                        { id: 'spei',     label: 'SPEI/QR',  icon: 'ri-qr-code-line' },
-                        { id: 'tarjeta',  label: 'Tarjeta',  icon: 'ri-bank-card-line' },
+                        { id: 'transferencia', label: 'Transf.', icon: 'ri-bank-line' },
+                        { id: 'qr', label: 'Pago QR', icon: 'ri-qr-code-line' },
+                        { id: 'tarjeta', label: 'Tarjeta', icon: 'ri-bank-card-line' },
                       ].map(m => (
                         <button
                           key={m.id}
+                          type="button"
                           onClick={() => setMetodoPago(m.id)}
                           style={{
                             background: metodoPago === m.id ? 'var(--bronze-subtle)' : 'var(--bg-elevated)',
                             border: `1px solid ${metodoPago === m.id ? 'var(--border-bronze)' : 'var(--border)'}`,
-                            borderRadius: 10, padding: '8px 4px', cursor: 'pointer',
+                            borderRadius: 8, padding: '6px 2px', cursor: 'pointer',
                             color: metodoPago === m.id ? 'var(--bronze-light)' : 'var(--text-secondary)',
-                            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
-                            fontSize: 10, fontWeight: 600,
+                            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+                            fontSize: 8, fontWeight: 600, transition: 'all 0.15s',
                           }}
                         >
-                          <i className={m.icon} style={{ fontSize: 16 }} />
+                          <i className={m.icon} style={{ fontSize: 12 }} />
                           {m.label}
                         </button>
                       ))}
                     </div>
                   </div>
 
-                  <button className="btn btn-primary btn-lg" onClick={liquidarCuentaDefinitiva} style={{ background: 'linear-gradient(135deg, var(--success), #2ed573)', color: '#0d0d0f', width: '100%', mt: 6 }}>
+                  {/* Sub-Paneles Condicionales de Liquidación en Cuenta */}
+                  {metodoPago === 'efectivo' && totalNeto > 0 && (
+                    <div style={{
+                      background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 10, padding: 10, display: 'flex', flexDirection: 'column', gap: 6, animation: 'fadeIn 0.2s ease'
+                    }}>
+                      <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--bronze-light)' }}><i className="ri-coins-line" style={{ marginRight: 4 }} />CÁLCULO DE CAMBIO</div>
+                      <div className="form-group" style={{ gap: 2 }}>
+                        <label className="form-label" style={{ fontSize: 8 }}>Monto Recibido</label>
+                        <input
+                          type="number"
+                          className="form-input"
+                          style={{ padding: '6px 10px', fontSize: 12 }}
+                          placeholder="0.00"
+                          value={pagaCon}
+                          onChange={e => setPagaCon(e.target.value)}
+                        />
+                        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 2 }}>
+                          {quickBills.map((b, i) => (
+                            <button
+                              key={i}
+                              type="button"
+                              onClick={() => setPagaCon(b.toFixed(0))}
+                              style={{
+                                background: parseFloat(pagaCon) === b ? 'var(--bronze-subtle)' : 'var(--bg-hover)',
+                                border: `1px solid ${parseFloat(pagaCon) === b ? 'var(--bronze)' : 'var(--border)'}`,
+                                borderRadius: 4, padding: '2px 4px', fontSize: 8,
+                                color: parseFloat(pagaCon) === b ? 'var(--bronze-light)' : 'var(--text-secondary)',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              Exacto (${b})
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      {totalPagaCon > 0 && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border)', paddingTop: 6, marginTop: 2 }}>
+                          <span style={{ fontSize: 10, color: 'var(--text-secondary)' }}>Cambio a Entregar:</span>
+                          <span style={{ fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 900, color: totalPagaCon >= totalNeto ? 'var(--success)' : 'var(--danger)' }}>
+                            {totalPagaCon >= totalNeto ? `$${cambio.toFixed(2)} MXN` : 'Monto insuficiente'}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {metodoPago === 'transferencia' && totalNeto > 0 && (
+                    <div style={{
+                      background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 10, padding: 10, display: 'flex', flexDirection: 'column', gap: 6, animation: 'fadeIn 0.2s ease'
+                    }}>
+                      <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--bronze-light)' }}><i className="ri-bank-line" style={{ marginRight: 4 }} />DATOS BANCARIOS (SPEI)</div>
+                      <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px dashed var(--border-bronze)', borderRadius: 6, padding: '4px 8px', fontSize: 9, color: 'var(--text-secondary)', lineHeight: 1.3 }}>
+                        <div><strong>Banco:</strong> STP / YoY Billar Club</div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span><strong>CLABE:</strong> 123456789012345678</span>
+                          <span onClick={() => { navigator.clipboard.writeText('123456789012345678'); showToast('CLABE copiada ✓', 'success'); }} style={{ color: 'var(--bronze-light)', cursor: 'pointer' }}><i className="ri-file-copy-line" /></span>
+                        </div>
+                      </div>
+                      <div className="form-group" style={{ gap: 2 }}>
+                        <label className="form-label" style={{ fontSize: 8 }}>Referencia de Transferencia</label>
+                        <input
+                          type="text"
+                          className="form-input"
+                          style={{ padding: '6px 10px', fontSize: 11 }}
+                          placeholder="Ingrese ref / clave de rastreo"
+                          value={referencia}
+                          onChange={e => setReferencia(e.target.value)}
+                        />
+                      </div>
+                      <div style={{ borderTop: '1px solid var(--border)', paddingTop: 6, marginTop: 2 }}>
+                        <label className="form-label" style={{ fontSize: 8, marginBottom: 4, display: 'block' }}>Comprobante de Pago (Foto)</label>
+                        {fotoComprobante ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(34,197,94,0.08)', padding: 4, borderRadius: 6, border: '1px solid rgba(34,197,94,0.2)' }}>
+                            <div style={{ width: 32, height: 32, borderRadius: 4, overflow: 'hidden', border: '1px solid var(--border)', background: '#000' }}>
+                              <img src={fotoComprobante} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="Comp" />
+                            </div>
+                            <span style={{ fontSize: 9, color: 'var(--success)', fontWeight: 700, flex: 1 }}>Foto Cargada ✓</span>
+                            <span onClick={() => setFotoComprobante('')} style={{ color: 'var(--danger)', cursor: 'pointer', padding: 4 }}><i className="ri-close-fill" /></span>
+                          </div>
+                        ) : (
+                          <>
+                            {camaraActiva ? (
+                              <CameraHandler
+                                mode="photo"
+                                onCapture={({ photo }) => {
+                                  setFotoComprobante(photo);
+                                  setCamaraActiva(false);
+                                }}
+                              />
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => setCamaraActiva(true)}
+                                className="btn btn-secondary btn-sm"
+                                style={{ width: '100%', fontSize: 9, textTransform: 'none', display: 'flex', justifyContent: 'center', gap: 4, padding: '4px 8px' }}
+                              >
+                                <i className="ri-camera-line" /> Tomar Foto del Comprobante
+                              </button>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {metodoPago === 'qr' && totalNeto > 0 && (
+                    <div style={{
+                      background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 10, padding: 10, display: 'flex', flexDirection: 'column', gap: 6, animation: 'fadeIn 0.2s ease'
+                    }}>
+                      <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--bronze-light)' }}><i className="ri-qr-code-line" style={{ marginRight: 4 }} />ESCANEO DE QR DE PAGO</div>
+                      {referencia ? (
+                        <div style={{ background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 6, padding: 6, textAlign: 'center' }}>
+                          <div style={{ color: 'var(--success)', fontWeight: 800, fontSize: 10 }}>QR Escaneado ✓</div>
+                          <div style={{ fontSize: 9, color: 'var(--text-secondary)', marginTop: 2 }}>ID Transacción: {referencia}</div>
+                          <span onClick={() => setReferencia('')} style={{ fontSize: 8, color: 'var(--bronze-light)', cursor: 'pointer', textDecoration: 'underline', marginTop: 4, display: 'block' }}>Volver a Escanear</span>
+                        </div>
+                      ) : (
+                        <CameraHandler
+                          mode="qr"
+                          onCapture={({ reference }) => {
+                            setReferencia(reference);
+                            showToast('Código QR leído ✓', 'success');
+                          }}
+                        />
+                      )}
+                    </div>
+                  )}
+
+                  <button 
+                    className="btn btn-primary btn-lg" 
+                    onClick={liquidarCuentaDefinitiva} 
+                    disabled={isCheckoutDisabled}
+                    style={{ 
+                      background: isCheckoutDisabled ? 'var(--bg-hover)' : 'linear-gradient(135deg, var(--success), #2ed573)', 
+                      color: isCheckoutDisabled ? 'var(--text-muted)' : '#0d0d0f', 
+                      width: '100%', 
+                      mt: 6,
+                      cursor: isCheckoutDisabled ? 'not-allowed' : 'pointer'
+                    }}
+                  >
                     <i className="ri-checkbox-circle-line" /> Confirmar Cobro e Impresión
                   </button>
                 </div>
