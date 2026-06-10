@@ -34,14 +34,18 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
   const [showMenu, setShowMenu] = useState(false);
   const alertasNomina = useAlertasNomina();
   const pedidosPendientes = usePedidosPendientes();
+  const [locale, setLocale] = useState('es-MX');
 
   useEffect(() => {
-    const t = setInterval(() => setTime(new Date()), 1000);
+    if (typeof window !== 'undefined' && navigator.language) {
+      setLocale(navigator.language);
+    }
+    const t = setInterval(() => setTime(new Date()), 10000); // Actualiza cada 10 segundos
     return () => clearInterval(t);
   }, []);
 
-  const timeStr = time.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
-  const dateStr = time.toLocaleDateString('es-MX', { weekday: 'short', day: 'numeric', month: 'short' });
+  const timeStr = time.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
+  const dateStr = time.toLocaleDateString(locale, { weekday: 'short', day: 'numeric', month: 'short' });
 
   return (
     <header className="topbar">
