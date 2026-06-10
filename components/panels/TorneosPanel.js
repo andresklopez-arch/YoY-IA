@@ -62,6 +62,20 @@ export default function TorneosPanel({ showToast }) {
   // Formulario Registrar Jugador
   const [nuevoJugadorNombre, setNuevoJugadorNombre] = useState('');
 
+  // Captura avanzada de torneos
+  const [mesas, setMesas] = useState([]);
+  const [listaNuevosJugadores, setListaNuevosJugadores] = useState([
+    { nombre: 'Carlos R.', puntosInicio: 0 },
+    { nombre: 'Pedro M.', puntosInicio: 5 },
+    { nombre: 'Ana G.', puntosInicio: 0 },
+    { nombre: 'Luis H.', puntosInicio: 5 },
+  ]);
+  const [nombreTmpJugador, setNombreTmpJugador] = useState('');
+  const [ptsTmpJugador, setPtsTmpJugador] = useState(0);
+  const [mesasSeleccionadas, setMesasSeleccionadas] = useState([]);
+  const [partidaAEditar, setPartidaAEditar] = useState(null);
+  const [nuevoJugadorPts, setNuevoJugadorPts] = useState(0);
+
   useEffect(() => {
     const saved = localStorage.getItem('yoy_billar_torneos');
     if (saved) {
@@ -79,6 +93,25 @@ export default function TorneosPanel({ showToast }) {
       setTorneoActivo(INIT_TORNEOS[0]);
       localStorage.setItem('yoy_billar_torneos', obfuscate(INIT_TORNEOS));
     }
+
+    // Cargar mesas
+    const savedMesas = localStorage.getItem('yoy_billar_mesas');
+    if (savedMesas) {
+      setMesas(deobfuscate(savedMesas) || []);
+    } else {
+      const defaultMesas = [
+        { id: 1, nombre: 'Mesa 1', tipo: 'Carambola 3B', estado: 'libre',    cliente: null, inicio: null, tarifa: 80, socios: false },
+        { id: 2, nombre: 'Mesa 2', tipo: 'Carambola 3B', estado: 'libre',  cliente: null, inicio: null, tarifa: 80, socios: false },
+        { id: 3, nombre: 'Mesa 3', tipo: 'Pool 9B',      estado: 'libre', cliente: null, inicio: null, tarifa: 60, socios: false },
+        { id: 4, nombre: 'Mesa 4', tipo: 'Carambola 3B', estado: 'libre',    cliente: null, inicio: null, tarifa: 80, socios: false },
+        { id: 5, nombre: 'Mesa 5', tipo: 'Snooker',      estado: 'libre',   cliente: null, inicio: null, tarifa: 100, socios: false },
+        { id: 6, nombre: 'Mesa 6', tipo: 'Pool 9B',      estado: 'libre',    cliente: null, inicio: null, tarifa: 60, socios: false },
+        { id: 7, nombre: 'Mesa 7', tipo: 'Carambola 3B', estado: 'libre',  cliente: null, inicio: null, tarifa: 0, socios: true },
+        { id: 8, nombre: 'Mesa 8', tipo: 'Pool 9B',      estado: 'libre',    cliente: null, inicio: null, tarifa: 60, socios: false },
+      ];
+      setMesas(defaultMesas);
+      localStorage.setItem('yoy_billar_mesas', obfuscate(defaultMesas));
+    }
   }, []);
 
   const saveTorneos = (newTorneos) => {
@@ -92,6 +125,41 @@ export default function TorneosPanel({ showToast }) {
     }
   };
 
+  const asignarMesasAPartidas = (partidasList, mesasAsignadasIds) => {
+    const savedMesas = localStorage.getItem('yoy_billar_mesas');
+    let currentMesas = savedMesas ? (deobfuscate(savedMesas) || []) : [];
+
+    let updatedPartidas = [...partidasList];
+
+    updatedPartidas = updatedPartidas.map(partida => {
+      if (partida.estado === 'esperando_mesa') {
+        const mesaLibreIndex = currentMesas.findIndex(m => 
+          mesasAsignadasIds.includes(m.id) && m.estado === 'libre'
+        );
+
+        if (mesaLibreIndex !== -1) {
+          const mesa = currentMesas[mesaLibreIndex];
+          currentMesas[mesaLibreIndex] = {
+            ...mesa,
+            estado: 'ocupada',
+            cliente: `Torneo: ${partida.j1} vs ${partida.j2}`,
+            inicio: Date.now()
+          };
+          return {
+            ...partida,
+            mesaId: mesa.id,
+            estado: 'activo'
+          };
+        }
+      }
+      return partida;
+    });
+
+    localStorage.setItem('yoy_billar_mesas', obfuscate(currentMesas));
+    setMesas(currentMesas);
+    return updatedPartidas;
+  };
+
   const handleCrearTorneo = (e) => {
     e.preventDefault();
     if (!nuevoNombre || !nuevaFecha) {
@@ -99,29 +167,37 @@ export default function TorneosPanel({ showToast }) {
       return;
     }
 
-    const jugadoresList = nuevosJugadoresText
-      .split(',')
-      .map(j => j.trim())
-      .filter(j => j !== '');
+    if (listaNuevosJugadores.length < 2) {
+      showToast('Por favor agrega al menos 2 jugadores.', 'warning');
+      return;
+    }
+
+    if (mesasSeleccionadas.length === 0) {
+      showToast('Por favor selecciona al menos una mesa para el torneo.', 'warning');
+      return;
+    }
 
     const nuevo = {
       id: Date.now(),
       nombre: nuevoNombre,
       modalidad: nuevaModalidad,
       estado: 'inscripcion',
-      jugadores: jugadoresList.length,
+      jugadores: listaNuevosJugadores.length,
       max: parseInt(nuevoMax) || 16,
       premio: nuevoPremio,
       inscripcion: nuevaInscripcion,
       fechaInicio: nuevaFecha,
       partidas: [],
-      ranking: jugadoresList.map((j, idx) => ({
+      mesasAsignadas: mesasSeleccionadas,
+      rondaActual: 1,
+      ranking: listaNuevosJugadores.map((j, idx) => ({
         pos: idx + 1,
-        nombre: j,
+        nombre: j.nombre,
+        puntosInicio: j.puntosInicio,
         pj: 0,
         pg: 0,
         pp: 0,
-        pts: 0,
+        pts: j.puntosInicio,
         elo: 1500
       }))
     };
@@ -139,7 +215,13 @@ export default function TorneosPanel({ showToast }) {
     setNuevoPremio('$1,500');
     setNuevaInscripcion('$100');
     setNuevaFecha('');
-    setNuevosJugadoresText('Carlos R., Pedro M., Ana G., Luis H.');
+    setListaNuevosJugadores([
+      { nombre: 'Carlos R.', puntosInicio: 0 },
+      { nombre: 'Pedro M.', puntosInicio: 5 },
+      { nombre: 'Ana G.', puntosInicio: 0 },
+      { nombre: 'Luis H.', puntosInicio: 5 },
+    ]);
+    setMesasSeleccionadas([]);
   };
 
   const handleRegistrarJugador = (e) => {
@@ -148,6 +230,8 @@ export default function TorneosPanel({ showToast }) {
       showToast('Nombre de jugador inválido', 'error');
       return;
     }
+
+    const pts = parseInt(nuevoJugadorPts) || 0;
 
     if (torneoActivo.ranking.some(r => r.nombre.toLowerCase() === nuevoJugadorNombre.trim().toLowerCase())) {
       showToast('El jugador ya está registrado en este torneo', 'error');
@@ -164,10 +248,11 @@ export default function TorneosPanel({ showToast }) {
       {
         pos: torneoActivo.ranking.length + 1,
         nombre: nuevoJugadorNombre.trim(),
+        puntosInicio: pts,
         pj: 0,
         pg: 0,
         pp: 0,
-        pts: 0,
+        pts: pts,
         elo: 1500
       }
     ];
@@ -186,6 +271,7 @@ export default function TorneosPanel({ showToast }) {
     saveTorneos(updatedTorneos);
     setShowRegistrarJugador(false);
     setNuevoJugadorNombre('');
+    setNuevoJugadorPts(0);
     showToast('Jugador agregado correctamente', 'success');
   };
 
@@ -195,15 +281,53 @@ export default function TorneosPanel({ showToast }) {
       return;
     }
 
+    // Mezclar jugadores
+    const shuffled = [...torneoActivo.ranking].sort(() => 0.5 - Math.random());
+    const partidasRonda = [];
+    let matchId = 1;
+    for (let i = 0; i < shuffled.length; i += 2) {
+      if (i + 1 < shuffled.length) {
+        partidasRonda.push({
+          id: matchId++,
+          j1: shuffled[i].nombre,
+          j2: shuffled[i + 1].nombre,
+          resultado: null,
+          ganador: null,
+          ronda: 1,
+          mesaId: null,
+          estado: 'esperando_mesa'
+        });
+      } else {
+        partidasRonda.push({
+          id: matchId++,
+          j1: shuffled[i].nombre,
+          j2: 'BYE',
+          resultado: 'BYE',
+          ganador: shuffled[i].nombre,
+          ronda: 1,
+          mesaId: null,
+          estado: 'completado'
+        });
+      }
+    }
+
+    const mesasAsignadasIds = torneoActivo.mesasAsignadas || [];
+    const partidasConMesa = asignarMesasAPartidas(partidasRonda, mesasAsignadasIds);
+
     const updatedTorneos = torneos.map(t => {
       if (t.id === torneoActivo.id) {
-        return { ...t, estado: 'activo' };
+        return {
+          ...t,
+          estado: 'activo',
+          rondaActual: 1,
+          partidas: partidasConMesa
+        };
       }
       return t;
     });
 
     saveTorneos(updatedTorneos);
-    showToast('Torneo iniciado oficialmente. ¡A jugar!', 'success');
+    showToast('Torneo iniciado. Partidas generadas y mesas asignadas.', 'success');
   };
 
   const handleCompletarTorneo = () => {
@@ -224,16 +348,12 @@ export default function TorneosPanel({ showToast }) {
       showToast('Selecciona ambos jugadores', 'error');
       return;
     }
-    if (partidaJ1 === partidaJ2) {
-      showToast('Un jugador no puede jugar contra sí mismo', 'error');
-      return;
-    }
 
     const s1 = parseInt(scoreJ1) || 0;
     const s2 = parseInt(scoreJ2) || 0;
 
     let ganadorName = 'Empate';
-    let outcome = 'Empate'; // 'A', 'B', 'Empate'
+    let outcome = 'Empate';
     if (s1 > s2) {
       ganadorName = partidaJ1;
       outcome = 'A';
@@ -242,18 +362,16 @@ export default function TorneosPanel({ showToast }) {
       outcome = 'B';
     }
 
-    // Buscar ELOs actuales
     const p1 = torneoActivo.ranking.find(r => r.nombre === partidaJ1);
     const p2 = torneoActivo.ranking.find(r => r.nombre === partidaJ2);
 
     const elo1 = p1 ? p1.elo : 1500;
     const elo2 = p2 ? p2.elo : 1500;
 
-    // Calcular factor K dinámico según tipo de partida y experiencia (Sugerencia 3)
     const getKFactor = (playerStats, matchType) => {
       let baseK = 32;
       if (playerStats && playerStats.pj >= 20) {
-        baseK = 16; // FIDE-style veterano
+        baseK = 16;
       }
       if (matchType === 'amistoso') {
         return Math.max(8, Math.round(baseK * 0.5));
@@ -282,7 +400,6 @@ export default function TorneosPanel({ showToast }) {
     const newElo1 = Math.round(elo1 + K1 * (valOutcome1 - expected1));
     const newElo2 = Math.round(elo2 + K2 * (valOutcome2 - expected2));
 
-    // Actualizar ranking stats
     const updatedRanking = torneoActivo.ranking.map(r => {
       if (r.nombre === partidaJ1) {
         return {
@@ -307,34 +424,111 @@ export default function TorneosPanel({ showToast }) {
       return r;
     });
 
-    // Ordenar ranking: Puntos (desc), luego ELO (desc), luego PG (desc)
     updatedRanking.sort((a, b) => {
       if (b.pts !== a.pts) return b.pts - a.pts;
       if (b.elo !== a.elo) return b.elo - a.elo;
       return b.pg - a.pg;
     });
 
-    // Reasignar posiciones
     updatedRanking.forEach((r, idx) => {
       r.pos = idx + 1;
     });
 
-    // Agregar partida
-    const nuevaPartida = {
-      id: Date.now(),
-      j1: partidaJ1,
-      j2: partidaJ2,
-      resultado: `${s1}-${s2}`,
-      fecha: new Date().toISOString().split('T')[0],
-      ganador: ganadorName
-    };
+    if (partidaAEditar && partidaAEditar.mesaId) {
+      const savedMesas = localStorage.getItem('yoy_billar_mesas');
+      let currentMesas = savedMesas ? (deobfuscate(savedMesas) || []) : [];
+      const mesaIdx = currentMesas.findIndex(m => m.id === partidaAEditar.mesaId);
+      if (mesaIdx !== -1) {
+        currentMesas[mesaIdx] = {
+          ...currentMesas[mesaIdx],
+          estado: 'libre',
+          cliente: null,
+          inicio: null
+        };
+        localStorage.setItem('yoy_billar_mesas', obfuscate(currentMesas));
+        setMesas(currentMesas);
+      }
+    }
+
+    let updatedPartidas = [];
+    if (partidaAEditar) {
+      updatedPartidas = torneoActivo.partidas.map(p => 
+        p.id === partidaAEditar.id ? { ...p, resultado: `${s1}-${s2}`, ganador: ganadorName, estado: 'completado' } : p
+      );
+    } else {
+      const nuevaPartida = {
+        id: Date.now(),
+        j1: partidaJ1,
+        j2: partidaJ2,
+        resultado: `${s1}-${s2}`,
+        fecha: new Date().toISOString().split('T')[0],
+        ganador: ganadorName,
+        ronda: torneoActivo.rondaActual || 1,
+        estado: 'completado'
+      };
+      updatedPartidas = [nuevaPartida, ...torneoActivo.partidas];
+    }
+
+    updatedPartidas = asignarMesasAPartidas(updatedPartidas, torneoActivo.mesasAsignadas || []);
+
+    let nextRondaNum = torneoActivo.rondaActual || 1;
+    let finalizado = false;
+    let campeon = torneoActivo.campeon || null;
+
+    if (torneoActivo.estado === 'activo') {
+      const partidasRondaActual = updatedPartidas.filter(p => p.ronda === torneoActivo.rondaActual);
+      const todasCompletas = partidasRondaActual.every(p => p.estado === 'completado');
+
+      if (todasCompletas) {
+        const ganadores = partidasRondaActual.map(p => p.ganador).filter(g => g && g !== 'BYE');
+        if (ganadores.length === 1) {
+          finalizado = true;
+          campeon = ganadores[0];
+        } else if (ganadores.length > 1) {
+          const ganadoresShuffled = [...ganadores].sort(() => 0.5 - Math.random());
+          nextRondaNum = (torneoActivo.rondaActual || 1) + 1;
+          const nuevasPartidasSiguienteRonda = [];
+          let nextMatchId = updatedPartidas.length + 1;
+          for (let i = 0; i < ganadoresShuffled.length; i += 2) {
+            if (i + 1 < ganadoresShuffled.length) {
+              nuevasPartidasSiguienteRonda.push({
+                id: nextMatchId++,
+                j1: ganadoresShuffled[i],
+                j2: ganadoresShuffled[i + 1],
+                ronda: nextRondaNum,
+                resultado: null,
+                ganador: null,
+                mesaId: null,
+                estado: 'esperando_mesa'
+              });
+            } else {
+              nuevasPartidasSiguienteRonda.push({
+                id: nextMatchId++,
+                j1: ganadoresShuffled[i],
+                j2: 'BYE',
+                resultado: 'BYE',
+                ganador: ganadoresShuffled[i],
+                ronda: nextRondaNum,
+                mesaId: null,
+                estado: 'completado'
+              });
+            }
+          }
+          updatedPartidas = [...updatedPartidas, ...nuevasPartidasSiguienteRonda];
+          updatedPartidas = asignarMesasAPartidas(updatedPartidas, torneoActivo.mesasAsignadas || []);
+        }
+      }
+    }
 
     const updatedTorneos = torneos.map(t => {
       if (t.id === torneoActivo.id) {
         return {
           ...t,
-          partidas: [nuevaPartida, ...t.partidas],
-          ranking: updatedRanking
+          partidas: updatedPartidas,
+          ranking: updatedRanking,
+          rondaActual: nextRondaNum,
+          estado: finalizado ? 'completado' : t.estado,
+          campeon: campeon
         };
       }
       return t;
@@ -342,14 +536,21 @@ export default function TorneosPanel({ showToast }) {
 
     saveTorneos(updatedTorneos);
     setShowRegistrarPartida(false);
-    // Reset forms
+
     setPartidaJ1('');
     setPartidaJ2('');
     setScoreJ1('0');
     setScoreJ2('0');
     setTipoPartida('regular');
+    setPartidaAEditar(null);
 
-    showToast(`Partida registrada. ELOs actualizados: ${partidaJ1} (${elo1} -> ${newElo1}) · ${partidaJ2} (${elo2} -> ${newElo2})`, 'success');
+    if (finalizado) {
+      showToast(`🏆 ¡El torneo ha finalizado! Campeón: ${campeon}`, 'success');
+    } else if (nextRondaNum > (torneoActivo.rondaActual || 1)) {
+      showToast(`¡Ronda ${torneoActivo.rondaActual} concluida! Iniciando Ronda ${nextRondaNum}.`, 'success');
+    } else {
+      showToast(`Partida registrada. ELOs actualizados.`, 'success');
+    }
   };
 
   return (
@@ -513,33 +714,79 @@ export default function TorneosPanel({ showToast }) {
             {vista === 'partidas' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <h3 style={{ fontSize: 14, fontWeight: 700 }}>Historial de Partidas</h3>
-                  {torneoActivo.estado === 'activo' && (
-                    <button className="btn btn-primary btn-sm" onClick={() => setShowRegistrarPartida(true)}>
-                      <i className="ri-add-line" /> Registrar Partida
-                    </button>
-                  )}
+                  <h3 style={{ fontSize: 14, fontWeight: 700 }}>
+                    {torneoActivo.estado === 'activo' ? `Partidas - Ronda ${torneoActivo.rondaActual || 1}` : 'Historial de Partidas'}
+                  </h3>
                 </div>
+
                 {torneoActivo.partidas.length === 0 ? (
                   <div className="card" style={{ textAlign: 'center', padding: 32 }}>
                     <i className="ri-sword-line" style={{ fontSize: 36, color: 'var(--text-muted)', display: 'block', marginBottom: 8 }} />
                     <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>No hay partidas registradas aún</p>
                   </div>
                 ) : (
-                  torneoActivo.partidas.map(p => (
-                    <div key={p.id} className="card" style={{ display: 'flex', alignItems: 'center', gap: 16, padding: 16 }}>
-                      <div style={{ flex: 1, textAlign: 'right' }}>
-                        <span style={{ fontWeight: p.ganador === p.j1 ? 800 : 500, color: p.ganador === p.j1 ? 'var(--success)' : 'var(--text-secondary)', fontSize: 14 }}>{p.j1}</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {torneoActivo.partidas
+                      .filter(p => torneoActivo.estado !== 'activo' || p.ronda === torneoActivo.rondaActual)
+                      .map(p => {
+                        const esActivo = p.estado === 'activo';
+                        return (
+                          <div key={p.id} className="card" style={{ display: 'flex', alignItems: 'center', gap: 16, padding: 16, border: esActivo ? '1px solid var(--border-bronze)' : '1px solid var(--border)' }}>
+                            <div style={{ flex: 1, textAlign: 'right' }}>
+                              <span style={{ fontWeight: p.ganador === p.j1 ? 800 : 500, color: p.ganador === p.j1 ? 'var(--success)' : 'var(--text-secondary)', fontSize: 14 }}>{p.j1}</span>
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 100 }}>
+                              {p.resultado ? (
+                                <div style={{ background: 'var(--bg-elevated)', borderRadius: 10, padding: '8px 16px', fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 700, letterSpacing: '0.1em', textAlign: 'center', border: '1px solid var(--border)' }}>
+                                  {p.resultado}
+                                </div>
+                              ) : esActivo ? (
+                                <button
+                                  className="btn btn-primary btn-sm"
+                                  style={{ padding: '6px 12px', fontSize: 11 }}
+                                  onClick={() => {
+                                    setPartidaAEditar(p);
+                                    setPartidaJ1(p.j1);
+                                    setPartidaJ2(p.j2);
+                                    setScoreJ1('0');
+                                    setScoreJ2('0');
+                                    setShowRegistrarPartida(true);
+                                  }}
+                                >
+                                  Cargar Marcador
+                                </button>
+                              ) : (
+                                <span className="badge badge-warning" style={{ fontSize: 10 }}>Esperando Mesa</span>
+                              )}
+                              {p.mesaId && (
+                                <span style={{ fontSize: 9, color: 'var(--bronze-light)', marginTop: 4 }}>
+                                  Mesa {p.mesaId}
+                                </span>
+                              )}
+                            </div>
+                            <div style={{ flex: 1 }}>
+                              <span style={{ fontWeight: p.ganador === p.j2 ? 800 : 500, color: p.ganador === p.j2 ? 'var(--success)' : 'var(--text-secondary)', fontSize: 14 }}>{p.j2}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                    {torneoActivo.estado === 'activo' && torneoActivo.partidas.some(p => p.ronda < torneoActivo.rondaActual) && (
+                      <div style={{ marginTop: 20 }}>
+                        <h4 style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase' }}>Partidas de Rondas Anteriores</h4>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                          {torneoActivo.partidas
+                            .filter(p => p.ronda < torneoActivo.rondaActual)
+                            .map(p => (
+                              <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--bg-elevated)', borderRadius: 8, fontSize: 12, border: '1px solid var(--border)' }}>
+                                <span>Ronda {p.ronda} · <strong>{p.j1}</strong> vs <strong>{p.j2}</strong></span>
+                                <span style={{ color: 'var(--bronze-light)', fontWeight: 700 }}>Ganador: {p.ganador} ({p.resultado})</span>
+                              </div>
+                            ))}
+                        </div>
                       </div>
-                      <div style={{ background: 'var(--bg-elevated)', borderRadius: 10, padding: '8px 16px', fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 700, letterSpacing: '0.1em', minWidth: 80, textAlign: 'center', border: '1px solid var(--border)' }}>
-                        {p.resultado}
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <span style={{ fontWeight: p.ganador === p.j2 ? 800 : 500, color: p.ganador === p.j2 ? 'var(--success)' : 'var(--text-secondary)', fontSize: 14 }}>{p.j2}</span>
-                      </div>
-                      <div style={{ fontSize: 10, color: 'var(--text-muted)', minWidth: 80, textAlign: 'right' }}>{p.fecha}</div>
-                    </div>
-                  ))
+                    )}
+                  </div>
                 )}
               </div>
             )}
@@ -557,7 +804,7 @@ export default function TorneosPanel({ showToast }) {
           <div className="modal" style={{ maxWidth: 500 }} onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <span className="modal-title">Crear Nuevo Torneo</span>
-              <button onClick={() => setShowCrearTorneo(false)} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 20 }}>✕</button>
+              <button type="button" onClick={() => setShowCrearTorneo(false)} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 20 }}>✕</button>
             </div>
             <form onSubmit={handleCrearTorneo}>
               <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -593,9 +840,88 @@ export default function TorneosPanel({ showToast }) {
                   <label className="form-label">Fecha de Inicio *</label>
                   <input className="form-input" type="date" required value={nuevaFecha} onChange={e => setNuevaFecha(e.target.value)} />
                 </div>
-                <div className="form-group">
-                  <label className="form-label">Jugadores Iniciales (separados por coma)</label>
-                  <textarea className="form-input" rows={2} value={nuevosJugadoresText} onChange={e => setNuevosJugadoresText(e.target.value)} />
+
+                <div className="form-group" style={{ borderTop: '1px solid var(--border)', paddingTop: 10 }}>
+                  <label className="form-label" style={{ color: 'var(--bronze-light)' }}>Captura de Jugadores y Hándicaps</label>
+                  <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                    <input
+                      type="text"
+                      className="form-input"
+                      style={{ flex: 2 }}
+                      placeholder="Nombre del jugador"
+                      value={nombreTmpJugador}
+                      onChange={e => setNombreTmpJugador(e.target.value)}
+                    />
+                    <input
+                      type="number"
+                      className="form-input"
+                      style={{ flex: 1 }}
+                      placeholder="Pts"
+                      value={ptsTmpJugador}
+                      onChange={e => setPtsTmpJugador(parseInt(e.target.value) || 0)}
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => {
+                        if (!nombreTmpJugador.trim()) {
+                          showToast('Ingrese un nombre válido', 'warning');
+                          return;
+                        }
+                        if (listaNuevosJugadores.some(j => j.nombre.toLowerCase() === nombreTmpJugador.trim().toLowerCase())) {
+                          showToast('El jugador ya está en la lista', 'warning');
+                          return;
+                        }
+                        setListaNuevosJugadores([...listaNuevosJugadores, { nombre: nombreTmpJugador.trim(), puntosInicio: ptsTmpJugador }]);
+                        setNombreTmpJugador('');
+                        setPtsTmpJugador(0);
+                      }}
+                    >
+                      Añadir
+                    </button>
+                  </div>
+
+                  <div style={{ maxHeight: 100, overflowY: 'auto', background: 'var(--bg-elevated)', borderRadius: 8, padding: 8, border: '1px solid var(--border)' }}>
+                    {listaNuevosJugadores.length === 0 ? (
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center' }}>No hay jugadores agregados.</div>
+                    ) : (
+                      listaNuevosJugadores.map((j, i) => (
+                        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0', borderBottom: '1px solid rgba(255,255,255,0.03)', fontSize: 12 }}>
+                          <span>{j.nombre} <span style={{ color: 'var(--bronze-light)' }}>({j.puntosInicio} pts inic.)</span></span>
+                          <button
+                            type="button"
+                            style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', fontSize: 14 }}
+                            onClick={() => setListaNuevosJugadores(listaNuevosJugadores.filter((_, idx) => idx !== i))}
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                <div className="form-group" style={{ borderTop: '1px solid var(--border)', paddingTop: 10 }}>
+                  <label className="form-label" style={{ color: 'var(--bronze-light)' }}>Seleccionar Mesas para el Torneo *</label>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, maxHeight: 100, overflowY: 'auto', background: 'var(--bg-elevated)', borderRadius: 8, padding: 8, border: '1px solid var(--border)' }}>
+                    {mesas.map(m => (
+                      <label key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={mesasSeleccionadas.includes(m.id)}
+                          onChange={e => {
+                            if (e.target.checked) {
+                              setMesasSeleccionadas([...mesasSeleccionadas, m.id]);
+                            } else {
+                              setMesasSeleccionadas(mesasSeleccionadas.filter(id => id !== m.id));
+                            }
+                          }}
+                          style={{ accentColor: 'var(--bronze)' }}
+                        />
+                        <span>{m.nombre} ({m.tipo})</span>
+                      </label>
+                    ))}
+                  </div>
                 </div>
               </div>
               <div className="modal-footer">
@@ -613,13 +939,17 @@ export default function TorneosPanel({ showToast }) {
           <div className="modal" style={{ maxWidth: 400 }} onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <span className="modal-title">Inscribir Jugador</span>
-              <button onClick={() => setShowRegistrarJugador(false)} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 20 }}>✕</button>
+              <button type="button" onClick={() => setShowRegistrarJugador(false)} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 20 }}>✕</button>
             </div>
             <form onSubmit={handleRegistrarJugador}>
-              <div className="modal-body">
+              <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 <div className="form-group">
                   <label className="form-label">Nombre del Jugador</label>
                   <input className="form-input" required placeholder="Ej: Roberto Gomez" value={nuevoJugadorNombre} onChange={e => setNuevoJugadorNombre(e.target.value)} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Puntos Iniciales (Hándicap)</label>
+                  <input className="form-input" type="number" min={0} value={nuevoJugadorPts} onChange={e => setNuevoJugadorPts(parseInt(e.target.value) || 0)} />
                 </div>
               </div>
               <div className="modal-footer">
@@ -636,40 +966,50 @@ export default function TorneosPanel({ showToast }) {
         <div className="modal-overlay" onClick={() => setShowRegistrarPartida(false)}>
           <div className="modal" style={{ maxWidth: 450 }} onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <span className="modal-title">Registrar Partida</span>
-              <button onClick={() => setShowRegistrarPartida(false)} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 20 }}>✕</button>
+              <span className="modal-title">{partidaAEditar ? 'Cargar Marcador' : 'Registrar Partida'}</span>
+              <button type="button" onClick={() => setShowRegistrarPartida(false)} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 20 }}>✕</button>
             </div>
             <form onSubmit={handleRegistrarPartida}>
               <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-                  {/* Jugador 1 */}
-                  <div className="form-group">
-                    <label className="form-label">Jugador 1</label>
-                    <select className="form-select" value={partidaJ1} onChange={e => setPartidaJ1(e.target.value)}>
-                      <option value="">-- Seleccionar --</option>
-                      {torneoActivo.ranking.map(r => (
-                        <option key={r.nombre} value={r.nombre}>{r.nombre} (ELO: {r.elo})</option>
-                      ))}
-                    </select>
+                {partidaAEditar ? (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-elevated)', borderRadius: 10, padding: 12, border: '1px solid var(--border)' }}>
+                    <div style={{ textAlign: 'center', flex: 1 }}>
+                      <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>JUGADOR 1</div>
+                      <div style={{ fontSize: 14, fontWeight: 700 }}>{partidaJ1}</div>
+                    </div>
+                    <div style={{ fontSize: 14, fontWeight: 900, color: 'var(--bronze-light)' }}>VS</div>
+                    <div style={{ textAlign: 'center', flex: 1 }}>
+                      <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>JUGADOR 2</div>
+                      <div style={{ fontSize: 14, fontWeight: 700 }}>{partidaJ2}</div>
+                    </div>
                   </div>
-                  {/* Jugador 2 */}
-                  <div className="form-group">
-                    <label className="form-label">Jugador 2</label>
-                    <select className="form-select" value={partidaJ2} onChange={e => setPartidaJ2(e.target.value)}>
-                      <option value="">-- Seleccionar --</option>
-                      {torneoActivo.ranking.map(r => (
-                        <option key={r.nombre} value={r.nombre}>{r.nombre} (ELO: {r.elo})</option>
-                      ))}
-                    </select>
+                ) : (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                    <div className="form-group">
+                      <label className="form-label">Jugador 1</label>
+                      <select className="form-select" value={partidaJ1} onChange={e => setPartidaJ1(e.target.value)}>
+                        <option value="">-- Seleccionar --</option>
+                        {torneoActivo.ranking.map(r => (
+                          <option key={r.nombre} value={r.nombre}>{r.nombre} (ELO: {r.elo})</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Jugador 2</label>
+                      <select className="form-select" value={partidaJ2} onChange={e => setPartidaJ2(e.target.value)}>
+                        <option value="">-- Seleccionar --</option>
+                        {torneoActivo.ranking.map(r => (
+                          <option key={r.nombre} value={r.nombre}>{r.nombre} (ELO: {r.elo})</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
-                </div>
+                )}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-                  {/* Score J1 */}
                   <div className="form-group">
                     <label className="form-label">Marcador J1</label>
                     <input className="form-input" type="number" min={0} value={scoreJ1} onChange={e => setScoreJ1(e.target.value)} />
                   </div>
-                  {/* Score J2 */}
                   <div className="form-group">
                     <label className="form-label">Marcador J2</label>
                     <input className="form-input" type="number" min={0} value={scoreJ2} onChange={e => setScoreJ2(e.target.value)} />
