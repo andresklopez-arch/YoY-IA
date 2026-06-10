@@ -304,6 +304,49 @@ function CocinaContent() {
     }
   };
 
+  // ── COPIAR FALTANTES WHATSAPP ────────────────────────────
+  const copiarFaltantesWhatsApp = () => {
+    const faltantes = insumos.filter(ins => ins.nivelActual <= ins.nivelMin);
+    const bajos = insumos.filter(ins => ins.nivelActual > ins.nivelMin && ins.nivelActual <= ins.nivelMin * 1.5);
+
+    if (faltantes.length === 0 && bajos.length === 0) {
+      alert('¡Todo está en orden! No hay insumos en nivel bajo o faltante.');
+      return;
+    }
+
+    let texto = `*⚠️ REPORTE DE INSUMOS DE COCINA - YOY IA BILLAR*\n`;
+    texto += `Fecha: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}\n\n`;
+
+    if (faltantes.length > 0) {
+      texto += `*❌ INSUMOS FALTANTES (CRÍTICOS):*\n`;
+      faltantes.forEach(ins => {
+        texto += `- ${ins.nombre}: ${ins.nivelActual}/${ins.nivelOptimo} ${ins.unidad} (Mín: ${ins.nivelMin})\n`;
+      });
+      texto += `\n`;
+    }
+
+    if (bajos.length > 0) {
+      texto += `*🚨 INSUMOS BAJOS:*\n`;
+      bajos.forEach(ins => {
+        texto += `- ${ins.nombre}: ${ins.nivelActual}/${ins.nivelOptimo} ${ins.unidad} (Mín: ${ins.nivelMin})\n`;
+      });
+      texto += `\n`;
+    }
+
+    texto += `Por favor surtir lo antes posible. ¡Gracias!`;
+
+    navigator.clipboard.writeText(texto)
+      .then(() => {
+        const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(texto)}`;
+        window.open(url, '_blank');
+      })
+      .catch(err => {
+        console.error('Error al copiar al portapapeles: ', err);
+        const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(texto)}`;
+        window.open(url, '_blank');
+      });
+  };
+
   // ── FILTROS INVENTARIO ───────────────────────────────────
   const productosFiltrados = productos.filter(p => {
     const catOk = filtroCat === 'Todas' || p.categoria === filtroCat;
@@ -555,13 +598,28 @@ function CocinaContent() {
                   Registra qué insumos hacen falta y controla sus niveles de manera muy visual
                 </p>
               </div>
-              <button
-                className="btn btn-primary"
-                onClick={() => setShowInsumoModal(true)}
-                style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, padding: '8px 16px' }}
-              >
-                <i className="ri-add-line" /> Agregar Insumo
-              </button>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button
+                  onClick={copiarFaltantesWhatsApp}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, padding: '8px 16px',
+                    background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.3)',
+                    borderRadius: 10, cursor: 'pointer', color: 'var(--success)', fontWeight: 700,
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(34,197,94,0.25)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'rgba(34,197,94,0.15)'}
+                >
+                  📋 Copiar Faltantes WhatsApp
+                </button>
+                <button
+                  className="btn btn-primary"
+                  onClick={() => setShowInsumoModal(true)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, padding: '8px 16px' }}
+                >
+                  <i className="ri-add-line" /> Agregar Insumo
+                </button>
+              </div>
             </div>
 
             {/* Listado Visual de Insumos */}
