@@ -44,6 +44,38 @@ function CocinaContent() {
   // Estados de formularios/modales para insumos
   const [showInsumoModal, setShowInsumoModal] = useState(false);
   const [newInsumo, setNewInsumo] = useState({ nombre: '', nivelActual: 10, nivelMin: 5, nivelOptimo: 20, unidad: 'pz', categoria: 'Comida' });
+  const [isClosing, setIsClosing] = useState(false);
+
+  const handleCloseInsumoModal = () => {
+    const isModified = newInsumo.nombre !== '' || 
+                      newInsumo.nivelActual !== 10 || 
+                      newInsumo.nivelMin !== 5 || 
+                      newInsumo.nivelOptimo !== 20 || 
+                      newInsumo.unidad !== 'pz' || 
+                      newInsumo.categoria !== 'Comida';
+    if (isModified) {
+      sessionStorage.setItem('yoy_draft_new_insumo', JSON.stringify(newInsumo));
+    }
+    setIsClosing(true);
+    setTimeout(() => {
+      setShowInsumoModal(false);
+      setIsClosing(false);
+      setNewInsumo({ nombre: '', nivelActual: 10, nivelMin: 5, nivelOptimo: 20, unidad: 'pz', categoria: 'Comida' });
+    }, 150);
+  };
+
+  useEffect(() => {
+    if (showInsumoModal) {
+      const draft = sessionStorage.getItem('yoy_draft_new_insumo');
+      if (draft) {
+        try {
+          const parsed = JSON.parse(draft);
+          setNewInsumo(parsed);
+          sessionStorage.removeItem('yoy_draft_new_insumo');
+        } catch (e) {}
+      }
+    }
+  }, [showInsumoModal]);
 
   // 1. Escuchar pedidos pendientes de cocina
   useEffect(() => {
@@ -177,6 +209,7 @@ function CocinaContent() {
             (document.activeElement.tagName === 'INPUT' || 
              document.activeElement.tagName === 'SELECT' || 
              document.activeElement.tagName === 'TEXTAREA')) {
+          e.preventDefault();
           const activeEl = document.activeElement;
           activeEl.blur();
           
@@ -212,12 +245,12 @@ function CocinaContent() {
             return;
           }
         }
-        setShowInsumoModal(false);
+        handleCloseInsumoModal();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [showInsumoModal, newInsumo]);
+  }, [showInsumoModal, newInsumo, handleCloseInsumoModal]);
 
   // ── ACCIONES DE PEDIDO ───────────────────────────────────
   const marcarAtendido = async (id) => {
@@ -780,20 +813,19 @@ function CocinaContent() {
         )}
       </div>
 
-      {/* ── MODAL AGREGAR INSUMO ── */}
       {showInsumoModal && (
-        <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
-          backdropFilter: 'blur(5px)'
-        }}>
-          <div className="card" style={{ width: '100%', maxWidth: 450, padding: 24, border: '1px solid var(--border-bronze)', boxShadow: 'var(--shadow-bronze)', animation: 'fadeIn 0.25s ease', textAlign: 'left' }}>
+        <div 
+          className={`modal-overlay ${isClosing ? 'modal-closing' : ''}`}
+          style={{ background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(5px)', zIndex: 1000 }}
+          onClick={handleCloseInsumoModal}
+        >
+          <div className="card modal" style={{ width: '100%', maxWidth: 450, padding: 24, border: '1px solid var(--border-bronze)', boxShadow: 'var(--shadow-bronze)', animation: 'fadeIn 0.25s ease', textAlign: 'left' }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
               <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0, textTransform: 'uppercase', letterSpacing: '0.1em' }} className="gradient-bronze">
                 <i className="ri-add-box-line" style={{ marginRight: 8 }} />Nuevo Insumo de Cocina
               </h3>
               <button
-                onClick={() => setShowInsumoModal(false)}
+                onClick={handleCloseInsumoModal}
                 style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 20 }}
               >
                 <i className="ri-close-line" />
@@ -886,7 +918,7 @@ function CocinaContent() {
                   type="button"
                   className="btn btn-secondary"
                   style={{ flex: 1, background: 'var(--bg-elevated)', color: 'var(--text-secondary)' }}
-                  onClick={() => setShowInsumoModal(false)}
+                  onClick={handleCloseInsumoModal}
                 >
                   Cancelar
                 </button>

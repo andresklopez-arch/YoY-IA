@@ -23,6 +23,35 @@ function MeseroContent() {
   const [capturaMesaId, setCapturaMesaId] = useState('1');
   const [capturaCarrito, setCapturaCarrito] = useState({}); // { prodId: cant }
   const [productosBar, setProductosBar] = useState([]);
+  const [isClosing, setIsClosing] = useState(false);
+
+  const handleCloseCapturarModal = () => {
+    if (Object.keys(capturaCarrito).length > 0) {
+      sessionStorage.setItem('yoy_draft_mesero_carrito', JSON.stringify({ capturaMesaId, capturaCarrito }));
+    }
+    setIsClosing(true);
+    setTimeout(() => {
+      setShowCapturarModal(false);
+      setIsClosing(false);
+      setCapturaCarrito({});
+    }, 150);
+  };
+
+  useEffect(() => {
+    if (showCapturarModal) {
+      const draft = sessionStorage.getItem('yoy_draft_mesero_carrito');
+      if (draft) {
+        try {
+          const parsed = JSON.parse(draft);
+          if (parsed.capturaCarrito && Object.keys(parsed.capturaCarrito).length > 0) {
+            setCapturaMesaId(parsed.capturaMesaId);
+            setCapturaCarrito(parsed.capturaCarrito);
+          }
+          sessionStorage.removeItem('yoy_draft_mesero_carrito');
+        } catch (e) {}
+      }
+    }
+  }, [showCapturarModal]);
   
   // Alertas de asistencia activa para ventana emergente
   const [alertasAsistencia, setAlertasAsistencia] = useState([]);
@@ -227,6 +256,7 @@ function MeseroContent() {
             (document.activeElement.tagName === 'INPUT' || 
              document.activeElement.tagName === 'SELECT' || 
              document.activeElement.tagName === 'TEXTAREA')) {
+          e.preventDefault();
           const activeEl = document.activeElement;
           activeEl.blur();
           
@@ -255,12 +285,12 @@ function MeseroContent() {
             return;
           }
         }
-        setShowCapturarModal(false);
+        handleCloseCapturarModal();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [showCapturarModal, capturaCarrito]);
+  }, [showCapturarModal, capturaCarrito, handleCloseCapturarModal]);
 
   // ── Acciones del mesero ───────────────────────────────────
   const marcarEnCamino = async (id) => {
@@ -625,11 +655,11 @@ function MeseroContent() {
 
       {/* ── MODAL: CAPTURAR VENTA DIRECTA (MESERO) ── */}
       {showCapturarModal && (
-        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setShowCapturarModal(false)} style={{ zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)' }}>
+        <div className={`modal-overlay ${isClosing ? 'modal-closing' : ''}`} onClick={e => e.target === e.currentTarget && handleCloseCapturarModal()} style={{ zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)' }}>
           <div className="modal" style={{ maxWidth: 640 }}>
             <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span className="modal-title">🛍️ Capturar Venta Directa</span>
-              <button onClick={() => setShowCapturarModal(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 20, cursor: 'pointer' }}><i className="ri-close-line" /></button>
+              <button onClick={handleCloseCapturarModal} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 20, cursor: 'pointer' }}><i className="ri-close-line" /></button>
             </div>
             
             <div className="modal-body" style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 20, maxHeight: '60vh', overflowY: 'auto' }}>
@@ -711,7 +741,7 @@ function MeseroContent() {
             </div>
             
             <div className="modal-footer" style={{ borderTop: '1px solid var(--border)', paddingTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
-              <button className="btn btn-secondary" onClick={() => setShowCapturarModal(false)}>Cancelar</button>
+              <button className="btn btn-secondary" onClick={handleCloseCapturarModal}>Cancelar</button>
             </div>
           </div>
         </div>

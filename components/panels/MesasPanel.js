@@ -1603,7 +1603,15 @@ export default function MesasPanel({ showToast }) {
           setNuevoMetodo={setNuevoMetodo}
           pinAutorizacion={pinAutorizacion}
           setPinAutorizacion={setPinAutorizacion}
-          onClose={() => setMostrarCobroManual(false)}
+          onClose={() => {
+            if (nuevoMonto || nuevaDesc) {
+              sessionStorage.setItem('yoy_draft_cobro_manual', JSON.stringify({ nuevoMonto, nuevaDesc }));
+            }
+            setMostrarCobroManual(false);
+            setNuevoMonto('');
+            setNuevaDesc('');
+            setPinAutorizacion('');
+          }}
           onConfirm={registrarCobroManual}
         />
       )}
@@ -2524,6 +2532,12 @@ function ModalCambiarMesa({ mesa, mesas, onClose, onConfirm }) {
 // ── MODAL VINCULAR CLIENTE ───────────────────────────────
 function ModalVincularCliente({ mesa, onClose, onConfirm }) {
   const [nombre, setNombre] = useState(mesa.cliente || '');
+  const [isClosing, setIsClosing] = useState(false);
+
+  const handleClose = () => {
+    setIsClosing(true);
+    setTimeout(onClose, 150);
+  };
 
   useEffect(() => {
     let lastBlurTime = 0;
@@ -2534,6 +2548,7 @@ function ModalVincularCliente({ mesa, onClose, onConfirm }) {
             (document.activeElement.tagName === 'INPUT' || 
              document.activeElement.tagName === 'SELECT' || 
              document.activeElement.tagName === 'TEXTAREA')) {
+          e.preventDefault();
           const activeEl = document.activeElement;
           activeEl.blur();
           
@@ -2562,7 +2577,7 @@ function ModalVincularCliente({ mesa, onClose, onConfirm }) {
             return;
           }
         }
-        onClose();
+        handleClose();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -2570,11 +2585,11 @@ function ModalVincularCliente({ mesa, onClose, onConfirm }) {
   }, [nombre, mesa.cliente, onClose]);
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className={`modal-overlay ${isClosing ? 'modal-closing' : ''}`} onClick={handleClose}>
       <div className="modal" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <span className="modal-title"><i className="ri-user-add-line" style={{ marginRight: 8 }} />Asignar Cliente / Editar Nombre</span>
-          <button onClick={onClose} className="btn-icon btn btn-secondary" style={{ background: 'none', border: 'none' }}>
+          <button onClick={handleClose} className="btn-icon btn btn-secondary" style={{ background: 'none', border: 'none' }}>
             <i className="ri-close-line" style={{ fontSize: 20 }} />
           </button>
         </div>
@@ -2585,7 +2600,7 @@ function ModalVincularCliente({ mesa, onClose, onConfirm }) {
           </div>
         </div>
         <div className="modal-footer">
-          <button className="btn btn-secondary" onClick={onClose}>Cancelar</button>
+          <button className="btn btn-secondary" onClick={handleClose}>Cancelar</button>
           <button className="btn btn-primary" onClick={() => onConfirm(nombre)}>
             Guardar Cliente
           </button>
@@ -2663,6 +2678,28 @@ function ModalRegistrarComanda({ mesas, setMesas, cuentasActivas, setCuentasActi
   const [destinoId, setDestinoId] = useState('');
   const [carrito, setCarrito] = useState([]);
   const [productos, setProductos] = useState([]);
+  const [isClosing, setIsClosing] = useState(false);
+
+  const handleClose = () => {
+    if (carrito.length > 0) {
+      sessionStorage.setItem('yoy_draft_comanda_carrito', JSON.stringify(carrito));
+    }
+    setIsClosing(true);
+    setTimeout(onClose, 150);
+  };
+
+  useEffect(() => {
+    const draft = sessionStorage.getItem('yoy_draft_comanda_carrito');
+    if (draft) {
+      try {
+        const parsed = JSON.parse(draft);
+        if (parsed && parsed.length > 0) {
+          setCarrito(parsed);
+        }
+        sessionStorage.removeItem('yoy_draft_comanda_carrito');
+      } catch (e) {}
+    }
+  }, []);
 
   useEffect(() => {
     let lastBlurTime = 0;
@@ -2673,6 +2710,7 @@ function ModalRegistrarComanda({ mesas, setMesas, cuentasActivas, setCuentasActi
             (document.activeElement.tagName === 'INPUT' || 
              document.activeElement.tagName === 'SELECT' || 
              document.activeElement.tagName === 'TEXTAREA')) {
+          e.preventDefault();
           const activeEl = document.activeElement;
           activeEl.blur();
           
@@ -2701,7 +2739,7 @@ function ModalRegistrarComanda({ mesas, setMesas, cuentasActivas, setCuentasActi
             return;
           }
         }
-        onClose();
+        handleClose();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -2922,14 +2960,14 @@ function ModalRegistrarComanda({ mesas, setMesas, cuentasActivas, setCuentasActi
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className={`modal-overlay ${isClosing ? 'modal-closing' : ''}`} onClick={handleClose}>
       <div className="modal" style={{ maxWidth: 740 }} onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <span className="modal-title">
             <i className="ri-cup-line" style={{ marginRight: 8, color: 'var(--bronze-light)' }} />
             Registrar Comanda de Consumo
           </span>
-          <button onClick={onClose} className="btn-icon btn btn-secondary" style={{ background: 'none', border: 'none' }}>
+          <button onClick={handleClose} className="btn-icon btn btn-secondary" style={{ background: 'none', border: 'none' }}>
             <i className="ri-close-line" style={{ fontSize: 20 }} />
           </button>
         </div>
@@ -3050,7 +3088,7 @@ function ModalRegistrarComanda({ mesas, setMesas, cuentasActivas, setCuentasActi
                 <span style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 700, color: 'var(--text-primary)' }}>${total} MXN</span>
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
-                <button className="btn btn-secondary" style={{ flex: 1, padding: '8px' }} onClick={onClose}>Cancelar</button>
+                <button className="btn btn-secondary" style={{ flex: 1, padding: '8px' }} onClick={handleClose}>Cancelar</button>
                 <button
                   className="btn btn-primary"
                   style={{ flex: 2, padding: '8px' }}
@@ -3070,6 +3108,29 @@ function ModalRegistrarComanda({ mesas, setMesas, cuentasActivas, setCuentasActi
 
 // ── MODAL COBRO MANUAL ───────────────────────────────────
 function ModalCobroManual({ nuevoMonto, setNuevoMonto, nuevaDesc, setNuevaDesc, nuevoMetodo, setNuevoMetodo, pinAutorizacion, setPinAutorizacion, onClose, onConfirm }) {
+  const [isClosing, setIsClosing] = useState(false);
+
+  const handleClose = () => {
+    setIsClosing(true);
+    setTimeout(onClose, 150);
+  };
+
+  useEffect(() => {
+    const draft = sessionStorage.getItem('yoy_draft_cobro_manual');
+    if (draft) {
+      try {
+        const parsed = JSON.parse(draft);
+        if (parsed.nuevoMonto || parsed.nuevaDesc) {
+          if (!nuevoMonto && !nuevaDesc) {
+            setNuevoMonto(parsed.nuevoMonto);
+            setNuevaDesc(parsed.nuevaDesc);
+          }
+        }
+        sessionStorage.removeItem('yoy_draft_cobro_manual');
+      } catch (e) {}
+    }
+  }, []);
+
   useEffect(() => {
     let lastBlurTime = 0;
     const handleKeyDown = (e) => {
@@ -3079,6 +3140,7 @@ function ModalCobroManual({ nuevoMonto, setNuevoMonto, nuevaDesc, setNuevaDesc, 
             (document.activeElement.tagName === 'INPUT' || 
              document.activeElement.tagName === 'SELECT' || 
              document.activeElement.tagName === 'TEXTAREA')) {
+          e.preventDefault();
           const activeEl = document.activeElement;
           activeEl.blur();
           
@@ -3107,7 +3169,7 @@ function ModalCobroManual({ nuevoMonto, setNuevoMonto, nuevaDesc, setNuevaDesc, 
             return;
           }
         }
-        onClose();
+        handleClose();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -3115,14 +3177,14 @@ function ModalCobroManual({ nuevoMonto, setNuevoMonto, nuevaDesc, setNuevaDesc, 
   }, [nuevoMonto, nuevaDesc, pinAutorizacion, onClose]);
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className={`modal-overlay ${isClosing ? 'modal-closing' : ''}`} onClick={handleClose}>
       <div className="modal" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <span className="modal-title">
             <i className="ri-add-circle-line" style={{ marginRight: 8, color: 'var(--bronze-light)' }} />
             Registrar Cobro Manual
           </span>
-          <button onClick={onClose} className="btn-icon btn btn-secondary" style={{ background: 'none', border: 'none' }}>
+          <button onClick={handleClose} className="btn-icon btn btn-secondary" style={{ background: 'none', border: 'none' }}>
             <i className="ri-close-line" style={{ fontSize: 20 }} />
           </button>
         </div>
@@ -3160,7 +3222,7 @@ function ModalCobroManual({ nuevoMonto, setNuevoMonto, nuevaDesc, setNuevaDesc, 
           </div>
         </div>
         <div className="modal-footer">
-          <button className="btn btn-secondary" onClick={onClose}>Cancelar</button>
+          <button className="btn btn-secondary" onClick={handleClose}>Cancelar</button>
           <button className="btn btn-primary" onClick={onConfirm}>Registrar</button>
         </div>
       </div>

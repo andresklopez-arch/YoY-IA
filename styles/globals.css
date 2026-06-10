@@ -762,6 +762,13 @@ tbody td {
   animation: slideUp 0.25s ease;
 }
 
+.modal-overlay.modal-closing {
+  animation: fadeOut 0.15s ease forwards;
+}
+.modal-overlay.modal-closing .modal {
+  animation: slideDownOut 0.15s ease forwards;
+}
+
 .modal-header {
   display: flex;
   align-items: center;
