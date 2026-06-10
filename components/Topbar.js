@@ -49,6 +49,10 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
 
   useEffect(() => {
     const handleKeyDown = (e) => {
+      const activeEl = document.activeElement;
+      if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.isContentEditable)) {
+        return;
+      }
       if (e.altKey && !isNaN(e.key) && e.key >= '1' && e.key <= '8') {
         const index = parseInt(e.key) - 1;
         const target = QUICK_NAV_TARGETS[index];
@@ -167,6 +171,7 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
                     bottom: -8,
                     left: '50%',
                     transform: 'translateX(-50%)',
+                    animation: 'activeDotPop 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards'
                   }} />
                 )}
                 {a.badge > 0 && (
@@ -181,7 +186,12 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
                   }}>{a.badge}</span>
                 )}
               </div>
-              <span className="topbar-quick-label">{a.label}</span>
+              <span className="topbar-quick-label" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', lineHeight: 1.1 }}>
+                <span>{a.label}</span>
+                <span style={{ fontSize: 8, color: 'var(--text-muted)', fontWeight: 500, marginTop: 1 }}>
+                  {a.shortcut}
+                </span>
+              </span>
             </button>
           );
         })}
