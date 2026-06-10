@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { db } from '@/lib/firebase';
-import { collection, getDocs, addDoc, query, orderBy, deleteDoc, doc, where } from 'firebase/firestore';
+import { collection, getDocs, addDoc, query, orderBy, deleteDoc, doc, where, setDoc, serverTimestamp } from 'firebase/firestore';
 
 // ── UTILIDADES DE ENCRIPTACIÓN/OFUSCACIÓN DE MESAS ────────────────
 const getSignature = (str, secret) => {
@@ -9,6 +9,16 @@ const getSignature = (str, secret) => {
   const combined = str + secret;
   for (let i = 0; i < combined.length; i++) {
     hash = (hash << 5) - hash + combined.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash).toString(16);
+};
+
+const hashPassword = (pwd) => {
+  if (!pwd) return '';
+  let hash = 0;
+  for (let i = 0; i < pwd.length; i++) {
+    hash = (hash << 5) - hash + pwd.charCodeAt(i);
     hash |= 0;
   }
   return Math.abs(hash).toString(16);
@@ -117,8 +127,13 @@ export default function ConfigPanel({ showToast }) {
     showConsumos: true,
     showCliente: true,
     showCuenta: true,
+    showQrRecibo: true,
     fontSize: '14px',
   });
+
+  const [actualPin, setActualPin] = useState('');
+  const [nuevoPin, setNuevoPin] = useState('');
+  const [confirmarPin, setConfirmarPin] = useState('');
 
   const fetchUsuarios = async () => {
     setLoadingUsuarios(true);
@@ -246,6 +261,47 @@ export default function ConfigPanel({ showToast }) {
     { name: 'Cajero Principal', email: 'cajero@yoybillar.mx', role: 'cajero' },
     { name: 'Mesero #1', email: 'mesero@yoybillar.mx', role: 'mesero' },
   ];
+
+  const handleChangePin = async (e) => {
+    e.preventDefault();
+    if (!actualPin || !nuevoPin || !confirmarPin) {
+      showToast('Completa todos los campos para cambiar el PIN', 'warning');
+      return;
+    }
+    const actualHash = hashPassword(actualPin);
+    let savedHash = '170842';
+    if (typeof window !== 'undefined') {
+      const localHash = localStorage.getItem('yoy_admin_pin_hash');
+      if (localHash) savedHash = localHash;
+    }
+    if (actualHash !== savedHash) {
+      showToast('El PIN actual de administrador es incorrecto', 'danger');
+      return;
+    }
+    if (nuevoPin !== confirmarPin) {
+      showToast('Los nuevos PINs no coinciden', 'warning');
+      return;
+    }
+    if (nuevoPin.length < 4) {
+      showToast('El PIN debe tener al menos 4 caracteres', 'warning');
+      return;
+    }
+    const newHash = hashPassword(nuevoPin);
+    try {
+      localStorage.setItem('yoy_admin_pin_hash', newHash);
+      await setDoc(doc(db, 'config', 'seguridad'), {
+        adminPinHash: newHash,
+        updatedAt: serverTimestamp()
+      });
+      showToast('¡PIN de Administrador cambiado con éxito!', 'success');
+      setActualPin('');
+      setNuevoPin('');
+      setConfirmarPin('');
+    } catch (err) {
+      console.error(err);
+      showToast('Error al guardar el PIN en la base de datos (se guardó de forma local)', 'warning');
+    }
+  };
 
   const handleSaveMesa = (e) => {
     e.preventDefault();
@@ -737,6 +793,56 @@ export default function ConfigPanel({ showToast }) {
             ))}
           </div>
         </div>
+
+        {/* Cambiar PIN de Administrador */}
+        <div className="card">
+          <div className="card-header" style={{ marginBottom: 20 }}>
+            <h3 className="card-title"><i className="ri-shield-keyhole-line" style={{ marginRight: 6 }} />PIN de Administrador</h3>
+          </div>
+          <form onSubmit={handleChangePin} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div className="form-group">
+              <label className="form-label">PIN de Administrador Actual</label>
+              <input
+                type="password"
+                className="form-input"
+                placeholder="••••"
+                value={actualPin}
+                onChange={e => setActualPin(e.target.value)}
+                maxLength={8}
+                required
+              />
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <div className="form-group">
+                <label className="form-label">Nuevo PIN</label>
+                <input
+                  type="password"
+                  className="form-input"
+                  placeholder="Ej: 4321"
+                  value={nuevoPin}
+                  onChange={e => setNuevoPin(e.target.value)}
+                  maxLength={8}
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Confirmar PIN</label>
+                <input
+                  type="password"
+                  className="form-input"
+                  placeholder="Confirmar"
+                  value={confirmarPin}
+                  onChange={e => setConfirmarPin(e.target.value)}
+                  maxLength={8}
+                  required
+                />
+              </div>
+            </div>
+            <button type="submit" className="btn btn-primary">
+              <i className="ri-lock-unlock-line" /> Guardar Nuevo PIN
+            </button>
+          </form>
+        </div>
       </div>
 
       {/* Diseño de Impresión de Tickets Térmicos */}
@@ -757,6 +863,7 @@ export default function ConfigPanel({ showToast }) {
                 { id: 'showCliente', label: 'Nombre del Cliente' },
                 { id: 'showCuenta', label: 'ID de la Cuenta' },
                 { id: 'showConsumos', label: 'Detalle de Consumos' },
+                { id: 'showQrRecibo', label: 'QR de Ticket Digital' },
               ].map(item => (
                 <label key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: 'var(--bg-elevated)', borderRadius: 10, border: '1px solid var(--border)', cursor: 'pointer' }}>
                   <input
@@ -840,6 +947,19 @@ export default function ConfigPanel({ showToast }) {
                 <span>TOTAL:</span>
                 <span>$235.00 MXN</span>
               </div>
+
+              {ticketConfig.showQrRecibo && (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', margin: '10px 0' }}>
+                  <img
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent('https://yoy-ia-billar.vercel.app/recibo/1024')}`}
+                    width="80"
+                    height="80"
+                    style={{ border: '1px solid #ccc', padding: 2, background: '#fff' }}
+                    alt="QR Recibo"
+                  />
+                  <span style={{ fontSize: '8px', color: '#666', marginTop: 4 }}>Escanea para ver ticket digital</span>
+                </div>
+              )}
 
               <div style={{ borderBottom: '1px dashed #000', margin: '8px 0' }} />
               

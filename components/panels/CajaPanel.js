@@ -1,5 +1,7 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { db } from '@/lib/firebase';
+import { doc, onSnapshot } from 'firebase/firestore';
 
 const TRANSACCIONES = [
   { id: 1, tipo: 'mesa', descripcion: 'Mesa 2 - 1.5h', cliente: 'Carlos R.', monto: 120, metodo: 'efectivo', hora: '14:30', color: 'var(--success)' },
@@ -15,9 +17,21 @@ const METODO_ICONS = {
   tarjeta:  'ri-bank-card-line',
 };
 
+// ── HASH DE CONTRASEÑA ───────────────────────────────────
+const hashPassword = (pwd) => {
+  if (!pwd) return '';
+  let hash = 0;
+  for (let i = 0; i < pwd.length; i++) {
+    hash = (hash << 5) - hash + pwd.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash).toString(16);
+};
+
 export default function CajaPanel({ showToast }) {
   const [isAdminUnlocked, setIsAdminUnlocked] = useState(false);
   const [adminPassword, setAdminPassword] = useState('');
+  const [adminPinHash, setAdminPinHash] = useState('170842'); // Hash of '1234'
   const [cobros, setCobros] = useState(TRANSACCIONES);
   const [mostrarCobroManual, setMostrarCobroManual] = useState(false);
   const [nuevoMonto, setNuevoMonto] = useState('');
@@ -29,6 +43,49 @@ export default function CajaPanel({ showToast }) {
   const [cantidades, setCantidades] = useState({
     1000: '', 500: '', 200: '', 100: '', 50: '', 20: '', 10: '', 5: '', 2: '', 1: '', 0.5: ''
   });
+
+  // Escuchar PIN de Administrador desde Firestore config/seguridad
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, 'config', 'seguridad'), snap => {
+      if (snap.exists() && snap.data().adminPinHash) {
+        const hash = snap.data().adminPinHash;
+        setAdminPinHash(hash);
+        localStorage.setItem('yoy_admin_pin_hash', hash);
+      } else {
+        if (typeof window !== 'undefined') {
+          const localHash = localStorage.getItem('yoy_admin_pin_hash');
+          if (localHash) setAdminPinHash(localHash);
+        }
+      }
+    }, err => {
+      console.warn("Firestore seguridad sync error (offline fallback):", err);
+      if (typeof window !== 'undefined') {
+        const localHash = localStorage.getItem('yoy_admin_pin_hash');
+        if (localHash) setAdminPinHash(localHash);
+      }
+    });
+    return unsub;
+  }, []);
+
+  // Cargar borrador de corte de caja en mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const draft = localStorage.getItem('yoy_caja_corte_draft');
+      if (draft) {
+        try {
+          setCantidades(JSON.parse(draft));
+        } catch (e) {
+          console.error(e);
+        }
+      }
+    }
+  }, []);
+
+  const handleCantidadChange = (den, val) => {
+    const updated = { ...cantidades, [den]: val };
+    setCantidades(updated);
+    localStorage.setItem('yoy_caja_corte_draft', JSON.stringify(updated));
+  };
 
   const totalHoy = cobros.filter(t => t.monto > 0).reduce((s, t) => s + t.monto, 0);
   const totalGastos = Math.abs(cobros.filter(t => t.monto < 0).reduce((s, t) => s + t.monto, 0));
@@ -42,9 +99,10 @@ export default function CajaPanel({ showToast }) {
   const diferencia = sumaContada - totalEfectivoEsperado;
 
   const handleUnlockAdmin = () => {
-    if (adminPassword === '1234') {
+    if (hashPassword(adminPassword) === adminPinHash) {
       setIsAdminUnlocked(true);
       showToast('Acceso administrador autorizado', 'success');
+      setAdminPassword('');
     } else {
       showToast('Contraseña incorrecta', 'danger');
     }
@@ -52,7 +110,7 @@ export default function CajaPanel({ showToast }) {
 
   const registrarCobro = () => {
     if (!nuevoMonto || !nuevaDesc) { showToast('Completa todos los campos', 'warning'); return; }
-    if (pinAutorizacion !== '1234') {
+    if (hashPassword(pinAutorizacion) !== adminPinHash) {
       showToast('PIN de autorización incorrecto', 'danger');
       return;
     }
@@ -86,6 +144,7 @@ export default function CajaPanel({ showToast }) {
 
     showToast(`Corte registrado. Diferencia: $${diferencia.toLocaleString()}`, diferencia >= 0 ? 'success' : 'danger');
     setMostrarCorte(false);
+    localStorage.removeItem('yoy_caja_corte_draft');
     setCantidades({
       1000: '', 500: '', 200: '', 100: '', 50: '', 20: '', 10: '', 5: '', 2: '', 1: '', 0.5: ''
     });
@@ -285,7 +344,7 @@ export default function CajaPanel({ showToast }) {
                           style={{ width: 80, padding: '4px 8px', fontSize: 12, textAlign: 'right' }}
                           placeholder="0"
                           value={cantidades[den]}
-                          onChange={e => setCantidades(p => ({ ...p, [den]: e.target.value }))}
+                          onChange={e => handleCantidadChange(den, e.target.value)}
                         />
                       </div>
                     ))}
@@ -305,7 +364,7 @@ export default function CajaPanel({ showToast }) {
                           style={{ width: 80, padding: '4px 8px', fontSize: 12, textAlign: 'right' }}
                           placeholder="0"
                           value={cantidades[den]}
-                          onChange={e => setCantidades(p => ({ ...p, [den]: e.target.value }))}
+                          onChange={e => handleCantidadChange(den, e.target.value)}
                         />
                       </div>
                     ))}
