@@ -55,21 +55,43 @@ export default function CajaPanel({ showToast }) {
       if (snap.exists() && snap.data().adminPinHash) {
         const hash = snap.data().adminPinHash;
         setAdminPinHash(hash);
-        localStorage.setItem('yoy_admin_pin_hash', hash);
+        localStorage.setItem('yoy_admin_pin_hash', obfuscate(hash));
       } else {
         if (typeof window !== 'undefined') {
           const localHash = localStorage.getItem('yoy_admin_pin_hash');
-          if (localHash) setAdminPinHash(localHash);
+          if (localHash) setAdminPinHash(deobfuscate(localHash) || '170440');
         }
       }
     }, err => {
       console.warn("Firestore seguridad sync error (offline fallback):", err);
       if (typeof window !== 'undefined') {
         const localHash = localStorage.getItem('yoy_admin_pin_hash');
-        if (localHash) setAdminPinHash(localHash);
+        if (localHash) setAdminPinHash(deobfuscate(localHash) || '170440');
       }
     });
     return unsub;
+  }, []);
+
+  // Sincronizar transacciones y bitácora en tiempo real entre pestañas
+  useEffect(() => {
+    const handleStorage = (e) => {
+      if (e.key === 'yoy_caja_cobros' && e.newValue) {
+        try {
+          setCobros(JSON.parse(e.newValue));
+        } catch (err) {
+          console.error("Error al sincronizar cobros:", err);
+        }
+      }
+      if (e.key === 'yoy_billar_bitacora' && e.newValue) {
+        try {
+          setBitacora(deobfuscate(e.newValue) || []);
+        } catch (err) {
+          console.error("Error al sincronizar bitácora:", err);
+        }
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
   }, []);
 
   // Cargar borrador de corte de caja en mount y cobros desde LocalStorage

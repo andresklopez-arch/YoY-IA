@@ -734,21 +734,30 @@ export default function MesasPanel({ showToast }) {
       if (snap.exists() && snap.data().adminPinHash) {
         const hash = snap.data().adminPinHash;
         setAdminPinHash(hash);
-        localStorage.setItem('yoy_admin_pin_hash', hash);
+        localStorage.setItem('yoy_admin_pin_hash', obfuscate(hash));
       } else {
         if (typeof window !== 'undefined') {
           const localHash = localStorage.getItem('yoy_admin_pin_hash');
-          if (localHash) setAdminPinHash(localHash);
+          if (localHash) setAdminPinHash(deobfuscate(localHash) || '170440');
         }
       }
     }, err => {
       console.warn("Firestore seguridad sync error (offline fallback):", err);
       if (typeof window !== 'undefined') {
         const localHash = localStorage.getItem('yoy_admin_pin_hash');
-        if (localHash) setAdminPinHash(localHash);
+        if (localHash) setAdminPinHash(deobfuscate(localHash) || '170440');
       }
     });
     return unsub;
+  }, []);
+
+  // Escuchar cambios de pantalla completa nativos
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
   }, []);
 
   const toggleFullscreen = () => {
