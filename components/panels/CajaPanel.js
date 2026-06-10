@@ -94,17 +94,59 @@ export default function CajaPanel({ showToast }) {
     return () => window.removeEventListener('storage', handleStorage);
   }, []);
 
-  // Cerrar ventanas emergentes al presionar la tecla Escape
+  // Cerrar ventanas emergentes al presionar la tecla Escape con control de cooldown, desenfoque y confirmación
   useEffect(() => {
+    let lastBlurTime = 0;
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
-        setMostrarCorte(false);
-        setMostrarBitacora(false);
+        const now = Date.now();
+        if (document.activeElement && 
+            (document.activeElement.tagName === 'INPUT' || 
+             document.activeElement.tagName === 'SELECT' || 
+             document.activeElement.tagName === 'TEXTAREA')) {
+          const activeEl = document.activeElement;
+          activeEl.blur();
+          
+          // Efecto visual: resplandor dorado momentáneo
+          const originalTransition = activeEl.style.transition;
+          const originalBoxShadow = activeEl.style.boxShadow;
+          activeEl.style.transition = 'box-shadow 0.2s ease';
+          activeEl.style.boxShadow = '0 0 10px var(--bronze-light, #c5a880)';
+          setTimeout(() => {
+            activeEl.style.boxShadow = originalBoxShadow;
+            setTimeout(() => {
+              activeEl.style.transition = originalTransition;
+            }, 200);
+          }, 300);
+          
+          lastBlurTime = now;
+          return;
+        }
+
+        if (now - lastBlurTime < 300) {
+          return;
+        }
+
+        if (mostrarCorte) {
+          const hasInputs = Object.values(cantidades).some(v => v !== '');
+          if (hasInputs) {
+            if (!window.confirm('¿Deseas salir del corte de caja? Perderás las cantidades ingresadas.')) {
+              return;
+            }
+          }
+          setMostrarCorte(false);
+          return;
+        }
+
+        if (mostrarBitacora) {
+          setMostrarBitacora(false);
+          return;
+        }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [mostrarCorte, cantidades, mostrarBitacora]);
 
   // Cargar borrador de corte de caja en mount y cobros desde LocalStorage
   useEffect(() => {

@@ -348,15 +348,37 @@ function ModalCerrarMesa({ mesa, cuentasActivas, onClose, onCerrar, onAgregarACu
   const [camaraActiva, setCamaraActiva] = useState(false);
 
   useEffect(() => {
+    let lastBlurTime = 0;
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
+        const now = Date.now();
         if (document.activeElement && 
             (document.activeElement.tagName === 'INPUT' || 
              document.activeElement.tagName === 'SELECT' || 
              document.activeElement.tagName === 'TEXTAREA')) {
-          document.activeElement.blur();
+          const activeEl = document.activeElement;
+          activeEl.blur();
+          
+          // Efecto visual: resplandor dorado momentáneo
+          const originalTransition = activeEl.style.transition;
+          const originalBoxShadow = activeEl.style.boxShadow;
+          activeEl.style.transition = 'box-shadow 0.2s ease';
+          activeEl.style.boxShadow = '0 0 10px var(--bronze-light, #c5a880)';
+          setTimeout(() => {
+            activeEl.style.boxShadow = originalBoxShadow;
+            setTimeout(() => {
+              activeEl.style.transition = originalTransition;
+            }, 200);
+          }, 300);
+          
+          lastBlurTime = now;
           return;
         }
+
+        if (now - lastBlurTime < 300) {
+          return;
+        }
+
         if (camaraActiva) {
           setCamaraActiva(false);
           return;
@@ -786,15 +808,36 @@ export default function MesasPanel({ showToast }) {
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
   }, []);
 
-  // Cerrar ventanas emergentes al presionar la tecla Escape
+  // Cerrar ventanas emergentes al presionar la tecla Escape con control de cooldown, desenfoque y confirmación
   useEffect(() => {
+    let lastBlurTime = 0;
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
+        const now = Date.now();
         if (document.activeElement && 
             (document.activeElement.tagName === 'INPUT' || 
              document.activeElement.tagName === 'SELECT' || 
              document.activeElement.tagName === 'TEXTAREA')) {
-          document.activeElement.blur();
+          const activeEl = document.activeElement;
+          activeEl.blur();
+          
+          // Efecto visual: resplandor dorado momentáneo
+          const originalTransition = activeEl.style.transition;
+          const originalBoxShadow = activeEl.style.boxShadow;
+          activeEl.style.transition = 'box-shadow 0.2s ease';
+          activeEl.style.boxShadow = '0 0 10px var(--bronze-light, #c5a880)';
+          setTimeout(() => {
+            activeEl.style.boxShadow = originalBoxShadow;
+            setTimeout(() => {
+              activeEl.style.transition = originalTransition;
+            }, 200);
+          }, 300);
+          
+          lastBlurTime = now;
+          return;
+        }
+
+        if (now - lastBlurTime < 300) {
           return;
         }
 
@@ -1576,15 +1619,37 @@ function ModalNuevaMesa({ mesas, onClose, onConfirm }) {
   const [tarifa, setTarifa] = useState(80);
 
   useEffect(() => {
+    let lastBlurTime = 0;
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
+        const now = Date.now();
         if (document.activeElement && 
             (document.activeElement.tagName === 'INPUT' || 
              document.activeElement.tagName === 'SELECT' || 
              document.activeElement.tagName === 'TEXTAREA')) {
-          document.activeElement.blur();
+          const activeEl = document.activeElement;
+          activeEl.blur();
+          
+          // Efecto visual: resplandor dorado momentáneo
+          const originalTransition = activeEl.style.transition;
+          const originalBoxShadow = activeEl.style.boxShadow;
+          activeEl.style.transition = 'box-shadow 0.2s ease';
+          activeEl.style.boxShadow = '0 0 10px var(--bronze-light, #c5a880)';
+          setTimeout(() => {
+            activeEl.style.boxShadow = originalBoxShadow;
+            setTimeout(() => {
+              activeEl.style.transition = originalTransition;
+            }, 200);
+          }, 300);
+          
+          lastBlurTime = now;
           return;
         }
+
+        if (now - lastBlurTime < 300) {
+          return;
+        }
+
         if (id !== defaultId || tipo !== 'Carambola 3B' || parseFloat(tarifa) !== 80) {
           if (!window.confirm('¿Deseas salir? Perderás los datos ingresados para la nueva mesa.')) {
             return;
@@ -1647,15 +1712,37 @@ function ModalFilaVirtual({ fila, setFila, mesas, onAssign, onClose, showToast }
   const [personas, setPersonas] = useState(2);
 
   useEffect(() => {
+    let lastBlurTime = 0;
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
+        const now = Date.now();
         if (document.activeElement && 
             (document.activeElement.tagName === 'INPUT' || 
              document.activeElement.tagName === 'SELECT' || 
              document.activeElement.tagName === 'TEXTAREA')) {
-          document.activeElement.blur();
+          const activeEl = document.activeElement;
+          activeEl.blur();
+          
+          // Efecto visual: resplandor dorado momentáneo
+          const originalTransition = activeEl.style.transition;
+          const originalBoxShadow = activeEl.style.boxShadow;
+          activeEl.style.transition = 'box-shadow 0.2s ease';
+          activeEl.style.boxShadow = '0 0 10px var(--bronze-light, #c5a880)';
+          setTimeout(() => {
+            activeEl.style.boxShadow = originalBoxShadow;
+            setTimeout(() => {
+              activeEl.style.transition = originalTransition;
+            }, 200);
+          }, 300);
+          
+          lastBlurTime = now;
           return;
         }
+
+        if (now - lastBlurTime < 300) {
+          return;
+        }
+
         if (cliente || contacto) {
           if (!window.confirm('¿Deseas salir? Perderás los datos ingresados en la fila virtual.')) {
             return;
@@ -1810,15 +1897,37 @@ function ModalCuentasActivas({ cuentas, setCuentas, onClose, showToast, registra
   const [camaraActiva, setCamaraActiva] = useState(false);
 
   useEffect(() => {
+    let lastBlurTime = 0;
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
+        const now = Date.now();
         if (document.activeElement && 
             (document.activeElement.tagName === 'INPUT' || 
              document.activeElement.tagName === 'SELECT' || 
              document.activeElement.tagName === 'TEXTAREA')) {
-          document.activeElement.blur();
+          const activeEl = document.activeElement;
+          activeEl.blur();
+          
+          // Efecto visual: resplandor dorado momentáneo
+          const originalTransition = activeEl.style.transition;
+          const originalBoxShadow = activeEl.style.boxShadow;
+          activeEl.style.transition = 'box-shadow 0.2s ease';
+          activeEl.style.boxShadow = '0 0 10px var(--bronze-light, #c5a880)';
+          setTimeout(() => {
+            activeEl.style.boxShadow = originalBoxShadow;
+            setTimeout(() => {
+              activeEl.style.transition = originalTransition;
+            }, 200);
+          }, 300);
+          
+          lastBlurTime = now;
           return;
         }
+
+        if (now - lastBlurTime < 300) {
+          return;
+        }
+
         if (camaraActiva) {
           setCamaraActiva(false);
           return;
@@ -2272,15 +2381,37 @@ function ModalAbrirCuentaDirecta({ cuentas, setCuentas, onClose, showToast, regi
   const [cliente, setCliente] = useState('');
 
   useEffect(() => {
+    let lastBlurTime = 0;
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
+        const now = Date.now();
         if (document.activeElement && 
             (document.activeElement.tagName === 'INPUT' || 
              document.activeElement.tagName === 'SELECT' || 
              document.activeElement.tagName === 'TEXTAREA')) {
-          document.activeElement.blur();
+          const activeEl = document.activeElement;
+          activeEl.blur();
+          
+          // Efecto visual: resplandor dorado momentáneo
+          const originalTransition = activeEl.style.transition;
+          const originalBoxShadow = activeEl.style.boxShadow;
+          activeEl.style.transition = 'box-shadow 0.2s ease';
+          activeEl.style.boxShadow = '0 0 10px var(--bronze-light, #c5a880)';
+          setTimeout(() => {
+            activeEl.style.boxShadow = originalBoxShadow;
+            setTimeout(() => {
+              activeEl.style.transition = originalTransition;
+            }, 200);
+          }, 300);
+          
+          lastBlurTime = now;
           return;
         }
+
+        if (now - lastBlurTime < 300) {
+          return;
+        }
+
         if (cliente) {
           if (!window.confirm('¿Deseas salir? Perderás el nombre ingresado.')) {
             return;
@@ -2395,15 +2526,37 @@ function ModalVincularCliente({ mesa, onClose, onConfirm }) {
   const [nombre, setNombre] = useState(mesa.cliente || '');
 
   useEffect(() => {
+    let lastBlurTime = 0;
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
+        const now = Date.now();
         if (document.activeElement && 
             (document.activeElement.tagName === 'INPUT' || 
              document.activeElement.tagName === 'SELECT' || 
              document.activeElement.tagName === 'TEXTAREA')) {
-          document.activeElement.blur();
+          const activeEl = document.activeElement;
+          activeEl.blur();
+          
+          // Efecto visual: resplandor dorado momentáneo
+          const originalTransition = activeEl.style.transition;
+          const originalBoxShadow = activeEl.style.boxShadow;
+          activeEl.style.transition = 'box-shadow 0.2s ease';
+          activeEl.style.boxShadow = '0 0 10px var(--bronze-light, #c5a880)';
+          setTimeout(() => {
+            activeEl.style.boxShadow = originalBoxShadow;
+            setTimeout(() => {
+              activeEl.style.transition = originalTransition;
+            }, 200);
+          }, 300);
+          
+          lastBlurTime = now;
           return;
         }
+
+        if (now - lastBlurTime < 300) {
+          return;
+        }
+
         if (nombre !== (mesa.cliente || '')) {
           if (!window.confirm('¿Deseas salir sin guardar los cambios del cliente?')) {
             return;
@@ -2512,15 +2665,37 @@ function ModalRegistrarComanda({ mesas, setMesas, cuentasActivas, setCuentasActi
   const [productos, setProductos] = useState([]);
 
   useEffect(() => {
+    let lastBlurTime = 0;
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
+        const now = Date.now();
         if (document.activeElement && 
             (document.activeElement.tagName === 'INPUT' || 
              document.activeElement.tagName === 'SELECT' || 
              document.activeElement.tagName === 'TEXTAREA')) {
-          document.activeElement.blur();
+          const activeEl = document.activeElement;
+          activeEl.blur();
+          
+          // Efecto visual: resplandor dorado momentáneo
+          const originalTransition = activeEl.style.transition;
+          const originalBoxShadow = activeEl.style.boxShadow;
+          activeEl.style.transition = 'box-shadow 0.2s ease';
+          activeEl.style.boxShadow = '0 0 10px var(--bronze-light, #c5a880)';
+          setTimeout(() => {
+            activeEl.style.boxShadow = originalBoxShadow;
+            setTimeout(() => {
+              activeEl.style.transition = originalTransition;
+            }, 200);
+          }, 300);
+          
+          lastBlurTime = now;
           return;
         }
+
+        if (now - lastBlurTime < 300) {
+          return;
+        }
+
         if (carrito.length > 0) {
           if (!window.confirm('¿Deseas salir? Perderás los artículos agregados a la comanda.')) {
             return;
@@ -2896,15 +3071,37 @@ function ModalRegistrarComanda({ mesas, setMesas, cuentasActivas, setCuentasActi
 // ── MODAL COBRO MANUAL ───────────────────────────────────
 function ModalCobroManual({ nuevoMonto, setNuevoMonto, nuevaDesc, setNuevaDesc, nuevoMetodo, setNuevoMetodo, pinAutorizacion, setPinAutorizacion, onClose, onConfirm }) {
   useEffect(() => {
+    let lastBlurTime = 0;
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
+        const now = Date.now();
         if (document.activeElement && 
             (document.activeElement.tagName === 'INPUT' || 
              document.activeElement.tagName === 'SELECT' || 
              document.activeElement.tagName === 'TEXTAREA')) {
-          document.activeElement.blur();
+          const activeEl = document.activeElement;
+          activeEl.blur();
+          
+          // Efecto visual: resplandor dorado momentáneo
+          const originalTransition = activeEl.style.transition;
+          const originalBoxShadow = activeEl.style.boxShadow;
+          activeEl.style.transition = 'box-shadow 0.2s ease';
+          activeEl.style.boxShadow = '0 0 10px var(--bronze-light, #c5a880)';
+          setTimeout(() => {
+            activeEl.style.boxShadow = originalBoxShadow;
+            setTimeout(() => {
+              activeEl.style.transition = originalTransition;
+            }, 200);
+          }, 300);
+          
+          lastBlurTime = now;
           return;
         }
+
+        if (now - lastBlurTime < 300) {
+          return;
+        }
+
         if (nuevoMonto || nuevaDesc || pinAutorizacion) {
           if (!window.confirm('¿Deseas salir? Perderás los datos ingresados en el cobro manual.')) {
             return;

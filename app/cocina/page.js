@@ -167,6 +167,58 @@ function CocinaContent() {
     return unsub;
   }, []);
 
+  // Escuchar tecla Escape para cerrar modal de insumos con control de cooldown, desenfoque y confirmación
+  useEffect(() => {
+    let lastBlurTime = 0;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && showInsumoModal) {
+        const now = Date.now();
+        if (document.activeElement && 
+            (document.activeElement.tagName === 'INPUT' || 
+             document.activeElement.tagName === 'SELECT' || 
+             document.activeElement.tagName === 'TEXTAREA')) {
+          const activeEl = document.activeElement;
+          activeEl.blur();
+          
+          // Efecto visual: resplandor dorado momentáneo
+          const originalTransition = activeEl.style.transition;
+          const originalBoxShadow = activeEl.style.boxShadow;
+          activeEl.style.transition = 'box-shadow 0.2s ease';
+          activeEl.style.boxShadow = '0 0 10px var(--bronze-light, #c5a880)';
+          setTimeout(() => {
+            activeEl.style.boxShadow = originalBoxShadow;
+            setTimeout(() => {
+              activeEl.style.transition = originalTransition;
+            }, 200);
+          }, 300);
+          
+          lastBlurTime = now;
+          return;
+        }
+
+        if (now - lastBlurTime < 300) {
+          return;
+        }
+
+        const isModified = newInsumo.nombre !== '' || 
+                          newInsumo.nivelActual !== 10 || 
+                          newInsumo.nivelMin !== 5 || 
+                          newInsumo.nivelOptimo !== 20 || 
+                          newInsumo.unidad !== 'pz' || 
+                          newInsumo.categoria !== 'Comida';
+
+        if (isModified) {
+          if (!window.confirm('¿Deseas salir? Perderás los datos ingresados del insumo.')) {
+            return;
+          }
+        }
+        setShowInsumoModal(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showInsumoModal, newInsumo]);
+
   // ── ACCIONES DE PEDIDO ───────────────────────────────────
   const marcarAtendido = async (id) => {
     try {
