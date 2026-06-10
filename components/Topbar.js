@@ -28,6 +28,17 @@ const PANEL_LABELS = {
   config:    'Configuración',
 };
 
+const QUICK_NAV_TARGETS = [
+  { nav: 'mesas' },
+  { nav: 'caja' },
+  { nav: 'bar' },
+  { nav: 'torneos' },
+  { nav: 'nomina' },
+  { href: '/mesero' },
+  { nav: 'reportes' },
+  { nav: 'config' },
+];
+
 export default function Topbar({ user, activePanel, onToggleSidebar, showToast, onNavigate }) {
   const { logout } = useAuth();
   const [time, setTime] = useState(new Date());
@@ -35,6 +46,25 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
   const alertasNomina = useAlertasNomina();
   const pedidosPendientes = usePedidosPendientes();
   const [locale, setLocale] = useState('es-MX');
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.altKey && !isNaN(e.key) && e.key >= '1' && e.key <= '8') {
+        const index = parseInt(e.key) - 1;
+        const target = QUICK_NAV_TARGETS[index];
+        if (target) {
+          e.preventDefault();
+          if (target.href) {
+            window.open(target.href, '_blank');
+          } else {
+            onNavigate(target.nav);
+          }
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onNavigate]);
 
   useEffect(() => {
     if (typeof window !== 'undefined' && navigator.language) {
@@ -96,14 +126,14 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
       {/* Accesos Rápidos en el Centro */}
       <div className="topbar-quick-actions">
         {[
-          { label: 'Mesa', icon: 'ri-play-circle-line', color: 'var(--success)', nav: 'mesas' },
-          { label: 'Caja', icon: 'ri-money-dollar-circle-line', color: 'var(--bronze-light)', nav: 'caja' },
-          { label: 'Inventario', icon: 'ri-archive-line', color: 'var(--blue-light)', nav: 'bar' },
-          { label: 'Torneos', icon: 'ri-trophy-line', color: '#ffd700', nav: 'torneos' },
-          { label: 'Nómina', icon: 'ri-briefcase-4-line', color: 'var(--bronze-light)', nav: 'nomina', badge: alertasNomina.length },
-          { label: 'Mesero', icon: 'ri-customer-service-2-line', color: 'var(--success)', href: '/mesero', badge: pedidosPendientes },
-          { label: 'Reportes', icon: 'ri-bar-chart-2-line', color: 'var(--silver)', nav: 'reportes' },
-          { label: 'Ajustes', icon: 'ri-settings-4-line', color: 'var(--text-muted)', nav: 'config' },
+          { label: 'Mesa', icon: 'ri-play-circle-line', color: 'var(--success)', nav: 'mesas', shortcut: 'Alt + 1' },
+          { label: 'Caja', icon: 'ri-money-dollar-circle-line', color: 'var(--bronze-light)', nav: 'caja', shortcut: 'Alt + 2' },
+          { label: 'Inventario', icon: 'ri-archive-line', color: 'var(--blue-light)', nav: 'bar', shortcut: 'Alt + 3' },
+          { label: 'Torneos', icon: 'ri-trophy-line', color: '#ffd700', nav: 'torneos', shortcut: 'Alt + 4' },
+          { label: 'Nómina', icon: 'ri-briefcase-4-line', color: 'var(--bronze-light)', nav: 'nomina', badge: alertasNomina.length, shortcut: 'Alt + 5' },
+          { label: 'Mesero', icon: 'ri-customer-service-2-line', color: 'var(--success)', href: '/mesero', badge: pedidosPendientes, shortcut: 'Alt + 6' },
+          { label: 'Reportes', icon: 'ri-bar-chart-2-line', color: 'var(--silver)', nav: 'reportes', shortcut: 'Alt + 7' },
+          { label: 'Ajustes', icon: 'ri-settings-4-line', color: 'var(--text-muted)', nav: 'config', shortcut: 'Alt + 8' },
         ].map((a, i) => {
           const isActive = activePanel === a.nav;
           return (
@@ -122,10 +152,23 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
                 '--btn-glow-active-hover': `${a.color}66`,
                 '--btn-glow-inset-hover': `${a.color}25`,
               }}
-              title={a.label}
+              title={`${a.label} [${a.shortcut}]`}
             >
-              <div style={{ position: 'relative', display: 'inline-flex' }}>
+              <div style={{ position: 'relative', display: 'inline-flex', flexDirection: 'column', alignItems: 'center' }}>
                 <i className={a.icon} style={{ fontSize: 16, color: a.color }} />
+                {isActive && (
+                  <span style={{
+                    width: 4,
+                    height: 4,
+                    borderRadius: '50%',
+                    background: a.color,
+                    boxShadow: `0 0 6px ${a.color}`,
+                    position: 'absolute',
+                    bottom: -8,
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                  }} />
+                )}
                 {a.badge > 0 && (
                   <span style={{
                     position: 'absolute', top: -5, right: -6,
