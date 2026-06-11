@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { db } from '@/lib/firebase';
 import { collection, getDocs, addDoc, query, orderBy, deleteDoc, doc, where, setDoc, serverTimestamp } from 'firebase/firestore';
-import { obfuscate, deobfuscate } from '@/lib/crypto';
+import { obfuscate, deobfuscate, hashPasswordSecure } from '@/lib/crypto';
 
 const hashPassword = (pwd) => {
   if (!pwd) return '';
@@ -181,10 +181,11 @@ export default function ConfigPanel({ showToast }) {
         return;
       }
 
+      const hashedPassword = await hashPasswordSecure(newUser.password);
       await addDoc(collection(db, 'users'), {
         name: newUser.name,
         email: formattedEmail,
-        password: newUser.password,
+        password: hashedPassword,
         role: newUser.role,
         createdAt: new Date().toISOString()
       });
