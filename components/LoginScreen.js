@@ -93,28 +93,6 @@ export default function LoginScreen({ showToast }) {
       }} />
 
       <div style={{ width: '100%', maxWidth: 400, position: 'relative', zIndex: 1 }}>
-        {/* Logo & Brand con Logo Largo */}
-        <div style={{ textAlign: 'center', marginBottom: 32 }}>
-          <img 
-            src="/logo-largo.png" 
-            alt="YoY IA Billar By Alfonso Iturbide" 
-            fetchpriority="high"
-            loading="eager"
-            style={{
-              maxWidth: '100%',
-              width: 320,
-              height: 'auto',
-              objectFit: 'contain',
-              margin: '0 auto 10px',
-              display: 'block',
-              filter: 'drop-shadow(0 0 15px rgba(205,127,50,0.2))'
-            }}
-          />
-          <p style={{ fontSize: 10, color: 'var(--text-muted)', letterSpacing: '0.2em', textTransform: 'uppercase', marginTop: 10 }}>
-            Sistema de Gestión Inteligente · By Alfonso Iturbide
-          </p>
-        </div>
-
         {/* Login Card */}
         <div style={{
           background: 'var(--bg-card)',
