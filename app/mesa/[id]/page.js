@@ -343,9 +343,22 @@ export default function MesaClientePage({ params }) {
           <div className="mc-header-logo-icon">🎱</div>
           <div>
             <div className="mc-header-title">YoY IA BILLAR <span style={{ fontSize: 9, color: 'var(--cl-bronze-light)', fontWeight: 800, display: 'block', marginTop: 1 }}>By Alfonso Iturbide</span></div>
-            <div className="mc-header-sub">
-              <span className="mc-live-dot" style={{ marginRight: 4 }} />
-              {mesaInfo?.estado === 'ocupada' ? `${mesaInfo.cliente || 'Cliente'}` : 'Bienvenido'}
+            <div className="mc-header-sub" style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <div style={{ display: 'flex', alignItems: 'center' }}>
+                <span className="mc-live-dot" style={{ marginRight: 4 }} />
+                {mesaInfo?.estado === 'ocupada' ? `${mesaInfo.cliente || 'Cliente'}` : 'Bienvenido'}
+              </div>
+              <div className="mc-diag-pills">
+                <span className={`mc-diag-pill ${isOffline ? 'offline' : 'online'}`}>
+                  📶 {isOffline ? 'Offline' : 'Red OK'}
+                </span>
+                <span className={`mc-diag-pill ${authStatus === 'conectado' ? 'auth-ok' : authStatus === 'error' ? 'auth-err' : 'auth-loading'}`}>
+                  🔑 {authStatus === 'conectado' ? 'Auth OK' : authStatus === 'error' ? 'Auth Err' : 'Auth...'}
+                </span>
+                <span className={`mc-diag-pill ${dbConnected ? 'db-ok' : 'db-offline'}`}>
+                  📦 {dbConnected ? 'DB OK' : 'DB Offline'}
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -365,6 +378,27 @@ export default function MesaClientePage({ params }) {
 
       {/* CUERPO */}
       <main className="mc-body">
+        {authStatus === 'error' && (
+          <div style={{
+            background: 'rgba(239, 68, 68, 0.15)',
+            border: '1px solid rgba(239, 68, 68, 0.4)',
+            color: '#ef4444',
+            padding: '12px 16px',
+            borderRadius: 14,
+            marginBottom: 16,
+            fontSize: 12,
+            lineHeight: 1.5
+          }}>
+            <div style={{ fontWeight: 800, fontSize: 13, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+              🚨 Error de Conexión Firebase
+            </div>
+            <p style={{ marginBottom: 6 }}>No se pudo establecer una sesión segura con el servidor. Detalle técnico:</p>
+            <code style={{ display: 'block', background: 'rgba(0,0,0,0.3)', padding: 8, borderRadius: 8, fontSize: 10, fontFamily: 'monospace', overflowX: 'auto', whiteSpace: 'pre-wrap' }}>
+              {authError || 'Error de permisos o inicio anónimo deshabilitado (auth/operation-not-allowed). Por favor habilita el proveedor Anónimo en la Consola Firebase.'}
+            </code>
+          </div>
+        )}
+
         {isOffline && (
           <div style={{
             background: 'rgba(239, 68, 68, 0.95)',
