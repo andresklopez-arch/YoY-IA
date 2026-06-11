@@ -4,7 +4,8 @@ import {
   collection, addDoc, onSnapshot, query,
   where, orderBy, serverTimestamp, doc, updateDoc
 } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { db, auth } from '@/lib/firebase';
+import { signInAnonymously } from 'firebase/auth';
 import '@/styles/mesa-cliente.css';
 
 // ── Emoji por categoría de producto ───────────────────────
@@ -65,6 +66,17 @@ export default function MesaClientePage({ params }) {
   // Nombre del cliente (pre-poblado si la mesa tiene cliente asignado)
   const [clienteNombre, setClienteNombre] = useState('');
   const [showNombre, setShowNombre] = useState(false);
+
+  // ── Sesión anónima para evitar bloqueos de reglas de Firestore ──
+  useEffect(() => {
+    signInAnonymously(auth)
+      .then(() => {
+        console.log("Sesión anónima de cliente iniciada correctamente");
+      })
+      .catch(err => {
+        console.warn("Error al iniciar sesión anónima de cliente:", err);
+      });
+  }, []);
 
   // ── Leer productos del BarPanel en tiempo real con caché offline en localStorage ──
   useEffect(() => {

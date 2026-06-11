@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { obfuscate, deobfuscate } from '@/lib/crypto';
 import { db } from '@/lib/firebase';
-import { doc, onSnapshot, setDoc, serverTimestamp, collection, query, where, getDocs, writeBatch, updateDoc } from 'firebase/firestore';
+import { doc, onSnapshot, setDoc, getDoc, serverTimestamp, collection, query, where, getDocs, writeBatch, updateDoc } from 'firebase/firestore';
 
 // ── DATOS INICIALES DE MESAS ───────────────────────────────
 const INIT_MESAS = [
@@ -786,6 +786,109 @@ export default function MesasPanel({ showToast }) {
     }
   };
 
+  // Cargar un pedido enviado por el cliente directamente a su cuenta de mesa y descontar inventario
+  const cargarPedidoACuenta = async (mesaId, pedidoDoc) => {
+    const targetMesa = mesas.find(m => m.id === mesaId);
+    if (!targetMesa) return;
+
+    // Si la mesa está libre, la abrimos automáticamente
+    let clienteName = targetMesa.cliente || pedidoDoc.cliente || `Mesa ${mesaId}`;
+    let updatedMesas = mesas;
+    if (targetMesa.estado !== 'ocupada') {
+      updatedMesas = mesas.map(m => m.id === mesaId
+        ? { ...m, estado: 'ocupada', cliente: clienteName, inicio: Date.now() }
+        : m
+      );
+      setMesas(updatedMesas);
+      localStorage.setItem('yoy_billar_mesas', obfuscate(updatedMesas));
+      registrarEvento('Apertura Auto', `Mesa ${mesaId} abierta automáticamente por pedido de cliente (${clienteName})`);
+    }
+
+    // Buscar la cuenta activa o crear una nueva
+    const cuentaExistente = cuentasActivas.find(c => c.cliente && c.cliente.toLowerCase() === clienteName.toLowerCase());
+    
+    // items del pedido
+    const orderItems = pedidoDoc.items || [];
+    const totalPedido = pedidoDoc.total || 0;
+    
+    let nuevasCuentas = [...cuentasActivas];
+    if (cuentaExistente) {
+      nuevasCuentas = cuentasActivas.map(c => {
+        if (c.id === cuentaExistente.id) {
+          const nuevosConsumos = [...c.consumos];
+          orderItems.forEach(cartItem => {
+            const existeItem = nuevosConsumos.find(i => i.producto === cartItem.nombre);
+            if (existeItem) {
+              existeItem.cantidad += cartItem.cantidad;
+            } else {
+              nuevosConsumos.push({
+                id: Date.now() + Math.random(),
+                producto: cartItem.nombre,
+                precio: cartItem.precio,
+                cantidad: cartItem.cantidad
+              });
+            }
+          });
+          return { ...c, consumos: nuevosConsumos };
+        }
+        return c;
+      });
+    } else {
+      const nuevaCuenta = {
+        id: Date.now(),
+        cliente: clienteName,
+        tiempoJuego: 0,
+        consumos: orderItems.map(item => ({
+          id: Date.now() + Math.random(),
+          producto: item.nombre,
+          precio: item.precio,
+          cantidad: item.cantidad
+        })),
+        inicio: Date.now()
+      };
+      nuevasCuentas.push(nuevaCuenta);
+    }
+
+    setCuentasActivas(nuevasCuentas);
+    localStorage.setItem('yoy_billar_cuentas', obfuscate(nuevasCuentas));
+
+    // Descontar el stock en Firestore
+    try {
+      const snap = await getDoc(doc(db, 'config', 'inventario'));
+      if (snap.exists()) {
+        const parsed = snap.data().productos || [];
+        const stockActualizado = parsed.map(p => {
+          const enCart = orderItems.find(item => item.productoId === p.id);
+          if (enCart) {
+            return { ...p, stock: Math.max(0, p.stock - enCart.cantidad), lastModified: Date.now() };
+          }
+          return p;
+        });
+        localStorage.setItem('yoy_billar_stock', obfuscate(stockActualizado));
+        await setDoc(doc(db, 'config', 'inventario'), {
+          productos: stockActualizado,
+          updatedAt: serverTimestamp()
+        });
+      }
+    } catch (err) {
+      console.error("Error al actualizar inventario desde pedido:", err);
+    }
+
+    // Marcar el pedido como entregado en Firestore
+    try {
+      await updateDoc(doc(db, 'mesa_pedidos', pedidoDoc.id), {
+        estado: 'entregado',
+        entregadoAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      showToast(`Pedido de Mesa ${mesaId} cargado a la cuenta y completado ✓`, 'success');
+      registrarEvento('Pedido a Cuenta', `Pedido de ${orderItems.map(i=>`${i.cantidad}x ${i.nombre}`).join(', ')} cargado a la cuenta de ${clienteName}`, totalPedido);
+    } catch (err) {
+      console.error("Error al actualizar estado de pedido:", err);
+      showToast('Error al procesar el pedido en Firestore', 'error');
+    }
+  };
+
   // Escuchar alertas de mesas activas desde Firestore
   useEffect(() => {
     const q = query(
@@ -1509,17 +1612,13 @@ export default function MesasPanel({ showToast }) {
                       let icon = '🔔';
                       let label = alerta.etiqueta || 'Asistencia';
                       let badgeColor = 'var(--warning)';
-                      let isActionable = false;
-
                       if (alerta.tipo === 'cuenta') {
                         icon = '💳';
                         label = `Cuenta: $${alerta.totalAcumulado || ''}`;
                         badgeColor = 'var(--success)';
-                        isActionable = true;
                       } else if (alerta.tipo === 'asistencia') {
                         icon = alerta.icono || '🙋';
                         badgeColor = 'var(--danger)';
-                        isActionable = true;
                       } else if (alerta.tipo === 'pedido') {
                         icon = '🥤';
                         label = `Pedido (${alerta.items?.reduce((s,i)=>s+i.cantidad,0) || 0} pz)`;
@@ -1540,7 +1639,30 @@ export default function MesasPanel({ showToast }) {
                             <span style={{ fontSize: 13, animation: alerta.tipo !== 'pedido' ? 'pulse 1.2s infinite' : 'none' }}>{icon}</span>
                             <span style={{ color: badgeColor }}>{label}</span>
                           </div>
-                          {isActionable && (
+                          {alerta.tipo === 'pedido' ? (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); cargarPedidoACuenta(mesa.id, alerta); }}
+                              title="Cargar a la cuenta de la mesa y descontar inventario"
+                              style={{
+                                background: 'rgba(59,130,246,0.15)',
+                                border: '1px solid rgba(59,130,246,0.35)',
+                                color: 'var(--info)',
+                                borderRadius: 4,
+                                padding: '2px 6px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                cursor: 'pointer',
+                                fontSize: 10,
+                                fontWeight: 700,
+                                transition: 'all 0.15s'
+                              }}
+                              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(59,130,246,0.25)'; }}
+                              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(59,130,246,0.15)'; }}
+                            >
+                              Cargar
+                            </button>
+                          ) : (
                             <button
                               onClick={(e) => marcarAlertaAtendida(alerta.id, e)}
                               title="Marcar como atendido"
