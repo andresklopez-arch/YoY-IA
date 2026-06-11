@@ -140,10 +140,12 @@ function AppContent() {
           atendidoAdmin: true,
           updatedAt: serverTimestamp()
         };
-        // Si el mesero ya lo marcó como atendido, o si el pedido ya fue entregado/cargado, archivamos
-        if (data.atendidoMesero === true || data.estado === 'entregado') {
-          updateData.estado = 'atendido';
-          updateData.atendidoAt = serverTimestamp();
+        // Solo archivar si no es un pedido
+        if (data.tipo !== 'pedido') {
+          if (data.atendidoMesero === true || data.estado === 'entregado') {
+            updateData.estado = 'atendido';
+            updateData.atendidoAt = serverTimestamp();
+          }
         }
         await updateDoc(docRef, updateData);
       }

@@ -782,9 +782,12 @@ export default function MesasPanel({ showToast }) {
           atendidoAdmin: true,
           updatedAt: serverTimestamp()
         };
-        if (data.atendidoMesero === true) {
-          updateData.estado = 'atendido';
-          updateData.atendidoAt = serverTimestamp();
+        // Solo archivar si no es un pedido (ya que el pedido debe seguir en cocina/entrega)
+        if (data.tipo !== 'pedido') {
+          if (data.atendidoMesero === true) {
+            updateData.estado = 'atendido';
+            updateData.atendidoAt = serverTimestamp();
+          }
         }
         await updateDoc(docRef, updateData);
         showToast('Solicitud marcada como atendida ✓', 'success');
@@ -796,7 +799,8 @@ export default function MesasPanel({ showToast }) {
   };
 
   // Cargar un pedido enviado por el cliente directamente a su cuenta de mesa y descontar inventario
-  const cargarPedidoACuenta = async (mesaId, pedidoDoc) => {
+  const cargarPedidoACuenta = async (mesaId, pedidoDoc, isAuto = false) => {
+    if (pedidoDoc.cargadoACuenta) return;
     const targetMesa = mesaId ? mesas.find(m => m.id === mesaId) : null;
     if (mesaId && !targetMesa) return;
 
@@ -818,15 +822,17 @@ export default function MesasPanel({ showToast }) {
         });
 
         if (conflictos.length > 0) {
-          const confirmar = window.confirm(
-            `⚠️ ¡Conflicto de Stock!\n` +
-            `Los siguientes productos no tienen inventario suficiente:\n` +
-            `- ${conflictos.join('\n- ')}\n\n` +
-            `¿Desea forzar la carga de la comanda? El stock de estos productos se ajustará a 0.`
-          );
-          if (!confirmar) {
-            showToast('Carga de pedido cancelada por falta de stock', 'warning');
-            return;
+          if (!isAuto) {
+            const confirmar = window.confirm(
+              `⚠️ ¡Conflicto de Stock!\n` +
+              `Los siguientes productos no tienen inventario suficiente:\n` +
+              `- ${conflictos.join('\n- ')}\n\n` +
+              `¿Desea forzar la carga de la comanda? El stock de estos productos se ajustará a 0.`
+            );
+            if (!confirmar) {
+              showToast('Carga de pedido cancelada por falta de stock', 'warning');
+              return;
+            }
           }
         }
 
@@ -840,11 +846,13 @@ export default function MesasPanel({ showToast }) {
       }
     } catch (err) {
       console.error("Error al verificar stock en Firestore:", err);
-      const continuarSinStock = window.confirm(
-        "No se pudo verificar el stock en tiempo real con el servidor.\n" +
-        "¿Desea continuar con la carga del pedido?"
-      );
-      if (!continuarSinStock) return;
+      if (!isAuto) {
+        const continuarSinStock = window.confirm(
+          "No se pudo verificar el stock en tiempo real con el servidor.\n" +
+          "¿Desea continuar con la carga del pedido?"
+        );
+        if (!continuarSinStock) return;
+      }
     }
 
     // 2. Si la mesa está libre, la abrimos automáticamente (si aplica mesaId)
@@ -938,16 +946,13 @@ export default function MesasPanel({ showToast }) {
           pedidoId: pedidoDoc.id
         });
 
-        // Marcar el pedido como entregado (Caja)
+        // Marcar el pedido como cargado (Caja)
         const pedidoRef = doc(db, 'mesa_pedidos', pedidoDoc.id);
         const updateData = {
           atendidoAdmin: true,
+          cargadoACuenta: true,
           updatedAt: serverTimestamp()
         };
-        if (pedidoDoc.atendidoMesero === true) {
-          updateData.estado = 'entregado';
-          updateData.entregadoAt = serverTimestamp();
-        }
         transaction.update(pedidoRef, updateData);
 
         // Actualizar el caché de stock local después de confirmarse la transacción
@@ -978,6 +983,11 @@ export default function MesasPanel({ showToast }) {
         const mesaId = data.mesaId;
         const id = doc.id;
         currentAlerts.add(id);
+
+        // Auto-cargar pedidos a la cuenta de forma reactiva si fueron atendidos por mesero o admin y no están cargados
+        if (data.tipo === 'pedido' && !data.cargadoACuenta && (data.atendidoMesero || data.atendidoAdmin)) {
+          cargarPedidoACuenta(mesaId || 0, { id, ...data }, true);
+        }
 
         // Solo incluir alertas que no hayan sido atendidas por el admin
         if (mesaId && !data.atendidoAdmin) {

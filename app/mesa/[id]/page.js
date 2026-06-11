@@ -102,6 +102,58 @@ export default function MesaClientePage({ params }) {
   };
 
   // ── Guardar nombre en Firebase ──
+  // Actualizar el timestamp de última actividad de la mesa en Firestore
+  const actualizarActividadMesa = async () => {
+    if (!auth.currentUser || !mesaId) return;
+    try {
+      const ref = doc(db, 'config', 'mesas_estado');
+      const snap = await getDoc(ref);
+      if (snap.exists()) {
+        const list = snap.data().mesas || [];
+        const updatedList = list.map(m => m.id === mesaId
+          ? { ...m, clienteLastActive: Date.now() }
+          : m
+        );
+        await setDoc(ref, {
+          mesas: updatedList,
+          updatedAt: serverTimestamp()
+        });
+      }
+    } catch (err) {
+      console.error("Error al actualizar actividad de mesa:", err);
+    }
+  };
+
+  // Cerrar la sesión de forma manual (liberar la mesa)
+  const liberarMesa = async () => {
+    const confirmar = window.confirm("¿Deseas cerrar tu sesión de esta mesa? Tu dispositivo ya no podrá realizar pedidos directos hasta que escanees de nuevo.");
+    if (!confirmar) return;
+    
+    setEnviando(true);
+    try {
+      const ref = doc(db, 'config', 'mesas_estado');
+      const snap = await getDoc(ref);
+      if (snap.exists()) {
+        const list = snap.data().mesas || [];
+        const updatedList = list.map(m => m.id === mesaId
+          ? { ...m, clienteUid: '', clienteLastActive: 0 }
+          : m
+        );
+        await setDoc(ref, {
+          mesas: updatedList,
+          updatedAt: serverTimestamp()
+        });
+        setIsSecondaryDevice(false);
+        alert("Sesión cerrada. Mesa liberada con éxito. Ya puedes cerrar el navegador o dejar que otra persona escanee.");
+      }
+    } catch (err) {
+      alert("Error al liberar mesa: " + err.message);
+    } finally {
+      setEnviando(false);
+    }
+  };
+
+  // ── Guardar nombre en Firebase ──
   const guardarNombreCliente = async (nombre) => {
     setClienteNombre(nombre);
     if (typeof window !== 'undefined') {
@@ -109,6 +161,7 @@ export default function MesaClientePage({ params }) {
         localStorage.setItem('yoy_cliente_nombre', nombre);
       } catch (e) {}
     }
+    await actualizarActividadMesa();
     if (auth.currentUser) {
       try {
         const nombreCifrado = obfuscateStatic(nombre);
@@ -290,46 +343,50 @@ export default function MesaClientePage({ params }) {
     return unsub;
   }, [mesaId]);
 
-  // ── Reclamar y Bloquear Mesa en tiempo real ──
+  // ── Reclamar y Bloquear Mesa en tiempo real con inactividad de 15 minutos ──
   useEffect(() => {
     if (authStatus !== 'conectado' || !auth.currentUser || !mesaInfo || mesaInfo.estado !== 'ocupada') return;
 
     const currentUid = auth.currentUser.uid;
+    const lastActive = mesaInfo.clienteLastActive || 0;
+    const isExpired = lastActive > 0 && (Date.now() - lastActive > 15 * 60 * 1000);
 
-    if (mesaInfo.clienteUid) {
-      if (mesaInfo.clienteUid !== currentUid) {
-        setIsSecondaryDevice(true);
-      } else {
-        setIsSecondaryDevice(false);
-      }
+    if (mesaInfo.clienteUid && mesaInfo.clienteUid !== currentUid && !isExpired) {
+      setIsSecondaryDevice(true);
     } else {
-      // Reclamar la mesa de forma asíncrona
-      const registrarReclamo = async () => {
-        try {
-          const ref = doc(db, 'config', 'mesas_estado');
-          const snap = await getDoc(ref);
-          if (snap.exists()) {
-            const list = snap.data().mesas || [];
-            const mesaObj = list.find(m => m.id === mesaId);
-            if (mesaObj && !mesaObj.clienteUid) {
-              const updatedList = list.map(m => m.id === mesaId
-                ? { ...m, clienteUid: currentUid }
-                : m
-              );
-              await setDoc(ref, {
-                mesas: updatedList,
-                updatedAt: serverTimestamp()
-              });
-              console.log(`Mesa ${mesaId} reclamada por el cliente: ${currentUid}`);
-            } else if (mesaObj && mesaObj.clienteUid !== currentUid) {
-              setIsSecondaryDevice(true);
+      setIsSecondaryDevice(false);
+      
+      // Si no tiene dueño, o la sesión expiró por inactividad
+      if (!mesaInfo.clienteUid || isExpired) {
+        const registrarReclamo = async () => {
+          try {
+            const ref = doc(db, 'config', 'mesas_estado');
+            const snap = await getDoc(ref);
+            if (snap.exists()) {
+              const list = snap.data().mesas || [];
+              const mesaObj = list.find(m => m.id === mesaId);
+              // Validamos de nuevo si sigue vacío o expirado
+              const objLastActive = mesaObj?.clienteLastActive || 0;
+              const objExpired = objLastActive > 0 && (Date.now() - objLastActive > 15 * 60 * 1000);
+              
+              if (mesaObj && (!mesaObj.clienteUid || objExpired)) {
+                const updatedList = list.map(m => m.id === mesaId
+                  ? { ...m, clienteUid: currentUid, clienteLastActive: Date.now() }
+                  : m
+                );
+                await setDoc(ref, {
+                  mesas: updatedList,
+                  updatedAt: serverTimestamp()
+                });
+                console.log(`Mesa ${mesaId} reclamada/renovada por el cliente: ${currentUid}`);
+              }
             }
+          } catch (err) {
+            console.error("Error al reclamar mesa:", err);
           }
-        } catch (err) {
-          console.error("Error al reclamar mesa:", err);
-        }
-      };
-      registrarReclamo();
+        };
+        registrarReclamo();
+      }
     }
   }, [authStatus, mesaInfo, mesaId]);
 
@@ -405,6 +462,7 @@ export default function MesaClientePage({ params }) {
         atendidoMesero: false,
         createdAt: serverTimestamp(),
       });
+      await actualizarActividadMesa();
       setCarrito({});
       setShowCarrito(false);
       setExito('pedido');
@@ -438,6 +496,7 @@ export default function MesaClientePage({ params }) {
         atendidoMesero: false,
         createdAt: serverTimestamp(),
       });
+      await actualizarActividadMesa();
       setShowAsistConfirm(null);
       setExito('asistencia');
       setTimeout(() => setExito(null), 3000);
@@ -645,7 +704,30 @@ export default function MesaClientePage({ params }) {
             </div>
           </div>
         </div>
-        <div className="mc-mesa-badge">Mesa {mesaId}</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {!isSecondaryDevice && mesaInfo?.clienteUid === auth.currentUser?.uid && (
+            <button 
+              onClick={liberarMesa} 
+              title="Liberar Mesa" 
+              style={{
+                background: 'rgba(239, 68, 68, 0.15)',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+                color: '#ef4444',
+                padding: '6px 10px',
+                borderRadius: 8,
+                fontSize: 11,
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4
+              }}
+            >
+              <i className="ri-logout-box-line" /> Liberar
+            </button>
+          )}
+          <div className="mc-mesa-badge">Mesa {mesaId}</div>
+        </div>
       </header>
 
       {/* TABS */}
@@ -779,6 +861,34 @@ export default function MesaClientePage({ params }) {
               )}
             </div>
 
+            {/* Resumen de consumo */}
+            {totalAcumulado > 0 && (
+              <div style={{
+                background: 'linear-gradient(135deg, rgba(205,127,50,0.15), rgba(15,13,12,0.95))',
+                border: '1px solid var(--cl-border-bronze)',
+                borderRadius: 16,
+                padding: '14px 18px',
+                marginBottom: 16,
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                boxShadow: '0 8px 24px rgba(205,127,50,0.1)'
+              }}>
+                <div style={{ textAlign: 'left' }}>
+                  <div style={{ fontSize: 10, color: 'rgba(255, 255, 255, 0.4)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Llevas consumido:</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#fff', marginTop: 2 }}>
+                    {pedidosMesa.filter(p => p.tipo === 'pedido').reduce((sum, p) => sum + (p.items || []).reduce((s, i) => s + i.cantidad, 0), 0)} productos
+                  </div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: 10, color: 'rgba(255, 255, 255, 0.4)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Monto total:</div>
+                  <div style={{ fontSize: 18, fontWeight: 900, color: 'var(--cl-bronze-light)', marginTop: 2 }}>
+                    ${totalAcumulado} <span style={{ fontSize: 10, fontWeight: 500, color: 'rgba(255, 255, 255, 0.4)' }}>MXN</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Grilla de productos */}
             <div className="mc-menu-grid">
               {productos.map(prod => {
@@ -884,6 +994,30 @@ export default function MesaClientePage({ params }) {
                   <div style={{ fontSize: 36, fontWeight: 900, color: 'var(--cl-bronze-light)', fontVariantNumeric: 'tabular-nums' }}>${totalAcumulado}</div>
                   <div style={{ fontSize: 11, color: 'var(--cl-muted)', marginTop: 4 }}>MXN · Mesa {mesaId}</div>
                 </div>
+
+                {!isSecondaryDevice && mesaInfo?.clienteUid === auth.currentUser?.uid && (
+                  <button
+                    onClick={liberarMesa}
+                    style={{
+                      width: '100%',
+                      marginTop: 16,
+                      background: 'rgba(239, 68, 68, 0.1)',
+                      border: '1px solid rgba(239, 68, 68, 0.3)',
+                      color: '#ef4444',
+                      padding: '12px',
+                      borderRadius: 14,
+                      fontSize: 13,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 6
+                    }}
+                  >
+                    <i className="ri-logout-box-line" /> Cerrar Sesión de esta Mesa
+                  </button>
+                )}
               </>
             )}
           </>
