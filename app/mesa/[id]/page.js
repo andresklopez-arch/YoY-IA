@@ -66,6 +66,7 @@ export default function MesaClientePage({ params }) {
   // Nombre del cliente (pre-poblado si la mesa tiene cliente asignado)
   const [clienteNombre, setClienteNombre] = useState('');
   const [showNombre, setShowNombre] = useState(false);
+  const [isOffline, setIsOffline] = useState(false);
 
   // ── Helper de escritura con Timeout para redes inestables ──
   const addDocWithTimeout = async (collRef, data, timeoutMs = 8000) => {
@@ -90,6 +91,20 @@ export default function MesaClientePage({ params }) {
       }
     }
   };
+
+  // ── Monitoreo de conexión a internet en tiempo real ──
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleOnline = () => setIsOffline(false);
+    const handleOffline = () => setIsOffline(true);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    setIsOffline(!navigator.onLine);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   // ── Sesión anónima para evitar bloqueos de reglas de Firestore ──
   useEffect(() => {
@@ -160,20 +175,23 @@ export default function MesaClientePage({ params }) {
     return unsub;
   }, []);
 
-  // ── Leer información de la mesa (cliente asignado) ──────
+  // ── Leer información de la mesa (cliente asignado) en tiempo real desde Firestore ──
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    try {
-      const raw = localStorage.getItem('yoy_billar_mesas');
-      const mesas = decodeBarStock(raw);
-      const mesa = mesas.find(m => m.id === mesaId);
-      if (mesa) {
-        setMesaInfo(mesa);
-        if (mesa.cliente && mesa.cliente !== 'Público') {
-          setClienteNombre(mesa.cliente);
+    const unsub = onSnapshot(doc(db, 'config', 'mesas_estado'), snap => {
+      if (snap.exists()) {
+        const list = snap.data().mesas || [];
+        const mesa = list.find(m => m.id === mesaId);
+        if (mesa) {
+          setMesaInfo(mesa);
+          if (mesa.cliente && mesa.cliente !== 'Público') {
+            setClienteNombre(mesa.cliente);
+          }
         }
       }
-    } catch { /* sin datos */ }
+    }, err => {
+      console.error("Error al escuchar información de la mesa en Firestore:", err);
+    });
+    return unsub;
   }, [mesaId]);
 
   // ── Leer tipos de asistencia personalizados desde Firebase ──
@@ -332,6 +350,27 @@ export default function MesaClientePage({ params }) {
 
       {/* CUERPO */}
       <main className="mc-body">
+        {isOffline && (
+          <div style={{
+            background: 'rgba(239, 68, 68, 0.95)',
+            color: '#fff',
+            padding: '12px 16px',
+            textAlign: 'center',
+            fontSize: 12,
+            fontWeight: 700,
+            borderRadius: 14,
+            marginBottom: 16,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8,
+            boxShadow: '0 4px 12px rgba(239,68,68,0.25)',
+            animation: 'pulseBg 2s infinite'
+          }}>
+            <i className="ri-wifi-off-line" style={{ fontSize: 16 }} />
+            Sin conexión a internet. Los pedidos y llamadas de asistencia están pausados.
+          </div>
+        )}
 
         {/* ── ÉXITO TOAST ─────────────────────────────────── */}
         {exito && (

@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { db } from '@/lib/firebase';
-import { doc, onSnapshot, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, onSnapshot, setDoc, serverTimestamp, collection, query, orderBy, limit } from 'firebase/firestore';
 import { obfuscate, deobfuscate } from '@/lib/crypto';
 
 // ── DATOS HISTÓRICOS IA (RECOMENDACIÓN 2) ──────────────────
@@ -37,6 +37,7 @@ export default function BarPanel({ showToast }) {
   
   // Auditoría y logs
   const [logs, setLogs] = useState([]);
+  const [dbLogs, setDbLogs] = useState([]);
   const [modalAjuste, setModalAjuste] = useState(null);
   const [ajusteCant, setAjusteCant] = useState('');
   const [ajusteTipo, setAjusteTipo] = useState('entrada'); // 'entrada', 'salida', 'merma'
@@ -210,6 +211,22 @@ export default function BarPanel({ showToast }) {
       }
     });
 
+    return unsub;
+  }, []);
+
+  // Escuchar historial_stock en tiempo real desde Firestore para auditoría
+  useEffect(() => {
+    const q = query(
+      collection(db, 'historial_stock'),
+      orderBy('fecha', 'desc'),
+      limit(50)
+    );
+    const unsub = onSnapshot(q, snap => {
+      const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      setDbLogs(items);
+    }, err => {
+      console.error("Error al escuchar historial de stock en tiempo real:", err);
+    });
     return unsub;
   }, []);
 
@@ -613,6 +630,32 @@ export default function BarPanel({ showToast }) {
     showToast(`Precio actualizado con éxito a $${nuevoPrecio} MXN ✓`, 'success');
   };
 
+  const todosLosLogs = [
+    ...logs.map(l => ({
+      id: `local-${l.id}`,
+      fecha: l.fecha,
+      producto: l.producto,
+      tipo: l.tipo,
+      cantidad: l.cantidad,
+      detalle: l.detalle,
+      operador: l.operador || 'Sistema'
+    })),
+    ...dbLogs.map(l => {
+      const fechaISO = l.fecha?.toDate ? l.fecha.toDate().toISOString() : new Date().toISOString();
+      const prodNombres = l.items?.map(i => `${i.cantidad}x ${i.nombre}`).join(', ') || 'Varios';
+      const cantTotal = l.items?.reduce((s, i) => s + i.cantidad, 0) || 0;
+      return {
+        id: l.id,
+        fecha: fechaISO,
+        producto: prodNombres,
+        tipo: 'venta_qr',
+        cantidad: cantTotal,
+        detalle: `Descuento automático comanda Mesa ${l.mesaId} (${l.cliente})`,
+        operador: 'Cliente QR'
+      };
+    })
+  ].sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+
   const stockCritico = productos.filter(p => p.stock <= p.stockMin);
 
   return (
@@ -835,18 +878,19 @@ export default function BarPanel({ showToast }) {
               Bitácora de Auditoría y Movimientos de Inventario
             </h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 220, overflowY: 'auto' }}>
-              {logs.length === 0 ? (
+              {todosLosLogs.length === 0 ? (
                 <p style={{ color: 'var(--text-muted)', fontSize: 12, textAlign: 'center', padding: '20px 0' }}>No hay registros de auditoría de stock.</p>
               ) : (
-                logs.map(l => {
+                todosLosLogs.map(l => {
                   const isEntrada = l.tipo === 'entrada';
                   const isMerma = l.tipo === 'merma';
+                  const isVentaQr = l.tipo === 'venta_qr';
                   const isAjustePrecio = l.tipo === 'ajuste_precio';
                   return (
                     <div key={l.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 10, fontSize: 12 }}>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <span className={`badge ${isEntrada ? 'badge-success' : isMerma ? 'badge-danger' : 'badge-bronze'}`} style={{ fontSize: 8, padding: '1px 4px' }}>
+                          <span className={`badge ${isEntrada ? 'badge-success' : isMerma ? 'badge-danger' : isVentaQr ? 'badge-info' : 'badge-bronze'}`} style={{ fontSize: 8, padding: '1px 4px' }}>
                             {l.tipo.toUpperCase()}
                           </span>
                           <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{new Date(l.fecha).toLocaleString()}</span>
@@ -855,7 +899,7 @@ export default function BarPanel({ showToast }) {
                         <span style={{ color: 'var(--text-secondary)', fontSize: 11 }}>{l.detalle}</span>
                       </div>
                       {!isAjustePrecio && (
-                        <div style={{ fontSize: 14, fontWeight: 800, color: isEntrada ? 'var(--success)' : 'var(--danger)' }}>
+                        <div style={{ fontSize: 14, fontWeight: 800, color: isEntrada ? 'var(--success)' : isVentaQr ? 'var(--info)' : 'var(--danger)' }}>
                           {isEntrada ? '+' : '-'}{l.cantidad}
                         </div>
                       )}

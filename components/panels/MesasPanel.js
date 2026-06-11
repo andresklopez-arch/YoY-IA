@@ -1225,6 +1225,11 @@ export default function MesasPanel({ showToast }) {
     if (typeof window !== 'undefined') {
       try {
         localStorage.setItem('yoy_billar_mesas', obfuscate(mesas));
+        // Sincronizar estado general de mesas con Firestore para clientes
+        setDoc(doc(db, 'config', 'mesas_estado'), {
+          mesas: mesas,
+          updatedAt: serverTimestamp()
+        }).catch(err => console.error("Error al sincronizar mesas con Firestore:", err));
       } catch (err) {
         console.error("Error al guardar mesas:", err);
       }
