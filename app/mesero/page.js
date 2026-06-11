@@ -216,6 +216,10 @@ function MeseroContent() {
           osc2.start();
           osc2.stop(ctx.currentTime + 0.3);
         }, 180);
+
+        if (typeof navigator !== 'undefined' && navigator.vibrate) {
+          navigator.vibrate([150, 100, 150]); // Vibración rítmica
+        }
       } catch { /* sin audio */ }
     };
 

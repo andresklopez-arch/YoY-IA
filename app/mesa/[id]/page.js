@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   collection, addDoc, onSnapshot, query,
-  where, orderBy, serverTimestamp, doc, updateDoc
+  where, orderBy, serverTimestamp, doc, updateDoc, setDoc, getDoc
 } from 'firebase/firestore';
 import { db, auth } from '@/lib/firebase';
 import { signInAnonymously, onAuthStateChanged } from 'firebase/auth';
@@ -67,9 +67,33 @@ export default function MesaClientePage({ params }) {
   const [clienteNombre, setClienteNombre] = useState('');
   const [showNombre, setShowNombre] = useState(false);
 
+  // ── Helper de escritura con Timeout para redes inestables ──
+  const addDocWithTimeout = async (collRef, data, timeoutMs = 8000) => {
+    const writePromise = addDoc(collRef, data);
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("Timeout de red: No se pudo conectar con el servidor de Firebase. Verifica tu conexión de red o los permisos.")), timeoutMs)
+    );
+    return Promise.race([writePromise, timeoutPromise]);
+  };
+
+  // ── Guardar nombre en Firebase ──
+  const guardarNombreCliente = async (nombre) => {
+    setClienteNombre(nombre);
+    if (auth.currentUser) {
+      try {
+        await setDoc(doc(db, 'clientes_anonimos', auth.currentUser.uid), {
+          nombre: nombre,
+          updatedAt: serverTimestamp()
+        });
+      } catch (err) {
+        console.error("Error al guardar nombre de cliente en Firestore:", err);
+      }
+    }
+  };
+
   // ── Sesión anónima para evitar bloqueos de reglas de Firestore ──
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, user => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (!user) {
         signInAnonymously(auth)
           .then(() => {
@@ -80,6 +104,18 @@ export default function MesaClientePage({ params }) {
           });
       } else {
         console.log("Sesión anónima existente detectada:", user.uid);
+        // Intentar recuperar el nombre persistido desde Firestore
+        try {
+          const userSnap = await getDoc(doc(db, 'clientes_anonimos', user.uid));
+          if (userSnap.exists()) {
+            const data = userSnap.data();
+            if (data.nombre) {
+              setClienteNombre(data.nombre);
+            }
+          }
+        } catch (err) {
+          console.error("Error al recuperar nombre del cliente:", err);
+        }
       }
     });
     return unsubscribe;
@@ -155,7 +191,7 @@ export default function MesaClientePage({ params }) {
     const q = query(
       collection(db, 'mesa_pedidos'),
       where('mesaId', '==', mesaId),
-      where('estado', 'in', ['pendiente', 'en_camino', 'entregado']),
+      where('estado', 'in', ['pendiente', 'listo', 'en_camino', 'entregado']),
       orderBy('createdAt', 'desc')
     );
     const unsub = onSnapshot(q, snap => {
@@ -190,7 +226,7 @@ export default function MesaClientePage({ params }) {
         const prod = productos.find(p => p.id === parseInt(id));
         return { productoId: parseInt(id), nombre: prod?.nombre, precio: prod?.precioVenta, cantidad: cant, subtotal: (prod?.precioVenta || 0) * cant };
       });
-      await addDoc(collection(db, 'mesa_pedidos'), {
+      await addDocWithTimeout(collection(db, 'mesa_pedidos'), {
         mesaId,
         cliente: clienteNombre || `Mesa ${mesaId}`,
         items,
@@ -211,7 +247,7 @@ export default function MesaClientePage({ params }) {
   const solicitarAsistencia = async (tipo) => {
     setEnviando(true);
     try {
-      await addDoc(collection(db, 'mesa_pedidos'), {
+      await addDocWithTimeout(collection(db, 'mesa_pedidos'), {
         mesaId,
         cliente: clienteNombre || `Mesa ${mesaId}`,
         tipo: 'asistencia',
@@ -232,7 +268,7 @@ export default function MesaClientePage({ params }) {
   const solicitarCuenta = async () => {
     setEnviando(true);
     try {
-      await addDoc(collection(db, 'mesa_pedidos'), {
+      await addDocWithTimeout(collection(db, 'mesa_pedidos'), {
         mesaId,
         cliente: clienteNombre || `Mesa ${mesaId}`,
         tipo: 'cuenta',
@@ -542,11 +578,19 @@ export default function MesaClientePage({ params }) {
               placeholder="Tu nombre..."
               value={clienteNombre}
               onChange={e => setClienteNombre(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && setShowNombre(false)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') {
+                  guardarNombreCliente(clienteNombre);
+                  setShowNombre(false);
+                }
+              }}
               autoFocus
               style={{ width: '100%', padding: '14px 16px', background: 'var(--cl-surface)', border: '1px solid var(--cl-border-bronze)', borderRadius: 12, color: 'var(--cl-text)', fontSize: 16, marginBottom: 16, outline: 'none' }}
             />
-            <button className="mc-btn-primary" onClick={() => setShowNombre(false)}>Listo ✓</button>
+            <button className="mc-btn-primary" onClick={() => {
+              guardarNombreCliente(clienteNombre);
+              setShowNombre(false);
+            }}>Listo ✓</button>
           </div>
         </div>
       )}

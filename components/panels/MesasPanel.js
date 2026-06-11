@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { obfuscate, deobfuscate } from '@/lib/crypto';
 import { db } from '@/lib/firebase';
-import { doc, onSnapshot, setDoc, getDoc, serverTimestamp, collection, query, where, getDocs, writeBatch, updateDoc } from 'firebase/firestore';
+import { doc, onSnapshot, setDoc, getDoc, serverTimestamp, collection, query, where, getDocs, writeBatch, updateDoc, runTransaction } from 'firebase/firestore';
 
 // ── DATOS INICIALES DE MESAS ───────────────────────────────
 const INIT_MESAS = [
@@ -895,31 +895,57 @@ export default function MesasPanel({ showToast }) {
     setCuentasActivas(nuevasCuentas);
     localStorage.setItem('yoy_billar_cuentas', obfuscate(nuevasCuentas));
 
-    // 4. Guardar inventario actualizado en Firestore
-    if (stockActualizado) {
-      try {
-        localStorage.setItem('yoy_billar_stock', obfuscate(stockActualizado));
-        await setDoc(doc(db, 'config', 'inventario'), {
-          productos: stockActualizado,
+    // 4. Guardar inventario actualizado en Firestore, registrar auditoría y marcar como entregado de forma atómica
+    try {
+      await runTransaction(db, async (transaction) => {
+        const invRef = doc(db, 'config', 'inventario');
+        const invSnap = await transaction.get(invRef);
+        if (!invSnap.exists()) throw new Error("No existe el documento de inventario central");
+
+        const parsed = invSnap.data().productos || [];
+        const stockTransaccion = parsed.map(p => {
+          const enCart = orderItems.find(item => item.productoId === p.id);
+          if (enCart) {
+            return { ...p, stock: Math.max(0, p.stock - enCart.cantidad), lastModified: Date.now() };
+          }
+          return p;
+        });
+
+        // Escribir el inventario actualizado
+        transaction.update(invRef, {
+          productos: stockTransaccion,
           updatedAt: serverTimestamp()
         });
-      } catch (err) {
-        console.error("Error al actualizar inventario:", err);
-      }
-    }
 
-    // 5. Marcar el pedido como entregado en Firestore
-    try {
-      await updateDoc(doc(db, 'mesa_pedidos', pedidoDoc.id), {
-        estado: 'entregado',
-        entregadoAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
+        // Registrar en historial_stock para auditoría
+        const auditRef = doc(collection(db, 'historial_stock'));
+        transaction.set(auditRef, {
+          fecha: serverTimestamp(),
+          mesaId,
+          cliente: clienteName,
+          items: orderItems,
+          total: totalPedido,
+          tipo: 'descuento_qr',
+          pedidoId: pedidoDoc.id
+        });
+
+        // Marcar el pedido como entregado
+        const pedidoRef = doc(db, 'mesa_pedidos', pedidoDoc.id);
+        transaction.update(pedidoRef, {
+          estado: 'entregado',
+          entregadoAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        });
+
+        // Actualizar el caché de stock local después de confirmarse la transacción
+        localStorage.setItem('yoy_billar_stock', obfuscate(stockTransaccion));
       });
+
       showToast(`Pedido de Mesa ${mesaId} cargado a la cuenta y completado ✓`, 'success');
       registrarEvento('Pedido a Cuenta', `Pedido de ${orderItems.map(i=>`${i.cantidad}x ${i.nombre}`).join(', ')} cargado a la cuenta de ${clienteName}`, totalPedido);
     } catch (err) {
-      console.error("Error al actualizar estado de pedido:", err);
-      showToast('Error al procesar el pedido en Firestore', 'error');
+      console.error("Error al procesar la transacción de descuento de stock:", err);
+      showToast('Error de red al actualizar stock atómicamente', 'error');
     }
   };
 
@@ -958,7 +984,7 @@ export default function MesasPanel({ showToast }) {
       setAlertasMesas(alertsMap);
 
       if (hasNewAlert) {
-        // Reproducir sonido sutil de chime (high double chime)
+        // Reproducir sonido sutil de chime (high double chime) y vibración
         try {
           const ctx = new (window.AudioContext || window.webkitAudioContext)();
           const osc1 = ctx.createOscillator();
@@ -976,6 +1002,10 @@ export default function MesasPanel({ showToast }) {
             gain2.gain.value = 0.08;
             osc2.start(); osc2.stop(ctx.currentTime + 0.22);
           }, 120);
+
+          if (typeof navigator !== 'undefined' && navigator.vibrate) {
+            navigator.vibrate([100, 50, 100]); // Vibración doble
+          }
         } catch (e) {
           console.warn("Chime playback failed", e);
         }
@@ -1414,25 +1444,27 @@ export default function MesasPanel({ showToast }) {
     const mesa = mesas.find(m => m.id === mesaId);
     const clientName = mesa ? mesa.cliente : 'Público';
 
-    // Desactivar/atender todas las alertas activas de la mesa en Firestore en lote (batch)
+    // Desactivar/atender/finalizar todas las alertas y consumos de la mesa en Firestore en lote (batch)
     const qAlerts = query(
       collection(db, 'mesa_pedidos'),
       where('mesaId', '==', mesaId),
-      where('estado', 'in', ['pendiente', 'listo', 'en_camino'])
+      where('estado', 'in', ['pendiente', 'listo', 'en_camino', 'entregado'])
     );
     getDocs(qAlerts).then(snap => {
       if (!snap.empty) {
         const batch = writeBatch(db);
         snap.docs.forEach(d => {
+          const docData = d.data();
+          const nuevoEstado = docData.estado === 'entregado' ? 'finalizado' : 'atendido';
           batch.update(doc(db, 'mesa_pedidos', d.id), {
-            estado: 'atendido',
+            estado: nuevoEstado,
             atendidoAt: serverTimestamp(),
             updatedAt: serverTimestamp()
           });
         });
-        batch.commit().catch(err => console.error("Error al confirmar lote de alertas atendidas:", err));
+        batch.commit().catch(err => console.error("Error al confirmar lote de alertas atendidas/finalizadas:", err));
       }
-    }).catch(err => console.error("Error al buscar alertas activas de mesa:", err));
+    }).catch(err => console.error("Error al buscar alertas y pedidos de mesa:", err));
 
     setMesas(prev => prev.map(m => m.id === mesaId
       ? { ...m, estado: 'libre', cliente: null, inicio: null, socios: false }
