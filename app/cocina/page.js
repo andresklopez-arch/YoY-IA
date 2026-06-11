@@ -266,6 +266,7 @@ function CocinaContent() {
     try {
       await updateDoc(doc(db, 'mesa_pedidos', id), {
         estado: 'listo',
+        atendidoMesero: false, // Reset mesero notification status so they get the popup again
         cocinaAtendidoAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });

@@ -692,7 +692,10 @@ function MeseroContent() {
                           Mesa {alerta.mesaId}
                         </div>
                         <div style={{ fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600, marginTop: 2 }}>
-                          Solicitud: <span style={{ color: 'var(--bronze-light)' }}>{alerta.etiqueta} {alerta.tipo === 'cuenta' && alerta.totalAcumulado ? `($${alerta.totalAcumulado} MXN)` : alerta.tipo === 'pedido' && alerta.total ? `($${alerta.total} MXN)` : ''}</span>
+                          Solicitud: <span style={{ color: alerta.estado === 'listo' ? 'var(--success)' : 'var(--bronze-light)' }}>
+                            {alerta.estado === 'listo' ? '🍳 ¡LISTO PARA SERVIR! ' : ''}
+                            {alerta.etiqueta} {alerta.tipo === 'cuenta' && alerta.totalAcumulado ? `($${alerta.totalAcumulado} MXN)` : alerta.tipo === 'pedido' && alerta.total ? `($${alerta.total} MXN)` : ''}
+                          </span>
                         </div>
                         <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
                           {alerta.cliente} · {alerta.createdAt?.toDate ? new Date(alerta.createdAt.toDate()).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'Ahora'}

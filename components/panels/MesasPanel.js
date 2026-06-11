@@ -984,8 +984,9 @@ export default function MesasPanel({ showToast }) {
         const id = doc.id;
         currentAlerts.add(id);
 
-        // Auto-cargar pedidos a la cuenta de forma reactiva si fueron atendidos por mesero o admin y no están cargados
-        if (data.tipo === 'pedido' && !data.cargadoACuenta && (data.atendidoMesero || data.atendidoAdmin)) {
+        // Auto-cargar pedidos a la cuenta de forma reactiva si fueron atendidos por mesero o admin o si ya están listos/en camino/entregados
+        const debCargar = data.atendidoMesero || data.atendidoAdmin || ['listo', 'en_camino', 'entregado'].includes(data.estado);
+        if (data.tipo === 'pedido' && !data.cargadoACuenta && debCargar) {
           cargarPedidoACuenta(mesaId || 0, { id, ...data }, true);
         }
 
