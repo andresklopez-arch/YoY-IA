@@ -1,7 +1,27 @@
 'use client';
+import { useEffect } from 'react';
+import { db } from '@/lib/firebase';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import '@/styles/mesa-cliente.css';
 
 export default function MesaInvalidaPage() {
+  useEffect(() => {
+    const registrarFalloQR = async () => {
+      try {
+        await addDoc(collection(db, 'intentos_fallidos_qr'), {
+          ruta: typeof window !== 'undefined' ? window.location.pathname + window.location.search : 'desconocido',
+          userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'desconocido',
+          fecha: serverTimestamp(),
+          tipo: 'id_invalido_middleware'
+        });
+        console.log("Log de fallo QR guardado en Firestore.");
+      } catch (err) {
+        console.warn("No se pudo registrar log de fallo QR en la nube:", err);
+      }
+    };
+    registrarFalloQR();
+  }, []);
+
   return (
     <div style={{
       display: 'flex',

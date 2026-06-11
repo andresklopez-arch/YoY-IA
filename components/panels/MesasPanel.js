@@ -1460,6 +1460,79 @@ export default function MesasPanel({ showToast }) {
     setModalCerrar(null);
   };
 
+  const imprimirTodosLosQRs = () => {
+    const w = window.open('', '_blank');
+    let htmlContent = `
+      <html><head><title>Códigos QR - YoY IA Billar</title>
+      <style>
+        body { margin: 0; font-family: sans-serif; background: #fff; }
+        .page {
+          page-break-after: always;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          min-height: 100vh;
+          padding: 40px;
+          box-sizing: border-box;
+          text-align: center;
+        }
+        .page:last-child { page-break-after: avoid; }
+        h2 { color: #cd7f32; margin: 20px 0 8px; font-size: 26px; font-weight: 800; }
+        p { color: #666; font-size: 14px; margin: 4px 0; }
+        .qr-container {
+          padding: 24px;
+          border: 1px solid #eee;
+          border-radius: 20px;
+          background: #fff;
+          display: inline-block;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        }
+        .qr-placeholder { width: 200px; height: 200px; }
+      </style>
+      </head>
+      <body>
+    `;
+
+    mesas.forEach(mesa => {
+      htmlContent += `
+        <div class="page">
+          <div class="qr-container">
+            <div id="qr-${mesa.id}" class="qr-placeholder"></div>
+          </div>
+          <h2>${mesa.nombre || `Mesa ${mesa.id}`}</h2>
+          <p>Escanea para ordenar y pedir asistencia</p>
+          <p style="font-size: 11px; color: #999; margin-top: 10px;">yoy-ia-billar.vercel.app/mesa/${mesa.id}</p>
+        </div>
+      `;
+    });
+
+    htmlContent += `
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+      <script>
+        window.onload = () => {
+          const mesasData = ${JSON.stringify(mesas.map(m => ({ id: m.id, url: `https://yoy-ia-billar.vercel.app/mesa/${m.id}` })))};
+          mesasData.forEach(m => {
+            new QRCode(document.getElementById('qr-' + m.id), {
+              text: m.url,
+              width: 200,
+              height: 200,
+              colorDark: "#0a0a0f",
+              colorLight: "#ffffff",
+              correctLevel: QRCode.CorrectLevel.H
+            });
+          });
+          setTimeout(() => {
+            window.print();
+          }, 500);
+        };
+      </script>
+      </body></html>
+    `;
+    w.document.write(htmlContent);
+    w.document.close();
+  };
+
   const confirmarCerrarMesa = (mesaId, { costo, metodo, tiempo, referencia, pagaCon, cambio, fotoAdjunta }) => {
     const mesa = mesas.find(m => m.id === mesaId);
     const clientName = mesa ? mesa.cliente : 'Público';
@@ -1603,22 +1676,31 @@ export default function MesasPanel({ showToast }) {
       )}
 
       {/* Filtros */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
-        {[
-          { id: 'todas', label: 'Todas' },
-          { id: 'libre', label: 'Libres' },
-          { id: 'ocupada', label: 'Ocupadas' },
-          { id: 'reservada', label: 'Reservadas' },
-          { id: 'manten', label: 'Mantenimiento' },
-        ].map(f => (
-          <button
-            key={f.id}
-            onClick={() => setFiltro(f.id)}
-            className={`btn btn-sm ${filtro === f.id ? 'btn-primary' : 'btn-secondary'}`}
-          >
-            {f.label}
-          </button>
-        ))}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {[
+            { id: 'todas', label: 'Todas' },
+            { id: 'libre', label: 'Libres' },
+            { id: 'ocupada', label: 'Ocupadas' },
+            { id: 'reservada', label: 'Reservadas' },
+            { id: 'manten', label: 'Mantenimiento' },
+          ].map(f => (
+            <button
+              key={f.id}
+              onClick={() => setFiltro(f.id)}
+              className={`btn btn-sm ${filtro === f.id ? 'btn-primary' : 'btn-secondary'}`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+        <button
+          onClick={imprimirTodosLosQRs}
+          className="btn btn-secondary btn-sm"
+          style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--bronze-light)', borderColor: 'var(--border-bronze)' }}
+        >
+          <i className="ri-qr-code-line" /> Imprimir todos los QRs
+        </button>
       </div>
 
       {/* Grid de mesas */}
