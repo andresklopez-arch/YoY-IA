@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { auth, db } from '../../lib/firebase';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc, collection, getDocs } from 'firebase/firestore';
+import { getClientDomain } from '../../lib/tenant';
 
 export default function SeedPage() {
   const [status, setStatus] = useState('Esperando para verificar estado...');
@@ -42,9 +43,10 @@ export default function SeedPage() {
 
     setStatus('Iniciando proceso...');
     try {
+      const clientDomain = getClientDomain();
       // 1. Crear el usuario admin1111
-      setStatus('Creando usuario admin1111...');
-      const email = 'admin1111@yoybillar.mx';
+      setStatus(`Creando usuario admin1111@${clientDomain}...`);
+      const email = `admin1111@${clientDomain}`;
       
       const userCredential = await createUserWithEmailAndPassword(auth, email, customPassword);
       const user = userCredential.user;
@@ -102,8 +104,9 @@ export default function SeedPage() {
         total: 0
       });
 
+      const clientDomain = getClientDomain();
       setIsAlreadySeeded(true);
-      setStatus(`¡Sembrado completado exitosamente! Ya puedes iniciar sesión con admin1111@yoybillar.mx y la contraseña que ingresaste.`);
+      setStatus(`¡Sembrado completado exitosamente! Ya puedes iniciar sesión con admin1111@${clientDomain} y la contraseña que ingresaste.`);
     } catch (error) {
       console.error(error);
       if (error.code === 'auth/email-already-in-use') {
@@ -178,7 +181,7 @@ export default function SeedPage() {
             </label>
             <input 
               type="text"
-              value="admin1111@yoybillar.mx"
+              value={`admin1111@${getClientDomain()}`}
               disabled
               style={{
                 width: '100%',

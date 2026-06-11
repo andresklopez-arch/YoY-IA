@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { db } from '@/lib/firebase';
 import { collection, getDocs, query, orderBy } from 'firebase/firestore';
+import { getClientDomain } from '@/lib/tenant';
 
 export default function LoginScreen({ showToast }) {
   const { login } = useAuth();
@@ -55,11 +56,12 @@ export default function LoginScreen({ showToast }) {
   };
 
   const quickLogin = async (role) => {
+    const clientDomain = getClientDomain();
     const creds = {
-      admin:   { e: 'admin@yoybillar.mx', p: '1234' },
-      gerente: { e: 'gerente@yoybillar.mx', p: '1234' },
-      cajero:  { e: 'cajero@yoybillar.mx', p: '1234' },
-      mesero:  { e: 'mesero@yoybillar.mx', p: '1234' },
+      admin:   { e: `admin@${clientDomain}`, p: '1234' },
+      gerente: { e: `gerente@${clientDomain}`, p: '1234' },
+      cajero:  { e: `cajero@${clientDomain}`, p: '1234' },
+      mesero:  { e: `mesero@${clientDomain}`, p: '1234' },
     };
     setLoading(true);
     try {
@@ -199,7 +201,7 @@ export default function LoginScreen({ showToast }) {
                     <input
                       className="form-input"
                       type="email"
-                      placeholder="usuario@yoybillar.mx"
+                      placeholder={`usuario@${getClientDomain()}`}
                       value={email}
                       onChange={e => setEmail(e.target.value)}
                       required

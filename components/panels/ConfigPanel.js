@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { db } from '@/lib/firebase';
 import { collection, getDocs, addDoc, query, orderBy, deleteDoc, doc, where, setDoc, serverTimestamp } from 'firebase/firestore';
 import { obfuscate, deobfuscate, hashPasswordSecure } from '@/lib/crypto';
+import { getClientDomain } from '@/lib/tenant';
 
 const hashPassword = (pwd) => {
   if (!pwd) return '';
@@ -167,7 +168,7 @@ export default function ConfigPanel({ showToast }) {
 
     let formattedEmail = newUser.email.trim().toLowerCase();
     if (!formattedEmail.includes('@')) {
-      formattedEmail = `${formattedEmail}@yoybillar.mx`;
+      formattedEmail = `${formattedEmail}@${getClientDomain()}`;
     }
 
     setSavingUser(true);
@@ -230,11 +231,12 @@ export default function ConfigPanel({ showToast }) {
     return colors[role] || 'var(--text-muted)';
   };
 
+  const clientDomain = getClientDomain();
   const defaultDemos = [
-    { name: 'Administrador', email: 'admin@yoybillar.mx', role: 'admin' },
-    { name: 'Gerente Turno', email: 'gerente@yoybillar.mx', role: 'gerente' },
-    { name: 'Cajero Principal', email: 'cajero@yoybillar.mx', role: 'cajero' },
-    { name: 'Mesero #1', email: 'mesero@yoybillar.mx', role: 'mesero' },
+    { name: 'Administrador', email: `admin@${clientDomain}`, role: 'admin' },
+    { name: 'Gerente Turno', email: `gerente@${clientDomain}`, role: 'gerente' },
+    { name: 'Cajero Principal', email: `cajero@${clientDomain}`, role: 'cajero' },
+    { name: 'Mesero #1', email: `mesero@${clientDomain}`, role: 'mesero' },
   ];
 
   const handleChangePin = async (e) => {
@@ -1206,7 +1208,7 @@ export default function ConfigPanel({ showToast }) {
                 <label className="form-label">Correo / Nombre de Usuario</label>
                 <input 
                   className="form-input" 
-                  placeholder="Ej. juan (se autocompleta a juan@yoybillar.mx)" 
+                  placeholder={`Ej. juan (se autocompleta a juan@${getClientDomain()})`} 
                   value={newUser.email}
                   onChange={e => setNewUser(p => ({ ...p, email: e.target.value }))}
                   required
