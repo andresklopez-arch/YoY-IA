@@ -24,11 +24,11 @@ function AppContent() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [toasts, setToasts] = useState([]);
 
-  // Asegura que la animación de carga se muestre al menos durante 2 segundos
+  // Asegura que la animación de carga se muestre al menos durante 5 segundos
   useEffect(() => {
     const timer = setTimeout(() => {
       setMinLoadingDone(true);
-    }, 2000);
+    }, 5000);
     return () => clearTimeout(timer);
   }, []);
 
@@ -166,17 +166,31 @@ function AppContent() {
             alt="YoY IA Billar By Alfonso Iturbide" 
             fetchpriority="high"
             loading="eager"
-            className="animate-pulse-accelerate"
+            className="animate-heartbeat"
             style={{ 
               width: 260, 
               height: 'auto', 
               objectFit: 'contain',
               margin: '0 auto 24px',
               display: 'block'
-            }} 
+             }} 
           />
           <p style={{ color:'var(--text-secondary)', fontSize: 10, letterSpacing:'0.2em', textTransform:'uppercase', fontWeight: 600 }}>Iniciando sistema...</p>
         </div>
+        
+        <style>{`
+          @keyframes heartbeat {
+            0% { transform: scale(1); }
+            14% { transform: scale(1.12); }
+            28% { transform: scale(1); }
+            42% { transform: scale(1.2); }
+            70% { transform: scale(1); }
+          }
+          .animate-heartbeat {
+            animation: heartbeat 1.2s infinite ease-in-out;
+            filter: drop-shadow(0 0 15px rgba(205,127,50,0.25));
+          }
+        `}</style>
       </div>
     );
   }
