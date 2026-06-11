@@ -894,6 +894,62 @@ export default function MesaClientePage({ params }) {
               </div>
             )}
 
+            {/* Status Tracking Bar/Card (Sugerencia 1) */}
+            {(() => {
+              const pedidoListo = pedidosMesa.find(p => p.estado === 'listo');
+              const pedidoEnCamino = pedidosMesa.find(p => p.estado === 'en_camino');
+              if (!pedidoListo && !pedidoEnCamino) return null;
+              
+              const isListo = !!pedidoListo;
+              const emoji = isListo ? '🍳' : '🚚';
+              const titulo = isListo ? '¡Tu pedido está listo!' : '¡Pedido en camino!';
+              const desc = isListo ? 'El mesero está recogiéndolo en la cocina.' : 'El mesero está llevándolo a tu mesa.';
+              const color = isListo ? '#a78bfa' : '#f59e0b';
+              const bg = isListo ? 'rgba(167,139,250,0.1)' : 'rgba(245,158,11,0.1)';
+              const border = isListo ? 'rgba(167,139,250,0.25)' : 'rgba(245,158,11,0.25)';
+              
+              return (
+                <div style={{
+                  background: bg,
+                  border: `1px solid ${border}`,
+                  borderRadius: 16,
+                  padding: '14px 18px',
+                  marginBottom: 16,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 14,
+                  animation: 'pulse 2s infinite ease-in-out'
+                }}>
+                  <div style={{
+                    fontSize: 26,
+                    background: 'rgba(255,255,255,0.05)',
+                    borderRadius: 12,
+                    width: 44,
+                    height: 44,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    border: `1px solid ${border}`
+                  }}>
+                    {emoji}
+                  </div>
+                  <div style={{ flex: 1, textAlign: 'left' }}>
+                    <div style={{ fontSize: 13, fontWeight: 800, color: '#fff' }}>{titulo}</div>
+                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', marginTop: 2 }}>{desc}</div>
+                    {/* Barra de progreso */}
+                    <div style={{ background: 'rgba(255,255,255,0.1)', height: 4, borderRadius: 2, marginTop: 8, overflow: 'hidden' }}>
+                      <div style={{
+                        background: color,
+                        height: '100%',
+                        width: isListo ? '75%' : '90%',
+                        borderRadius: 2
+                      }} />
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* Grilla de productos */}
             <div className="mc-menu-grid">
               {productos.map(prod => {

@@ -144,8 +144,10 @@ export default function ReportesPanel({ showToast }) {
   const [nominaPagosList, setNominaPagosList] = useState([]);
   const [empleadosList, setEmpleadosList] = useState([]);
   const [encuestasList, setEncuestasList] = useState([]);
+  const [pedidosList, setPedidosList] = useState([]);
   const [showPrintPL, setShowPrintPL] = useState(false);
   const [limitePresupuesto, setLimitePresupuesto] = useState(15000);
+  const [ahora] = useState(() => Date.now());
 
 
   useEffect(() => {
@@ -173,16 +175,58 @@ export default function ReportesPanel({ showToast }) {
       setEncuestasList(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     }, err => console.warn("Error cargando encuestas:", err));
 
+    // Escuchar pedidos de firestore
+    const qPedidos = query(collection(db, 'mesa_pedidos'));
+    const unsubPedidos = onSnapshot(qPedidos, snap => {
+      setPedidosList(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, err => console.warn("Error cargando pedidos en ReportesPanel:", err));
+
     return () => {
       unsubGastos();
       unsubPagos();
       unsubEmp();
       unsubEncuestas();
+      unsubPedidos();
     };
   }, []);
 
+  const getEficienciaEntregas = () => {
+    // Filtrar pedidos que tengan cocinaAtendidoAt y entregadoAt
+    const listosYEntregados = pedidosList.filter(p => p.tipo === 'pedido' && p.cocinaAtendidoAt && p.entregadoAt);
+    
+    if (listosYEntregados.length === 0) return { promedioSegundos: 0, totalAudits: 0, porMesero: [] };
+    
+    let totalDemora = 0;
+    const porMesero = {};
+    
+    listosYEntregados.forEach(p => {
+      const tCocina = p.cocinaAtendidoAt.toDate ? p.cocinaAtendidoAt.toDate().getTime() : new Date(p.cocinaAtendidoAt).getTime();
+      const tEntrega = p.entregadoAt.toDate ? p.entregadoAt.toDate().getTime() : new Date(p.entregadoAt).getTime();
+      const demoraSegundos = Math.max(0, Math.floor((tEntrega - tCocina) / 1000));
+      
+      totalDemora += demoraSegundos;
+      
+      const mesero = p.clienteNombreMesero || p.meseroId || 'Mesero Móvil';
+      if (!porMesero[mesero]) {
+        porMesero[mesero] = { totalTime: 0, count: 0 };
+      }
+      porMesero[mesero].totalTime += demoraSegundos;
+      porMesero[mesero].count += 1;
+    });
+    
+    const promedioGeneral = Math.floor(totalDemora / listosYEntregados.length);
+    return {
+      promedioSegundos: promedioGeneral,
+      totalAudits: listosYEntregados.length,
+      porMesero: Object.entries(porMesero).map(([name, data]) => ({
+        name,
+        promedio: Math.floor(data.totalTime / data.count),
+        count: data.count
+      }))
+    };
+  };
+
   const getFinanzasPL = () => {
-    const ahora = Date.now();
     let diasFiltro = 7;
     if (filtroGrafico === 'mes') diasFiltro = 30;
     if (filtroGrafico === 'anio') diasFiltro = 365;
@@ -1020,6 +1064,71 @@ export default function ReportesPanel({ showToast }) {
               </div>
             </div>
           </div>
+
+          {/* Sugerencia 2: Card de Eficiencia de Tiempos de Entrega */}
+          {(() => {
+            const audit = getEficienciaEntregas();
+            const formatDur = (sec) => {
+              if (sec < 60) return `${sec}s`;
+              const m = Math.floor(sec / 60);
+              const s = sec % 60;
+              return `${m}m ${s}s`;
+            };
+            
+            return (
+              <div className="card" style={{ marginTop: 20 }}>
+                <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
+                  <div>
+                    <h3 className="card-title">⏱️ Auditoría de Tiempos de Entrega (Cocina → Cliente)</h3>
+                    <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0 }}>Medición del tiempo desde que el pedido está listo en cocina hasta que se entrega en mesa</p>
+                  </div>
+                  <span className="badge badge-bronze" style={{ fontSize: 10 }}>En Vivo</span>
+                </div>
+                
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 24, alignItems: 'center' }}>
+                  {/* KPI Principal */}
+                  <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 12, padding: 20, textAlign: 'center' }}>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Demora Promedio General</div>
+                    <div style={{ fontSize: 36, fontWeight: 900, color: audit.promedioSegundos > 300 ? 'var(--warning)' : 'var(--success)', letterSpacing: '-0.02em' }}>
+                      {audit.totalAudits > 0 ? formatDur(audit.promedioSegundos) : '—'}
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 8 }}>
+                      Total audits: <strong>{audit.totalAudits} comandas</strong>
+                    </div>
+                  </div>
+                  
+                  {/* Tiempos por Mesero */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    <h4 style={{ margin: '0 0 4px 0', fontSize: 12, fontWeight: 800, color: 'var(--text-secondary)' }}>Rendimiento por Mesero / Terminal:</h4>
+                    {audit.totalAudits === 0 ? (
+                      <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic', padding: '10px 0' }}>
+                        Esperando que se completen entregas para calcular métricas...
+                      </div>
+                    ) : (
+                      audit.porMesero.map((item, i) => (
+                        <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
+                            <span style={{ fontWeight: 700, textTransform: 'capitalize' }}>👤 {item.name === 'mesero' ? 'Mesero Móvil (QR Link)' : item.name}</span>
+                            <span style={{ fontWeight: 800, color: item.promedio > 300 ? 'var(--warning)' : 'var(--success)' }}>
+                              {formatDur(item.promedio)} <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 400 }}>({item.count} pz)</span>
+                            </span>
+                          </div>
+                          <div style={{ height: 6, background: 'var(--bg-elevated)', borderRadius: 3, overflow: 'hidden' }}>
+                            <div style={{
+                              height: '100%',
+                              width: `${Math.min(100, (item.promedio / 300) * 100)}%`,
+                              background: item.promedio > 300 ? 'var(--warning)' : 'var(--success)',
+                              borderRadius: 3
+                            }} />
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
         </>
       )}
 

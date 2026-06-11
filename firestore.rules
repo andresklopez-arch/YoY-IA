@@ -28,7 +28,9 @@ service cloud.firestore {
 
     // 3. Comandas, pedidos y llamadas de asistencia
     match /mesa_pedidos/{document} {
-      allow read, write: if true;
+      allow read, create: if true;
+      // Permitir la actualización y eliminación solo a usuarios autenticados del staff (no anónimos)
+      allow update, delete: if request.auth != null && request.auth.token.firebase.sign_in_provider != 'anonymous';
     }
 
     // 4. Clientes anónimos (nombres ofuscados de los QR)
