@@ -770,16 +770,25 @@ export default function MesasPanel({ showToast }) {
   const knownAlertsRef = useRef(new Set());
   const isInitialLoadRef = useRef(true);
 
-  // Marcar una solicitud de cliente como atendida en Firestore
+  // Marcar una solicitud de cliente como atendida en Firestore (Caja/Admin)
   const marcarAlertaAtendida = async (alertaId, e) => {
     if (e) e.stopPropagation(); // Evitar abrir el modal de la mesa
     try {
-      await updateDoc(doc(db, 'mesa_pedidos', alertaId), {
-        estado: 'atendido',
-        atendidoAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      });
-      showToast('Solicitud marcada como atendida ✓', 'success');
+      const docRef = doc(db, 'mesa_pedidos', alertaId);
+      const snap = await getDoc(docRef);
+      if (snap.exists()) {
+        const data = snap.data();
+        const updateData = {
+          atendidoAdmin: true,
+          updatedAt: serverTimestamp()
+        };
+        if (data.atendidoMesero === true) {
+          updateData.estado = 'atendido';
+          updateData.atendidoAt = serverTimestamp();
+        }
+        await updateDoc(docRef, updateData);
+        showToast('Solicitud marcada como atendida ✓', 'success');
+      }
     } catch (err) {
       console.error("Error al marcar alerta como atendida:", err);
       showToast('Error al atender solicitud.', 'error');
@@ -788,8 +797,8 @@ export default function MesasPanel({ showToast }) {
 
   // Cargar un pedido enviado por el cliente directamente a su cuenta de mesa y descontar inventario
   const cargarPedidoACuenta = async (mesaId, pedidoDoc) => {
-    const targetMesa = mesas.find(m => m.id === mesaId);
-    if (!targetMesa) return;
+    const targetMesa = mesaId ? mesas.find(m => m.id === mesaId) : null;
+    if (mesaId && !targetMesa) return;
 
     const orderItems = pedidoDoc.items || [];
     const totalPedido = pedidoDoc.total || 0;
@@ -838,12 +847,12 @@ export default function MesasPanel({ showToast }) {
       if (!continuarSinStock) return;
     }
 
-    // 2. Si la mesa está libre, la abrimos automáticamente
-    let clienteName = targetMesa.cliente || pedidoDoc.cliente || `Mesa ${mesaId}`;
+    // 2. Si la mesa está libre, la abrimos automáticamente (si aplica mesaId)
+    let clienteName = (targetMesa ? targetMesa.cliente : null) || pedidoDoc.cliente || `Cliente`;
     let updatedMesas = mesas;
-    if (targetMesa.estado !== 'ocupada') {
+    if (targetMesa && targetMesa.estado !== 'ocupada') {
       updatedMesas = mesas.map(m => m.id === mesaId
-        ? { ...m, estado: 'ocupada', cliente: clienteName, inicio: Date.now() }
+        ? { ...m, estado: 'ocupada', cliente: clienteName, inicio: Date.now(), clienteUid: pedidoDoc.clienteUid || '' }
         : m
       );
       setMesas(updatedMesas);
@@ -929,19 +938,23 @@ export default function MesasPanel({ showToast }) {
           pedidoId: pedidoDoc.id
         });
 
-        // Marcar el pedido como entregado
+        // Marcar el pedido como entregado (Caja)
         const pedidoRef = doc(db, 'mesa_pedidos', pedidoDoc.id);
-        transaction.update(pedidoRef, {
-          estado: 'entregado',
-          entregadoAt: serverTimestamp(),
+        const updateData = {
+          atendidoAdmin: true,
           updatedAt: serverTimestamp()
-        });
+        };
+        if (pedidoDoc.atendidoMesero === true) {
+          updateData.estado = 'entregado';
+          updateData.entregadoAt = serverTimestamp();
+        }
+        transaction.update(pedidoRef, updateData);
 
         // Actualizar el caché de stock local después de confirmarse la transacción
         localStorage.setItem('yoy_billar_stock', obfuscate(stockTransaccion));
       });
 
-      showToast(`Pedido de Mesa ${mesaId} cargado a la cuenta y completado ✓`, 'success');
+      showToast(`Pedido de ${mesaId ? `Mesa ${mesaId}` : clienteName} cargado a la cuenta ✓`, 'success');
       registrarEvento('Pedido a Cuenta', `Pedido de ${orderItems.map(i=>`${i.cantidad}x ${i.nombre}`).join(', ')} cargado a la cuenta de ${clienteName}`, totalPedido);
     } catch (err) {
       console.error("Error al procesar la transacción de descuento de stock:", err);
@@ -953,7 +966,7 @@ export default function MesasPanel({ showToast }) {
   useEffect(() => {
     const q = query(
       collection(db, 'mesa_pedidos'),
-      where('estado', 'in', ['pendiente', 'listo', 'en_camino'])
+      where('estado', 'in', ['pendiente', 'listo', 'en_camino', 'entregado'])
     );
     const unsub = onSnapshot(q, snap => {
       const alertsMap = {};
@@ -966,7 +979,8 @@ export default function MesasPanel({ showToast }) {
         const id = doc.id;
         currentAlerts.add(id);
 
-        if (mesaId) {
+        // Solo incluir alertas que no hayan sido atendidas por el admin
+        if (mesaId && !data.atendidoAdmin) {
           if (!alertsMap[mesaId]) {
             alertsMap[mesaId] = [];
           }
@@ -1255,6 +1269,10 @@ export default function MesasPanel({ showToast }) {
     if (typeof window !== 'undefined') {
       try {
         localStorage.setItem('yoy_billar_cuentas', obfuscate(cuentasActivas));
+        setDocWithRetry(doc(db, 'config', 'cuentas_estado'), {
+          cuentas: cuentasActivas,
+          updatedAt: serverTimestamp()
+        }).catch(err => console.error("Error al sincronizar cuentas con Firestore:", err));
       } catch (err) {
         console.error("Error al guardar cuentas:", err);
       }
@@ -1319,7 +1337,7 @@ export default function MesasPanel({ showToast }) {
 
   const confirmarAbrirMesa = (mesaId, { cliente, esSocio, rentarTaco, rentarBolas, rentarTiza }) => {
     setMesas(prev => prev.map(m => m.id === mesaId
-      ? { ...m, estado: 'ocupada', cliente, inicio: Date.now(), socios: esSocio, rentarTaco, rentarBolas, rentarTiza }
+      ? { ...m, estado: 'ocupada', cliente, inicio: Date.now(), socios: esSocio, rentarTaco, rentarBolas, rentarTiza, clienteUid: '' }
       : m
     ));
     
@@ -1348,7 +1366,8 @@ export default function MesasPanel({ showToast }) {
         cliente: null,
         inicio: null,
         tarifa: parseFloat(nueva.tarifa),
-        socios: false
+        socios: false,
+        clienteUid: ''
       }
     ]);
     setModalNuevaMesa(false);
@@ -1392,7 +1411,8 @@ export default function MesasPanel({ showToast }) {
           cliente: mesaOrigen.cliente,
           inicio: mesaOrigen.inicio,
           socios: mesaOrigen.socios,
-          filaId: mesaOrigen.filaId
+          filaId: mesaOrigen.filaId,
+          clienteUid: mesaOrigen.clienteUid || ''
         };
       }
       if (m.id === origenId) {
@@ -1402,7 +1422,8 @@ export default function MesasPanel({ showToast }) {
           cliente: null,
           inicio: null,
           socios: false,
-          filaId: null
+          filaId: null,
+          clienteUid: ''
         };
       }
       return m;
@@ -1449,7 +1470,7 @@ export default function MesasPanel({ showToast }) {
     }
 
     setMesas(prev => prev.map(m => m.id === modalCerrar.id
-      ? { ...m, estado: 'libre', cliente: null, inicio: null, socios: false }
+      ? { ...m, estado: 'libre', cliente: null, inicio: null, socios: false, clienteUid: '' }
       : m
     ));
 
@@ -1560,7 +1581,7 @@ export default function MesasPanel({ showToast }) {
     }).catch(err => console.error("Error al buscar alertas y pedidos de mesa:", err));
 
     setMesas(prev => prev.map(m => m.id === mesaId
-      ? { ...m, estado: 'libre', cliente: null, inicio: null, socios: false }
+      ? { ...m, estado: 'libre', cliente: null, inicio: null, socios: false, clienteUid: '' }
       : m
     ));
     setModalCerrar(null);
