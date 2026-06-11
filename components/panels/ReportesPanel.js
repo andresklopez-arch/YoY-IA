@@ -474,6 +474,54 @@ export default function ReportesPanel({ showToast }) {
             ))}
           </div>
 
+          {/* Alertas Críticas de Calidad en Tiempo Real */}
+          {totalEncuestas > 0 && (promedioAtencion < 4.2 || promedioRapidez < 4.0 || promedioLimpieza < 4.2 || promedioEquipo < 4.2) && (
+            <div className="card" style={{
+              background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.08), rgba(205, 127, 50, 0.05))',
+              border: '1px solid rgba(239, 68, 68, 0.3)',
+              borderRadius: 12,
+              padding: 16,
+              marginBottom: 20,
+              boxShadow: '0 0 15px rgba(239, 68, 68, 0.1)',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                <span style={{ fontSize: 20 }}>🚨</span>
+                <span style={{ fontWeight: 800, color: 'var(--danger)', fontSize: 13, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Alertas Críticas de Calidad Detectadas
+                </span>
+                <span className="badge" style={{ backgroundColor: 'rgba(239, 68, 68, 0.2)', color: 'var(--danger)', border: 'none', marginLeft: 'auto', fontSize: 10, fontWeight: 700, padding: '4px 8px' }}>
+                  Acción Inmediata Sugerida
+                </span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 12, color: 'var(--text-secondary)' }}>
+                {promedioAtencion < 4.2 && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span>👤</span>
+                    <span><strong>Atención del Personal Baja ({promedioAtencion.toFixed(1)}/5.0):</strong> Los clientes reportan fricciones con el personal. Se sugiere briefing de alineación con el staff de turno.</span>
+                  </div>
+                )}
+                {promedioRapidez < 4.0 && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span>⏱️</span>
+                    <span><strong>Demoras en Servicio ({promedioRapidez.toFixed(1)}/5.0):</strong> Tiempo de espera elevado en mesa. Reforzar cocina o barra con personal de apoyo.</span>
+                  </div>
+                )}
+                {promedioLimpieza < 4.2 && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span>🧹</span>
+                    <span><strong>Incidencias de Limpieza ({promedioLimpieza.toFixed(1)}/5.0):</strong> Calificación de higiene por debajo del estándar. Programar limpieza profunda de mesas y baños de inmediato.</span>
+                  </div>
+                )}
+                {promedioEquipo < 4.2 && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span>🎱</span>
+                    <span><strong>Estado de Equipos ({promedioEquipo.toFixed(1)}/5.0):</strong> Reportes de tacos, tizas o paños defectuosos. Revisar y reemplazar material de juego.</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 20 }}>
             {/* Ingresos por día */}
             <div className="card">

@@ -5,9 +5,19 @@ service cloud.firestore {
     // 1. Colección config (inventario, mesas_estado, seguridad)
     match /config/{document} {
       allow read: if true;
-      // Se permite la escritura debido al bypass local y NIP en la caja/admin.
-      // Para mayor seguridad en el futuro, autenticar la caja con Firebase Auth.
-      allow write: if true;
+      // Se permite la escritura general excepto para mesas_estado que tiene sus propias reglas de seguridad
+      allow write: if document != "mesas_estado";
+    }
+
+    match /config/mesas_estado {
+      allow read: if true;
+      allow create, delete: if true;
+      // Permitir la actualización de mesas_estado solo si la mesa está libre, si se mantiene el mismo clienteUid, o si se está limpiando
+      allow update: if !('clienteUid' in resource.data) || 
+                      resource.data.clienteUid == null || 
+                      resource.data.clienteUid == "" || 
+                      request.resource.data.clienteUid == resource.data.clienteUid ||
+                      request.resource.data.clienteUid == "";
     }
 
     // 2. Tipos de asistencia personalizada

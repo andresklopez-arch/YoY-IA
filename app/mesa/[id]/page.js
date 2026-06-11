@@ -136,6 +136,48 @@ export default function MesaClientePage({ params }) {
     };
   }, []);
 
+  // ── Sincronizar encuestas guardadas localmente al estar online ──
+  useEffect(() => {
+    const sincronizarEncuestasPendientes = async () => {
+      if (typeof window === 'undefined' || isOffline) return;
+      try {
+        const rawPending = localStorage.getItem('yoy_pending_surveys');
+        if (!rawPending) return;
+        const pending = JSON.parse(rawPending);
+        if (!Array.isArray(pending) || pending.length === 0) return;
+
+        console.log("Sincronizando encuestas pendientes offline...", pending.length);
+        const remaining = [];
+
+        for (const survey of pending) {
+          try {
+            await addDoc(collection(db, 'encuestas_satisfaccion'), {
+              mesaId: survey.mesaId,
+              cliente: survey.cliente,
+              calificaciones: survey.calificaciones,
+              comentarios: survey.comentarios,
+              createdAt: serverTimestamp(),
+              sincronizadoOffline: true
+            });
+          } catch (err) {
+            console.error("Error sincronizando encuesta offline, se reintentará luego:", err);
+            remaining.push(survey);
+          }
+        }
+
+        if (remaining.length > 0) {
+          localStorage.setItem('yoy_pending_surveys', JSON.stringify(remaining));
+        } else {
+          localStorage.removeItem('yoy_pending_surveys');
+        }
+      } catch (e) {
+        console.warn("Error en sync de encuestas offline:", e);
+      }
+    };
+
+    sincronizarEncuestasPendientes();
+  }, [isOffline]);
+
   // ── Sesión anónima para evitar bloqueos de reglas de Firestore ──
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -424,21 +466,40 @@ export default function MesaClientePage({ params }) {
 
   const enviarEncuestaYSolicitarCuenta = async () => {
     setEnviando(true);
+    const surveyData = {
+      mesaId,
+      cliente: clienteNombre || `Mesa ${mesaId}`,
+      calificaciones: {
+        atencion: ratingAtencion,
+        rapidez: ratingRapidez,
+        limpieza: ratingLimpieza,
+        equipo: ratingEquipo
+      },
+      comentarios: comentarios.trim()
+    };
+
     try {
       // 1. Guardar encuesta de satisfacción
       await addDocWithTimeout(collection(db, 'encuestas_satisfaccion'), {
-        mesaId,
-        cliente: clienteNombre || `Mesa ${mesaId}`,
-        calificaciones: {
-          atencion: ratingAtencion,
-          rapidez: ratingRapidez,
-          limpieza: ratingLimpieza,
-          equipo: ratingEquipo
-        },
-        comentarios: comentarios.trim(),
+        ...surveyData,
         createdAt: serverTimestamp(),
       });
+    } catch (err) {
+      console.warn("Error al enviar encuesta de satisfacción, guardando en caché offline:", err);
+      try {
+        const rawPending = localStorage.getItem('yoy_pending_surveys') || '[]';
+        const pending = JSON.parse(rawPending);
+        pending.push({
+          ...surveyData,
+          createdAtOffline: new Date().toISOString()
+        });
+        localStorage.setItem('yoy_pending_surveys', JSON.stringify(pending));
+      } catch (e) {
+        console.error("No se pudo guardar la encuesta offline en localStorage:", e);
+      }
+    }
 
+    try {
       // 2. Enviar alerta de cuenta
       await addDocWithTimeout(collection(db, 'mesa_pedidos'), {
         mesaId,
@@ -456,7 +517,9 @@ export default function MesaClientePage({ params }) {
       setShowSurvey(false);
       setExito('cuenta');
       setTimeout(() => setExito(null), 4000);
-    } catch (e) { alert('Error: ' + e.message); }
+    } catch (e) {
+      alert('Error al enviar la solicitud de cuenta: ' + e.message);
+    }
     setEnviando(false);
   };
 
