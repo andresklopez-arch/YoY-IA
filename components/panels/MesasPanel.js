@@ -1815,7 +1815,13 @@ export default function MesasPanel({ showToast }) {
                   <button
                     className="btn btn-secondary btn-sm btn-icon"
                     title="Ver QR de Mesa"
-                    onClick={() => setModalQR(mesa)}
+                    onClick={() => {
+                      if (!mesa.id || isNaN(parseInt(mesa.id)) || parseInt(mesa.id) <= 0) {
+                        showToast("Error: La mesa no tiene un identificador numérico válido mayor a 0. Configura el ID primero.", "danger");
+                        return;
+                      }
+                      setModalQR(mesa);
+                    }}
                     style={{ color: 'var(--bronze-light)' }}
                   >
                     <i className="ri-qr-code-line" />
