@@ -74,7 +74,7 @@ function AppContent() {
     if (!user) return;
     const q = query(
       collection(db, 'mesa_pedidos'),
-      where('tipo', '==', 'asistencia'),
+      where('tipo', 'in', ['asistencia', 'cuenta']),
       where('estado', '==', 'pendiente')
     );
     const unsub = onSnapshot(q, snap => {
@@ -287,7 +287,9 @@ function AppContent() {
                       <span style={{ fontSize: 26 }}>{alerta.icono || '🙋'}</span>
                       <div style={{ textAlign: 'left' }}>
                         <div style={{ fontSize: 14, fontWeight: 800, color: '#fff' }}>Mesa {alerta.mesaId}</div>
-                        <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>{alerta.etiqueta}</div>
+                        <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
+                          {alerta.etiqueta} {alerta.tipo === 'cuenta' && alerta.totalAcumulado ? `($${alerta.totalAcumulado} MXN)` : ''}
+                        </div>
                         <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>{alerta.cliente}</div>
                       </div>
                     </div>
