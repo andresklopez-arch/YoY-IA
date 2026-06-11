@@ -14,7 +14,7 @@ import ConfigPanel from '@/components/panels/ConfigPanel';
 import NominaPanel from '@/components/panels/NominaPanel';
 import LoginScreen from '@/components/LoginScreen';
 import { AuthProvider, useAuth } from '@/lib/auth-context';
-import { collection, query, where, orderBy, limit, onSnapshot, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, orderBy, limit, onSnapshot, doc, updateDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
 function AppContent() {
@@ -84,11 +84,13 @@ function AppContent() {
     const q = query(
       collection(db, 'mesa_pedidos'),
       where('tipo', 'in', ['asistencia', 'cuenta', 'pedido']),
-      where('estado', '==', 'pendiente')
+      where('estado', 'in', ['pendiente', 'listo', 'en_camino', 'entregado'])
     );
     const unsub = onSnapshot(q, snap => {
       const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      setAlertasAsistencia(items);
+      // Filtrar sólo las que no han sido atendidas por el administrador
+      const filtered = items.filter(alerta => !alerta.atendidoAdmin);
+      setAlertasAsistencia(filtered);
     });
     return unsub;
   }, [user]);
@@ -129,11 +131,21 @@ function AppContent() {
 
   const marcarAtendidoAdmin = async (id) => {
     try {
-      await updateDoc(doc(db, 'mesa_pedidos', id), {
-        estado: 'atendido',
-        atendidoAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      });
+      const docRef = doc(db, 'mesa_pedidos', id);
+      const snap = await getDoc(docRef);
+      if (snap.exists()) {
+        const data = snap.data();
+        const updateData = {
+          atendidoAdmin: true,
+          updatedAt: serverTimestamp()
+        };
+        // Si el mesero ya lo marcó como atendido, o si el pedido ya fue entregado/cargado, archivamos
+        if (data.atendidoMesero === true || data.estado === 'entregado') {
+          updateData.estado = 'atendido';
+          updateData.atendidoAt = serverTimestamp();
+        }
+        await updateDoc(docRef, updateData);
+      }
     } catch (e) {
       console.error(e);
     }
