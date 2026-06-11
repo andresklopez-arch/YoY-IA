@@ -766,6 +766,88 @@ export default function MesasPanel({ showToast }) {
   const [nuevoMetodo, setNuevoMetodo] = useState('efectivo');
   const [pinAutorizacion, setPinAutorizacion] = useState('');
   const [adminPinHash, setAdminPinHash] = useState('170440'); // Hash of '1111'
+  const [alertasMesas, setAlertasMesas] = useState({});
+  const knownAlertsRef = useRef(new Set());
+  const isInitialLoadRef = useRef(true);
+
+  // Marcar una solicitud de cliente como atendida en Firestore
+  const marcarAlertaAtendida = async (alertaId, e) => {
+    if (e) e.stopPropagation(); // Evitar abrir el modal de la mesa
+    try {
+      await updateDoc(doc(db, 'mesa_pedidos', alertaId), {
+        estado: 'atendido',
+        atendidoAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      showToast('Solicitud marcada como atendida ✓', 'success');
+    } catch (err) {
+      console.error("Error al marcar alerta como atendida:", err);
+      showToast('Error al atender solicitud.', 'error');
+    }
+  };
+
+  // Escuchar alertas de mesas activas desde Firestore
+  useEffect(() => {
+    const q = query(
+      collection(db, 'mesa_pedidos'),
+      where('estado', 'in', ['pendiente', 'listo', 'en_camino'])
+    );
+    const unsub = onSnapshot(q, snap => {
+      const alertsMap = {};
+      let hasNewAlert = false;
+      const currentAlerts = new Set();
+
+      snap.docs.forEach(doc => {
+        const data = doc.data();
+        const mesaId = data.mesaId;
+        const id = doc.id;
+        currentAlerts.add(id);
+
+        if (mesaId) {
+          if (!alertsMap[mesaId]) {
+            alertsMap[mesaId] = [];
+          }
+          alertsMap[mesaId].push({ id, ...data });
+        }
+
+        // Si no es la carga inicial y detectamos un id que no estaba en knownAlerts
+        if (!isInitialLoadRef.current && !knownAlertsRef.current.has(id)) {
+          hasNewAlert = true;
+        }
+      });
+
+      knownAlertsRef.current = currentAlerts;
+      isInitialLoadRef.current = false;
+      setAlertasMesas(alertsMap);
+
+      if (hasNewAlert) {
+        // Reproducir sonido sutil de chime (high double chime)
+        try {
+          const ctx = new (window.AudioContext || window.webkitAudioContext)();
+          const osc1 = ctx.createOscillator();
+          const gain1 = ctx.createGain();
+          osc1.connect(gain1); gain1.connect(ctx.destination);
+          osc1.frequency.value = 587.33; // D5
+          gain1.gain.value = 0.08;
+          osc1.start(); osc1.stop(ctx.currentTime + 0.12);
+          
+          setTimeout(() => {
+            const osc2 = ctx.createOscillator();
+            const gain2 = ctx.createGain();
+            osc2.connect(gain2); gain2.connect(ctx.destination);
+            osc2.frequency.value = 698.46; // F5
+            gain2.gain.value = 0.08;
+            osc2.start(); osc2.stop(ctx.currentTime + 0.22);
+          }, 120);
+        } catch (e) {
+          console.warn("Chime playback failed", e);
+        }
+      }
+    }, err => {
+      console.error("Error al escuchar alertas de mesas:", err);
+    });
+    return unsub;
+  }, []);
 
   const hashPassword = (pwd) => {
     if (!pwd) return '';
@@ -1194,6 +1276,27 @@ export default function MesasPanel({ showToast }) {
   const confirmarCerrarMesa = (mesaId, { costo, metodo, tiempo, referencia, pagaCon, cambio, fotoAdjunta }) => {
     const mesa = mesas.find(m => m.id === mesaId);
     const clientName = mesa ? mesa.cliente : 'Público';
+
+    // Desactivar/atender todas las alertas activas de la mesa en Firestore en lote (batch)
+    const qAlerts = query(
+      collection(db, 'mesa_pedidos'),
+      where('mesaId', '==', mesaId),
+      where('estado', 'in', ['pendiente', 'listo', 'en_camino'])
+    );
+    getDocs(qAlerts).then(snap => {
+      if (!snap.empty) {
+        const batch = writeBatch(db);
+        snap.docs.forEach(d => {
+          batch.update(doc(db, 'mesa_pedidos', d.id), {
+            estado: 'atendido',
+            atendidoAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+          });
+        });
+        batch.commit().catch(err => console.error("Error al confirmar lote de alertas atendidas:", err));
+      }
+    }).catch(err => console.error("Error al buscar alertas activas de mesa:", err));
+
     setMesas(prev => prev.map(m => m.id === mesaId
       ? { ...m, estado: 'libre', cliente: null, inicio: null, socios: false }
       : m
@@ -1335,51 +1438,137 @@ export default function MesasPanel({ showToast }) {
           const elapsed = mesa.inicio ? Date.now() - mesa.inicio : 0;
           const costo = calcCosto(mesa);
           const cfg = ESTADO_CONFIG[mesa.estado];
+          const alertsForMesa = alertasMesas[mesa.id] || [];
+          const hasAlert = alertsForMesa.length > 0;
 
           return (
-            <div
-              key={mesa.id}
-              className={`mesa-card ${mesa.estado}`}
-              onClick={() => abrirMesa(mesa)}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
-                <div className="mesa-number">{mesa.id}</div>
-                <span className={`mesa-status-badge ${mesa.estado}`}>
-                  <span className={mesa.estado === 'ocupada' ? 'dot-live' : ''} style={{ width: 6, height: 6, borderRadius: '50%', background: cfg.color, flexShrink: 0 }} />
-                  {cfg.label}
-                </span>
-              </div>
+              <div
+                key={mesa.id}
+                className={`mesa-card ${mesa.estado}`}
+                onClick={() => abrirMesa(mesa)}
+                style={hasAlert ? {
+                  boxShadow: '0 0 16px rgba(239, 68, 68, 0.3)',
+                  border: '1px solid rgba(239, 68, 68, 0.4)',
+                  animation: 'pulseBorder 2.5s infinite ease-in-out'
+                } : {}}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                  <div className="mesa-number">{mesa.id}</div>
+                  <span className={`mesa-status-badge ${mesa.estado}`}>
+                    <span className={mesa.estado === 'ocupada' ? 'dot-live' : ''} style={{ width: 6, height: 6, borderRadius: '50%', background: cfg.color, flexShrink: 0 }} />
+                    {cfg.label}
+                  </span>
+                </div>
 
-              <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 6 }}>
-                {mesa.tipo}
-              </div>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 6 }}>
+                  {mesa.tipo}
+                </div>
 
-              {mesa.estado === 'ocupada' && (
-                <>
-                  <div className="mesa-timer">{formatTime(elapsed)}</div>
-                  <div className="mesa-client">
-                    <i className="ri-user-line" style={{ fontSize: 10, marginRight: 4 }} />
+                {mesa.estado === 'ocupada' && (
+                  <>
+                    <div className="mesa-timer">{formatTime(elapsed)}</div>
+                    <div className="mesa-client">
+                      <i className="ri-user-line" style={{ fontSize: 10, marginRight: 4 }} />
+                      {mesa.cliente}
+                      {mesa.socios && <span className="badge badge-bronze" style={{ marginLeft: 6, fontSize: 8 }}>Socio</span>}
+                    </div>
+                    <div className="mesa-rate" style={{ marginTop: 6, fontSize: 13, fontWeight: 700, color: 'var(--bronze-light)' }}>
+                      {mesa.socios ? 'Sin cargo' : `$${costo} MXN`}
+                    </div>
+                  </>
+                )}
+
+                {mesa.estado === 'reservada' && (
+                  <div className="mesa-client" style={{ marginTop: 6 }}>
+                    <i className="ri-bookmark-line" style={{ fontSize: 10, marginRight: 4 }} />
                     {mesa.cliente}
-                    {mesa.socios && <span className="badge badge-bronze" style={{ marginLeft: 6, fontSize: 8 }}>Socio</span>}
                   </div>
-                  <div className="mesa-rate" style={{ marginTop: 6, fontSize: 13, fontWeight: 700, color: 'var(--bronze-light)' }}>
-                    {mesa.socios ? 'Sin cargo' : `$${costo} MXN`}
+                )}
+
+                {mesa.estado === 'manten' && (
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <i className="ri-tools-line" /> En reparación
                   </div>
-                </>
-              )}
+                )}
 
-              {mesa.estado === 'reservada' && (
-                <div className="mesa-client" style={{ marginTop: 6 }}>
-                  <i className="ri-bookmark-line" style={{ fontSize: 10, marginRight: 4 }} />
-                  {mesa.cliente}
-                </div>
-              )}
+                {/* Contenedor de Alertas de Cliente */}
+                {alertsForMesa.length > 0 && (
+                  <div style={{
+                    marginTop: 10,
+                    marginBottom: 8,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 6,
+                    background: 'rgba(239,68,68,0.06)',
+                    border: '1px solid rgba(239,68,68,0.15)',
+                    borderRadius: 10,
+                    padding: '8px 10px',
+                    animation: 'fadeIn 0.2s ease-in-out'
+                  }} onClick={e => e.stopPropagation()}>
+                    {alertsForMesa.map(alerta => {
+                      let icon = '🔔';
+                      let label = alerta.etiqueta || 'Asistencia';
+                      let badgeColor = 'var(--warning)';
+                      let isActionable = false;
 
-              {mesa.estado === 'manten' && (
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <i className="ri-tools-line" /> En reparación
-                </div>
-              )}
+                      if (alerta.tipo === 'cuenta') {
+                        icon = '💳';
+                        label = `Cuenta: $${alerta.totalAcumulado || ''}`;
+                        badgeColor = 'var(--success)';
+                        isActionable = true;
+                      } else if (alerta.tipo === 'asistencia') {
+                        icon = alerta.icono || '🙋';
+                        badgeColor = 'var(--danger)';
+                        isActionable = true;
+                      } else if (alerta.tipo === 'pedido') {
+                        icon = '🥤';
+                        label = `Pedido (${alerta.items?.reduce((s,i)=>s+i.cantidad,0) || 0} pz)`;
+                        badgeColor = 'var(--info)';
+                      }
+
+                      return (
+                        <div key={alerta.id} style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          fontSize: 11,
+                          color: '#fff',
+                          fontWeight: 600,
+                          gap: 6
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            <span style={{ fontSize: 13, animation: alerta.tipo !== 'pedido' ? 'pulse 1.2s infinite' : 'none' }}>{icon}</span>
+                            <span style={{ color: badgeColor }}>{label}</span>
+                          </div>
+                          {isActionable && (
+                            <button
+                              onClick={(e) => marcarAlertaAtendida(alerta.id, e)}
+                              title="Marcar como atendido"
+                              style={{
+                                background: 'rgba(34,197,94,0.12)',
+                                border: '1px solid rgba(34,197,94,0.3)',
+                                color: 'var(--success)',
+                                borderRadius: 4,
+                                width: 20,
+                                height: 20,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                cursor: 'pointer',
+                                fontSize: 10,
+                                transition: 'all 0.15s'
+                              }}
+                              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(34,197,94,0.25)'; }}
+                              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(34,197,94,0.12)'; }}
+                            >
+                              ✓
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
 
               <div className="mesa-actions" onClick={e => e.stopPropagation()}>
                 {mesa.estado === 'libre' && (
