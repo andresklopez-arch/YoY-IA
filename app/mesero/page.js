@@ -74,34 +74,11 @@ function MeseroContent() {
     }
   }, []);
 
-  // ── Cargar productos de BarPanel desde localStorage ──────
+  // ── Cargar productos de BarPanel en tiempo real desde Firestore ──
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    try {
-      const raw = localStorage.getItem('yoy_billar_stock');
-      let prods = [];
-      if (raw) {
-        try {
-          if (raw.startsWith('[')) {
-            const cb1 = raw.indexOf(']');
-            if (cb1 > 0) {
-              const dateStr = raw.substring(1, cb1);
-              const rest = raw.substring(cb1 + 1);
-              const cb2 = rest.startsWith('[') ? rest.indexOf(']') : -1;
-              const encPart = cb2 > 0 ? rest.substring(cb2 + 1) : rest;
-              const xor = decodeURIComponent(escape(window.atob(encPart)));
-              const base64 = xor.split('').map((c, i) => String.fromCharCode(c.charCodeAt(0) ^ dateStr.charCodeAt(i % dateStr.length))).join('');
-              prods = JSON.parse(decodeURIComponent(escape(window.atob(base64))));
-            }
-          } else {
-            prods = JSON.parse(decodeURIComponent(escape(window.atob(raw))));
-          }
-        } catch {
-          prods = [];
-        }
-      }
-      
-      if (prods.length > 0) {
+    const unsub = onSnapshot(doc(db, 'config', 'inventario'), snap => {
+      if (snap.exists()) {
+        const prods = snap.data().productos || [];
         setProductosBar(prods.filter(p => p.stock > 0));
       } else {
         // Fallback: productos por defecto
@@ -114,10 +91,11 @@ function MeseroContent() {
           { id: 6, nombre: 'Café Americano', categoria: 'Bebida', precioVenta: 35, stock: 100 },
         ]);
       }
-    } catch (err) {
+    }, err => {
       console.warn('Error al cargar inventario de bar en vista mesero:', err);
-    }
-  }, [showCapturarModal]);
+    });
+    return unsub;
+  }, []);
 
   // ── Suscripción a pedidos activos ────────────────────────
   const [listosNotificados, setListosNotificados] = useState(new Set());

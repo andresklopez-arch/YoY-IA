@@ -66,24 +66,43 @@ export default function MesaClientePage({ params }) {
   const [clienteNombre, setClienteNombre] = useState('');
   const [showNombre, setShowNombre] = useState(false);
 
-  // ── Leer productos del BarPanel (localStorage cifrado) ──
+  // ── Leer productos del BarPanel en tiempo real con caché offline en localStorage ──
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const raw = localStorage.getItem('yoy_billar_stock');
-    const prods = decodeBarStock(raw);
-    if (prods.length > 0) {
-      setProductos(prods.filter(p => p.stock > 0));
-    } else {
-      // Fallback: productos de demostración
-      setProductos([
-        { id: 1, nombre: 'Cerveza Corona Extra', categoria: 'Cerveza', precioVenta: 45, stock: 100 },
-        { id: 2, nombre: 'Coca-Cola 355ml', categoria: 'Refresco', precioVenta: 30, stock: 80 },
-        { id: 3, nombre: 'Nachos con Queso', categoria: 'Snack', precioVenta: 75, stock: 50 },
-        { id: 4, nombre: 'Alitas de Pollo x10', categoria: 'Comida', precioVenta: 120, stock: 35 },
-        { id: 5, nombre: 'Agua 600ml', categoria: 'Bebida', precioVenta: 20, stock: 150 },
-        { id: 6, nombre: 'Café Americano', categoria: 'Bebida', precioVenta: 35, stock: 100 },
-      ]);
-    }
+    // Intentar precargar desde la caché offline local
+    try {
+      const cached = localStorage.getItem('yoy_client_cached_stock');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setProductos(parsed.filter(p => p.stock > 0));
+        }
+      }
+    } catch (e) {}
+
+    const unsub = onSnapshot(doc(db, 'config', 'inventario'), snap => {
+      if (snap.exists()) {
+        const prods = snap.data().productos || [];
+        const filtered = prods.filter(p => p.stock > 0);
+        setProductos(filtered);
+        try {
+          localStorage.setItem('yoy_client_cached_stock', JSON.stringify(prods));
+        } catch (e) {}
+      } else {
+        // Fallback: productos de demostración
+        const fallback = [
+          { id: 1, nombre: 'Cerveza Corona Extra', categoria: 'Cerveza', precioVenta: 45, stock: 100 },
+          { id: 2, nombre: 'Coca-Cola 355ml', categoria: 'Refresco', precioVenta: 30, stock: 80 },
+          { id: 3, nombre: 'Nachos con Queso', categoria: 'Snack', precioVenta: 75, stock: 50 },
+          { id: 4, nombre: 'Alitas de Pollo x10', categoria: 'Comida', precioVenta: 120, stock: 35 },
+          { id: 5, nombre: 'Agua 600ml', categoria: 'Bebida', precioVenta: 20, stock: 150 },
+          { id: 6, nombre: 'Café Americano', categoria: 'Bebida', precioVenta: 35, stock: 100 },
+        ];
+        setProductos(fallback);
+      }
+    }, err => {
+      console.error("Error al cargar inventario en tiempo real para cliente:", err);
+    });
+    return unsub;
   }, []);
 
   // ── Leer información de la mesa (cliente asignado) ──────

@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { obfuscate, deobfuscate } from '@/lib/crypto';
 import { db } from '@/lib/firebase';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { doc, onSnapshot, setDoc, serverTimestamp, collection, query, where, getDocs, writeBatch, updateDoc } from 'firebase/firestore';
 
 // ── DATOS INICIALES DE MESAS ───────────────────────────────
 const INIT_MESAS = [
@@ -929,26 +929,17 @@ export default function MesasPanel({ showToast }) {
   };
 
   useEffect(() => {
-    const revisarStockBajo = () => {
-      if (typeof window !== 'undefined') {
-        try {
-          const saved = localStorage.getItem('yoy_billar_stock');
-          if (saved) {
-            const list = JSON.parse(saved);
-            // Normalizar para revisión de stock bajo
-            const bajos = list.filter(p => p.stock <= (p.stockMin !== undefined ? p.stockMin : 15));
-            setProductosBajos(bajos);
-          }
-        } catch (err) {
-          console.error(err);
-        }
+    const unsub = onSnapshot(doc(db, 'config', 'inventario'), snap => {
+      if (snap.exists()) {
+        const list = snap.data().productos || [];
+        const bajos = list.filter(p => p.stock <= (p.stockMin !== undefined ? p.stockMin : 15));
+        setProductosBajos(bajos);
       }
-    };
-
-    revisarStockBajo();
-    const interval = setInterval(revisarStockBajo, 4000);
-    return () => clearInterval(interval);
-  }, [modalComanda, modalCuentas]);
+    }, err => {
+      console.error("Error al escuchar inventario para stock bajo:", err);
+    });
+    return unsub;
+  }, []);
 
   const [cuentasActivas, setCuentasActivas] = useState([
     { id: 101, cliente: 'Juan Pérez', tiempoJuego: 160, consumos: [{ id: 1, producto: 'Cerveza Corona', precio: 45, cantidad: 2 }, { id: 2, producto: 'Refresco Coca-Cola', precio: 30, cantidad: 1 }], inicio: Date.now() - 1.5*3600000 },
@@ -2746,58 +2737,32 @@ function ModalRegistrarComanda({ mesas, setMesas, cuentasActivas, setCuentasActi
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [carrito, onClose]);
 
-  // Cargar productos con stock desde localStorage (Ofuscado)
+  // Cargar productos con stock desde Firestore en tiempo real
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem('yoy_billar_stock');
-        if (saved) {
-          const parsed = deobfuscate(saved);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            // Normalizar las claves viejas/nuevas para asegurar consistencia
-            const normalizados = parsed.map(p => ({
-              ...p,
-              nombre: p.nombre || p.producto || `Producto #${p.id}`,
-              precioVenta: p.precioVenta !== undefined ? p.precioVenta : (p.precio !== undefined ? p.precio : 0),
-              stock: p.stock !== undefined ? p.stock : 0,
-              stockMin: p.stockMin !== undefined ? p.stockMin : 15,
-              stockOptimo: p.stockOptimo !== undefined ? p.stockOptimo : 50,
-              categoria: p.categoria || 'Bar',
-              unidad: p.unidad || 'pz'
-            }));
-            setProductos(normalizados);
-            // Sincronizar en localStorage para que todos los paneles lean el formato correcto
-            localStorage.setItem('yoy_billar_stock', obfuscate(normalizados));
-          } else {
-            const defaultProds = [
-              { id: 1, nombre: 'Cerveza Corona Extra', categoria: 'Cerveza', precioCosto: 22, precioVenta: 45, stock: 120, stockMin: 30, stockOptimo: 150, unidad: 'bot' },
-              { id: 2, nombre: 'Refresco Coca-Cola 355ml', categoria: 'Refresco', precioCosto: 14, precioVenta: 30, stock: 80, stockMin: 20, stockOptimo: 100, unidad: 'pz' },
-              { id: 3, nombre: 'Nachos con Queso Gigantes', categoria: 'Snack', precioCosto: 32, precioVenta: 75, stock: 50, stockMin: 15, stockOptimo: 60, unidad: 'porc' },
-              { id: 4, nombre: 'Papas Fritas Crujientes', categoria: 'Snack', precioCosto: 20, precioVenta: 55, stock: 40, stockMin: 12, stockOptimo: 50, unidad: 'porc' },
-              { id: 5, nombre: 'Alitas de Pollo x10', categoria: 'Comida', precioCosto: 58, precioVenta: 120, stock: 35, stockMin: 10, stockOptimo: 45, unidad: 'pz' },
-              { id: 6, nombre: 'Café Americano Organico', categoria: 'Bebida', precioCosto: 12, precioVenta: 35, stock: 100, stockMin: 25, stockOptimo: 120, unidad: 'taza' },
-              { id: 7, nombre: 'Agua Embotellada 600ml', categoria: 'Bebida', precioCosto: 8, precioVenta: 20, stock: 150, stockMin: 40, stockOptimo: 180, unidad: 'pz' }
-            ];
-            setProductos(defaultProds);
-            localStorage.setItem('yoy_billar_stock', obfuscate(defaultProds));
-          }
-        } else {
-          const defaultProds = [
-            { id: 1, nombre: 'Cerveza Corona Extra', categoria: 'Cerveza', precioCosto: 22, precioVenta: 45, stock: 120, stockMin: 30, stockOptimo: 150, unidad: 'bot' },
-            { id: 2, nombre: 'Refresco Coca-Cola 355ml', categoria: 'Refresco', precioCosto: 14, precioVenta: 30, stock: 80, stockMin: 20, stockOptimo: 100, unidad: 'pz' },
-            { id: 3, nombre: 'Nachos con Queso Gigantes', categoria: 'Snack', precioCosto: 32, precioVenta: 75, stock: 50, stockMin: 15, stockOptimo: 60, unidad: 'porc' },
-            { id: 4, nombre: 'Papas Fritas Crujientes', categoria: 'Snack', precioCosto: 20, precioVenta: 55, stock: 40, stockMin: 12, stockOptimo: 50, unidad: 'porc' },
-            { id: 5, nombre: 'Alitas de Pollo x10', categoria: 'Comida', precioCosto: 58, precioVenta: 120, stock: 35, stockMin: 10, stockOptimo: 45, unidad: 'pz' },
-            { id: 6, nombre: 'Café Americano Organico', categoria: 'Bebida', precioCosto: 12, precioVenta: 35, stock: 100, stockMin: 25, stockOptimo: 120, unidad: 'taza' },
-            { id: 7, nombre: 'Agua Embotellada 600ml', categoria: 'Bebida', precioCosto: 8, precioVenta: 20, stock: 150, stockMin: 40, stockOptimo: 180, unidad: 'pz' }
-          ];
-          setProductos(defaultProds);
-          localStorage.setItem('yoy_billar_stock', obfuscate(defaultProds));
+    const unsub = onSnapshot(doc(db, 'config', 'inventario'), snap => {
+      if (snap.exists()) {
+        const parsed = snap.data().productos || [];
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          // Normalizar las claves viejas/nuevas para asegurar consistencia
+          const normalizados = parsed.map(p => ({
+            ...p,
+            nombre: p.nombre || p.producto || `Producto #${p.id}`,
+            precioVenta: p.precioVenta !== undefined ? p.precioVenta : (p.precio !== undefined ? p.precio : 0),
+            stock: p.stock !== undefined ? p.stock : 0,
+            stockMin: p.stockMin !== undefined ? p.stockMin : 15,
+            stockOptimo: p.stockOptimo !== undefined ? p.stockOptimo : 50,
+            categoria: p.categoria || 'Bar',
+            unidad: p.unidad || 'pz'
+          }));
+          setProductos(normalizados);
+          // Sincronizar en localStorage para compatibilidad
+          localStorage.setItem('yoy_billar_stock', obfuscate(normalizados));
         }
-      } catch (err) {
-        console.error(err);
       }
-    }
+    }, err => {
+      console.error("Error al suscribirse al inventario en comanda:", err);
+    });
+    return unsub;
   }, []);
 
   const mesasOcupadas = mesas.filter(m => m.estado === 'ocupada');
@@ -2876,6 +2841,10 @@ function ModalRegistrarComanda({ mesas, setMesas, cuentasActivas, setCuentasActi
     });
 
     localStorage.setItem('yoy_billar_stock', obfuscate(stockActualizado));
+    setDoc(doc(db, 'config', 'inventario'), {
+      productos: stockActualizado,
+      updatedAt: serverTimestamp()
+    }).catch(err => console.error("Error al actualizar inventario en comanda:", err));
 
     // Agregar comanda al destino
     if (destinoTipo === 'mesa') {
