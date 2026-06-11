@@ -20,6 +20,7 @@ import { db } from '@/lib/firebase';
 function AppContent() {
   const { user, loading } = useAuth();
   const [minLoadingDone, setMinLoadingDone] = useState(false);
+  const [imageError, setImageError] = useState(false);
   const [activePanel, setActivePanel] = useState('mesas');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [toasts, setToasts] = useState([]);
@@ -161,20 +162,30 @@ function AppContent() {
     return (
       <div style={{ display:'flex', alignItems:'center', justifyContent:'center', minHeight:'100vh', background:'var(--bg-base)' }}>
         <div style={{ textAlign:'center', padding: '24px' }}>
-          <img 
-            src="/logo-largo.png" 
-            alt="YoY IA Billar By Alfonso Iturbide" 
-            fetchpriority="high"
-            loading="eager"
-            className="animate-heartbeat"
-            style={{ 
-              width: 260, 
-              height: 'auto', 
-              objectFit: 'contain',
-              margin: '0 auto 24px',
-              display: 'block'
-             }} 
-          />
+          {!imageError ? (
+            <img 
+              src="/logo-largo.png" 
+              alt="YoY IA Billar By Alfonso Iturbide" 
+              fetchpriority="high"
+              loading="eager"
+              onError={() => setImageError(true)}
+              className="animate-heartbeat"
+              style={{ 
+                width: 260, 
+                height: 'auto', 
+                objectFit: 'contain',
+                margin: '0 auto 24px',
+                display: 'block'
+               }} 
+            />
+          ) : (
+            <div className="animate-heartbeat" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', margin: '0 auto 24px' }}>
+              <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="var(--bronze-light)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ filter: 'drop-shadow(0 0 8px var(--bronze-light))' }}>
+                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" fill="var(--bronze-subtle)" />
+              </svg>
+              <span style={{ color: 'var(--bronze-light)', fontSize: 14, fontWeight: 700, marginTop: 8, letterSpacing: '0.1em' }}>YoY IA Billar</span>
+            </div>
+          )}
           <p style={{ color:'var(--text-secondary)', fontSize: 10, letterSpacing:'0.2em', textTransform:'uppercase', fontWeight: 600 }}>Iniciando sistema...</p>
         </div>
         
@@ -188,6 +199,7 @@ function AppContent() {
           }
           .animate-heartbeat {
             animation: heartbeat 1.2s infinite ease-in-out;
+            will-change: transform;
             filter: drop-shadow(0 0 15px rgba(205,127,50,0.25));
           }
         `}</style>
