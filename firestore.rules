@@ -1,0 +1,53 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // 1. Colección config (inventario, mesas_estado, seguridad)
+    match /config/{document} {
+      allow read: if true;
+      // Se permite la escritura debido al bypass local y NIP en la caja/admin.
+      // Para mayor seguridad en el futuro, autenticar la caja con Firebase Auth.
+      allow write: if true;
+    }
+
+    // 2. Tipos de asistencia personalizada
+    match /tipos_asistencia/{document} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // 3. Comandas, pedidos y llamadas de asistencia
+    match /mesa_pedidos/{document} {
+      allow read, write: if true;
+    }
+
+    // 4. Clientes anónimos (nombres ofuscados de los QR)
+    match /clientes_anonimos/{userId} {
+      // El cliente solo puede escribir/modificar su propio registro
+      allow write: if request.auth != null && request.auth.uid == userId;
+      // Permitir la lectura para que meseros y caja puedan mostrar los nombres de clientes en mesas
+      allow read: if true;
+    }
+
+    // 5. Historiales, logs y auditorías
+    match /historial_stock/{document} {
+      allow read, write: if true;
+    }
+    match /intentos_fallidos_qr/{document} {
+      allow create: if true;
+      allow read, update, delete: if true;
+    }
+    match /intentos_fallidos_conexion/{document} {
+      allow create: if true;
+      allow read, update, delete: if true;
+    }
+    
+    // 6. Colecciones de administración de usuarios y nómina
+    match /users/{document} {
+      allow read, write: if true;
+    }
+    match /nomina_empleados/{document} {
+      allow read, write: if true;
+    }
+  }
+}

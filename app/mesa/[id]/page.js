@@ -66,7 +66,12 @@ export default function MesaClientePage({ params }) {
   const [mesaInfo, setMesaInfo] = useState(null);
 
   // Nombre del cliente (pre-poblado si la mesa tiene cliente asignado)
-  const [clienteNombre, setClienteNombre] = useState('');
+  const [clienteNombre, setClienteNombre] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('yoy_cliente_nombre') || '';
+    }
+    return '';
+  });
   const [showNombre, setShowNombre] = useState(false);
   const [isOffline, setIsOffline] = useState(false);
 
@@ -74,6 +79,7 @@ export default function MesaClientePage({ params }) {
   const [authStatus, setAuthStatus] = useState('cargando'); // 'conectado' | 'error' | 'cargando'
   const [authError, setAuthError] = useState('');
   const [dbConnected, setDbConnected] = useState(false);
+  const [showTechDetails, setShowTechDetails] = useState(false);
 
   // ── Helper de escritura con Timeout para redes inestables ──
   const addDocWithTimeout = async (collRef, data, timeoutMs = 8000) => {
@@ -87,6 +93,11 @@ export default function MesaClientePage({ params }) {
   // ── Guardar nombre en Firebase ──
   const guardarNombreCliente = async (nombre) => {
     setClienteNombre(nombre);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('yoy_cliente_nombre', nombre);
+      } catch (e) {}
+    }
     if (auth.currentUser) {
       try {
         const nombreCifrado = obfuscateStatic(nombre);
@@ -128,6 +139,15 @@ export default function MesaClientePage({ params }) {
             setAuthStatus('error');
             setAuthError(err.message);
             console.warn("Error al iniciar sesión anónima de cliente:", err);
+            try {
+              addDoc(collection(db, 'intentos_fallidos_conexion'), {
+                mesaId: mesaId || 0,
+                error: err.message,
+                code: err.code || 'unknown',
+                userAgent: typeof window !== 'undefined' ? navigator.userAgent : 'unknown',
+                createdAt: serverTimestamp()
+              }).catch(() => {});
+            } catch (e) {}
           });
       } else {
         setAuthStatus('conectado');
@@ -201,6 +221,9 @@ export default function MesaClientePage({ params }) {
           setMesaInfo(mesa);
           if (mesa.cliente && mesa.cliente !== 'Público') {
             setClienteNombre(mesa.cliente);
+            try {
+              localStorage.setItem('yoy_cliente_nombre', mesa.cliente);
+            } catch (e) {}
           }
         }
       }
@@ -417,11 +440,30 @@ export default function MesaClientePage({ params }) {
             <div style={{ fontWeight: 800, fontSize: 13, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
               🚨 Error de Conexión Firebase
             </div>
-            <p style={{ marginBottom: 6 }}>No se pudo establecer una sesión segura con el servidor. Detalle técnico:</p>
-            <code style={{ display: 'block', background: 'rgba(0,0,0,0.3)', padding: 8, borderRadius: 8, fontSize: 10, fontFamily: 'monospace', overflowX: 'auto', whiteSpace: 'pre-wrap' }}>
-              {authError || 'Error de permisos o inicio anónimo deshabilitado (auth/operation-not-allowed). Por favor habilita el proveedor Anónimo en la Consola Firebase.'}
-              {`\n\nClave de API en uso: ${auth.app?.options?.apiKey || 'No detectada'}`}
-            </code>
+            <p style={{ marginBottom: 6 }}>No se pudo establecer una sesión segura con el servidor. Revisa tu conexión o escanea el QR de nuevo.</p>
+            <button
+              onClick={() => setShowTechDetails(prev => !prev)}
+              style={{
+                background: 'rgba(239, 68, 68, 0.2)',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+                color: '#ef4444',
+                padding: '4px 8px',
+                borderRadius: 6,
+                fontSize: 10,
+                fontWeight: 700,
+                cursor: 'pointer',
+                marginBottom: showTechDetails ? 8 : 0,
+                outline: 'none'
+              }}
+            >
+              {showTechDetails ? 'Ocultar detalles técnicos ▲' : 'Ver detalles técnicos ▼'}
+            </button>
+            {showTechDetails && (
+              <code style={{ display: 'block', background: 'rgba(0,0,0,0.3)', padding: 8, borderRadius: 8, fontSize: 10, fontFamily: 'monospace', overflowX: 'auto', whiteSpace: 'pre-wrap' }}>
+                {authError || 'Error de permisos o inicio anónimo deshabilitado (auth/operation-not-allowed). Por favor habilita el proveedor Anónimo en la Consola Firebase.'}
+                {`\n\nClave de API en uso: ${auth.app?.options?.apiKey || 'No detectada'}`}
+              </code>
+            )}
           </div>
         )}
 
