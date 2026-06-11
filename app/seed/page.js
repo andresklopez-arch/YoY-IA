@@ -104,7 +104,6 @@ export default function SeedPage() {
         total: 0
       });
 
-      const clientDomain = getClientDomain();
       setIsAlreadySeeded(true);
       setStatus(`¡Sembrado completado exitosamente! Ya puedes iniciar sesión con admin1111@${clientDomain} y la contraseña que ingresaste.`);
     } catch (error) {
