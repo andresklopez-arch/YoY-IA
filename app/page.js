@@ -19,9 +19,18 @@ import { db } from '@/lib/firebase';
 
 function AppContent() {
   const { user, loading } = useAuth();
+  const [minLoadingDone, setMinLoadingDone] = useState(false);
   const [activePanel, setActivePanel] = useState('mesas');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [toasts, setToasts] = useState([]);
+
+  // Asegura que la animación de carga se muestre al menos durante 2 segundos
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setMinLoadingDone(true);
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, []);
 
   // Alerta de captura de mesero (3 segundos)
   const [capturaAlert, setCapturaAlert] = useState(null); // { mesaId, total }
@@ -136,7 +145,7 @@ function AppContent() {
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 4000);
   };
 
-  if (loading) {
+  if (loading || !minLoadingDone) {
     return (
       <div style={{ display:'flex', alignItems:'center', justifyContent:'center', minHeight:'100vh', background:'var(--bg-base)' }}>
         <div style={{ textAlign:'center', padding: '24px' }}>
