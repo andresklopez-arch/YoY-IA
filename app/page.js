@@ -198,7 +198,7 @@ function AppContent() {
             70% { transform: scale(1); }
           }
           .animate-heartbeat {
-            animation: heartbeat 1.2s infinite ease-in-out;
+            animation: heartbeat 2.4s infinite ease-in-out;
             will-change: transform;
             filter: drop-shadow(0 0 15px rgba(205,127,50,0.25));
           }

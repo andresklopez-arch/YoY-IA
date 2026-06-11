@@ -16,14 +16,14 @@ export default function Loading() {
               width: 260, 
               height: 'auto', 
               objectFit: 'contain',
-              animation: 'heartbeat 1.2s infinite ease-in-out', 
+              animation: 'heartbeat 2.4s infinite ease-in-out', 
               margin: '0 auto 24px',
               display: 'block',
               filter: 'drop-shadow(0 0 15px rgba(205,127,50,0.25))'
             }} 
           />
         ) : (
-          <div style={{ animation: 'heartbeat 1.2s infinite ease-in-out', display: 'flex', flexDirection: 'column', alignItems: 'center', margin: '0 auto 24px' }}>
+          <div style={{ animation: 'heartbeat 2.4s infinite ease-in-out', display: 'flex', flexDirection: 'column', alignItems: 'center', margin: '0 auto 24px' }}>
             <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="var(--bronze-light)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ filter: 'drop-shadow(0 0 8px var(--bronze-light))' }}>
               <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" fill="var(--bronze-subtle)" />
             </svg>
