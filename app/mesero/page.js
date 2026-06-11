@@ -175,17 +175,17 @@ function MeseroContent() {
           const osc = ctx.createOscillator();
           const gain = ctx.createGain();
           osc.connect(gain); gain.connect(ctx.destination);
-          osc.frequency.setValueAtTime(1046.50, ctx.currentTime); // C6
+          osc.frequency.setValueAtTime(1200.00, ctx.currentTime); // D#6 - Tono alto de campana
           gain.gain.setValueAtTime(0.25, ctx.currentTime);
-          osc.start(); osc.stop(ctx.currentTime + 0.15);
+          osc.start(); osc.stop(ctx.currentTime + 0.12);
           setTimeout(() => {
             const osc2 = ctx.createOscillator();
             const gain2 = ctx.createGain();
             osc2.connect(gain2); gain2.connect(ctx.destination);
-            osc2.frequency.setValueAtTime(1318.51, ctx.currentTime); // E6
+            osc2.frequency.setValueAtTime(1500.00, ctx.currentTime); // G6 - Tono campanilla
             gain2.gain.setValueAtTime(0.25, ctx.currentTime);
-            osc2.start(); osc2.stop(ctx.currentTime + 0.35);
-          }, 150);
+            osc2.start(); osc2.stop(ctx.currentTime + 0.3);
+          }, 120);
 
           // Disparar notificación del sistema también si está en background
           if (typeof window !== 'undefined' && document.hidden && Notification.permission === 'granted') {
@@ -325,6 +325,7 @@ function MeseroContent() {
   const marcarEnCamino = async (id) => {
     await updateDoc(doc(db, 'mesa_pedidos', id), {
       estado: 'en_camino',
+      atendidoMesero: true, // Cerrar automáticamente la ventana emergente de listo
       meseroId: user?.uid || 'mesero',
       updatedAt: serverTimestamp(),
     });
@@ -338,11 +339,11 @@ function MeseroContent() {
         const data = snap.data();
         const updateData = {
           atendidoMesero: true,
+          entregadoAt: serverTimestamp(), // Registrar hora de entrega para auditoría de tiempos
           updatedAt: serverTimestamp(),
         };
         if (data.atendidoAdmin === true) {
           updateData.estado = 'entregado';
-          updateData.entregadoAt = serverTimestamp();
         }
         await updateDoc(docRef, updateData);
       }
