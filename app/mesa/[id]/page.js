@@ -64,6 +64,7 @@ export default function MesaClientePage({ params }) {
   const [enviando, setEnviando] = useState(false);
   const [exito, setExito] = useState(null); // 'pedido' | 'asistencia' | 'cuenta'
   const [mesaInfo, setMesaInfo] = useState(null);
+  const [loadingMesaInfo, setLoadingMesaInfo] = useState(true);
 
   // Nombre del cliente (pre-poblado si la mesa tiene cliente asignado)
   const [clienteNombre, setClienteNombre] = useState(() => {
@@ -214,6 +215,7 @@ export default function MesaClientePage({ params }) {
   // ── Leer información de la mesa (cliente asignado) en tiempo real desde Firestore ──
   useEffect(() => {
     const unsub = onSnapshot(doc(db, 'config', 'mesas_estado'), snap => {
+      setLoadingMesaInfo(false);
       if (snap.exists()) {
         const list = snap.data().mesas || [];
         const mesa = list.find(m => m.id === mesaId);
@@ -225,9 +227,12 @@ export default function MesaClientePage({ params }) {
               localStorage.setItem('yoy_cliente_nombre', mesa.cliente);
             } catch (e) {}
           }
+        } else {
+          setMesaInfo(null);
         }
       }
     }, err => {
+      setLoadingMesaInfo(false);
       console.error("Error al escuchar información de la mesa en Firestore:", err);
     });
     return unsub;
@@ -277,6 +282,10 @@ export default function MesaClientePage({ params }) {
   // ── Enviar pedido ───────────────────────────────────────
   const enviarPedido = async () => {
     if (itemsCarrito === 0) return;
+    if (!mesaInfo || mesaInfo.estado !== 'ocupada') {
+      alert('Operación denegada: Esta mesa no se encuentra activa en caja. Solicita su apertura.');
+      return;
+    }
     setEnviando(true);
     try {
       const items = Object.entries(carrito).map(([id, cant]) => {
@@ -290,6 +299,8 @@ export default function MesaClientePage({ params }) {
         total: totalCarrito,
         estado: 'pendiente',
         tipo: 'pedido',
+        etiqueta: `Pedido de Consumo: ${items.map(i => `${i.cantidad}x ${i.nombre}`).join(', ')}`,
+        icono: '🍔',
         createdAt: serverTimestamp(),
       });
       setCarrito({});
@@ -302,6 +313,10 @@ export default function MesaClientePage({ params }) {
 
   // ── Solicitar asistencia ────────────────────────────────
   const solicitarAsistencia = async (tipo) => {
+    if (!mesaInfo || mesaInfo.estado !== 'ocupada') {
+      alert('Operación denegada: Esta mesa no se encuentra activa en caja. Solicita su apertura.');
+      return;
+    }
     setEnviando(true);
     try {
       await addDocWithTimeout(collection(db, 'mesa_pedidos'), {
@@ -310,7 +325,7 @@ export default function MesaClientePage({ params }) {
         tipo: 'asistencia',
         tipoAsistencia: tipo.id || tipo,
         etiqueta: tipo.label || tipo,
-        icono: tipo.icon || '🔔',
+        icono: tipo.icon || '🙋',
         estado: 'pendiente',
         createdAt: serverTimestamp(),
       });
@@ -323,6 +338,10 @@ export default function MesaClientePage({ params }) {
 
   // ── Solicitar la cuenta ─────────────────────────────────
   const solicitarCuenta = async () => {
+    if (!mesaInfo || mesaInfo.estado !== 'ocupada') {
+      alert('Operación denegada: Esta mesa no se encuentra activa en caja. Solicita su apertura.');
+      return;
+    }
     setEnviando(true);
     try {
       await addDocWithTimeout(collection(db, 'mesa_pedidos'), {
@@ -355,6 +374,59 @@ export default function MesaClientePage({ params }) {
     { id: 'cuenta',     label: 'Mi Cuenta',  icon: 'ri-receipt-line',    badge: pendientesEntrega },
     { id: 'pagar',      label: 'Pagar',      icon: 'ri-secure-payment-line' },
   ];
+
+  if (loadingMesaInfo) {
+    return (
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: '100dvh',
+        background: 'var(--cl-bg, #0b0f19)',
+        color: '#fff',
+        fontFamily: "'Inter', sans-serif"
+      }}>
+        <div style={{ fontSize: 32, marginBottom: 16, animation: 'spin 1.8s linear infinite' }}>🔄</div>
+        <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)' }}>Verificando estado de la mesa...</div>
+      </div>
+    );
+  }
+
+  if (mesaInfo && mesaInfo.estado !== 'ocupada') {
+    return (
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: '100dvh',
+        padding: 24,
+        textAlign: 'center',
+        background: 'var(--cl-bg, #0b0f19)',
+        color: '#fff',
+        fontFamily: "'Inter', sans-serif"
+      }}>
+        <style>{`@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap');`}</style>
+        <div style={{ fontSize: 64, marginBottom: 20 }}>🔒</div>
+        <h2 style={{ fontSize: 22, fontWeight: 900, marginBottom: 12, color: 'var(--cl-bronze-light, #cd7f32)' }}>Mesa Inactiva</h2>
+        <p style={{ color: 'rgba(255,255,255,0.6)', maxWidth: 340, fontSize: 14, lineHeight: 1.6, marginBottom: 24 }}>
+          Esta mesa no se encuentra activa en el sistema de la caja. Por favor, solicita la apertura de la <strong>Mesa {mesaId}</strong> con el personal del establecimiento para poder realizar pedidos y solicitar asistencia.
+        </p>
+        <div style={{
+          padding: '12px 20px',
+          background: 'rgba(205,127,50,0.1)',
+          border: '1px solid rgba(205,127,50,0.25)',
+          borderRadius: 12,
+          fontSize: 12,
+          color: 'var(--cl-bronze-light, #cd7f32)',
+          fontWeight: 600
+        }}>
+          YoY IA Billar · Sistema de Gestión
+        </div>
+      </div>
+    );
+  }
 
   if (isNaN(mesaId)) {
     return (
