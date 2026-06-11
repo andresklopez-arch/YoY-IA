@@ -82,6 +82,16 @@ export default function MesaClientePage({ params }) {
   const [dbConnected, setDbConnected] = useState(false);
   const [showTechDetails, setShowTechDetails] = useState(false);
 
+  // Control de dispositivo único y encuestas
+  const [isSecondaryDevice, setIsSecondaryDevice] = useState(false);
+  const [showSurvey, setShowSurvey] = useState(false);
+  const [ratingAtencion, setRatingAtencion] = useState(5);
+  const [ratingRapidez, setRatingRapidez] = useState(5);
+  const [ratingLimpieza, setRatingLimpieza] = useState(5);
+  const [ratingEquipo, setRatingEquipo] = useState(5);
+  const [comentarios, setComentarios] = useState('');
+  const [mostrarQuejas, setMostrarQuejas] = useState(false);
+
   // ── Helper de escritura con Timeout para redes inestables ──
   const addDocWithTimeout = async (collRef, data, timeoutMs = 8000) => {
     const writePromise = addDoc(collRef, data);
@@ -238,6 +248,49 @@ export default function MesaClientePage({ params }) {
     return unsub;
   }, [mesaId]);
 
+  // ── Reclamar y Bloquear Mesa en tiempo real ──
+  useEffect(() => {
+    if (authStatus !== 'conectado' || !auth.currentUser || !mesaInfo || mesaInfo.estado !== 'ocupada') return;
+
+    const currentUid = auth.currentUser.uid;
+
+    if (mesaInfo.clienteUid) {
+      if (mesaInfo.clienteUid !== currentUid) {
+        setIsSecondaryDevice(true);
+      } else {
+        setIsSecondaryDevice(false);
+      }
+    } else {
+      // Reclamar la mesa de forma asíncrona
+      const registrarReclamo = async () => {
+        try {
+          const ref = doc(db, 'config', 'mesas_estado');
+          const snap = await getDoc(ref);
+          if (snap.exists()) {
+            const list = snap.data().mesas || [];
+            const mesaObj = list.find(m => m.id === mesaId);
+            if (mesaObj && !mesaObj.clienteUid) {
+              const updatedList = list.map(m => m.id === mesaId
+                ? { ...m, clienteUid: currentUid }
+                : m
+              );
+              await setDoc(ref, {
+                mesas: updatedList,
+                updatedAt: serverTimestamp()
+              });
+              console.log(`Mesa ${mesaId} reclamada por el cliente: ${currentUid}`);
+            } else if (mesaObj && mesaObj.clienteUid !== currentUid) {
+              setIsSecondaryDevice(true);
+            }
+          }
+        } catch (err) {
+          console.error("Error al reclamar mesa:", err);
+        }
+      };
+      registrarReclamo();
+    }
+  }, [authStatus, mesaInfo, mesaId]);
+
   // ── Leer tipos de asistencia personalizados desde Firebase ──
   useEffect(() => {
     const q = query(collection(db, 'tipos_asistencia'));
@@ -282,6 +335,10 @@ export default function MesaClientePage({ params }) {
   // ── Enviar pedido ───────────────────────────────────────
   const enviarPedido = async () => {
     if (itemsCarrito === 0) return;
+    if (isSecondaryDevice) {
+      alert('Operación bloqueada: Este dispositivo no es el principal de la mesa.');
+      return;
+    }
     if (!mesaInfo || mesaInfo.estado !== 'ocupada') {
       alert('Operación denegada: Esta mesa no se encuentra activa en caja. Solicita su apertura.');
       return;
@@ -301,6 +358,9 @@ export default function MesaClientePage({ params }) {
         tipo: 'pedido',
         etiqueta: `Pedido de Consumo: ${items.map(i => `${i.cantidad}x ${i.nombre}`).join(', ')}`,
         icono: '🍔',
+        clienteUid: auth.currentUser?.uid || '',
+        atendidoAdmin: false,
+        atendidoMesero: false,
         createdAt: serverTimestamp(),
       });
       setCarrito({});
@@ -313,6 +373,10 @@ export default function MesaClientePage({ params }) {
 
   // ── Solicitar asistencia ────────────────────────────────
   const solicitarAsistencia = async (tipo) => {
+    if (isSecondaryDevice) {
+      alert('Operación bloqueada: Este dispositivo no es el principal de la mesa.');
+      return;
+    }
     if (!mesaInfo || mesaInfo.estado !== 'ocupada') {
       alert('Operación denegada: Esta mesa no se encuentra activa en caja. Solicita su apertura.');
       return;
@@ -327,6 +391,9 @@ export default function MesaClientePage({ params }) {
         etiqueta: tipo.label || tipo,
         icono: tipo.icon || '🙋',
         estado: 'pendiente',
+        clienteUid: auth.currentUser?.uid || '',
+        atendidoAdmin: false,
+        atendidoMesero: false,
         createdAt: serverTimestamp(),
       });
       setShowAsistConfirm(null);
@@ -337,13 +404,42 @@ export default function MesaClientePage({ params }) {
   };
 
   // ── Solicitar la cuenta ─────────────────────────────────
-  const solicitarCuenta = async () => {
+  const solicitarCuentaClick = () => {
+    if (isSecondaryDevice) {
+      alert('Operación bloqueada: Este dispositivo no es el principal de la mesa.');
+      return;
+    }
     if (!mesaInfo || mesaInfo.estado !== 'ocupada') {
       alert('Operación denegada: Esta mesa no se encuentra activa en caja. Solicita su apertura.');
       return;
     }
+    setRatingAtencion(5);
+    setRatingRapidez(5);
+    setRatingLimpieza(5);
+    setRatingEquipo(5);
+    setComentarios('');
+    setMostrarQuejas(false);
+    setShowSurvey(true);
+  };
+
+  const enviarEncuestaYSolicitarCuenta = async () => {
     setEnviando(true);
     try {
+      // 1. Guardar encuesta de satisfacción
+      await addDocWithTimeout(collection(db, 'encuestas_satisfaccion'), {
+        mesaId,
+        cliente: clienteNombre || `Mesa ${mesaId}`,
+        calificaciones: {
+          atencion: ratingAtencion,
+          rapidez: ratingRapidez,
+          limpieza: ratingLimpieza,
+          equipo: ratingEquipo
+        },
+        comentarios: comentarios.trim(),
+        createdAt: serverTimestamp(),
+      });
+
+      // 2. Enviar alerta de cuenta
       await addDocWithTimeout(collection(db, 'mesa_pedidos'), {
         mesaId,
         cliente: clienteNombre || `Mesa ${mesaId}`,
@@ -351,9 +447,13 @@ export default function MesaClientePage({ params }) {
         etiqueta: 'Solicitud de Cuenta',
         icono: '💳',
         estado: 'pendiente',
+        atendidoAdmin: false,
+        atendidoMesero: false,
         totalAcumulado,
         createdAt: serverTimestamp(),
       });
+
+      setShowSurvey(false);
       setExito('cuenta');
       setTimeout(() => setExito(null), 4000);
     } catch (e) { alert('Error: ' + e.message); }
@@ -498,6 +598,28 @@ export default function MesaClientePage({ params }) {
 
       {/* CUERPO */}
       <main className="mc-body">
+        {isSecondaryDevice && (
+          <div style={{
+            background: 'rgba(245, 158, 11, 0.12)',
+            border: '1px solid rgba(245, 158, 11, 0.3)',
+            color: '#f59e0b',
+            padding: '12px 16px',
+            borderRadius: 14,
+            marginBottom: 16,
+            fontSize: 12,
+            lineHeight: 1.5,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10
+          }}>
+            <span style={{ fontSize: 20 }}>🔒</span>
+            <div>
+              <div style={{ fontWeight: 800, fontSize: 13, marginBottom: 2 }}>Mesa vinculada a otro dispositivo</div>
+              <p style={{ margin: 0, color: 'rgba(255,255,255,0.7)' }}>Solo se permite que un dispositivo realice pedidos o solicite asistencia para evitar fraudes y duplicados.</p>
+            </div>
+          </div>
+        )}
+
         {authStatus === 'error' && (
           <div style={{
             background: 'rgba(239, 68, 68, 0.15)',
@@ -606,9 +728,9 @@ export default function MesaClientePage({ params }) {
                     <div className="mc-producto-nombre">{prod.nombre}</div>
                     <div className="mc-producto-precio">${prod.precioVenta}</div>
                     <div className="mc-producto-controls">
-                      <button className="mc-qty-btn" onClick={() => modificarCarrito(prod.id, -1)}>−</button>
+                      <button className="mc-qty-btn" onClick={() => !isSecondaryDevice && modificarCarrito(prod.id, -1)} disabled={isSecondaryDevice} style={{ opacity: isSecondaryDevice ? 0.4 : 1, cursor: isSecondaryDevice ? 'not-allowed' : 'pointer' }}>−</button>
                       <span className="mc-qty-val">{cant}</span>
-                      <button className="mc-qty-btn" onClick={() => modificarCarrito(prod.id, 1)}>+</button>
+                      <button className="mc-qty-btn" onClick={() => !isSecondaryDevice && modificarCarrito(prod.id, 1)} disabled={isSecondaryDevice} style={{ opacity: isSecondaryDevice ? 0.4 : 1, cursor: isSecondaryDevice ? 'not-allowed' : 'pointer' }}>+</button>
                     </div>
                   </div>
                 );
@@ -635,8 +757,9 @@ export default function MesaClientePage({ params }) {
                 <button
                   key={tipo.id || tipo.label}
                   className="mc-asist-btn"
-                  onClick={() => setShowAsistConfirm(tipo)}
-                  style={{ borderColor: `${tipo.color}40` }}
+                  onClick={() => !isSecondaryDevice && setShowAsistConfirm(tipo)}
+                  disabled={isSecondaryDevice}
+                  style={{ borderColor: `${tipo.color}40`, opacity: isSecondaryDevice ? 0.4 : 1, cursor: isSecondaryDevice ? 'not-allowed' : 'pointer' }}
                 >
                   <div className="mc-asist-icon">{tipo.icon}</div>
                   <div className="mc-asist-label" style={{ color: tipo.color }}>{tipo.label}</div>
@@ -721,8 +844,9 @@ export default function MesaClientePage({ params }) {
             </div>
             <button
               className="mc-btn-primary"
-              onClick={solicitarCuenta}
-              disabled={enviando}
+              onClick={solicitarCuentaClick}
+              disabled={enviando || isSecondaryDevice}
+              style={{ opacity: isSecondaryDevice ? 0.5 : 1, cursor: isSecondaryDevice ? 'not-allowed' : 'pointer' }}
             >
               {enviando ? <><i className="ri-loader-4-line" /> Enviando...</> : <><i className="ri-secure-payment-line" /> Solicitar mi Cuenta</>}
             </button>
@@ -819,6 +943,105 @@ export default function MesaClientePage({ params }) {
               guardarNombreCliente(clienteNombre);
               setShowNombre(false);
             }}>Listo ✓</button>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL: ENCUESTA DE SATISFACCIÓN ─────────────────── */}
+      {showSurvey && (
+        <div className="mc-overlay" style={{ zIndex: 1100 }} onClick={e => e.target.classList.contains('mc-overlay') && setShowSurvey(false)}>
+          <div className="mc-sheet" style={{ maxHeight: '90vh', overflowY: 'auto' }}>
+            <div className="mc-sheet-handle" />
+            <div style={{ textAlign: 'center', padding: '8px 0 16px' }}>
+              <div style={{ fontSize: 48, marginBottom: 8 }}>⭐</div>
+              <div style={{ fontSize: 18, fontWeight: 900, marginBottom: 4 }}>Encuesta de Satisfacción</div>
+              <p style={{ fontSize: 12, color: 'var(--cl-muted)', margin: 0 }}>Ayúdanos a mejorar tu experiencia.</p>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 20 }}>
+              {[
+                { label: 'Atención del Personal', value: ratingAtencion, setter: setRatingAtencion },
+                { label: 'Rapidez', value: ratingRapidez, setter: setRatingRapidez },
+                { label: 'Limpieza', value: ratingLimpieza, setter: setRatingLimpieza },
+                { label: 'Calidad del equipo', value: ratingEquipo, setter: setRatingEquipo },
+              ].map((item, idx) => (
+                <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>{item.label}</div>
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                    {[1, 2, 3, 4, 5].map(star => (
+                      <button
+                        key={star}
+                        type="button"
+                        onClick={() => item.setter(star === item.value ? 0 : star)}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          padding: 0,
+                          fontSize: 28,
+                          cursor: 'pointer',
+                          color: star <= item.value ? '#ffb020' : 'rgba(255, 255, 255, 0.15)',
+                          textShadow: star <= item.value ? '0 0 10px rgba(255, 176, 32, 0.3)' : 'none',
+                          transition: 'transform 0.1s'
+                        }}
+                      >
+                        ★
+                      </button>
+                    ))}
+                    <span style={{ fontSize: 12, color: 'var(--cl-muted)', marginLeft: 8 }}>{item.value}/5</span>
+                  </div>
+                </div>
+              ))}
+
+              <div style={{ borderTop: '1px solid var(--cl-border)', paddingTop: 14 }}>
+                <button
+                  type="button"
+                  onClick={() => setMostrarQuejas(p => !p)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--cl-bronze-light)',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: 0
+                  }}
+                >
+                  {mostrarQuejas ? '▲ Ocultar quejas o sugerencias' : '💬 ¿Tienes quejas o sugerencias extras?'}
+                </button>
+                {mostrarQuejas && (
+                  <textarea
+                    placeholder="Escribe tus comentarios aquí..."
+                    value={comentarios}
+                    onChange={e => setComentarios(e.target.value)}
+                    style={{
+                      width: '100%',
+                      height: 80,
+                      marginTop: 10,
+                      padding: 10,
+                      background: 'var(--cl-surface)',
+                      border: '1px solid var(--cl-border)',
+                      borderRadius: 10,
+                      color: '#fff',
+                      fontSize: 13,
+                      resize: 'none',
+                      outline: 'none'
+                    }}
+                  />
+                )}
+              </div>
+            </div>
+
+            <button
+              className="mc-btn-primary"
+              onClick={enviarEncuestaYSolicitarCuenta}
+              disabled={enviando}
+            >
+              {enviando ? 'Enviando...' : 'Enviar y Solicitar Cuenta'}
+            </button>
+            <button className="mc-btn-secondary" onClick={() => setShowSurvey(false)}>Cancelar</button>
           </div>
         </div>
       )}
