@@ -420,6 +420,7 @@ export default function MesaClientePage({ params }) {
             <p style={{ marginBottom: 6 }}>No se pudo establecer una sesión segura con el servidor. Detalle técnico:</p>
             <code style={{ display: 'block', background: 'rgba(0,0,0,0.3)', padding: 8, borderRadius: 8, fontSize: 10, fontFamily: 'monospace', overflowX: 'auto', whiteSpace: 'pre-wrap' }}>
               {authError || 'Error de permisos o inicio anónimo deshabilitado (auth/operation-not-allowed). Por favor habilita el proveedor Anónimo en la Consola Firebase.'}
+              {`\n\nClave de API en uso: ${auth.app?.options?.apiKey || 'No detectada'}`}
             </code>
           </div>
         )}
