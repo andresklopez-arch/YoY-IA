@@ -791,7 +791,54 @@ export default function MesasPanel({ showToast }) {
     const targetMesa = mesas.find(m => m.id === mesaId);
     if (!targetMesa) return;
 
-    // Si la mesa está libre, la abrimos automáticamente
+    const orderItems = pedidoDoc.items || [];
+    const totalPedido = pedidoDoc.total || 0;
+
+    // 1. Obtener y verificar stock de Firestore primero
+    let stockActualizado = null;
+    try {
+      const snap = await getDoc(doc(db, 'config', 'inventario'));
+      if (snap.exists()) {
+        const parsed = snap.data().productos || [];
+        const conflictos = [];
+        orderItems.forEach(item => {
+          const p = parsed.find(prod => prod.id === item.productoId);
+          if (p && p.stock < item.cantidad) {
+            conflictos.push(`${item.nombre} (Disponibles: ${p.stock}, Solicitados: ${item.cantidad})`);
+          }
+        });
+
+        if (conflictos.length > 0) {
+          const confirmar = window.confirm(
+            `⚠️ ¡Conflicto de Stock!\n` +
+            `Los siguientes productos no tienen inventario suficiente:\n` +
+            `- ${conflictos.join('\n- ')}\n\n` +
+            `¿Desea forzar la carga de la comanda? El stock de estos productos se ajustará a 0.`
+          );
+          if (!confirmar) {
+            showToast('Carga de pedido cancelada por falta de stock', 'warning');
+            return;
+          }
+        }
+
+        stockActualizado = parsed.map(p => {
+          const enCart = orderItems.find(item => item.productoId === p.id);
+          if (enCart) {
+            return { ...p, stock: Math.max(0, p.stock - enCart.cantidad), lastModified: Date.now() };
+          }
+          return p;
+        });
+      }
+    } catch (err) {
+      console.error("Error al verificar stock en Firestore:", err);
+      const continuarSinStock = window.confirm(
+        "No se pudo verificar el stock en tiempo real con el servidor.\n" +
+        "¿Desea continuar con la carga del pedido?"
+      );
+      if (!continuarSinStock) return;
+    }
+
+    // 2. Si la mesa está libre, la abrimos automáticamente
     let clienteName = targetMesa.cliente || pedidoDoc.cliente || `Mesa ${mesaId}`;
     let updatedMesas = mesas;
     if (targetMesa.estado !== 'ocupada') {
@@ -804,12 +851,8 @@ export default function MesasPanel({ showToast }) {
       registrarEvento('Apertura Auto', `Mesa ${mesaId} abierta automáticamente por pedido de cliente (${clienteName})`);
     }
 
-    // Buscar la cuenta activa o crear una nueva
+    // 3. Buscar la cuenta activa o crear una nueva
     const cuentaExistente = cuentasActivas.find(c => c.cliente && c.cliente.toLowerCase() === clienteName.toLowerCase());
-    
-    // items del pedido
-    const orderItems = pedidoDoc.items || [];
-    const totalPedido = pedidoDoc.total || 0;
     
     let nuevasCuentas = [...cuentasActivas];
     if (cuentaExistente) {
@@ -852,29 +895,20 @@ export default function MesasPanel({ showToast }) {
     setCuentasActivas(nuevasCuentas);
     localStorage.setItem('yoy_billar_cuentas', obfuscate(nuevasCuentas));
 
-    // Descontar el stock en Firestore
-    try {
-      const snap = await getDoc(doc(db, 'config', 'inventario'));
-      if (snap.exists()) {
-        const parsed = snap.data().productos || [];
-        const stockActualizado = parsed.map(p => {
-          const enCart = orderItems.find(item => item.productoId === p.id);
-          if (enCart) {
-            return { ...p, stock: Math.max(0, p.stock - enCart.cantidad), lastModified: Date.now() };
-          }
-          return p;
-        });
+    // 4. Guardar inventario actualizado en Firestore
+    if (stockActualizado) {
+      try {
         localStorage.setItem('yoy_billar_stock', obfuscate(stockActualizado));
         await setDoc(doc(db, 'config', 'inventario'), {
           productos: stockActualizado,
           updatedAt: serverTimestamp()
         });
+      } catch (err) {
+        console.error("Error al actualizar inventario:", err);
       }
-    } catch (err) {
-      console.error("Error al actualizar inventario desde pedido:", err);
     }
 
-    // Marcar el pedido como entregado en Firestore
+    // 5. Marcar el pedido como entregado en Firestore
     try {
       await updateDoc(doc(db, 'mesa_pedidos', pedidoDoc.id), {
         estado: 'entregado',

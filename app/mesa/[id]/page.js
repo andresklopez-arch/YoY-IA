@@ -5,7 +5,7 @@ import {
   where, orderBy, serverTimestamp, doc, updateDoc
 } from 'firebase/firestore';
 import { db, auth } from '@/lib/firebase';
-import { signInAnonymously } from 'firebase/auth';
+import { signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import '@/styles/mesa-cliente.css';
 
 // ── Emoji por categoría de producto ───────────────────────
@@ -69,13 +69,20 @@ export default function MesaClientePage({ params }) {
 
   // ── Sesión anónima para evitar bloqueos de reglas de Firestore ──
   useEffect(() => {
-    signInAnonymously(auth)
-      .then(() => {
-        console.log("Sesión anónima de cliente iniciada correctamente");
-      })
-      .catch(err => {
-        console.warn("Error al iniciar sesión anónima de cliente:", err);
-      });
+    const unsubscribe = onAuthStateChanged(auth, user => {
+      if (!user) {
+        signInAnonymously(auth)
+          .then(() => {
+            console.log("Sesión anónima de cliente iniciada correctamente");
+          })
+          .catch(err => {
+            console.warn("Error al iniciar sesión anónima de cliente:", err);
+          });
+      } else {
+        console.log("Sesión anónima existente detectada:", user.uid);
+      }
+    });
+    return unsubscribe;
   }, []);
 
   // ── Leer productos del BarPanel en tiempo real con caché offline en localStorage ──
@@ -398,10 +405,16 @@ export default function MesaClientePage({ params }) {
                       </span>
                       <span style={{
                         fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 999,
-                        background: pedido.estado === 'entregado' ? 'rgba(34,197,94,0.15)' : pedido.estado === 'en_camino' ? 'rgba(245,158,11,0.15)' : 'rgba(59,130,246,0.15)',
-                        color: pedido.estado === 'entregado' ? '#22c55e' : pedido.estado === 'en_camino' ? '#f59e0b' : '#3b82f6',
+                        background: pedido.estado === 'entregado' ? 'rgba(34,197,94,0.15)' : 
+                                    pedido.estado === 'listo' ? 'rgba(167,139,250,0.15)' : 
+                                    pedido.estado === 'en_camino' ? 'rgba(245,158,11,0.15)' : 'rgba(59,130,246,0.15)',
+                        color: pedido.estado === 'entregado' ? '#22c55e' : 
+                               pedido.estado === 'listo' ? '#a78bfa' : 
+                               pedido.estado === 'en_camino' ? '#f59e0b' : '#3b82f6',
                       }}>
-                        {pedido.estado === 'entregado' ? '✅ Entregado' : pedido.estado === 'en_camino' ? '🚀 En camino' : '⏳ Pendiente'}
+                        {pedido.estado === 'entregado' ? '✅ Entregado' : 
+                         pedido.estado === 'listo' ? '🍳 Preparado' : 
+                         pedido.estado === 'en_camino' ? '🚀 En camino' : '⏳ Pendiente'}
                       </span>
                     </div>
                     {pedido.items?.map((item, i) => (
