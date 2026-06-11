@@ -14,7 +14,7 @@ export default function SeedPage() {
       // 1. Crear el usuario admin1111
       setStatus('Creando usuario admin1111...');
       const email = 'admin1111@yoybillar.mx';
-      const password = '1111';
+      const password = 'admin1111';
       
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
@@ -71,11 +71,11 @@ export default function SeedPage() {
         total: 0
       });
 
-      setStatus('¡Sembrado completado exitosamente! Ya puedes ir a / y hacer login con admin1111 y pass 1111.');
+      setStatus('¡Sembrado completado exitosamente! Ya puedes ir a / y hacer login con admin1111 y pass admin1111.');
     } catch (error) {
       console.error(error);
       if (error.code === 'auth/email-already-in-use') {
-        setStatus('Error: El usuario admin1111 ya existe. Las colecciones probablemente ya están creadas.');
+        setStatus('Error: El usuario admin1111 ya existe con esa contraseña.');
       } else {
         setStatus(`Error: ${error.message}`);
       }
