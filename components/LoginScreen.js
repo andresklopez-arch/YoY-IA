@@ -1,6 +1,8 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth-context';
+import { db } from '@/lib/firebase';
+import { collection, getDocs, query, orderBy } from 'firebase/firestore';
 
 export default function LoginScreen({ showToast }) {
   const { login } = useAuth();
@@ -10,6 +12,28 @@ export default function LoginScreen({ showToast }) {
   const [showPass, setShowPass] = useState(false);
   const [loginMethod, setLoginMethod] = useState('correo'); // 'correo' o 'nip'
   const [nip, setNip] = useState('');
+  const [usersList, setUsersList] = useState([]);
+  const [selectedEmail, setSelectedEmail] = useState('');
+
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        const q = query(collection(db, 'users'), orderBy('name', 'asc'));
+        const snap = await getDocs(q);
+        const list = [];
+        snap.forEach(doc => {
+          list.push({ id: doc.id, ...doc.data() });
+        });
+        setUsersList(list);
+        if (list.length > 0) {
+          setSelectedEmail(list[0].email);
+        }
+      } catch (err) {
+        console.error("Error fetching users for login screen:", err);
+      }
+    };
+    fetchUsers();
+  }, []);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -19,8 +43,9 @@ export default function LoginScreen({ showToast }) {
         if (!nip) return;
         await login(nip, '');
       } else {
-        if (!email || !password) return;
-        await login(email, password);
+        const targetEmail = usersList.length > 0 ? selectedEmail : email;
+        if (!targetEmail || !password) return;
+        await login(targetEmail, password);
       }
     } catch (err) {
       showToast(err.message, 'error');
@@ -140,17 +165,47 @@ export default function LoginScreen({ showToast }) {
               </div>
             ) : (
               <>
-                <div className="form-group">
-                  <label className="form-label">Correo Electrónico</label>
-                  <input
-                    className="form-input"
-                    type="email"
-                    placeholder="usuario@yoybillar.mx"
-                    value={email}
-                    onChange={e => setEmail(e.target.value)}
-                    required
-                  />
-                </div>
+                {usersList.length > 0 ? (
+                  <div className="form-group">
+                    <label className="form-label">Selecciona tu Usuario</label>
+                    <select
+                      className="form-select"
+                      value={selectedEmail}
+                      onChange={e => setSelectedEmail(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '12px 16px',
+                        background: 'var(--bg-elevated)',
+                        border: '1px solid var(--border-bronze)',
+                        borderRadius: 10,
+                        color: 'var(--text-main)',
+                        fontSize: 14,
+                        boxSizing: 'border-box',
+                        outline: 'none',
+                        cursor: 'pointer',
+                        height: 46
+                      }}
+                    >
+                      {usersList.map(u => (
+                        <option key={u.id} value={u.email} style={{ background: 'var(--bg-card)', color: 'var(--text-main)' }}>
+                          {u.name} ({u.role ? u.role.toUpperCase() : 'PERSONAL'})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                ) : (
+                  <div className="form-group">
+                    <label className="form-label">Correo Electrónico</label>
+                    <input
+                      className="form-input"
+                      type="email"
+                      placeholder="usuario@yoybillar.mx"
+                      value={email}
+                      onChange={e => setEmail(e.target.value)}
+                      required
+                    />
+                  </div>
+                )}
 
                 <div className="form-group">
                   <label className="form-label">Contraseña</label>
