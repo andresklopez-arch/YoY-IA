@@ -154,14 +154,13 @@ function AppContent() {
             alt="YoY IA Billar By Alfonso Iturbide" 
             fetchpriority="high"
             loading="eager"
+            className="animate-pulse-accelerate"
             style={{ 
               width: 260, 
               height: 'auto', 
               objectFit: 'contain',
-              animation: 'pulse 1.6s infinite ease-in-out', 
               margin: '0 auto 24px',
-              display: 'block',
-              filter: 'drop-shadow(0 0 15px rgba(205,127,50,0.2))'
+              display: 'block'
             }} 
           />
           <p style={{ color:'var(--text-secondary)', fontSize: 10, letterSpacing:'0.2em', textTransform:'uppercase', fontWeight: 600 }}>Iniciando sistema...</p>
