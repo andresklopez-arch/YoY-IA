@@ -121,6 +121,21 @@ const TOP_MESAS = [
   { mesa: 'Mesa 1', tipo: 'Carambola 3B', horas: 35, ingresos: 4200, ocupacion: 65 },
 ];
 
+const formatFecha = (ts) => {
+  if (!ts) return '';
+  try {
+    const date = ts.toDate ? ts.toDate() : new Date(ts);
+    return date.toLocaleString('es-MX', {
+      day: '2-digit',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  } catch (e) {
+    return '';
+  }
+};
+
 export default function ReportesPanel({ showToast }) {
   const [filtroGrafico, setFiltroGrafico] = useState('semana'); // 'semana' | 'mes' | 'anio'
   const [pronosticoRango, setPronosticoRango] = useState('24h'); // '24h' | '48h' | '72h'
@@ -128,6 +143,7 @@ export default function ReportesPanel({ showToast }) {
   const [gastosList, setGastosList] = useState([]);
   const [nominaPagosList, setNominaPagosList] = useState([]);
   const [empleadosList, setEmpleadosList] = useState([]);
+  const [encuestasList, setEncuestasList] = useState([]);
   const [showPrintPL, setShowPrintPL] = useState(false);
   const [limitePresupuesto, setLimitePresupuesto] = useState(15000);
 
@@ -151,10 +167,17 @@ export default function ReportesPanel({ showToast }) {
       setEmpleadosList(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     }, err => console.warn("Error cargando empleados:", err));
 
+    // Escuchar encuestas de satisfacción
+    const qEncuestas = query(collection(db, 'encuestas_satisfaccion'));
+    const unsubEncuestas = onSnapshot(qEncuestas, snap => {
+      setEncuestasList(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, err => console.warn("Error cargando encuestas:", err));
+
     return () => {
       unsubGastos();
       unsubPagos();
       unsubEmp();
+      unsubEncuestas();
     };
   }, []);
 
@@ -354,6 +377,14 @@ export default function ReportesPanel({ showToast }) {
 
   const pronostico = getPronosticoData();
 
+  // Cálculos de Encuestas de Satisfacción
+  const totalEncuestas = encuestasList.length;
+  const promedioAtencion = totalEncuestas > 0 ? encuestasList.reduce((acc, curr) => acc + (curr.calificaciones?.atencion || 0), 0) / totalEncuestas : 5.0;
+  const promedioRapidez = totalEncuestas > 0 ? encuestasList.reduce((acc, curr) => acc + (curr.calificaciones?.rapidez || 0), 0) / totalEncuestas : 4.8;
+  const promedioLimpieza = totalEncuestas > 0 ? encuestasList.reduce((acc, curr) => acc + (curr.calificaciones?.limpieza || 0), 0) / totalEncuestas : 4.7;
+  const promedioEquipo = totalEncuestas > 0 ? encuestasList.reduce((acc, curr) => acc + (curr.calificaciones?.equipo || 0), 0) / totalEncuestas : 4.9;
+  const promedioGeneral = (promedioAtencion + promedioRapidez + promedioLimpieza + promedioEquipo) / 4;
+
   return (
     <div>
       <div className="page-header">
@@ -401,6 +432,7 @@ export default function ReportesPanel({ showToast }) {
           { id: 'dashboard', label: 'Dashboard Inteligente', icon: 'ri-robot-line' },
           { id: 'pyl', label: 'Pérdidas y Ganancias (P&L)', icon: 'ri-scales-3-line' },
           { id: 'staff', label: 'Rendimiento de Staff', icon: 'ri-medal-line' },
+          { id: 'encuestas', label: 'Encuestas de Satisfacción', icon: 'ri-chat-smile-line' },
         ].map(t => (
           <button
             key={t.id}
@@ -937,6 +969,243 @@ export default function ReportesPanel({ showToast }) {
                 El promedio de eficiencia de atención general se encuentra en <strong>{Math.round(staffRendimiento.reduce((s,e)=>s+e.eficiencia, 0)/staffRendimiento.length)}%</strong>. 
                 Se ha detectado una correlación del 94% entre puntualidad y alta valoración de clientes. 
                 Se sugiere asignar a <strong>{staffRendimiento[0]?.nombre || 'Pedro'}</strong> a las mesas VIP los fines de semana de alta demanda.
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ── SUB-PANEL 4: ENCUESTAS DE SATISFACCIÓN ────────────────────────── */}
+      {tabActiva === 'encuestas' && (
+        <>
+          {/* Resumen General y Promedios */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 20, marginBottom: 20 }}>
+            {/* KPI Promedio General */}
+            <div className="card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: 30 }}>
+              <div style={{ fontSize: 13, textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em', marginBottom: 15 }}>
+                Satisfacción General
+              </div>
+              <div style={{ position: 'relative', width: 150, height: 150, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 15 }}>
+                <svg width="150" height="150" viewBox="0 0 150 150">
+                  <circle cx="75" cy="75" r="65" fill="none" stroke="var(--bg-elevated)" strokeWidth="12" />
+                  <circle cx="75" cy="75" r="65" fill="none" stroke="url(#goldGradient)" strokeWidth="12"
+                    strokeDasharray={`${2 * Math.PI * 65}`}
+                    strokeDashoffset={`${2 * Math.PI * 65 * (1 - promedioGeneral / 5)}`}
+                    strokeLinecap="round"
+                    transform="rotate(-90 75 75)"
+                    style={{ transition: 'stroke-dashoffset 0.8s ease-out' }}
+                  />
+                  <defs>
+                    <linearGradient id="goldGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stopColor="var(--bronze-light)" />
+                      <stop offset="100%" stopColor="var(--bronze)" />
+                    </linearGradient>
+                  </defs>
+                </svg>
+                <div style={{ position: 'absolute', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                  <span style={{ fontSize: 36, fontWeight: 900, fontFamily: 'var(--font-display)', color: 'var(--bronze-light)' }}>
+                    {promedioGeneral.toFixed(1)}
+                  </span>
+                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>de 5.0 ⭐</span>
+                </div>
+              </div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>
+                Basado en <strong style={{ color: 'var(--bronze-light)' }}>{totalEncuestas}</strong> opiniones de clientes
+              </div>
+            </div>
+
+            {/* Promedios por Categoría */}
+            <div className="card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', padding: '24px 30px' }}>
+              <h3 className="card-title" style={{ marginBottom: 15 }}>Calificaciones por Categoría</h3>
+              
+              {[
+                { name: 'Atención del Personal', val: promedioAtencion, icon: 'ri-user-star-line', color: '#ffb300' },
+                { name: 'Rapidez del Servicio', val: promedioRapidez, icon: 'ri-flashlight-line', color: '#03a9f4' },
+                { name: 'Limpieza del Local', val: promedioLimpieza, icon: 'ri-sparkling-line', color: '#00e676' },
+                { name: 'Calidad del Equipo', val: promedioEquipo, icon: 'ri-billiards-line', color: 'var(--bronze-light)' }
+              ].map((cat, i) => (
+                <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: i < 3 ? 12 : 0 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13 }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600, color: 'var(--text-secondary)' }}>
+                      <i className={cat.icon} style={{ color: cat.color }} /> {cat.name}
+                    </span>
+                    <span style={{ fontWeight: 800, color: 'var(--text-primary)' }}>{cat.val.toFixed(1)} / 5.0 ⭐</span>
+                  </div>
+                  <div style={{ height: 10, background: 'var(--bg-elevated)', borderRadius: 5, overflow: 'hidden' }}>
+                    <div style={{
+                      height: '100%',
+                      width: `${(cat.val / 5) * 100}%`,
+                      background: `linear-gradient(90deg, ${cat.color}88, ${cat.color})`,
+                      borderRadius: 5,
+                      transition: 'width 0.8s ease-out'
+                    }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Fila Inferior: AI Insights y Timeline de Sugerencias */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.8fr', gap: 20 }}>
+            {/* AI Insights Card */}
+            <div className="card" style={{ background: 'linear-gradient(135deg, rgba(205,127,50,0.04), rgba(34,197,94,0.03))', border: '1px solid var(--border-bronze)' }}>
+              <div className="card-header" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <div style={{ fontSize: 22 }}>🤖</div>
+                <div>
+                  <h3 className="card-title">Análisis de Satisfacción de IA</h3>
+                  <p style={{ fontSize: 10, color: 'var(--text-muted)', margin: 0 }}>Diagnóstico automatizado en tiempo real</p>
+                </div>
+              </div>
+              <div style={{ padding: '10px 18px 20px 18px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+                    {promedioRapidez < 4.0 ? (
+                      <p style={{ margin: 0 }}>
+                        ⚠️ <strong>Tiempos de Servicio Elevados:</strong> La calificación de Rapidez del Servicio es baja (<strong>{promedioRapidez.toFixed(1)}</strong>). La IA detecta un cuello de botella recurrente. Se sugiere revisar la asignación de turnos de meseros en horas pico o automatizar comandas con tablets en mesa.
+                      </p>
+                    ) : promedioLimpieza < 4.2 ? (
+                      <p style={{ margin: 0 }}>
+                        🧹 <strong>Alerta de Mantenimiento:</strong> El promedio en Limpieza del local está en <strong>{promedioLimpieza.toFixed(1)}</strong>. Se sugiere crear un protocolo de revisión y desinfección obligatoria de las mesas y baños cada 90 minutos para mejorar la percepción de sanidad.
+                      </p>
+                    ) : promedioEquipo < 4.2 ? (
+                      <p style={{ margin: 0 }}>
+                        🎱 <strong>Mantenimiento de Equipos Crítico:</strong> El promedio de Calidad del Equipo es de <strong>{promedioEquipo.toFixed(1)}</strong>. Los clientes expresan descontento con el estado de tacos, tizas o nivelación de mesas. Se aconseja programar un reajuste de paños o cambio de casquillos de tacos de billar.
+                      </p>
+                    ) : (
+                      <p style={{ margin: 0 }}>
+                        ✨ <strong>Estándares de Excelencia Cumplidos:</strong> La satisfacción promedio general es muy alta (<strong>{promedioGeneral.toFixed(1)}</strong>). La experiencia del cliente en el salón es sobresaliente. Sugerencia de la IA: Mantener la motivación del staff mediante bonos por desempeño basándose en el panel de comisiones.
+                      </p>
+                    )}
+                  </div>
+
+                  <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--bronze-light)', textTransform: 'uppercase', marginBottom: 8 }}>
+                      Distribución de Calificaciones
+                    </div>
+                    <div style={{ display: 'flex', gap: 4, height: 24 }}>
+                      {[
+                        { label: 'Excepcional (5⭐)', count: encuestasList.filter(e => (e.calificaciones?.atencion + e.calificaciones?.rapidez + e.calificaciones?.limpieza + e.calificaciones?.equipo)/4 >= 4.5).length, color: '#00e676' },
+                        { label: 'Bueno (4-4.5⭐)', count: encuestasList.filter(e => {
+                          const avg = (e.calificaciones?.atencion + e.calificaciones?.rapidez + e.calificaciones?.limpieza + e.calificaciones?.equipo)/4;
+                          return avg >= 3.5 && avg < 4.5;
+                        }).length, color: '#aeea00' },
+                        { label: 'Regular (2.5-3.5⭐)', count: encuestasList.filter(e => {
+                          const avg = (e.calificaciones?.atencion + e.calificaciones?.rapidez + e.calificaciones?.limpieza + e.calificaciones?.equipo)/4;
+                          return avg >= 2.5 && avg < 3.5;
+                        }).length, color: '#ffb300' },
+                        { label: 'Crítico (<2.5⭐)', count: encuestasList.filter(e => {
+                          const avg = (e.calificaciones?.atencion + e.calificaciones?.rapidez + e.calificaciones?.limpieza + e.calificaciones?.equipo)/4;
+                          return avg > 0 && avg < 2.5;
+                        }).length, color: '#ff1744' }
+                      ].map((dist, idx) => {
+                        const total = encuestasList.length || 1;
+                        const pct = totalEncuestas > 0 ? (dist.count / total) * 100 : [55, 30, 10, 5][idx];
+                        return (
+                          <div
+                            key={idx}
+                            style={{
+                              flex: pct || 1,
+                              background: dist.color,
+                              height: '100%',
+                              borderRadius: 4,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              color: '#000',
+                              fontSize: 9,
+                              fontWeight: 800,
+                              minWidth: pct > 8 ? 20 : 0,
+                              cursor: 'help',
+                              transition: 'all 0.3s'
+                            }}
+                            title={`${dist.label}: ${dist.count} encuestas (${Math.round(pct)}%)`}
+                          >
+                            {pct > 15 ? `${Math.round(pct)}%` : ''}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Módulo de Quejas, Sugerencias y Comentarios */}
+            <div className="card" style={{ display: 'flex', flexDirection: 'column', maxHeight: 420 }}>
+              <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h3 className="card-title">Buzón de Comentarios, Quejas y Sugerencias</h3>
+                <span className="badge badge-secondary" style={{ textTransform: 'lowercase' }}>
+                  {encuestasList.filter(e => e.comentarios).length} comentarios
+                </span>
+              </div>
+              <div style={{ overflowY: 'auto', flex: 1, padding: '10px 18px 20px 18px' }} className="custom-scrollbar">
+                {encuestasList.filter(e => e.comentarios).length === 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', minHeight: 200, color: 'var(--text-muted)' }}>
+                    <i className="ri-message-3-line" style={{ fontSize: 40, marginBottom: 10 }} />
+                    <p style={{ margin: 0, fontSize: 13 }}>No hay quejas o comentarios registrados con texto.</p>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                    {encuestasList
+                      .filter(e => e.comentarios)
+                      .sort((a, b) => {
+                        const dateA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : new Date(a.createdAt).getTime();
+                        const dateB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : new Date(b.createdAt).getTime();
+                        return dateB - dateA;
+                      })
+                      .map((encuesta) => {
+                        const promDoc = (encuesta.calificaciones?.atencion + encuesta.calificaciones?.rapidez + encuesta.calificaciones?.limpieza + encuesta.calificaciones?.equipo) / 4;
+                        return (
+                          <div
+                            key={encuesta.id}
+                            style={{
+                              border: '1px solid var(--border)',
+                              borderRadius: 10,
+                              padding: 12,
+                              background: 'var(--bg-elevated)',
+                              position: 'relative',
+                              transition: 'transform 0.2s',
+                            }}
+                          >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <span style={{ fontWeight: 700, fontSize: 12, color: 'var(--bronze-light)' }}>
+                                  {encuesta.cliente}
+                                </span>
+                                <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>·</span>
+                                <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+                                  {formatFecha(encuesta.createdAt)}
+                                </span>
+                              </div>
+                              <span style={{ fontSize: 11, fontWeight: 700, color: promDoc >= 4 ? 'var(--success)' : promDoc >= 3 ? 'var(--warning)' : 'var(--danger)' }}>
+                                ⭐ {promDoc.toFixed(1)}
+                              </span>
+                            </div>
+                            
+                            <div style={{
+                              fontSize: 12,
+                              color: 'var(--text-secondary)',
+                              lineHeight: 1.5,
+                              fontStyle: 'italic',
+                              background: 'rgba(255,255,255,0.02)',
+                              borderLeft: '2px solid var(--bronze)',
+                              paddingLeft: 8,
+                              marginBottom: 8
+                            }}>
+                              "{encuesta.comentarios}"
+                            </div>
+
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 10px', fontSize: 10, color: 'var(--text-muted)' }}>
+                              <span>Atención: <strong style={{ color: 'var(--text-secondary)' }}>{encuesta.calificaciones?.atencion}⭐</strong></span>
+                              <span>Rapidez: <strong style={{ color: 'var(--text-secondary)' }}>{encuesta.calificaciones?.rapidez}⭐</strong></span>
+                              <span>Limpieza: <strong style={{ color: 'var(--text-secondary)' }}>{encuesta.calificaciones?.limpieza}⭐</strong></span>
+                              <span>Equipo: <strong style={{ color: 'var(--text-secondary)' }}>{encuesta.calificaciones?.equipo}⭐</strong></span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+                )}
               </div>
             </div>
           </div>

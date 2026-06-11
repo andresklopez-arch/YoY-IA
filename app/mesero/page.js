@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import {
   collection, onSnapshot, query, where,
-  orderBy, updateDoc, doc, serverTimestamp, addDoc
+  orderBy, updateDoc, doc, serverTimestamp, addDoc, getDoc
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth-context';
@@ -24,6 +24,11 @@ function MeseroContent() {
   const [capturaCarrito, setCapturaCarrito] = useState({}); // { prodId: cant }
   const [productosBar, setProductosBar] = useState([]);
   const [isClosing, setIsClosing] = useState(false);
+
+  // Sincronización y estados de mesas/cuentas
+  const [mesas, setMesas] = useState([]);
+  const [cuentas, setCuentas] = useState([]);
+  const [nuevoClienteNombre, setNuevoClienteNombre] = useState('');
 
   const handleCloseCapturarModal = () => {
     if (Object.keys(capturaCarrito).length > 0) {
@@ -52,6 +57,42 @@ function MeseroContent() {
       }
     }
   }, [showCapturarModal]);
+
+  // Escuchar mesas y cuentas en tiempo real
+  useEffect(() => {
+    const unsubMesas = onSnapshot(doc(db, 'config', 'mesas_estado'), snap => {
+      if (snap.exists()) {
+        setMesas(snap.data().mesas || []);
+      }
+    });
+    const unsubCuentas = onSnapshot(doc(db, 'config', 'cuentas_estado'), snap => {
+      if (snap.exists()) {
+        setCuentas(snap.data().cuentas || []);
+      }
+    });
+    return () => {
+      unsubMesas();
+      unsubCuentas();
+    };
+  }, []);
+
+  // Inicializar select con la primera opción disponible
+  useEffect(() => {
+    if (showCapturarModal) {
+      const activeMesas = mesas.filter(m => m.estado === 'ocupada');
+      const activeCuentas = cuentas.filter(c => 
+        !activeMesas.some(m => m.cliente && m.cliente.toLowerCase() === c.cliente.toLowerCase())
+      );
+      
+      if (activeMesas.length > 0) {
+        setCapturaMesaId(`mesa_${activeMesas[0].id}`);
+      } else if (activeCuentas.length > 0) {
+        setCapturaMesaId(`cuenta_${activeCuentas[0].id}`);
+      } else {
+        setCapturaMesaId('nueva_cuenta');
+      }
+    }
+  }, [showCapturarModal, mesas, cuentas]);
   
   // Alertas de asistencia activa para ventana emergente
   const [alertasAsistencia, setAlertasAsistencia] = useState([]);
@@ -108,7 +149,8 @@ function MeseroContent() {
     );
     const unsub = onSnapshot(q, snap => {
       const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      setPedidos(items);
+      const filtered = items.filter(p => !p.atendidoMesero);
+      setPedidos(filtered);
 
       // 1. Detectar si hay algún pedido recién puesto en 'listo'
       let nuevoListoDetectado = false;
@@ -173,11 +215,12 @@ function MeseroContent() {
     const q = query(
       collection(db, 'mesa_pedidos'),
       where('tipo', 'in', ['asistencia', 'cuenta', 'pedido']),
-      where('estado', '==', 'pendiente')
+      where('estado', 'in', ['pendiente', 'listo', 'en_camino', 'entregado'])
     );
     const unsub = onSnapshot(q, snap => {
       const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      setAlertasAsistencia(items);
+      const filtered = items.filter(alerta => !alerta.atendidoMesero);
+      setAlertasAsistencia(filtered);
 
       // Si la app está en segundo plano y llega nueva alerta, disparar Web Notification
       if (items.length > 0 && typeof window !== 'undefined' && document.hidden) {
@@ -284,19 +327,45 @@ function MeseroContent() {
   };
 
   const marcarEntregado = async (id) => {
-    await updateDoc(doc(db, 'mesa_pedidos', id), {
-      estado: 'entregado',
-      entregadoAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
+    try {
+      const docRef = doc(db, 'mesa_pedidos', id);
+      const snap = await getDoc(docRef);
+      if (snap.exists()) {
+        const data = snap.data();
+        const updateData = {
+          atendidoMesero: true,
+          updatedAt: serverTimestamp(),
+        };
+        if (data.atendidoAdmin === true) {
+          updateData.estado = 'entregado';
+          updateData.entregadoAt = serverTimestamp();
+        }
+        await updateDoc(docRef, updateData);
+      }
+    } catch (e) {
+      console.error("Error al marcar entregado:", e);
+    }
   };
 
   const marcarAtendido = async (id) => {
-    await updateDoc(doc(db, 'mesa_pedidos', id), {
-      estado: 'atendido',
-      atendidoAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
+    try {
+      const docRef = doc(db, 'mesa_pedidos', id);
+      const snap = await getDoc(docRef);
+      if (snap.exists()) {
+        const data = snap.data();
+        const updateData = {
+          atendidoMesero: true,
+          updatedAt: serverTimestamp(),
+        };
+        if (data.atendidoAdmin === true) {
+          updateData.estado = 'atendido';
+          updateData.atendidoAt = serverTimestamp();
+        }
+        await updateDoc(docRef, updateData);
+      }
+    } catch (e) {
+      console.error("Error al marcar atendido:", e);
+    }
   };
 
   const modificarCapturaCarrito = (prodId, delta) => {
@@ -326,21 +395,49 @@ function MeseroContent() {
     if (items.length === 0) return alert('Selecciona al menos un producto');
     const totalOrder = items.reduce((sum, item) => sum + item.subtotal, 0);
 
+    let targetMesaId = 0;
+    let targetCliente = '';
+    
+    if (capturaMesaId.startsWith('mesa_')) {
+      const mId = parseInt(capturaMesaId.replace('mesa_', ''));
+      targetMesaId = mId;
+      const mesaObj = mesas.find(m => m.id === mId);
+      targetCliente = mesaObj ? mesaObj.cliente : `Mesa ${mId}`;
+    } else if (capturaMesaId.startsWith('cuenta_')) {
+      const cId = parseFloat(capturaMesaId.replace('cuenta_', ''));
+      targetMesaId = 0;
+      const cuentaObj = cuentas.find(c => c.id === cId);
+      targetCliente = cuentaObj ? cuentaObj.cliente : `Cliente`;
+    } else if (capturaMesaId === 'nueva_cuenta') {
+      if (!nuevoClienteNombre.trim()) {
+        alert('Por favor escribe el nombre del cliente para la nueva cuenta');
+        return;
+      }
+      targetMesaId = 0;
+      targetCliente = nuevoClienteNombre.trim();
+    } else {
+      targetMesaId = parseInt(capturaMesaId) || 0;
+      targetCliente = `Mesa ${targetMesaId}`;
+    }
+
     try {
       await addDoc(collection(db, 'mesa_pedidos'), {
-        mesaId: parseInt(capturaMesaId),
-        cliente: `Mesero (captura)`,
+        mesaId: targetMesaId,
+        cliente: targetCliente,
         items,
         total: totalOrder,
         estado: 'pendiente',
         tipo: 'pedido',
         origen: 'mesero_captura',
+        atendidoAdmin: false,
+        atendidoMesero: false,
         createdAt: serverTimestamp(),
       });
       
       setCapturaCarrito({});
+      setNuevoClienteNombre('');
       setShowCapturarModal(false);
-      alert(`Venta registrada exitosamente para Mesa ${capturaMesaId} ✅`);
+      alert(`Venta registrada exitosamente para ${targetMesaId ? `Mesa ${targetMesaId}` : targetCliente} ✅`);
     } catch (e) {
       alert('Error al capturar venta: ' + e.message);
     }
@@ -648,13 +745,40 @@ function MeseroContent() {
               {/* Lado Izquierdo: Configuración y Productos */}
               <div style={{ textAlign: 'left' }}>
                 <div className="form-group" style={{ marginBottom: 16 }}>
-                  <label className="form-label">Seleccionar Mesa</label>
+                  <label className="form-label">Seleccionar Destino de Comanda</label>
                   <select className="form-select" value={capturaMesaId} onChange={e => setCapturaMesaId(e.target.value)} style={{ width: '100%' }}>
-                    {[1, 2, 3, 4, 5, 6, 7, 8].map(n => (
-                      <option key={n} value={n.toString()}>Mesa {n}</option>
+                    {/* Mesas Ocupadas */}
+                    {mesas.filter(m => m.estado === 'ocupada').map(m => (
+                      <option key={`mesa_${m.id}`} value={`mesa_${m.id}`} style={{ color: 'var(--bronze-light)' }}>
+                        🏓 Mesa {m.id} ({m.cliente})
+                      </option>
                     ))}
+                    {/* Cuentas Directas por Nombre (excluyendo mesas) */}
+                    {cuentas.filter(c => !mesas.some(m => m.estado === 'ocupada' && m.cliente && m.cliente.toLowerCase() === c.cliente.toLowerCase())).map(c => (
+                      <option key={`cuenta_${c.id}`} value={`cuenta_${c.id}`} style={{ color: '#2ec55e' }}>
+                        👤 Cuenta: {c.cliente}
+                      </option>
+                    ))}
+                    {/* Nueva Cuenta */}
+                    <option value="nueva_cuenta" style={{ fontWeight: 'bold' }}>
+                      ➕ Abrir nueva cuenta sin mesa...
+                    </option>
                   </select>
                 </div>
+
+                {capturaMesaId === 'nueva_cuenta' && (
+                  <div className="form-group" style={{ marginBottom: 16, animation: 'fadeIn 0.2s ease' }}>
+                    <label className="form-label">Nombre del Cliente (Nueva Cuenta)</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      placeholder="Ej: Pedro Torres"
+                      value={nuevoClienteNombre}
+                      onChange={e => setNuevoClienteNombre(e.target.value)}
+                      style={{ width: '100%' }}
+                    />
+                  </div>
+                )}
                 
                 <div className="form-label" style={{ marginBottom: 8 }}>Productos del Bar</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 260, overflowY: 'auto', paddingRight: 6 }}>
@@ -681,7 +805,11 @@ function MeseroContent() {
               <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 14, padding: 16, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', textAlign: 'left' }}>
                 <div>
                   <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--bronze-light)', marginBottom: 12, borderBottom: '1px solid var(--border)', paddingBottom: 8 }}>
-                    🛒 Resumen Mesa {capturaMesaId}
+                    🛒 Resumen: {
+                      capturaMesaId.startsWith('mesa_') ? `Mesa ${capturaMesaId.replace('mesa_', '')}` :
+                      capturaMesaId.startsWith('cuenta_') ? `Cuenta: ${cuentas.find(c => c.id === parseFloat(capturaMesaId.replace('cuenta_', '')))?.cliente || ''}` :
+                      'Nueva Cuenta'
+                    }
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 200, overflowY: 'auto' }}>
                     {Object.entries(capturaCarrito).map(([id, cant]) => {
