@@ -7,6 +7,7 @@ import {
 import { db, auth } from '@/lib/firebase';
 import { signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import '@/styles/mesa-cliente.css';
+import { obfuscateStatic, deobfuscateStatic } from '@/lib/crypto';
 
 // ── Emoji por categoría de producto ───────────────────────
 const CAT_EMOJI = {
@@ -68,6 +69,11 @@ export default function MesaClientePage({ params }) {
   const [showNombre, setShowNombre] = useState(false);
   const [isOffline, setIsOffline] = useState(false);
 
+  // Estados de Diagnóstico de Red/Conexión
+  const [authStatus, setAuthStatus] = useState('cargando'); // 'conectado' | 'error' | 'cargando'
+  const [authError, setAuthError] = useState('');
+  const [dbConnected, setDbConnected] = useState(false);
+
   // ── Helper de escritura con Timeout para redes inestables ──
   const addDocWithTimeout = async (collRef, data, timeoutMs = 8000) => {
     const writePromise = addDoc(collRef, data);
@@ -82,8 +88,9 @@ export default function MesaClientePage({ params }) {
     setClienteNombre(nombre);
     if (auth.currentUser) {
       try {
+        const nombreCifrado = obfuscateStatic(nombre);
         await setDoc(doc(db, 'clientes_anonimos', auth.currentUser.uid), {
-          nombre: nombre,
+          nombre: nombreCifrado,
           updatedAt: serverTimestamp()
         });
       } catch (err) {
@@ -110,14 +117,19 @@ export default function MesaClientePage({ params }) {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (!user) {
+        setAuthStatus('cargando');
         signInAnonymously(auth)
           .then(() => {
+            setAuthStatus('conectado');
             console.log("Sesión anónima de cliente iniciada correctamente");
           })
           .catch(err => {
+            setAuthStatus('error');
+            setAuthError(err.message);
             console.warn("Error al iniciar sesión anónima de cliente:", err);
           });
       } else {
+        setAuthStatus('conectado');
         console.log("Sesión anónima existente detectada:", user.uid);
         // Intentar recuperar el nombre persistido desde Firestore
         try {
@@ -125,7 +137,8 @@ export default function MesaClientePage({ params }) {
           if (userSnap.exists()) {
             const data = userSnap.data();
             if (data.nombre) {
-              setClienteNombre(data.nombre);
+              const nombreDescifrado = deobfuscateStatic(data.nombre);
+              setClienteNombre(nombreDescifrado);
             }
           }
         } catch (err) {
@@ -150,6 +163,7 @@ export default function MesaClientePage({ params }) {
     } catch (e) {}
 
     const unsub = onSnapshot(doc(db, 'config', 'inventario'), snap => {
+      setDbConnected(true);
       if (snap.exists()) {
         const prods = snap.data().productos || [];
         const filtered = prods.filter(p => p.stock > 0);
@@ -170,6 +184,7 @@ export default function MesaClientePage({ params }) {
         setProductos(fallback);
       }
     }, err => {
+      setDbConnected(false);
       console.error("Error al cargar inventario en tiempo real para cliente:", err);
     });
     return unsub;

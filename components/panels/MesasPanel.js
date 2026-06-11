@@ -1200,6 +1200,21 @@ export default function MesasPanel({ showToast }) {
   ]);
   const tick = useLiveTick();
 
+  // ── Helper para setDoc con reintentos y exponencial backoff ──
+  const setDocWithRetry = async (docRef, data, retries = 5, delay = 500) => {
+    for (let i = 0; i < retries; i++) {
+      try {
+        await setDoc(docRef, data);
+        return;
+      } catch (err) {
+        console.warn(`Intento ${i + 1} de setDoc fallido. Reintentando en ${delay}ms...`, err);
+        if (i === retries - 1) throw err;
+        await new Promise(res => setTimeout(res, delay));
+        delay *= 2;
+      }
+    }
+  };
+
   // ── PERSISTENCIA LOCAL DE ESTADO OFUSCADA (SUGERENCIA 1) ─────────────────
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -1225,11 +1240,11 @@ export default function MesasPanel({ showToast }) {
     if (typeof window !== 'undefined') {
       try {
         localStorage.setItem('yoy_billar_mesas', obfuscate(mesas));
-        // Sincronizar estado general de mesas con Firestore para clientes
-        setDoc(doc(db, 'config', 'mesas_estado'), {
+        // Sincronizar estado general de mesas con Firestore para clientes con reintentos
+        setDocWithRetry(doc(db, 'config', 'mesas_estado'), {
           mesas: mesas,
           updatedAt: serverTimestamp()
-        }).catch(err => console.error("Error al sincronizar mesas con Firestore:", err));
+        }).catch(err => console.error("Error definitivo al sincronizar mesas con Firestore:", err));
       } catch (err) {
         console.error("Error al guardar mesas:", err);
       }

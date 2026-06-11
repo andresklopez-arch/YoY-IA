@@ -38,6 +38,8 @@ export default function BarPanel({ showToast }) {
   // Auditoría y logs
   const [logs, setLogs] = useState([]);
   const [dbLogs, setDbLogs] = useState([]);
+  const [logsLimit, setLogsLimit] = useState(50);
+  const [hasMoreLogs, setHasMoreLogs] = useState(true);
   const [modalAjuste, setModalAjuste] = useState(null);
   const [ajusteCant, setAjusteCant] = useState('');
   const [ajusteTipo, setAjusteTipo] = useState('entrada'); // 'entrada', 'salida', 'merma'
@@ -219,16 +221,17 @@ export default function BarPanel({ showToast }) {
     const q = query(
       collection(db, 'historial_stock'),
       orderBy('fecha', 'desc'),
-      limit(50)
+      limit(logsLimit)
     );
     const unsub = onSnapshot(q, snap => {
       const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       setDbLogs(items);
+      setHasMoreLogs(items.length === logsLimit);
     }, err => {
       console.error("Error al escuchar historial de stock en tiempo real:", err);
     });
     return unsub;
-  }, []);
+  }, [logsLimit]);
 
   // Guardar productos y logs (Ofuscados)
   const saveState = async (newProds, newLogs) => {
@@ -908,6 +911,26 @@ export default function BarPanel({ showToast }) {
                 })
               )}
             </div>
+            {hasMoreLogs && (
+              <button 
+                onClick={() => setLogsLimit(prev => prev + 50)} 
+                className="btn btn-secondary btn-sm" 
+                style={{ 
+                  marginTop: 12, 
+                  width: '100%', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center', 
+                  gap: 6,
+                  color: 'var(--bronze-light)',
+                  borderColor: 'var(--border-bronze)',
+                  background: 'var(--bg-elevated)'
+                }}
+              >
+                <i className="ri-arrow-down-double-line" />
+                Cargar más registros de venta QR
+              </button>
+            )}
           </div>
         </div>
 
