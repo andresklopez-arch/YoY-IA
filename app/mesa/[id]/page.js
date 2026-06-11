@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, use } from 'react';
 import {
   collection, addDoc, onSnapshot, query,
   where, orderBy, serverTimestamp, doc, updateDoc, setDoc, getDoc
@@ -51,7 +51,8 @@ const DEFAULT_ASISTENCIAS = [
 // PÁGINA PÚBLICA DEL CLIENTE (sin autenticación)
 // ═══════════════════════════════════════════════════════════
 export default function MesaClientePage({ params }) {
-  const mesaId = parseInt(params.id);
+  const { id } = use(params);
+  const mesaId = parseInt(id);
 
   const [tab, setTab] = useState('menu');
   const [productos, setProductos] = useState([]);
@@ -331,6 +332,30 @@ export default function MesaClientePage({ params }) {
     { id: 'cuenta',     label: 'Mi Cuenta',  icon: 'ri-receipt-line',    badge: pendientesEntrega },
     { id: 'pagar',      label: 'Pagar',      icon: 'ri-secure-payment-line' },
   ];
+
+  if (isNaN(mesaId)) {
+    return (
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: '100dvh',
+        padding: 20,
+        textAlign: 'center',
+        background: 'var(--cl-bg)',
+        color: 'var(--cl-text)',
+        fontFamily: "'Inter', sans-serif"
+      }}>
+        <style>{`@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap');`}</style>
+        <div style={{ fontSize: 64, marginBottom: 20 }}>⚠️</div>
+        <h2 style={{ fontSize: 20, fontWeight: 800, marginBottom: 10, color: 'var(--cl-bronze-light)' }}>Mesa no identificada</h2>
+        <p style={{ color: 'var(--cl-muted)', maxWidth: 320, fontSize: 14, lineHeight: 1.6 }}>
+          No hemos podido detectar el número de mesa en el enlace. Por favor, escanea nuevamente el código QR ubicado en tu mesa física.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <>
