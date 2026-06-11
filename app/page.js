@@ -58,13 +58,17 @@ function AppContent() {
     if (!user) return;
     const q = query(
       collection(db, 'mesa_pedidos'),
-      where('origen', '==', 'mesero_captura'),
-      orderBy('createdAt', 'desc'),
-      limit(1)
+      where('origen', '==', 'mesero_captura')
     );
     const unsub = onSnapshot(q, snap => {
       if (snap.empty) return;
-      const dData = snap.docs[0].data();
+      const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      items.sort((a, b) => {
+        const tA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : (a.createdAt || 0);
+        const tB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : (b.createdAt || 0);
+        return tB - tA;
+      });
+      const dData = items[0];
       const creado = dData.createdAt?.toDate ? dData.createdAt.toDate().getTime() : Date.now();
       
       // Si fue creado en los últimos 10 segundos, disparar el popup de 3 segundos

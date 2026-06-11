@@ -144,11 +144,15 @@ function MeseroContent() {
   useEffect(() => {
     const q = query(
       collection(db, 'mesa_pedidos'),
-      where('estado', 'in', ['pendiente', 'listo', 'en_camino']),
-      orderBy('createdAt', 'desc')
+      where('estado', 'in', ['pendiente', 'listo', 'en_camino'])
     );
     const unsub = onSnapshot(q, snap => {
       const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      items.sort((a, b) => {
+        const tA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : (a.createdAt || 0);
+        const tB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : (b.createdAt || 0);
+        return tB - tA;
+      });
       const filtered = items.filter(p => !p.atendidoMesero);
       setPedidos(filtered);
 

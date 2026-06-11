@@ -82,11 +82,15 @@ function CocinaContent() {
     const q = query(
       collection(db, 'mesa_pedidos'),
       where('tipo', '==', 'pedido'),
-      where('estado', '==', 'pendiente'),
-      orderBy('createdAt', 'desc')
+      where('estado', '==', 'pendiente')
     );
     const unsub = onSnapshot(q, snap => {
       const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      items.sort((a, b) => {
+        const tA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : (a.createdAt || 0);
+        const tB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : (b.createdAt || 0);
+        return tB - tA;
+      });
       setPedidos(items);
 
       // Reproducir sonido si hay nuevos pedidos entrantes
@@ -121,11 +125,16 @@ function CocinaContent() {
     const q = query(
       collection(db, 'mesa_pedidos'),
       where('tipo', '==', 'pedido'),
-      where('estado', 'in', ['listo', 'en_camino', 'entregado']),
-      orderBy('createdAt', 'desc')
+      where('estado', 'in', ['listo', 'en_camino', 'entregado'])
     );
     const unsub = onSnapshot(q, snap => {
-      setHistorial(snap.docs.map(d => ({ id: d.id, ...d.data() })).slice(0, 15));
+      const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      items.sort((a, b) => {
+        const tA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : (a.createdAt || 0);
+        const tB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : (b.createdAt || 0);
+        return tB - tA;
+      });
+      setHistorial(items.slice(0, 15));
     });
     return unsub;
   }, []);

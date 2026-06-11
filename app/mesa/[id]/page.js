@@ -405,11 +405,16 @@ export default function MesaClientePage({ params }) {
     const q = query(
       collection(db, 'mesa_pedidos'),
       where('mesaId', '==', mesaId),
-      where('estado', 'in', ['pendiente', 'listo', 'en_camino', 'entregado']),
-      orderBy('createdAt', 'desc')
+      where('estado', 'in', ['pendiente', 'listo', 'en_camino', 'entregado'])
     );
     const unsub = onSnapshot(q, snap => {
-      setPedidosMesa(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      items.sort((a, b) => {
+        const tA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : (a.createdAt || 0);
+        const tB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : (b.createdAt || 0);
+        return tB - tA;
+      });
+      setPedidosMesa(items);
     });
     return unsub;
   }, [mesaId]);
