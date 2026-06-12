@@ -333,8 +333,7 @@ function ModalAbrirMesa({ mesa, onClose, onConfirm }) {
 }
 
 // ── MODAL CERRAR MESA ────────────────────────────────────
-// ── MODAL CERRAR MESA ────────────────────────────────────
-function ModalCerrarMesa({ mesa, cuentasActivas, onClose, onCerrar, onAgregarACuenta }) {
+function ModalCerrarMesa({ mesa, cuentasActivas, onClose, onCerrar, onAgregarACuenta, imprimirPreTicket, onImprimirPreTicket }) {
   const [elapsed, setElapsed] = useState(Date.now() - (mesa.inicio || Date.now()));
   const [metodo, setMetodo] = useState('efectivo');
   const [tipoCierre, setTipoCierre] = useState('liquidar'); // 'liquidar' o 'cuenta'
@@ -346,6 +345,11 @@ function ModalCerrarMesa({ mesa, cuentasActivas, onClose, onCerrar, onAgregarACu
   const [referencia, setReferencia] = useState('');
   const [fotoComprobante, setFotoComprobante] = useState('');
   const [camaraActiva, setCamaraActiva] = useState(false);
+
+  const handleImprimirPreTicket = () => {
+    imprimirPreTicket(mesa);
+    onImprimirPreTicket();
+  };
 
   useEffect(() => {
     let lastBlurTime = 0;
@@ -508,170 +512,199 @@ function ModalCerrarMesa({ mesa, cuentasActivas, onClose, onCerrar, onAgregarACu
             {/* Panel de Liquidación */}
             {tipoCierre === 'liquidar' ? (
               <>
-                <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
-                  <i className="ri-user-line" style={{ marginRight: 4 }} />
-                  {mesa.cliente || 'Público General'}
+                <div style={{ fontSize: 11, color: 'var(--text-secondary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>
+                    <i className="ri-user-line" style={{ marginRight: 4 }} />
+                    {mesa.cliente || 'Público General'}
+                  </span>
+                  {mesa.preTicketImpreso && (
+                    <span style={{ fontSize: 9, color: 'var(--success)', fontWeight: 'bold' }}>
+                      <i className="ri-checkbox-circle-line" style={{ marginRight: 2 }} /> Pre-Ticket Impreso
+                    </span>
+                  )}
                 </div>
 
-                {!mesa.socios && (
-                  <div className="form-group" style={{ gap: 2 }}>
-                    <label className="form-label" style={{ fontSize: 9, marginBottom: 2 }}>Método de Pago</label>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 4 }}>
-                      {[
-                        { id: 'efectivo', label: 'Efectivo', icon: 'ri-money-dollar-circle-line' },
-                        { id: 'transferencia', label: 'Transf.', icon: 'ri-bank-line' },
-                        { id: 'qr', label: 'Pago QR', icon: 'ri-qr-code-line' },
-                        { id: 'tarjeta', label: 'Tarjeta', icon: 'ri-bank-card-line' },
-                      ].map(m => (
-                        <button
-                          key={m.id}
-                          type="button"
-                          onClick={() => setMetodo(m.id)}
-                          style={{
-                            background: metodo === m.id ? 'var(--bronze-subtle)' : 'var(--bg-elevated)',
-                            border: `1px solid ${metodo === m.id ? 'var(--border-bronze)' : 'var(--border)'}`,
-                            borderRadius: 8, padding: '6px 2px', cursor: 'pointer',
-                            color: metodo === m.id ? 'var(--bronze-light)' : 'var(--text-secondary)',
-                            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
-                            fontSize: 8, fontWeight: 600, transition: 'all 0.15s',
-                          }}
-                        >
-                          <i className={m.icon} style={{ fontSize: 12 }} />
-                          {m.label}
-                        </button>
-                      ))}
+                {!mesa.preTicketImpreso ? (
+                  <div style={{
+                    padding: '16px 12px',
+                    background: 'var(--bronze-subtle, rgba(205,127,50,0.08))',
+                    border: '1px dashed var(--border-bronze, rgba(205,127,50,0.3))',
+                    borderRadius: 10,
+                    textAlign: 'center',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 10,
+                    marginTop: 4
+                  }}>
+                    <i className="ri-printer-line" style={{ fontSize: 28, color: 'var(--bronze-light)' }} />
+                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-primary)' }}>Paso obligatorio: Imprimir Pre-Ticket</div>
+                    <div style={{ fontSize: 9, color: 'var(--text-muted)', lineHeight: 1.3 }}>
+                      Se debe entregar la cuenta física al cliente antes de registrar el cobro en caja.
                     </div>
                   </div>
-                )}
-
-                {/* Sub-Paneles Condicionales de Liquidación */}
-                {!mesa.socios && metodo === 'efectivo' && costo > 0 && (
-                  <div style={{
-                    background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 10, padding: 10, display: 'flex', flexDirection: 'column', gap: 6, animation: 'fadeIn 0.2s ease'
-                  }}>
-                    <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--bronze-light)' }}><i className="ri-coins-line" style={{ marginRight: 4 }} />CÁLCULO DE CAMBIO</div>
-                    <div className="form-group" style={{ gap: 2 }}>
-                      <label className="form-label" style={{ fontSize: 8 }}>Monto Recibido</label>
-                      <input
-                        type="number"
-                        className="form-input"
-                        style={{ padding: '6px 10px', fontSize: 12 }}
-                        placeholder="0.00"
-                        value={pagaCon}
-                        onChange={e => setPagaCon(e.target.value)}
-                      />
-                      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 2 }}>
-                        {quickBills.map((b, i) => (
-                          <button
-                            key={i}
-                            type="button"
-                            onClick={() => setPagaCon(b.toFixed(0))}
-                            style={{
-                              background: parseFloat(pagaCon) === b ? 'var(--bronze-subtle)' : 'var(--bg-hover)',
-                              border: `1px solid ${parseFloat(pagaCon) === b ? 'var(--bronze)' : 'var(--border)'}`,
-                              borderRadius: 4, padding: '2px 4px', fontSize: 8,
-                              color: parseFloat(pagaCon) === b ? 'var(--bronze-light)' : 'var(--text-secondary)',
-                              cursor: 'pointer'
-                            }}
-                          >
-                            {b === costo ? 'Exacto' : `$${b}`}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    {pagaConVal > 0 && (
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border)', paddingTop: 6, marginTop: 2 }}>
-                        <span style={{ fontSize: 10, color: 'var(--text-secondary)' }}>Cambio a Entregar:</span>
-                        <span style={{ fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 900, color: pagaConVal >= costo ? 'var(--success)' : 'var(--danger)' }}>
-                          {pagaConVal >= costo ? `$${cambio.toFixed(2)} MXN` : 'Monto insuficiente'}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {!mesa.socios && metodo === 'transferencia' && costo > 0 && (
-                  <div style={{
-                    background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 10, padding: 10, display: 'flex', flexDirection: 'column', gap: 6, animation: 'fadeIn 0.2s ease'
-                  }}>
-                    <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--bronze-light)', display: 'flex', justifyContent: 'space-between' }}>
-                      <span><i className="ri-bank-line" style={{ marginRight: 4 }} />DATOS BANCARIOS (SPEI)</span>
-                    </div>
-                    <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px dashed var(--border-bronze)', borderRadius: 6, padding: '4px 8px', fontSize: 9, color: 'var(--text-secondary)', lineHeight: 1.3 }}>
-                      <div><strong>Banco:</strong> STP / YoY Billar Club</div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span><strong>CLABE:</strong> 123456789012345678</span>
-                        <span onClick={() => { navigator.clipboard.writeText('123456789012345678'); showToast('CLABE copiada ✓', 'success'); }} style={{ color: 'var(--bronze-light)', cursor: 'pointer' }}><i className="ri-file-copy-line" /></span>
-                      </div>
-                    </div>
-                    <div className="form-group" style={{ gap: 2 }}>
-                      <label className="form-label" style={{ fontSize: 8 }}>Referencia de Transferencia</label>
-                      <input
-                        type="text"
-                        className="form-input"
-                        style={{ padding: '6px 10px', fontSize: 11 }}
-                        placeholder="Ingrese ref / clave de rastreo"
-                        value={referencia}
-                        onChange={e => setReferencia(e.target.value)}
-                      />
-                    </div>
-                    <div style={{ borderTop: '1px solid var(--border)', paddingTop: 6, marginTop: 2 }}>
-                      <label className="form-label" style={{ fontSize: 8, marginBottom: 4, display: 'block' }}>Comprobante de Pago (Foto)</label>
-                      {fotoComprobante ? (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(34,197,94,0.08)', padding: 4, borderRadius: 6, border: '1px solid rgba(34,197,94,0.2)' }}>
-                          <div style={{ width: 32, height: 32, borderRadius: 4, overflow: 'hidden', border: '1px solid var(--border)', background: '#000' }}>
-                            <img src={fotoComprobante} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="Comp" />
-                          </div>
-                          <span style={{ fontSize: 9, color: 'var(--success)', fontWeight: 700, flex: 1 }}>Foto Cargada ✓</span>
-                          <span onClick={() => setFotoComprobante('')} style={{ color: 'var(--danger)', cursor: 'pointer', padding: 4 }}><i className="ri-close-fill" /></span>
-                        </div>
-                      ) : (
-                        <>
-                          {camaraActiva ? (
-                            <CameraHandler
-                              mode="photo"
-                              onCapture={({ photo }) => {
-                                setFotoComprobante(photo);
-                                setCamaraActiva(false);
-                              }}
-                            />
-                          ) : (
+                ) : (
+                  <>
+                    {!mesa.socios && (
+                      <div className="form-group" style={{ gap: 2 }}>
+                        <label className="form-label" style={{ fontSize: 9, marginBottom: 2 }}>Método de Pago</label>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 4 }}>
+                          {[
+                            { id: 'efectivo', label: 'Efectivo', icon: 'ri-money-dollar-circle-line' },
+                            { id: 'transferencia', label: 'Transf.', icon: 'ri-bank-line' },
+                            { id: 'qr', label: 'Pago QR', icon: 'ri-qr-code-line' },
+                            { id: 'tarjeta', label: 'Tarjeta', icon: 'ri-bank-card-line' },
+                          ].map(m => (
                             <button
+                              key={m.id}
                               type="button"
-                              onClick={() => setCamaraActiva(true)}
-                              className="btn btn-secondary btn-sm"
-                              style={{ width: '100%', fontSize: 9, textTransform: 'none', display: 'flex', justifyContent: 'center', gap: 4, padding: '4px 8px' }}
+                              onClick={() => setMetodo(m.id)}
+                              style={{
+                                background: metodo === m.id ? 'var(--bronze-subtle)' : 'var(--bg-elevated)',
+                                border: `1px solid ${metodo === m.id ? 'var(--border-bronze)' : 'var(--border)'}`,
+                                borderRadius: 8, padding: '6px 2px', cursor: 'pointer',
+                                color: metodo === m.id ? 'var(--bronze-light)' : 'var(--text-secondary)',
+                                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+                                fontSize: 8, fontWeight: 600, transition: 'all 0.15s',
+                              }}
                             >
-                              <i className="ri-camera-line" /> Tomar Foto del Comprobante
+                              <i className={m.icon} style={{ fontSize: 12 }} />
+                              {m.label}
                             </button>
-                          )}
-                        </>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {!mesa.socios && metodo === 'qr' && costo > 0 && (
-                  <div style={{
-                    background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 10, padding: 10, display: 'flex', flexDirection: 'column', gap: 6, animation: 'fadeIn 0.2s ease'
-                  }}>
-                    <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--bronze-light)' }}><i className="ri-qr-code-line" style={{ marginRight: 4 }} />ESCANEO DE QR DE PAGO</div>
-                    {referencia ? (
-                      <div style={{ background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 6, padding: 6, textAlign: 'center' }}>
-                        <div style={{ color: 'var(--success)', fontWeight: 800, fontSize: 10 }}>QR Escaneado ✓</div>
-                        <div style={{ fontSize: 9, color: 'var(--text-secondary)', marginTop: 2 }}>ID Transacción: {referencia}</div>
-                        <span onClick={() => setReferencia('')} style={{ fontSize: 8, color: 'var(--bronze-light)', cursor: 'pointer', textDecoration: 'underline', marginTop: 4, display: 'block' }}>Volver a Escanear</span>
+                          ))}
+                        </div>
                       </div>
-                    ) : (
-                      <CameraHandler
-                        mode="qr"
-                        onCapture={({ reference }) => {
-                          setReferencia(reference);
-                          showToast('Código QR leído ✓', 'success');
-                        }}
-                      />
                     )}
-                  </div>
+
+                    {/* Sub-Paneles Condicionales de Liquidación */}
+                    {!mesa.socios && metodo === 'efectivo' && costo > 0 && (
+                      <div style={{
+                        background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 10, padding: 10, display: 'flex', flexDirection: 'column', gap: 6, animation: 'fadeIn 0.2s ease'
+                      }}>
+                        <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--bronze-light)' }}><i className="ri-coins-line" style={{ marginRight: 4 }} />CÁLCULO DE CAMBIO</div>
+                        <div className="form-group" style={{ gap: 2 }}>
+                          <label className="form-label" style={{ fontSize: 8 }}>Monto Recibido</label>
+                          <input
+                            type="number"
+                            className="form-input"
+                            style={{ padding: '6px 10px', fontSize: 12 }}
+                            placeholder="0.00"
+                            value={pagaCon}
+                            onChange={e => setPagaCon(e.target.value)}
+                          />
+                          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 2 }}>
+                            {quickBills.map((b, i) => (
+                              <button
+                                key={i}
+                                type="button"
+                                onClick={() => setPagaCon(b.toFixed(0))}
+                                style={{
+                                  background: parseFloat(pagaCon) === b ? 'var(--bronze-subtle)' : 'var(--bg-hover)',
+                                  border: `1px solid ${parseFloat(pagaCon) === b ? 'var(--bronze)' : 'var(--border)'}`,
+                                  borderRadius: 4, padding: '2px 4px', fontSize: 8,
+                                  color: parseFloat(pagaCon) === b ? 'var(--bronze-light)' : 'var(--text-secondary)',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                {b === costo ? 'Exacto' : `$${b}`}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        {pagaConVal > 0 && (
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border)', paddingTop: 6, marginTop: 2 }}>
+                            <span style={{ fontSize: 10, color: 'var(--text-secondary)' }}>Cambio a Entregar:</span>
+                            <span style={{ fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 900, color: pagaConVal >= costo ? 'var(--success)' : 'var(--danger)' }}>
+                              {pagaConVal >= costo ? `$${cambio.toFixed(2)} MXN` : 'Monto insuficiente'}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {!mesa.socios && metodo === 'transferencia' && costo > 0 && (
+                      <div style={{
+                        background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 10, padding: 10, display: 'flex', flexDirection: 'column', gap: 6, animation: 'fadeIn 0.2s ease'
+                      }}>
+                        <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--bronze-light)', display: 'flex', justifyContent: 'space-between' }}>
+                          <span><i className="ri-bank-line" style={{ marginRight: 4 }} />DATOS BANCARIOS (SPEI)</span>
+                        </div>
+                        <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px dashed var(--border-bronze)', borderRadius: 6, padding: '4px 8px', fontSize: 9, color: 'var(--text-secondary)', lineHeight: 1.3 }}>
+                          <div><strong>Banco:</strong> STP / YoY Billar Club</div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <span><strong>CLABE:</strong> 123456789012345678</span>
+                            <span onClick={() => { navigator.clipboard.writeText('123456789012345678'); showToast('CLABE copiada ✓', 'success'); }} style={{ color: 'var(--bronze-light)', cursor: 'pointer' }}><i className="ri-file-copy-line" /></span>
+                          </div>
+                        </div>
+                        <div className="form-group" style={{ gap: 2 }}>
+                          <label className="form-label" style={{ fontSize: 8 }}>Referencia de Transferencia</label>
+                          <input
+                            type="text"
+                            className="form-input"
+                            style={{ padding: '6px 10px', fontSize: 11 }}
+                            placeholder="Ingrese ref / clave de rastreo"
+                            value={referencia}
+                            onChange={e => setReferencia(e.target.value)}
+                          />
+                        </div>
+                        <div style={{ borderTop: '1px solid var(--border)', paddingTop: 6, marginTop: 2 }}>
+                          <label className="form-label" style={{ fontSize: 8, marginBottom: 4, display: 'block' }}>Comprobante de Pago (Foto)</label>
+                          {fotoComprobante ? (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(34,197,94,0.08)', padding: 4, borderRadius: 6, border: '1px solid rgba(34,197,94,0.2)' }}>
+                              <div style={{ width: 32, height: 32, borderRadius: 4, overflow: 'hidden', border: '1px solid var(--border)', background: '#000' }}>
+                                <img src={fotoComprobante} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="Comp" />
+                              </div>
+                              <span style={{ fontSize: 9, color: 'var(--success)', fontWeight: 700, flex: 1 }}>Foto Cargada ✓</span>
+                              <span onClick={() => setFotoComprobante('')} style={{ color: 'var(--danger)', cursor: 'pointer', padding: 4 }}><i className="ri-close-fill" /></span>
+                            </div>
+                          ) : (
+                            <>
+                              {camaraActiva ? (
+                                <CameraHandler
+                                  mode="photo"
+                                  onCapture={({ photo }) => {
+                                    setFotoComprobante(photo);
+                                    setCamaraActiva(false);
+                                  }}
+                                />
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => setCamaraActiva(true)}
+                                  className="btn btn-secondary btn-sm"
+                                  style={{ width: '100%', fontSize: 9, textTransform: 'none', display: 'flex', justifyContent: 'center', gap: 4, padding: '4px 8px' }}
+                                >
+                                  <i className="ri-camera-line" /> Tomar Foto del Comprobante
+                                </button>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {!mesa.socios && metodo === 'qr' && costo > 0 && (
+                      <div style={{
+                        background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 10, padding: 10, display: 'flex', flexDirection: 'column', gap: 6, animation: 'fadeIn 0.2s ease'
+                      }}>
+                        <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--bronze-light)' }}><i className="ri-qr-code-line" style={{ marginRight: 4 }} />ESCANEO DE QR DE PAGO</div>
+                        {referencia ? (
+                          <div style={{ background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 6, padding: 6, textAlign: 'center' }}>
+                            <div style={{ color: 'var(--success)', fontWeight: 800, fontSize: 10 }}>QR Escaneado ✓</div>
+                            <div style={{ fontSize: 9, color: 'var(--text-secondary)', marginTop: 2 }}>ID Transacción: {referencia}</div>
+                            <span onClick={() => setReferencia('')} style={{ fontSize: 8, color: 'var(--bronze-light)', cursor: 'pointer', textDecoration: 'underline', marginTop: 4, display: 'block' }}>Volver a Escanear</span>
+                          </div>
+                        ) : (
+                          <CameraHandler
+                            mode="qr"
+                            onCapture={({ reference }) => {
+                              setReferencia(reference);
+                              showToast('Código QR leído ✓', 'success');
+                            }}
+                          />
+                        )}
+                      </div>
+                    )}
+                  </>
                 )}
               </>
             ) : (
@@ -714,27 +747,44 @@ function ModalCerrarMesa({ mesa, cuentasActivas, onClose, onCerrar, onAgregarACu
         <div className="modal-footer" style={{ padding: '8px 14px' }}>
           <button className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: 11 }} onClick={onClose}>Cancelar</button>
           {tipoCierre === 'liquidar' ? (
-            <button
-              className="btn btn-primary"
-              onClick={() => onCerrar({ 
-                costo, 
-                metodo, 
-                tiempo: elapsed,
-                referencia,
-                pagaCon: pagaConVal,
-                cambio,
-                fotoAdjunta: !!fotoComprobante
-              })}
-              disabled={isCerrarDisabled}
-              style={{ 
-                background: isCerrarDisabled ? 'var(--bg-hover)' : 'linear-gradient(135deg, var(--danger), #ff6b6b)', 
-                padding: '6px 12px', 
-                fontSize: 11,
-                cursor: isCerrarDisabled ? 'not-allowed' : 'pointer'
-              }}
-            >
-              <i className="ri-stop-circle-line" /> Cerrar y Cobrar
-            </button>
+            !mesa.preTicketImpreso ? (
+              <button
+                className="btn btn-primary"
+                onClick={handleImprimirPreTicket}
+                style={{
+                  background: 'linear-gradient(135deg, var(--bronze), var(--bronze-light))',
+                  padding: '6px 12px',
+                  fontSize: 11,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4
+                }}
+              >
+                <i className="ri-printer-line" /> Imprimir Pre-Ticket
+              </button>
+            ) : (
+              <button
+                className="btn btn-primary"
+                onClick={() => onCerrar({ 
+                  costo, 
+                  metodo, 
+                  tiempo: elapsed,
+                  referencia,
+                  pagaCon: pagaConVal,
+                  cambio,
+                  fotoAdjunta: !!fotoComprobante
+                })}
+                disabled={isCerrarDisabled}
+                style={{ 
+                  background: isCerrarDisabled ? 'var(--bg-hover)' : 'linear-gradient(135deg, var(--danger), #ff6b6b)', 
+                  padding: '6px 12px', 
+                  fontSize: 11,
+                  cursor: isCerrarDisabled ? 'not-allowed' : 'pointer'
+                }}
+              >
+                <i className="ri-stop-circle-line" /> Cerrar y Cobrar
+              </button>
+            )
           ) : (
             <button
               className="btn btn-primary"
@@ -1390,7 +1440,7 @@ export default function MesasPanel({ showToast }) {
 
   const confirmarAbrirMesa = (mesaId, { cliente, esSocio, rentarTaco, rentarBolas, rentarTiza }) => {
     setMesas(prev => prev.map(m => m.id === mesaId
-      ? { ...m, estado: 'ocupada', cliente, inicio: Date.now(), socios: esSocio, rentarTaco, rentarBolas, rentarTiza, clienteUid: '' }
+      ? { ...m, estado: 'ocupada', cliente, inicio: Date.now(), socios: esSocio, rentarTaco, rentarBolas, rentarTiza, clienteUid: '', preTicketImpreso: false }
       : m
     ));
     
@@ -1523,7 +1573,7 @@ export default function MesasPanel({ showToast }) {
     }
 
     setMesas(prev => prev.map(m => m.id === modalCerrar.id
-      ? { ...m, estado: 'libre', cliente: null, inicio: null, socios: false, clienteUid: '' }
+      ? { ...m, estado: 'libre', cliente: null, inicio: null, socios: false, clienteUid: '', preTicketImpreso: false }
       : m
     ));
 
@@ -1607,6 +1657,136 @@ export default function MesasPanel({ showToast }) {
     w.document.close();
   };
 
+  const registrarPreTicketMesa = (mesaId) => {
+    setMesas(prev => prev.map(m => m.id === mesaId ? { ...m, preTicketImpreso: true } : m));
+    showToast(`Pre-ticket registrado para Mesa ${mesaId} ✓`, 'success');
+  };
+
+  const imprimirPreTicket = (mesa) => {
+    const cuentaAsociada = cuentasActivas.find(c => 
+      c.cliente && (
+        (mesa.cliente && c.cliente.toLowerCase() === mesa.cliente.toLowerCase()) || 
+        c.cliente.toLowerCase() === `mesa ${mesa.id}`
+      )
+    );
+    const consumos = cuentaAsociada ? cuentaAsociada.consumos : [];
+    const costoTiempo = calcCosto({ ...mesa, inicio: mesa.inicio });
+    const consumosTotal = consumos.reduce((sum, item) => sum + item.precio * item.cantidad, 0);
+    const total = mesa.socios ? consumosTotal : (costoTiempo + consumosTotal);
+
+    const w = window.open('', '_blank');
+    let htmlContent = `
+      <html><head><title>Pre-Ticket - Mesa ${mesa.id}</title>
+      <style>
+        body { margin: 0; padding: 20px; font-family: 'Courier New', Courier, monospace; background: #fff; color: #000; font-size: 13px; line-height: 1.4; max-width: 280px; }
+        .text-center { text-align: center; }
+        .text-right { text-align: right; }
+        .divider { border-top: 1px dashed #000; margin: 10px 0; }
+        .header { margin-bottom: 12px; }
+        .header h3 { margin: 0; font-size: 16px; font-weight: bold; }
+        .header p { margin: 2px 0; font-size: 11px; }
+        .details-table { width: 100%; border-collapse: collapse; }
+        .details-table td { padding: 3px 0; vertical-align: top; font-size: 12px; }
+        .footer { margin-top: 20px; font-size: 10px; text-align: center; color: #555; }
+      </style>
+      </head>
+      <body>
+        <div class="header text-center">
+          <h3>YoY IA Billar Club</h3>
+          <p>Pre-Ticket de Cuenta</p>
+          <p>Fecha: ${new Date().toLocaleString()}</p>
+        </div>
+        
+        <div class="divider"></div>
+        
+        <div>
+          <strong>Mesa:</strong> ${mesa.nombre || `Mesa ${mesa.id}`}<br/>
+          <strong>Cliente:</strong> ${mesa.cliente || 'Público General'}<br/>
+          <strong>Inicio:</strong> ${mesa.inicio ? new Date(mesa.inicio).toLocaleTimeString() : ''}<br/>
+          <strong>Tiempo:</strong> ${formatTime(Date.now() - (mesa.inicio || Date.now()))}<br/>
+          ${mesa.socios ? '<strong>Socio:</strong> Sí (Sin cargo por tiempo)' : ''}
+        </div>
+        
+        <div class="divider"></div>
+        
+        <table class="details-table">
+          <thead>
+            <tr style="border-bottom: 1px solid #000;">
+              <th align="left" style="font-size: 11px;">Prod / Concepto</th>
+              <th align="right" style="font-size: 11px;">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+    `;
+
+    if (!mesa.socios) {
+      htmlContent += `
+        <tr>
+          <td>Tiempo de Juego (${((Date.now() - mesa.inicio) / 3600000).toFixed(2)} hrs)</td>
+          <td align="right">$${costoTiempo}</td>
+        </tr>
+      `;
+    }
+
+    consumos.forEach(item => {
+      htmlContent += `
+        <tr>
+          <td>${item.cantidad}x ${item.producto}</td>
+          <td align="right">$${item.precio * item.cantidad}</td>
+        </tr>
+      `;
+    });
+
+    if (mesa.rentarTaco || mesa.rentarBolas || mesa.rentarTiza) {
+      htmlContent += `
+        <tr style="border-top: 1px dashed #ccc;">
+          <td colspan="2" style="font-size: 11px; padding-top: 4px;"><strong>Equipamiento rentado:</strong></td>
+        </tr>
+      `;
+      if (mesa.rentarTaco) {
+        htmlContent += `<tr><td style="padding-left: 8px; font-size: 11px;">- Taco de Fibra Carbono</td><td align="right" style="font-size: 11px;">Incluido</td></tr>`;
+      }
+      if (mesa.rentarBolas) {
+        htmlContent += `<tr><td style="padding-left: 8px; font-size: 11px;">- Bolas Aramith</td><td align="right" style="font-size: 11px;">Incluido</td></tr>`;
+      }
+      if (mesa.rentarTiza) {
+        htmlContent += `<tr><td style="padding-left: 8px; font-size: 11px;">- Tiza Kamui</td><td align="right" style="font-size: 11px;">Incluido</td></tr>`;
+      }
+    }
+
+    htmlContent += `
+          </tbody>
+        </table>
+        
+        <div class="divider"></div>
+        
+        <table style="width: 100%; font-size: 15px; font-weight: bold;">
+          <tr>
+            <td>TOTAL:</td>
+            <td align="right">$${total} MXN</td>
+          </tr>
+        </table>
+        
+        <div class="footer">
+          <p>*** PRE-TICKET / CUENTA ***</p>
+          <p>Este ticket no es un comprobante de pago final.</p>
+          <p>Por favor pague en caja.</p>
+        </div>
+        
+        <script>
+          window.onload = () => {
+            window.print();
+            setTimeout(() => { window.close(); }, 500);
+          };
+        </script>
+      </body>
+      </html>
+    `;
+
+    w.document.write(htmlContent);
+    w.document.close();
+  };
+
   const confirmarCerrarMesa = (mesaId, { costo, metodo, tiempo, referencia, pagaCon, cambio, fotoAdjunta }) => {
     const mesa = mesas.find(m => m.id === mesaId);
     const clientName = mesa ? mesa.cliente : 'Público';
@@ -1668,7 +1848,7 @@ export default function MesasPanel({ showToast }) {
     }).catch(err => console.error("Error al buscar alertas y pedidos de mesa:", err));
 
     setMesas(prev => prev.map(m => m.id === mesaId
-      ? { ...m, estado: 'libre', cliente: null, inicio: null, socios: false, clienteUid: '' }
+      ? { ...m, estado: 'libre', cliente: null, inicio: null, socios: false, clienteUid: '', preTicketImpreso: false }
       : m
     ));
     setModalCerrar(null);
@@ -1826,22 +2006,38 @@ export default function MesasPanel({ showToast }) {
           const alertsForMesa = alertasMesas[mesa.id] || [];
           const hasAlert = alertsForMesa.length > 0;
 
+          const isPorCobrar = mesa.estado === 'ocupada' && mesa.preTicketImpreso;
+          const badgeStyle = isPorCobrar 
+            ? { background: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b', border: '1px solid rgba(245, 158, 11, 0.2)' }
+            : {};
+          const badgeText = isPorCobrar ? '⏳ Por Cobrar' : cfg.label;
+          const badgeDotColor = isPorCobrar ? '#f59e0b' : cfg.color;
+
           return (
               <div
                 key={mesa.id}
-                className={`mesa-card ${mesa.estado}`}
+                className={`mesa-card ${mesa.estado} ${isPorCobrar ? 'por-cobrar' : ''}`}
                 onClick={() => abrirMesa(mesa)}
                 style={hasAlert ? {
                   boxShadow: '0 0 16px rgba(239, 68, 68, 0.3)',
                   border: '1px solid rgba(239, 68, 68, 0.4)',
                   animation: 'pulseBorder 2.5s infinite ease-in-out'
+                } : isPorCobrar ? {
+                  border: '1.5px dashed #f59e0b',
+                  boxShadow: '0 0 12px rgba(245, 158, 11, 0.15)',
                 } : {}}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
                   <div className="mesa-number">{mesa.id}</div>
-                  <span className={`mesa-status-badge ${mesa.estado}`}>
-                    <span className={mesa.estado === 'ocupada' ? 'dot-live' : ''} style={{ width: 6, height: 6, borderRadius: '50%', background: cfg.color, flexShrink: 0 }} />
-                    {cfg.label}
+                  <span 
+                    className={`mesa-status-badge ${mesa.estado}`}
+                    style={badgeStyle}
+                  >
+                    <span 
+                      className={mesa.estado === 'ocupada' && !isPorCobrar ? 'dot-live' : ''} 
+                      style={{ width: 6, height: 6, borderRadius: '50%', background: badgeDotColor, flexShrink: 0 }} 
+                    />
+                    {badgeText}
                   </span>
                 </div>
 
@@ -2113,11 +2309,13 @@ export default function MesasPanel({ showToast }) {
       )}
       {modalCerrar && (
         <ModalCerrarMesa
-          mesa={modalCerrar}
+          mesa={mesas.find(m => m.id === modalCerrar.id) || modalCerrar}
           cuentasActivas={cuentasActivas}
           onClose={() => setModalCerrar(null)}
           onCerrar={(data) => confirmarCerrarMesa(modalCerrar.id, data)}
           onAgregarACuenta={agregarSesionACuenta}
+          imprimirPreTicket={imprimirPreTicket}
+          onImprimirPreTicket={() => registrarPreTicketMesa(modalCerrar.id)}
         />
       )}
       {modalNuevaMesa && (
