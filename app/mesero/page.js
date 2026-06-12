@@ -835,7 +835,7 @@ function MeseroContent() {
                       </option>
                     ))}
                     {/* Cuentas Directas por Nombre (excluyendo mesas) */}
-                    {cuentas.filter(c => !mesas.some(m => m.estado === 'ocupada' && m.cliente && m.cliente.toLowerCase() === c.cliente.toLowerCase())).map(c => (
+                    {cuentas.filter(c => !c.mesaId && !mesas.some(m => m.estado === 'ocupada' && m.cliente && m.cliente.toLowerCase() === c.cliente.toLowerCase())).map(c => (
                       <option key={`cuenta_${c.id}`} value={`cuenta_${c.id}`} style={{ color: '#2ec55e' }}>
                         👤 Cuenta: {c.cliente}
                       </option>
@@ -1082,7 +1082,7 @@ function ModalCuentasMesero({ cuentas, mesas, alertasAsistencia, isOffline, onCl
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {cuentasFiltradas.map(c => {
-                const mesaAsociada = mesas.find(m => m.cliente && m.cliente.toLowerCase() === c.cliente.toLowerCase());
+                const mesaAsociada = mesas.find(m => m.id === c.mesaId || (m.cliente && m.cliente.toLowerCase() === c.cliente.toLowerCase()));
                 const consumosTotal = c.consumos.reduce((sum, item) => sum + item.precio * item.cantidad, 0);
                 const total = c.tiempoJuego + consumosTotal;
                 const isExpanded = expandedId === c.id;
@@ -1092,6 +1092,10 @@ function ModalCuentasMesero({ cuentas, mesas, alertasAsistencia, isOffline, onCl
                   alerta.cliente && 
                   alerta.cliente.toLowerCase() === c.cliente.toLowerCase()
                 );
+
+                const displayClienteName = c.mesaId 
+                  ? (c.cliente && c.cliente.toLowerCase().startsWith('mesa ') ? `Mesa ${c.mesaId}` : c.cliente)
+                  : c.cliente;
 
                 return (
                   <div key={c.id} style={{
@@ -1105,9 +1109,9 @@ function ModalCuentasMesero({ cuentas, mesas, alertasAsistencia, isOffline, onCl
                   }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <div>
-                        <div style={{ fontWeight: 800, fontSize: 14, color: '#fff' }}>{c.cliente}</div>
+                        <div style={{ fontWeight: 800, fontSize: 14, color: '#fff' }}>{displayClienteName}</div>
                         <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
-                          {mesaAsociada ? `📍 Mesa ${mesaAsociada.id}` : '👤 Cuenta Directa'} · Tiempo: ${c.tiempoJuego}
+                          {c.mesaId ? `📍 Mesa ${c.mesaId}` : (mesaAsociada ? `📍 Mesa ${mesaAsociada.id}` : '👤 Cuenta Directa')} · Tiempo: ${c.tiempoJuego}
                         </div>
                       </div>
                       <div style={{ textAlign: 'right' }}>
