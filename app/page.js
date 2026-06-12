@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Component } from 'react';
 import Sidebar from '@/components/Sidebar';
 import Topbar from '@/components/Topbar';
 import ToastContainer from '@/components/ToastContainer';
@@ -16,6 +16,56 @@ import LoginScreen from '@/components/LoginScreen';
 import { AuthProvider, useAuth } from '@/lib/auth-context';
 import { collection, query, where, orderBy, limit, onSnapshot, doc, updateDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+
+// ── ERROR BOUNDARY: captura crashes en paneles sin matar la app ──
+class ErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error, info) {
+    console.error('[YoY ErrorBoundary] Panel crash:', error, info);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{
+          minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: 'var(--bg-base)', padding: 24
+        }}>
+          <div style={{
+            background: 'var(--bg-elevated)', border: '1px solid rgba(239,68,68,0.3)',
+            borderRadius: 16, padding: 32, maxWidth: 480, textAlign: 'center'
+          }}>
+            <div style={{ fontSize: 48, marginBottom: 12 }}>⚠️</div>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: '#ef4444', marginBottom: 8 }}>Error en el panel</h2>
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 20, lineHeight: 1.6 }}>
+              Se produjo un error inesperado. Haz clic en Recargar para volver al sistema.
+              Si el problema persiste, limpia el caché del navegador con <strong>Ctrl+Shift+R</strong>.
+            </p>
+            <div style={{ fontSize: 10, color: 'var(--text-muted)', background: 'var(--bg-main)', padding: '8px 12px', borderRadius: 8, marginBottom: 20, textAlign: 'left', fontFamily: 'monospace', wordBreak: 'break-all' }}>
+              {this.state.error?.message || 'Error desconocido'}
+            </div>
+            <button
+              onClick={() => { this.setState({ hasError: false, error: null }); window.location.reload(); }}
+              style={{
+                background: 'linear-gradient(135deg, var(--bronze), var(--bronze-light))',
+                color: '#fff', border: 'none', borderRadius: 10, padding: '10px 24px',
+                fontWeight: 700, fontSize: 13, cursor: 'pointer'
+              }}
+            >
+              🔄 Recargar Sistema
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 function AppContent() {
   const { user, loading } = useAuth();
@@ -34,6 +84,15 @@ function AppContent() {
     calculateScrollbarWidth();
     window.addEventListener('resize', calculateScrollbarWidth);
     return () => window.removeEventListener('resize', calculateScrollbarWidth);
+  }, []);
+
+  // Limpiar Service Workers obsoletos (previene "This page couldn't load" en Chrome PWA)
+  useEffect(() => {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(regs => {
+        regs.forEach(reg => reg.unregister());
+      }).catch(() => {});
+    }
   }, []);
 
   // Asegura que la animación de carga se muestre al menos durante 5 segundos
@@ -406,7 +465,9 @@ function AppContent() {
 export default function Home() {
   return (
     <AuthProvider>
-      <AppContent />
+      <ErrorBoundary>
+        <AppContent />
+      </ErrorBoundary>
     </AuthProvider>
   );
 }
