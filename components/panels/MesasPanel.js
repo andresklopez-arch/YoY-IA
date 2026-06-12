@@ -2812,6 +2812,12 @@ function ModalCuentasActivas({ cuentas, setCuentas, adminPinHash, hashPassword, 
     setPinEliminar('');
   };
 
+  const calcTotal = (c) => {
+    if (!c) return 0;
+    const tConsumos = c.consumos.reduce((s, i) => s + (i.precio * i.cantidad), 0);
+    return c.tiempoJuego + tConsumos;
+  };
+
   useEffect(() => {
     let lastBlurTime = 0;
     const handleKeyDown = (e) => {
@@ -2972,11 +2978,7 @@ function ModalCuentasActivas({ cuentas, setCuentas, adminPinHash, hashPassword, 
     setShowCheckout(false);
   };
 
-  const calcTotal = (c) => {
-    if (!c) return 0;
-    const tConsumos = c.consumos.reduce((s, i) => s + (i.precio * i.cantidad), 0);
-    return c.tiempoJuego + tConsumos;
-  };
+
 
   return (
     <div className="modal-overlay" onClick={onClose}>
