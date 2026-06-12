@@ -922,6 +922,79 @@ export default function MesasPanel({ showToast }) {
     }
   };
 
+  // Imprimir comprobante de gasto en formato ticket
+  const imprimirTicketGasto = (gastoData) => {
+    const w = window.open('', '_blank');
+    if (!w) {
+      showToast("El navegador bloqueó la ventana emergente. Por favor, habilite los pop-ups para imprimir.", "danger");
+      return;
+    }
+    const cat = CATEGORIAS_GASTO.find(c => c.id === gastoData.categoria);
+    const htmlContent = `
+      <html><head><title>Comprobante de Gasto</title>
+      <style>
+        body { margin: 0; padding: 20px; font-family: 'Courier New', Courier, monospace; background: #fff; color: #000; font-size: 13px; line-height: 1.4; max-width: 280px; }
+        .text-center { text-align: center; }
+        .divider { border-top: 1px dashed #000; margin: 10px 0; }
+        .header { margin-bottom: 12px; }
+        .header h3 { margin: 0; font-size: 15px; font-weight: bold; }
+        .header p { margin: 2px 0; font-size: 11px; }
+        .monto { font-size: 18px; font-weight: bold; margin: 10px 0; text-align: center; }
+        .sign-area { margin-top: 30px; text-align: center; }
+        .sign-line { border-top: 1px solid #000; width: 180px; margin: 30px auto 5px; }
+        .footer { margin-top: 20px; font-size: 10px; text-align: center; color: #555; }
+      </style>
+      </head>
+      <body>
+        <div class="header text-center">
+          <h3>YoY IA Billar Club</h3>
+          <p>COMPROBANTE DE EGRESO (GASTO)</p>
+          <p>Fecha Gasto: ${gastoData.fecha}</p>
+          <p>Impreso: ${new Date().toLocaleString()}</p>
+        </div>
+        
+        <div class="divider"></div>
+        
+        <div>
+          <strong>Categoría:</strong> ${cat?.icon || ''} ${cat?.label || gastoData.categoria}<br/>
+          <strong>Concepto:</strong> ${gastoData.descripcion}<br/>
+          <strong>Proveedor:</strong> ${gastoData.proveedor || 'N/A'}<br/>
+          <strong>Notas:</strong> ${gastoData.notas || 'Ninguna'}
+        </div>
+        
+        <div class="divider"></div>
+        
+        <div class="monto">
+          TOTAL: $${Number(gastoData.monto).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MXN
+        </div>
+        
+        <div class="divider"></div>
+        
+        <div class="sign-area">
+          <div class="sign-line"></div>
+          <div style="font-size: 11px; font-weight: bold;">Firma del Cajero</div>
+          
+          <div class="sign-line"></div>
+          <div style="font-size: 11px; font-weight: bold;">Firma de Autorización</div>
+        </div>
+        
+        <div class="footer">
+          <p>Conserve este comprobante para el corte de caja del turno.</p>
+        </div>
+        
+        <script>
+          window.onload = () => {
+            window.print();
+            setTimeout(() => { window.close(); }, 500);
+          };
+        </script>
+      </body>
+      </html>
+    `;
+    w.document.write(htmlContent);
+    w.document.close();
+  };
+
   // Registro rápido de gasto de caja
   const confirmarRegistroGasto = async (gastoData) => {
     try {
@@ -936,6 +1009,9 @@ export default function MesasPanel({ showToast }) {
       });
       showToast('Gasto registrado exitosamente 💸', 'success');
       setModalGasto(false);
+      
+      // Imprimir ticket de egreso automáticamente
+      imprimirTicketGasto(gastoData);
     } catch (err) {
       showToast('Error al registrar el gasto: ' + err.message, 'error');
     }
@@ -5205,6 +5281,17 @@ function ModalAvisarCliente({ mesa, fila, onClose, registrarEvento, showToast })
   );
 }
 
+const SUGERENCIAS_POR_CATEGORIA = {
+  mesas: ["Fieltro mesa", "Tacos repuesto", "Bolas repuesto", "Mantenimiento general", "Nivelación mesa"],
+  accesorios: ["Tizas Kamui", "Taquera pared", "Triángulos plástico", "Puntas de tacos"],
+  bar: ["Compra refrescos", "Insumos cerveza", "Compra botanas", "Hielo en bolsas", "Vasos desechables"],
+  servicios: ["Pago de Luz (CFE)", "Pago de Internet", "Pago de Agua", "Renta local"],
+  limpieza: ["Jabón y cloro", "Papel higiénico", "Detergente pisos", "Escobas y trapeadores"],
+  reparacion: ["Reparación luces", "Pintura fachada", "Reparación clima (A/C)", "Plomería baños"],
+  admin: ["Papel para ticketera", "Artículos oficina", "Publicidad redes", "Comisiones bancarias"],
+  otro: ["Gasto imprevisto", "Taxi mensajería", "Propina extraordinaria"]
+};
+
 function ModalGasto({ onClose, onConfirm, CATEGORIAS_GASTO }) {
   const [form, setForm] = useState({
     categoria: 'mesas',
@@ -5214,6 +5301,8 @@ function ModalGasto({ onClose, onConfirm, CATEGORIAS_GASTO }) {
     proveedor: '',
     notas: ''
   });
+
+  const sugerencias = SUGERENCIAS_POR_CATEGORIA[form.categoria] || [];
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -5243,6 +5332,31 @@ function ModalGasto({ onClose, onConfirm, CATEGORIAS_GASTO }) {
               onChange={e => setForm(p => ({ ...p, descripcion: e.target.value }))} 
               required 
             />
+            {sugerencias.length > 0 && (
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
+                {sugerencias.map((sug, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => setForm(p => ({ ...p, descripcion: sug }))}
+                    style={{
+                      background: 'rgba(255,255,255,0.03)',
+                      border: '1px solid var(--border)',
+                      borderRadius: 12,
+                      padding: '3px 8px',
+                      fontSize: 10,
+                      color: 'var(--text-muted)',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s'
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--bronze-light)'; e.currentTarget.style.color = 'var(--bronze-light)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-muted)'; }}
+                  >
+                    {sug}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
