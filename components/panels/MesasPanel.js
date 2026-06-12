@@ -763,27 +763,49 @@ function ModalCerrarMesa({ mesa, cuentasActivas, onClose, onCerrar, onAgregarACu
                 <i className="ri-printer-line" /> Imprimir Pre-Ticket
               </button>
             ) : (
-              <button
-                className="btn btn-primary"
-                onClick={() => onCerrar({ 
-                  costo, 
-                  metodo, 
-                  tiempo: elapsed,
-                  referencia,
-                  pagaCon: pagaConVal,
-                  cambio,
-                  fotoAdjunta: !!fotoComprobante
-                })}
-                disabled={isCerrarDisabled}
-                style={{ 
-                  background: isCerrarDisabled ? 'var(--bg-hover)' : 'linear-gradient(135deg, var(--danger), #ff6b6b)', 
-                  padding: '6px 12px', 
-                  fontSize: 11,
-                  cursor: isCerrarDisabled ? 'not-allowed' : 'pointer'
-                }}
-              >
-                <i className="ri-stop-circle-line" /> Cerrar y Cobrar
-              </button>
+              <div style={{ display: 'flex', gap: 8, width: '100%' }}>
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => {
+                    onAgregarACuenta({
+                      costo: costoTiempo,
+                      cuentaId: cuentaAsociada ? cuentaAsociada.id : null,
+                      nombreNuevo: mesa.cliente ? `${mesa.cliente} (Mesa ${mesa.id} - Pendiente)` : `Mesa ${mesa.id} - Pendiente`
+                    });
+                  }}
+                  style={{
+                    background: 'linear-gradient(135deg, var(--bronze-light), var(--bronze))',
+                    color: '#fff',
+                    padding: '6px 12px',
+                    fontSize: 11,
+                    flex: 1
+                  }}
+                >
+                  <i className="ri-folder-shared-line" /> Mover a Pendiente
+                </button>
+                <button
+                  className="btn btn-primary"
+                  onClick={() => onCerrar({ 
+                    costo, 
+                    metodo, 
+                    tiempo: elapsed,
+                    referencia,
+                    pagaCon: pagaConVal,
+                    cambio,
+                    fotoAdjunta: !!fotoComprobante
+                  })}
+                  disabled={isCerrarDisabled}
+                  style={{ 
+                    background: isCerrarDisabled ? 'var(--bg-hover)' : 'linear-gradient(135deg, var(--danger), #ff6b6b)', 
+                    padding: '6px 12px', 
+                    fontSize: 11,
+                    cursor: isCerrarDisabled ? 'not-allowed' : 'pointer',
+                    flex: 1
+                  }}
+                >
+                  <i className="ri-stop-circle-line" /> Cerrar y Cobrar
+                </button>
+              </div>
             )
           ) : (
             <button
@@ -942,57 +964,71 @@ export default function MesasPanel({ showToast }) {
       registrarEvento('Apertura Auto', `Mesa ${mesaId} abierta automáticamente por pedido de cliente (${clienteName})`);
     }
 
-    // 3. Buscar la cuenta activa o crear una nueva y guardarla usando actualización funcional para evitar condiciones de carrera
-    setCuentasActivas(prev => {
-      const cuentaExistente = prev.find(c => c.cliente && c.cliente.toLowerCase() === clienteName.toLowerCase());
-      let nuevasCuentas = [...prev];
-      if (cuentaExistente) {
-        nuevasCuentas = prev.map(c => {
-          if (c.id === cuentaExistente.id) {
-            const nuevosConsumos = [...c.consumos];
-            orderItems.forEach(cartItem => {
-              const existeItem = nuevosConsumos.find(i => i.producto === cartItem.nombre);
-              if (existeItem) {
-                existeItem.cantidad += cartItem.cantidad;
-              } else {
-                nuevosConsumos.push({
-                  id: Date.now() + Math.random(),
-                  producto: cartItem.nombre,
-                  precio: cartItem.precio,
-                  cantidad: cartItem.cantidad
-                });
-              }
-            });
-            return { ...c, consumos: nuevosConsumos };
-          }
-          return c;
-        });
-      } else {
-        const nuevaCuenta = {
-          id: Date.now(),
-          cliente: clienteName,
-          tiempoJuego: 0,
-          consumos: orderItems.map(item => ({
-            id: Date.now() + Math.random(),
-            producto: item.nombre,
-            precio: item.precio,
-            margin: 0,
-            cantidad: item.cantidad
-          })),
-          inicio: Date.now()
-        };
-        nuevasCuentas.push(nuevaCuenta);
-      }
-      localStorage.setItem('yoy_billar_cuentas', obfuscate(nuevasCuentas));
-      return nuevasCuentas;
-    });
-
-    // 4. Guardar inventario actualizado en Firestore, registrar auditoría y marcar como entregado de forma atómica
+    // 3. Guardar inventario y cuentas actualizado en Firestore, registrar auditoría y marcar como entregado de forma atómica
     try {
       await runTransaction(db, async (transaction) => {
         const invRef = doc(db, 'config', 'inventario');
         const invSnap = await transaction.get(invRef);
         if (!invSnap.exists()) throw new Error("No existe el documento de inventario central");
+
+        const cuentasRef = doc(db, 'config', 'cuentas_estado');
+        const cuentasSnap = await transaction.get(cuentasRef);
+        let currentCuentas = [];
+        if (cuentasSnap.exists()) {
+          currentCuentas = cuentasSnap.data().cuentas || [];
+        }
+
+        // Buscar o crear la cuenta activa en la transacción
+        const cuentaExistente = currentCuentas.find(c => c.cliente && c.cliente.toLowerCase() === clienteName.toLowerCase());
+        let nuevasCuentas = [...currentCuentas];
+        if (cuentaExistente) {
+          nuevasCuentas = currentCuentas.map(c => {
+            if (c.id === cuentaExistente.id) {
+              const nuevosConsumos = [...c.consumos];
+              orderItems.forEach(cartItem => {
+                const existeItem = nuevosConsumos.find(i => 
+                  (cartItem.productoId && i.productoId === cartItem.productoId) || 
+                  i.producto.toLowerCase() === cartItem.nombre.toLowerCase()
+                );
+                if (existeItem) {
+                  existeItem.cantidad += cartItem.cantidad;
+                  if (cartItem.productoId) existeItem.productoId = cartItem.productoId;
+                } else {
+                  nuevosConsumos.push({
+                    id: Date.now() + Math.random(),
+                    productoId: cartItem.productoId || null,
+                    producto: cartItem.nombre,
+                    precio: cartItem.precio,
+                    cantidad: cartItem.cantidad
+                  });
+                }
+              });
+              return { ...c, consumos: nuevosConsumos };
+            }
+            return c;
+          });
+        } else {
+          const nuevaCuenta = {
+            id: Date.now(),
+            cliente: clienteName,
+            tiempoJuego: 0,
+            consumos: orderItems.map(item => ({
+              id: Date.now() + Math.random(),
+              productoId: item.productoId || null,
+              producto: item.nombre,
+              precio: item.precio,
+              cantidad: item.cantidad
+            })),
+            inicio: Date.now()
+          };
+          nuevasCuentas.push(nuevaCuenta);
+        }
+
+        // Escribir las cuentas actualizadas
+        transaction.set(cuentasRef, {
+          cuentas: nuevasCuentas,
+          updatedAt: serverTimestamp()
+        });
 
         const parsed = invSnap.data().productos || [];
         const stockTransaccion = parsed.map(p => {
@@ -1030,15 +1066,16 @@ export default function MesasPanel({ showToast }) {
         };
         transaction.update(pedidoRef, updateData);
 
-        // Actualizar el caché de stock local después de confirmarse la transacción
+        // Actualizar el caché de stock y cuentas local después de confirmarse la transacción
         localStorage.setItem('yoy_billar_stock', obfuscate(stockTransaccion));
+        localStorage.setItem('yoy_billar_cuentas', obfuscate(nuevasCuentas));
       });
 
       showToast(`Pedido de ${mesaId ? `Mesa ${mesaId}` : clienteName} cargado a la cuenta ✓`, 'success');
       registrarEvento('Pedido a Cuenta', `Pedido de ${orderItems.map(i=>`${i.cantidad}x ${i.nombre}`).join(', ')} cargado a la cuenta de ${clienteName}`, totalPedido);
     } catch (err) {
-      console.error("Error al procesar la transacción de descuento de stock:", err);
-      showToast('Error de red al actualizar stock atómicamente', 'error');
+      console.error("Error al procesar la transacción de descuento de stock y cuentas:", err);
+      showToast('Error de red al actualizar stock/cuentas atómicamente', 'error');
     }
   };
 
@@ -1294,6 +1331,28 @@ export default function MesasPanel({ showToast }) {
     { id: 101, cliente: 'Juan Pérez', tiempoJuego: 160, consumos: [{ id: 1, producto: 'Cerveza Corona', precio: 45, cantidad: 2 }, { id: 2, producto: 'Refresco Coca-Cola', precio: 30, cantidad: 1 }], inicio: Date.now() - 1.5*3600000 },
     { id: 102, cliente: 'Marta S.', tiempoJuego: 0, consumos: [{ id: 3, producto: 'Nachos con Queso', precio: 75, cantidad: 1 }], inicio: Date.now() - 40*60000 }
   ]);
+
+  useEffect(() => {
+    const docRef = doc(db, 'config', 'cuentas_estado');
+    const unsub = onSnapshot(docRef, snap => {
+      if (snap.exists()) {
+        const data = snap.data();
+        if (data && Array.isArray(data.cuentas)) {
+          setCuentasActivas(data.cuentas);
+        }
+      } else {
+        const savedCuentas = localStorage.getItem('yoy_billar_cuentas');
+        const initialCuentas = savedCuentas ? (deobfuscate(savedCuentas) || []) : [];
+        setDoc(docRef, {
+          cuentas: initialCuentas,
+          updatedAt: serverTimestamp()
+        }).catch(err => console.error("Error al inicializar cuentas en Firestore:", err));
+      }
+    }, err => {
+      console.error("Error al escuchar cuentas en tiempo real:", err);
+    });
+    return unsub;
+  }, []);
   const [fila, setFila] = useState([
     { id: 1, cliente: 'Roberto G.', contacto: '55-1234-5678', tipo: 'Pool 9B', personas: 4, registro: Date.now() - 20*60000 },
     { id: 2, cliente: 'Diana L.', contacto: '55-8765-4321', tipo: 'Snooker', personas: 2, registro: Date.now() - 5*60000 },
@@ -1329,6 +1388,34 @@ export default function MesasPanel({ showToast }) {
         await new Promise(res => setTimeout(res, delay));
         delay *= 2;
       }
+    }
+  };
+
+  const actualizarCuentasFirestore = async (updaterFn) => {
+    const docRef = doc(db, 'config', 'cuentas_estado');
+    try {
+      let updatedCuentas = [];
+      await runTransaction(db, async (transaction) => {
+        const sfDoc = await transaction.get(docRef);
+        let currentCuentas = [];
+        if (sfDoc.exists()) {
+          currentCuentas = sfDoc.data().cuentas || [];
+        }
+        updatedCuentas = updaterFn(currentCuentas);
+        transaction.set(docRef, {
+          cuentas: updatedCuentas,
+          updatedAt: serverTimestamp()
+        });
+      });
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('yoy_billar_cuentas', obfuscate(updatedCuentas));
+      }
+      setCuentasActivas(updatedCuentas);
+      return updatedCuentas;
+    } catch (e) {
+      console.error("Error al actualizar cuentas de forma transaccional:", e);
+      showToast("Error al guardar en base de datos. Intente de nuevo.", "danger");
+      throw e;
     }
   };
 
@@ -1372,10 +1459,6 @@ export default function MesasPanel({ showToast }) {
     if (typeof window !== 'undefined') {
       try {
         localStorage.setItem('yoy_billar_cuentas', obfuscate(cuentasActivas));
-        setDocWithRetry(doc(db, 'config', 'cuentas_estado'), {
-          cuentas: cuentasActivas,
-          updatedAt: serverTimestamp()
-        }).catch(err => console.error("Error al sincronizar cuentas con Firestore:", err));
       } catch (err) {
         console.error("Error al guardar cuentas:", err);
       }
@@ -1549,10 +1632,16 @@ export default function MesasPanel({ showToast }) {
     registrarEvento('Vincular Cliente', `Cliente en Mesa ${mesaId} cambiado de "${ant}" a "${nuevoNombre}"`);
   };
 
-  const agregarSesionACuenta = ({ costo, cuentaId, nombreNuevo }) => {
+  const agregarSesionACuenta = async ({ costo, cuentaId, nombreNuevo }) => {
     if (cuentaId) {
-      setCuentasActivas(prev => prev.map(c => c.id === parseInt(cuentaId)
-        ? { ...c, tiempoJuego: c.tiempoJuego + costo }
+      await actualizarCuentasFirestore(prev => prev.map(c => c.id === parseInt(cuentaId)
+        ? { 
+            ...c, 
+            tiempoJuego: c.tiempoJuego + costo,
+            cliente: c.cliente.toLowerCase() === `mesa ${modalCerrar.id}`.toLowerCase()
+              ? `Mesa ${modalCerrar.id} - Pendiente`
+              : `${c.cliente} (Mesa ${modalCerrar.id} - Pendiente)`
+          }
         : c
       ));
       const targetCuenta = cuentasActivas.find(c => c.id === parseInt(cuentaId));
@@ -1567,7 +1656,7 @@ export default function MesasPanel({ showToast }) {
         consumos: [],
         inicio: Date.now()
       };
-      setCuentasActivas(prev => [...prev, nueva]);
+      await actualizarCuentasFirestore(prev => [...prev, nueva]);
       showToast(`Mesa cerrada. Cuenta abierta para ${nombreNuevo} con $${costo} MXN de tiempo.`, 'success');
       registrarEvento('Mesa a Cuenta Nueva', `Mesa ${modalCerrar.nombre} agregada a una cuenta nueva para ${nombreNuevo}`, costo);
     }
@@ -1586,6 +1675,10 @@ export default function MesasPanel({ showToast }) {
 
   const imprimirTodosLosQRs = () => {
     const w = window.open('', '_blank');
+    if (!w) {
+      showToast("El navegador bloqueó la ventana emergente. Por favor, habilite los pop-ups para imprimir.", "danger");
+      return;
+    }
     let htmlContent = `
       <html><head><title>Códigos QR - YoY IA Billar</title>
       <style>
@@ -1658,8 +1751,9 @@ export default function MesasPanel({ showToast }) {
   };
 
   const registrarPreTicketMesa = (mesaId) => {
-    setMesas(prev => prev.map(m => m.id === mesaId ? { ...m, preTicketImpreso: true } : m));
+    setMesas(prev => prev.map(m => m.id === mesaId ? { ...m, preTicketImpreso: true, preTicketImpresoAt: Date.now() } : m));
     showToast(`Pre-ticket registrado para Mesa ${mesaId} ✓`, 'success');
+    registrarEvento('Impresión Pre-Ticket', `Pre-ticket impreso y registrado para Mesa ${mesaId}`);
   };
 
   const imprimirPreTicket = (mesa) => {
@@ -1675,6 +1769,10 @@ export default function MesasPanel({ showToast }) {
     const total = mesa.socios ? consumosTotal : (costoTiempo + consumosTotal);
 
     const w = window.open('', '_blank');
+    if (!w) {
+      showToast("El navegador bloqueó la ventana emergente. Por favor, habilite los pop-ups para imprimir.", "danger");
+      return;
+    }
     let htmlContent = `
       <html><head><title>Pre-Ticket - Mesa ${mesa.id}</title>
       <style>
@@ -1787,7 +1885,7 @@ export default function MesasPanel({ showToast }) {
     w.document.close();
   };
 
-  const confirmarCerrarMesa = (mesaId, { costo, metodo, tiempo, referencia, pagaCon, cambio, fotoAdjunta }) => {
+  const confirmarCerrarMesa = async (mesaId, { costo, metodo, tiempo, referencia, pagaCon, cambio, fotoAdjunta }) => {
     const mesa = mesas.find(m => m.id === mesaId);
     const clientName = mesa ? mesa.cliente : 'Público';
 
@@ -1817,8 +1915,8 @@ export default function MesasPanel({ showToast }) {
       }).catch(err => console.error("Error al registrar auditoría de cierre de mesa:", err));
     }
 
-    // Eliminar la cuenta asociada de cuentasActivas ya que ha sido liquidada
-    setCuentasActivas(prev => prev.filter(c => 
+    // Eliminar la cuenta asociada de cuentasActivas ya que ha sido liquidada de forma transaccional
+    await actualizarCuentasFirestore(prev => prev.filter(c => 
       !(c.cliente && (
         (mesa && mesa.cliente && c.cliente.toLowerCase() === mesa.cliente.toLowerCase()) || 
         c.cliente.toLowerCase() === `mesa ${mesaId}`
@@ -2338,7 +2436,7 @@ export default function MesasPanel({ showToast }) {
       {modalCuentas && (
         <ModalCuentasActivas
           cuentas={cuentasActivas}
-          setCuentas={setCuentasActivas}
+          setCuentas={actualizarCuentasFirestore}
           onClose={() => setModalCuentas(false)}
           showToast={showToast}
           registrarEvento={registrarEvento}
@@ -2347,7 +2445,7 @@ export default function MesasPanel({ showToast }) {
       {modalAbrirCuenta && (
         <ModalAbrirCuentaDirecta
           cuentas={cuentasActivas}
-          setCuentas={setCuentasActivas}
+          setCuentas={actualizarCuentasFirestore}
           onClose={() => setModalAbrirCuenta(false)}
           showToast={showToast}
           registrarEvento={registrarEvento}
@@ -2380,7 +2478,7 @@ export default function MesasPanel({ showToast }) {
           mesas={mesas}
           setMesas={setMesas}
           cuentasActivas={cuentasActivas}
-          setCuentasActivas={setCuentasActivas}
+          actualizarCuentasFirestore={actualizarCuentasFirestore}
           onClose={() => setModalComanda(false)}
           showToast={showToast}
           registrarEvento={registrarEvento}
@@ -3466,7 +3564,7 @@ function ModalBitacora({ bitacora, onClear, onClose }) {
 }
 
 // ── MODAL REGISTRAR COMANDA (NUEVO) ──────────────────────
-function ModalRegistrarComanda({ mesas, setMesas, cuentasActivas, setCuentasActivas, onClose, showToast, registrarEvento }) {
+function ModalRegistrarComanda({ mesas, setMesas, cuentasActivas, actualizarCuentasFirestore, onClose, showToast, registrarEvento }) {
   const [destinoTipo, setDestinoTipo] = useState('mesa'); // 'mesa', 'cuenta', 'llevar'
   const [destinoId, setDestinoId] = useState('');
   const [carrito, setCarrito] = useState([]);
@@ -3648,12 +3746,12 @@ function ModalRegistrarComanda({ mesas, setMesas, cuentasActivas, setCuentasActi
       updatedAt: serverTimestamp()
     }).catch(err => console.error("Error al actualizar inventario en comanda:", err));
 
-    // Agregar comanda al destino
+    // Agregar comanda al destino de forma transaccional y consistente
     if (destinoTipo === 'mesa') {
       const targetMesa = mesas.find(m => m.id === parseInt(destinoId));
       if (!targetMesa) return;
 
-      setCuentasActivas(prev => {
+      actualizarCuentasFirestore(prev => {
         const cuentaExistente = prev.find(c => c.cliente.toLowerCase() === targetMesa.cliente.toLowerCase());
         let nuevasCuentas;
         if (cuentaExistente) {
@@ -3661,12 +3759,17 @@ function ModalRegistrarComanda({ mesas, setMesas, cuentasActivas, setCuentasActi
             if (c.id === cuentaExistente.id) {
               const nuevosConsumos = [...c.consumos];
               carrito.forEach(cartItem => {
-                const existeItem = nuevosConsumos.find(i => i.producto === cartItem.nombre);
+                const existeItem = nuevosConsumos.find(i => 
+                  (cartItem.id && i.productoId === cartItem.id) || 
+                  i.producto.toLowerCase() === cartItem.nombre.toLowerCase()
+                );
                 if (existeItem) {
                   existeItem.cantidad += cartItem.cantidad;
+                  if (cartItem.id) existeItem.productoId = cartItem.id;
                 } else {
                   nuevosConsumos.push({
                     id: Date.now() + Math.random(),
+                    productoId: cartItem.id || null,
                     producto: cartItem.nombre,
                     precio: cartItem.precioVenta,
                     cantidad: cartItem.cantidad
@@ -3686,6 +3789,7 @@ function ModalRegistrarComanda({ mesas, setMesas, cuentasActivas, setCuentasActi
             tiempoJuego: 0,
             consumos: carrito.map(item => ({
               id: Date.now() + Math.random(),
+              productoId: item.id || null,
               producto: item.nombre,
               precio: item.precioVenta,
               cantidad: item.cantidad
@@ -3696,11 +3800,10 @@ function ModalRegistrarComanda({ mesas, setMesas, cuentasActivas, setCuentasActi
           showToast(`Comanda cargada a la cuenta de ${targetMesa.cliente} (Mesa ${targetMesa.id}) ✓`, 'success');
           registrarEvento('Comanda a Mesa', `Comanda de ${carrito.map(i=>`${i.cantidad}x ${i.nombre}`).join(', ')} cargada a la cuenta activa de ${targetMesa.cliente} (Mesa ${targetMesa.id})`, total);
         }
-        localStorage.setItem('yoy_billar_cuentas', obfuscate(nuevasCuentas));
         return nuevasCuentas;
-      });
+      }).catch(err => console.error("Error al guardar comanda en cuenta mesa:", err));
     } else if (destinoTipo === 'cuenta') {
-      setCuentasActivas(prev => {
+      actualizarCuentasFirestore(prev => {
         const targetCuenta = prev.find(c => c.id === parseInt(destinoId));
         if (!targetCuenta) return prev;
 
@@ -3708,12 +3811,17 @@ function ModalRegistrarComanda({ mesas, setMesas, cuentasActivas, setCuentasActi
           if (c.id === targetCuenta.id) {
             const nuevosConsumos = [...c.consumos];
             carrito.forEach(cartItem => {
-              const existeItem = nuevosConsumos.find(i => i.producto === cartItem.nombre);
+              const existeItem = nuevosConsumos.find(i => 
+                (cartItem.id && i.productoId === cartItem.id) || 
+                i.producto.toLowerCase() === cartItem.nombre.toLowerCase()
+              );
               if (existeItem) {
                 existeItem.cantidad += cartItem.cantidad;
+                if (cartItem.id) existeItem.productoId = cartItem.id;
               } else {
                 nuevosConsumos.push({
                   id: Date.now() + Math.random(),
+                  productoId: cartItem.id || null,
                   producto: cartItem.nombre,
                   precio: cartItem.precioVenta,
                   cantidad: cartItem.cantidad
@@ -3726,9 +3834,8 @@ function ModalRegistrarComanda({ mesas, setMesas, cuentasActivas, setCuentasActi
         });
         showToast(`Comanda agregada a la cuenta de ${targetCuenta.cliente} ✓`, 'success');
         registrarEvento('Comanda a Cuenta', `Comanda de ${carrito.map(i=>`${i.cantidad}x ${i.nombre}`).join(', ')} agregada a la cuenta de ${targetCuenta.cliente}`, total);
-        localStorage.setItem('yoy_billar_cuentas', obfuscate(nuevasCuentas));
         return nuevasCuentas;
-      });
+      }).catch(err => console.error("Error al guardar comanda en cuenta directa:", err));
     } else if (destinoTipo === 'llevar') {
       showToast(`Comanda registrada Para Llevar. Total: $${total} MXN ✓`, 'success');
       registrarEvento('Venta Barra', `Comanda Para Llevar: ${carrito.map(i=>`${i.cantidad}x ${i.nombre}`).join(', ')} liquidada al momento`, total);

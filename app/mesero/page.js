@@ -37,6 +37,53 @@ function MeseroContent() {
   const [cuentas, setCuentas] = useState([]);
   const [nuevoClienteNombre, setNuevoClienteNombre] = useState('');
 
+  const [isOffline, setIsOffline] = useState(false);
+
+  const sincronizarAlertasOffline = async () => {
+    if (typeof window === 'undefined') return;
+    const stored = localStorage.getItem('yoy_pending_waiter_alerts');
+    if (!stored) return;
+    try {
+      const pending = JSON.parse(stored);
+      if (pending && pending.length > 0) {
+        showToast(`Sincronizando ${pending.length} alerta(s) guardadas sin conexión...`, 'info');
+        for (const alerta of pending) {
+          await addDoc(collection(db, 'mesa_pedidos'), {
+            ...alerta,
+            createdAt: serverTimestamp()
+          });
+        }
+        localStorage.removeItem('yoy_pending_waiter_alerts');
+        showToast('¡Alertas offline sincronizadas con éxito! ✓', 'success');
+      }
+    } catch (err) {
+      console.error("Error al sincronizar alertas offline:", err);
+    }
+  };
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setIsOffline(!navigator.onLine);
+      const handleOnline = () => {
+        setIsOffline(false);
+        sincronizarAlertasOffline();
+      };
+      const handleOffline = () => setIsOffline(true);
+      window.addEventListener('online', handleOnline);
+      window.addEventListener('offline', handleOffline);
+      return () => {
+        window.removeEventListener('online', handleOnline);
+        window.removeEventListener('offline', handleOffline);
+      };
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && navigator.onLine) {
+      sincronizarAlertasOffline();
+    }
+  }, []);
+
   const handleCloseCapturarModal = () => {
     if (Object.keys(capturaCarrito).length > 0) {
       sessionStorage.setItem('yoy_draft_mesero_carrito', JSON.stringify({ capturaMesaId, capturaCarrito }));
@@ -484,8 +531,13 @@ function MeseroContent() {
       <div style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border-bronze)', padding: '16px 20px', position: 'sticky', top: 0, zIndex: 10 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', maxWidth: 900, margin: '0 auto' }}>
           <div>
-            <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--bronze-light)', lineHeight: 1 }}>
+            <h1 style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--bronze-light)', lineHeight: 1 }}>
               🎱 Vista Mesero
+              {isOffline && (
+                <span style={{ fontSize: 10, background: 'var(--danger)', color: '#fff', padding: '3px 8px', borderRadius: 10, fontWeight: 700, letterSpacing: 'normal' }}>
+                  OFFLINE
+                </span>
+              )}
             </h1>
             <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
               {pedidos.length > 0
@@ -889,6 +941,8 @@ function MeseroContent() {
         <ModalCuentasMesero
           cuentas={cuentas}
           mesas={mesas}
+          alertasAsistencia={alertasAsistencia}
+          isOffline={isOffline}
           onClose={() => setShowCuentasModal(false)}
           showToast={showToast}
         />
@@ -915,8 +969,9 @@ function MeseroContent() {
   );
 }
 
-function ModalCuentasMesero({ cuentas, mesas, onClose, showToast }) {
+function ModalCuentasMesero({ cuentas, mesas, alertasAsistencia, isOffline, onClose, showToast }) {
   const [expandedId, setExpandedId] = useState(null);
+  const [filtroTexto, setFiltroTexto] = useState('');
 
   const pedirCuenta = async (cuenta) => {
     const mesaAsociada = mesas.find(m => m.cliente && m.cliente.toLowerCase() === cuenta.cliente.toLowerCase());
@@ -924,49 +979,119 @@ function ModalCuentasMesero({ cuentas, mesas, onClose, showToast }) {
     const consumosTotal = cuenta.consumos.reduce((sum, item) => sum + item.precio * item.cantidad, 0);
     const totalAcumulado = cuenta.tiempoJuego + consumosTotal;
 
-    try {
-      await addDoc(collection(db, 'mesa_pedidos'), {
-        mesaId: mesaId,
-        cliente: cuenta.cliente,
-        tipo: 'cuenta',
-        etiqueta: 'Solicita Cuenta (Caja)',
-        estado: 'pendiente',
-        totalAcumulado: totalAcumulado,
-        atendidoAdmin: false,
-        atendidoMesero: false,
-        createdAt: serverTimestamp()
-      });
-      showToast(`Solicitud de cuenta enviada a caja para ${cuenta.cliente} ✓`, 'success');
-    } catch (err) {
-      console.error(err);
-      alert('Error al solicitar la cuenta: ' + err.message);
+    const dataAlerta = {
+      mesaId: mesaId,
+      cliente: cuenta.cliente,
+      tipo: 'cuenta',
+      etiqueta: 'Solicita Cuenta (Caja)',
+      estado: 'pendiente',
+      totalAcumulado: totalAcumulado,
+      atendidoAdmin: false,
+      atendidoMesero: false
+    };
+
+    if (isOffline) {
+      try {
+        const stored = localStorage.getItem('yoy_pending_waiter_alerts');
+        const pending = stored ? JSON.parse(stored) : [];
+        const yaExiste = pending.some(alerta => 
+          alerta.tipo === 'cuenta' && 
+          alerta.cliente && 
+          alerta.cliente.toLowerCase() === cuenta.cliente.toLowerCase()
+        );
+        if (!yaExiste) {
+          pending.push(dataAlerta);
+          localStorage.setItem('yoy_pending_waiter_alerts', JSON.stringify(pending));
+        }
+        showToast('Modo offline: Solicitud guardada localmente. Se enviará al reconectar.', 'warning');
+        onClose();
+      } catch (err) {
+        console.error("Error al guardar en buffer offline:", err);
+      }
+    } else {
+      try {
+        await addDoc(collection(db, 'mesa_pedidos'), {
+          ...dataAlerta,
+          createdAt: serverTimestamp()
+        });
+        showToast(`Solicitud de cuenta enviada a caja para ${cuenta.cliente} ✓`, 'success');
+      } catch (err) {
+        console.error(err);
+        alert('Error al solicitar la cuenta: ' + err.message);
+      }
     }
   };
 
+  const cuentasFiltradas = cuentas.filter(c => {
+    const term = filtroTexto.toLowerCase();
+    const mesaAsociada = mesas.find(m => m.cliente && m.cliente.toLowerCase() === c.cliente.toLowerCase());
+    const matchCliente = c.cliente.toLowerCase().includes(term);
+    const matchMesa = mesaAsociada ? `mesa ${mesaAsociada.id}`.includes(term) : false;
+    return matchCliente || matchMesa;
+  });
+
   return (
     <div className="modal-overlay" onClick={onClose} style={{ zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)' }}>
-      <div className="modal" style={{ maxWidth: 500, maxHeight: '80vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+      <div className="modal" style={{ maxWidth: 500, maxHeight: '85vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
         <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <i className="ri-secure-payment-line" style={{ color: 'var(--success)' }} />
-            Cuentas Activas (${cuentas.length})
+            Cuentas Activas ({cuentas.length})
           </span>
           <button onClick={onClose} className="btn-icon btn btn-secondary" style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 20, cursor: 'pointer' }}>
             <i className="ri-close-line" />
           </button>
         </div>
+
+        {/* Buscador Interactivo */}
+        <div style={{ padding: '8px 16px', borderBottom: '1px solid var(--border)' }}>
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+            <i className="ri-search-line" style={{ position: 'absolute', left: 10, color: 'var(--text-muted)' }} />
+            <input
+              type="text"
+              placeholder="Buscar por cliente o mesa..."
+              value={filtroTexto}
+              onChange={e => setFiltroTexto(e.target.value)}
+              style={{
+                width: '100%',
+                background: 'var(--bg-main)',
+                border: '1px solid var(--border)',
+                borderRadius: 8,
+                padding: '6px 12px 6px 32px',
+                color: '#fff',
+                fontSize: 12,
+                outline: 'none'
+              }}
+            />
+            {filtroTexto && (
+              <button 
+                onClick={() => setFiltroTexto('')}
+                style={{ position: 'absolute', right: 10, background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+              >
+                <i className="ri-close-line" />
+              </button>
+            )}
+          </div>
+        </div>
+
         <div className="modal-body" style={{ overflowY: 'auto', flex: 1, padding: '12px 16px', textAlign: 'left' }}>
-          {cuentas.length === 0 ? (
+          {cuentasFiltradas.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-muted)' }}>
-              No hay cuentas activas en este momento.
+              {cuentas.length === 0 ? 'No hay cuentas activas en este momento.' : 'No se encontraron cuentas que coincidan.'}
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {cuentas.map(c => {
+              {cuentasFiltradas.map(c => {
                 const mesaAsociada = mesas.find(m => m.cliente && m.cliente.toLowerCase() === c.cliente.toLowerCase());
                 const consumosTotal = c.consumos.reduce((sum, item) => sum + item.precio * item.cantidad, 0);
                 const total = c.tiempoJuego + consumosTotal;
                 const isExpanded = expandedId === c.id;
+
+                const cuentaSolicitada = (alertasAsistencia || []).some(alerta => 
+                  alerta.tipo === 'cuenta' && 
+                  alerta.cliente && 
+                  alerta.cliente.toLowerCase() === c.cliente.toLowerCase()
+                );
 
                 return (
                   <div key={c.id} style={{
@@ -1031,10 +1156,13 @@ function ModalCuentasMesero({ cuentas, mesas, onClose, showToast }) {
                     <div style={{ borderTop: '1px solid rgba(255, 255, 255, 0.05)', paddingTop: 8, marginTop: 4, display: 'flex', justifyContent: 'flex-end' }}>
                       <button
                         className="btn btn-sm"
-                        onClick={() => pedirCuenta(c)}
+                        onClick={() => !cuentaSolicitada && pedirCuenta(c)}
+                        disabled={cuentaSolicitada}
                         style={{
-                          background: 'linear-gradient(135deg, var(--bronze), var(--bronze-light))',
-                          color: '#0d0d0f',
+                          background: cuentaSolicitada 
+                            ? 'var(--bg-hover)' 
+                            : 'linear-gradient(135deg, var(--bronze), var(--bronze-light))',
+                          color: cuentaSolicitada ? 'var(--text-muted)' : '#0d0d0f',
                           fontWeight: 700,
                           fontSize: 11,
                           padding: '6px 12px',
@@ -1043,10 +1171,10 @@ function ModalCuentasMesero({ cuentas, mesas, onClose, showToast }) {
                           alignItems: 'center',
                           gap: 4,
                           border: 'none',
-                          cursor: 'pointer'
+                          cursor: cuentaSolicitada ? 'not-allowed' : 'pointer'
                         }}
                       >
-                        <i className="ri-secure-payment-line" /> Pedir Cuenta (Caja)
+                        <i className="ri-secure-payment-line" /> {cuentaSolicitada ? 'Solicitado a Caja...' : 'Pedir Cuenta (Caja)'}
                       </button>
                     </div>
                   </div>
