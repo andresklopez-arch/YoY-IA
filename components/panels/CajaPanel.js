@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { db } from '@/lib/firebase';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { doc, onSnapshot, query, collection, orderBy, limit, getDocs, writeBatch } from 'firebase/firestore';
 import { deobfuscate, obfuscate } from '@/lib/crypto';
 
 const TRANSACCIONES = [
@@ -182,24 +182,42 @@ export default function CajaPanel({ showToast }) {
     }
   }, [cobros]);
 
-  // Cargar bitácora desde localStorage al mostrar
+  // Escuchar bitácora de Firestore en tiempo real para CajaPanel
   useEffect(() => {
-    if (typeof window !== 'undefined') {
+    const q = query(collection(db, 'bitacora'), orderBy('fecha', 'desc'), limit(100));
+    const unsub = onSnapshot(q, snap => {
+      const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      setBitacora(items);
       try {
-        const saved = localStorage.getItem('yoy_billar_bitacora');
-        if (saved) setBitacora(deobfuscate(saved) || []);
+        localStorage.setItem('yoy_billar_bitacora', obfuscate(items));
       } catch (err) {
         console.error(err);
       }
-    }
-  }, [mostrarBitacora]);
+    }, err => {
+      console.error("Error al escuchar bitácora en CajaPanel:", err);
+      try {
+        const saved = localStorage.getItem('yoy_billar_bitacora');
+        if (saved) setBitacora(deobfuscate(saved) || []);
+      } catch (e) {
+        console.error(e);
+      }
+    });
+    return unsub;
+  }, []);
 
-  const limpiarBitacora = () => {
+  const limpiarBitacora = async () => {
     setBitacora([]);
     try {
       localStorage.removeItem('yoy_billar_bitacora');
+      const q = query(collection(db, 'bitacora'), limit(100));
+      const snap = await getDocs(q);
+      if (!snap.empty) {
+        const batch = writeBatch(db);
+        snap.docs.forEach(d => batch.delete(d.ref));
+        await batch.commit();
+      }
     } catch (err) {
-      console.error(err);
+      console.error("Error al limpiar bitácora en la nube:", err);
     }
     showToast('Bitácora limpiada correctamente.', 'info');
   };

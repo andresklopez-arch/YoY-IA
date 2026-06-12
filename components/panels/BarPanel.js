@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { db } from '@/lib/firebase';
-import { doc, onSnapshot, setDoc, serverTimestamp, collection, query, orderBy, limit } from 'firebase/firestore';
+import { doc, onSnapshot, setDoc, serverTimestamp, collection, query, orderBy, limit, addDoc } from 'firebase/firestore';
 import { obfuscate, deobfuscate } from '@/lib/crypto';
 
 // ── DATOS HISTÓRICOS IA (RECOMENDACIÓN 2) ──────────────────
@@ -252,24 +252,18 @@ export default function BarPanel({ showToast }) {
   };
 
   // Sincronización automática con la Bitácora General de Caja (Recomendación 3)
-  const registrarEnBitacoraGeneral = (accion, detalle, monto = 0) => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem('yoy_billar_bitacora');
-        const bitacora = saved ? (deobfuscate(saved) || []) : [];
-        const nuevoEvento = {
-          id: Date.now() + Math.random(),
-          fecha: new Date().toISOString(),
-          accion,
-          detalle,
-          monto,
-          operador: 'Sistema IA / Inventario'
-        };
-        const actualizada = [nuevoEvento, ...bitacora].slice(0, 100);
-        localStorage.setItem('yoy_billar_bitacora', obfuscate(actualizada));
-      } catch (err) {
-        console.error("Error al registrar en bitácora general:", err);
-      }
+  const registrarEnBitacoraGeneral = async (accion, detalle, monto = 0) => {
+    const nuevoEvento = {
+      fecha: new Date().toISOString(),
+      accion,
+      detalle,
+      monto,
+      operador: 'Sistema IA / Inventario'
+    };
+    try {
+      await addDoc(collection(db, 'bitacora'), nuevoEvento);
+    } catch (err) {
+      console.error("Error al registrar en bitácora general:", err);
     }
   };
 

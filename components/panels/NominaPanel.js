@@ -56,31 +56,11 @@ function useVentasReales(fechaInicio, fechaFin) {
   const [bitacora, setBitacora] = useState([]);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    try {
-      // Leer bitácora de Mesas (cifrada con XOR + fecha)
-      const rawBitacora = localStorage.getItem('yoy_billar_bitacora');
-      let eventos = [];
-      if (rawBitacora) {
-        try {
-          // Intento de decodificación compatible con el cifrado de MesasPanel
-          if (rawBitacora.startsWith('[')) {
-            const cb1 = rawBitacora.indexOf(']');
-            if (cb1 > 0) {
-              const dateStr = rawBitacora.substring(1, cb1);
-              const rest = rawBitacora.substring(cb1 + 1);
-              const cb2 = rest.startsWith('[') ? rest.indexOf(']') : -1;
-              const encPart = cb2 > 0 ? rest.substring(cb2 + 1) : rest;
-              const xor = decodeURIComponent(escape(window.atob(encPart)));
-              const base64 = xor.split('').map((c, i) => String.fromCharCode(c.charCodeAt(0) ^ dateStr.charCodeAt(i % dateStr.length))).join('');
-              eventos = JSON.parse(decodeURIComponent(escape(window.atob(base64))));
-            }
-          } else {
-            eventos = JSON.parse(decodeURIComponent(escape(window.atob(rawBitacora))));
-          }
-        } catch { eventos = []; }
-      }
-
+    // Escuchar la colección de bitacora desde Firestore para obtener datos de ventas reales
+    const q = query(collection(db, 'bitacora'), orderBy('fecha', 'desc'));
+    const unsub = onSnapshot(q, snap => {
+      const eventos = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      
       // Filtrar por rango de fechas
       const fi = new Date(fechaInicio + 'T00:00:00');
       const ff = new Date(fechaFin + 'T23:59:59');
@@ -96,8 +76,7 @@ function useVentasReales(fechaInicio, fechaFin) {
         .filter(e => e.accion === 'Cierre Directo' || e.accion === 'Mesa a Cuenta')
         .reduce((s, e) => s + Math.abs(Number(e.monto) || 0), 0);
 
-      // Calcular ventas de bar: eventos tipo 'Compra IA' o 'Ajuste Inv' negativos (ventas)
-      // También checar stock del bar para estimar ventas
+      // Calcular ventas de bar
       const rawStock = localStorage.getItem('yoy_billar_stock');
       let ventaBarEstimada = 0;
       if (rawStock) {
@@ -115,7 +94,6 @@ function useVentasReales(fechaInicio, fechaFin) {
           } else {
             productos = JSON.parse(decodeURIComponent(escape(window.atob(rawStock))));
           }
-          // Estimar ventas como: (stockOptimo - stockActual) * precioVenta para productos bajo óptimo
           ventaBarEstimada = productos.reduce((s, p) => {
             const vendidos = Math.max(0, (p.stockOptimo || 50) - (p.stock || 0));
             return s + vendidos * (p.precioVenta || 0);
@@ -125,9 +103,11 @@ function useVentasReales(fechaInicio, fechaFin) {
 
       setVentasMesas(totalMesas);
       setVentasBar(ventaBarEstimada);
-    } catch (err) {
-      console.warn('NominaPanel: no se pudo leer localStorage:', err);
-    }
+    }, err => {
+      console.error("Error al obtener bitácora para nómina:", err);
+    });
+    
+    return unsub;
   }, [fechaInicio, fechaFin]);
 
   return { ventasMesas, ventasBar, bitacora };
