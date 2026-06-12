@@ -231,6 +231,55 @@ export default function MesaClientePage({ params }) {
     sincronizarEncuestasPendientes();
   }, [isOffline]);
 
+  // ── Sincronizar pedidos guardados localmente al estar online ──
+  useEffect(() => {
+    const sincronizarPedidosPendientes = async () => {
+      if (typeof window === 'undefined' || isOffline) return;
+      try {
+        const rawPending = localStorage.getItem('yoy_pending_orders');
+        if (!rawPending) return;
+        const pending = JSON.parse(rawPending);
+        if (!Array.isArray(pending) || pending.length === 0) return;
+
+        console.log("Sincronizando pedidos pendientes offline...", pending.length);
+        const remaining = [];
+
+        for (const order of pending) {
+          try {
+            await addDoc(collection(db, 'mesa_pedidos'), {
+              mesaId: order.mesaId,
+              cliente: order.cliente,
+              items: order.items,
+              total: order.total,
+              estado: order.estado,
+              tipo: order.tipo,
+              etiqueta: order.etiqueta,
+              icono: order.icono,
+              clienteUid: order.clienteUid || '',
+              atendidoAdmin: order.atendidoAdmin,
+              atendidoMesero: order.atendidoMesero,
+              createdAt: serverTimestamp(),
+              sincronizadoOffline: true
+            });
+          } catch (err) {
+            console.error("Error sincronizando comanda offline, se reintentará luego:", err);
+            remaining.push(order);
+          }
+        }
+
+        if (remaining.length > 0) {
+          localStorage.setItem('yoy_pending_orders', JSON.stringify(remaining));
+        } else {
+          localStorage.removeItem('yoy_pending_orders');
+        }
+      } catch (e) {
+        console.warn("Error en sync de comandas offline:", e);
+      }
+    };
+
+    sincronizarPedidosPendientes();
+  }, [isOffline]);
+
   // ── Sesión anónima para evitar bloqueos de reglas de Firestore ──
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -448,23 +497,26 @@ export default function MesaClientePage({ params }) {
       return;
     }
     setEnviando(true);
+    const items = Object.entries(carrito).map(([id, cant]) => {
+      const prod = productos.find(p => p.id === parseInt(id));
+      return { productoId: parseInt(id), nombre: prod?.nombre, precio: prod?.precioVenta, cantidad: cant, subtotal: (prod?.precioVenta || 0) * cant };
+    });
+    const orderData = {
+      mesaId,
+      cliente: clienteNombre || `Mesa ${mesaId}`,
+      items,
+      total: totalCarrito,
+      estado: 'pendiente',
+      tipo: 'pedido',
+      etiqueta: `Pedido de Consumo: ${items.map(i => `${i.cantidad}x ${i.nombre}`).join(', ')}`,
+      icono: '🍔',
+      clienteUid: auth.currentUser?.uid || '',
+      atendidoAdmin: false,
+      atendidoMesero: false,
+    };
     try {
-      const items = Object.entries(carrito).map(([id, cant]) => {
-        const prod = productos.find(p => p.id === parseInt(id));
-        return { productoId: parseInt(id), nombre: prod?.nombre, precio: prod?.precioVenta, cantidad: cant, subtotal: (prod?.precioVenta || 0) * cant };
-      });
       await addDocWithTimeout(collection(db, 'mesa_pedidos'), {
-        mesaId,
-        cliente: clienteNombre || `Mesa ${mesaId}`,
-        items,
-        total: totalCarrito,
-        estado: 'pendiente',
-        tipo: 'pedido',
-        etiqueta: `Pedido de Consumo: ${items.map(i => `${i.cantidad}x ${i.nombre}`).join(', ')}`,
-        icono: '🍔',
-        clienteUid: auth.currentUser?.uid || '',
-        atendidoAdmin: false,
-        atendidoMesero: false,
+        ...orderData,
         createdAt: serverTimestamp(),
       });
       await actualizarActividadMesa();
@@ -472,7 +524,27 @@ export default function MesaClientePage({ params }) {
       setShowCarrito(false);
       setExito('pedido');
       setTimeout(() => setExito(null), 3000);
-    } catch (e) { alert('Error al enviar: ' + e.message); }
+    } catch (e) {
+      console.warn("Error al enviar pedido, guardando en caché offline...", e);
+      try {
+        const rawPending = localStorage.getItem('yoy_pending_orders') || '[]';
+        const pending = JSON.parse(rawPending);
+        pending.push({
+          ...orderData,
+          createdAtOffline: new Date().toISOString()
+        });
+        localStorage.setItem('yoy_pending_orders', JSON.stringify(pending));
+        
+        // Simular éxito para el cliente
+        setCarrito({});
+        setShowCarrito(false);
+        setExito('pedido');
+        setTimeout(() => setExito(null), 3000);
+        alert('⚠️ Pedido guardado localmente debido a una falla de red. Se enviará automáticamente cuando recuperes la conexión.');
+      } catch (errLocal) {
+        alert('Error al enviar comanda: ' + e.message);
+      }
+    }
     setEnviando(false);
   };
 

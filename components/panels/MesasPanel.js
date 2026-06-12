@@ -1,9 +1,9 @@
 'use client';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { obfuscate, deobfuscate } from '@/lib/crypto';
 import { db } from '@/lib/firebase';
-import { doc, onSnapshot, setDoc, getDoc, serverTimestamp, collection, query, where, getDocs, writeBatch, updateDoc, runTransaction } from 'firebase/firestore';
+import { doc, onSnapshot, setDoc, getDoc, serverTimestamp, collection, query, where, getDocs, writeBatch, updateDoc, runTransaction, addDoc } from 'firebase/firestore';
 
 // ── DATOS INICIALES DE MESAS ───────────────────────────────
 const INIT_MESAS = [
@@ -1249,6 +1249,23 @@ export default function MesasPanel({ showToast }) {
   ]);
   const tick = useLiveTick();
 
+  // ── Memorización de Consumos por Mesa (Sugerencia 1) ──
+  const consumosPorMesa = useMemo(() => {
+    const map = {};
+    mesas.forEach(m => {
+      const cuentaAsociada = cuentasActivas.find(c => 
+        c.cliente && (
+          (m.cliente && c.cliente.toLowerCase() === m.cliente.toLowerCase()) || 
+          c.cliente.toLowerCase() === `mesa ${m.id}`
+        )
+      );
+      map[m.id] = cuentaAsociada 
+        ? cuentaAsociada.consumos.reduce((s, item) => s + item.precio * item.cantidad, 0)
+        : 0;
+    });
+    return map;
+  }, [mesas, cuentasActivas]);
+
   // ── Helper para setDoc con reintentos y exponencial backoff ──
   const setDocWithRetry = async (docRef, data, retries = 5, delay = 500) => {
     for (let i = 0; i < retries; i++) {
@@ -1593,6 +1610,32 @@ export default function MesasPanel({ showToast }) {
     const mesa = mesas.find(m => m.id === mesaId);
     const clientName = mesa ? mesa.cliente : 'Público';
 
+    // Buscar la cuenta asociada para auditar el detalle de consumos al cerrar (Sugerencia 2)
+    const cuentaAsociada = cuentasActivas.find(c => 
+      c.cliente && (
+        (mesa && mesa.cliente && c.cliente.toLowerCase() === mesa.cliente.toLowerCase()) || 
+        c.cliente.toLowerCase() === `mesa ${mesaId}`
+      )
+    );
+
+    if (cuentaAsociada && cuentaAsociada.consumos && cuentaAsociada.consumos.length > 0) {
+      addDoc(collection(db, 'historial_stock'), {
+        fecha: serverTimestamp(),
+        mesaId: mesaId,
+        cliente: clientName,
+        items: cuentaAsociada.consumos.map(item => ({
+          productoId: item.id || 0,
+          nombre: item.producto,
+          precio: item.precio,
+          cantidad: item.cantidad,
+          subtotal: item.precio * item.cantidad
+        })),
+        total: costo,
+        tipo: 'cierre_mesa_liquidada',
+        tiempoJuego: tiempo ? (tiempo / 3600000).toFixed(2) + ' hrs' : '0 hrs'
+      }).catch(err => console.error("Error al registrar auditoría de cierre de mesa:", err));
+    }
+
     // Eliminar la cuenta asociada de cuentasActivas ya que ha sido liquidada
     setCuentasActivas(prev => prev.filter(c => 
       !(c.cliente && (
@@ -1654,15 +1697,7 @@ export default function MesasPanel({ showToast }) {
   const ingresosActivos = mesas
     .filter(m => m.estado === 'ocupada')
     .reduce((sum, m) => {
-      const cuentaAsociada = cuentasActivas.find(c => 
-        c.cliente && (
-          (m.cliente && c.cliente.toLowerCase() === m.cliente.toLowerCase()) || 
-          c.cliente.toLowerCase() === `mesa ${m.id}`
-        )
-      );
-      const consumosTotal = cuentaAsociada 
-        ? cuentaAsociada.consumos.reduce((s, item) => s + item.precio * item.cantidad, 0)
-        : 0;
+      const consumosTotal = consumosPorMesa[m.id] || 0;
       const costoTiempo = m.socios ? 0 : calcCosto(m);
       return sum + costoTiempo + consumosTotal;
     }, 0);
@@ -1784,15 +1819,7 @@ export default function MesasPanel({ showToast }) {
         {mesasFiltradas.map(mesa => {
           const elapsed = mesa.inicio ? Date.now() - mesa.inicio : 0;
           const costo = calcCosto(mesa);
-          const cuentaAsociada = cuentasActivas.find(c => 
-            c.cliente && (
-              (mesa.cliente && c.cliente.toLowerCase() === mesa.cliente.toLowerCase()) || 
-              c.cliente.toLowerCase() === `mesa ${mesa.id}`
-            )
-          );
-          const consumosTotal = cuentaAsociada 
-            ? cuentaAsociada.consumos.reduce((s, item) => s + item.precio * item.cantidad, 0)
-            : 0;
+          const consumosTotal = consumosPorMesa[mesa.id] || 0;
           const totalMesa = costo + consumosTotal;
           const cfg = ESTADO_CONFIG[mesa.estado];
           const alertsForMesa = alertasMesas[mesa.id] || [];
