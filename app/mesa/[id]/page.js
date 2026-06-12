@@ -88,7 +88,12 @@ export default function MesaClientePage({ params }) {
   // Nombre del cliente (pre-poblado si la mesa tiene cliente asignado)
   const [clienteNombre, setClienteNombre] = useState(() => {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('yoy_cliente_nombre') || '';
+      const cached = localStorage.getItem('yoy_cliente_nombre') || '';
+      // Si el nombre guardado en caché es el nombre de otra mesa, lo ignoramos
+      if (cached.toLowerCase().startsWith('mesa ') && cached.toLowerCase() !== `mesa ${mesaId}`) {
+        return '';
+      }
+      return cached;
     }
     return '';
   });
@@ -177,7 +182,11 @@ export default function MesaClientePage({ params }) {
     setClienteNombre(nombre);
     if (typeof window !== 'undefined') {
       try {
-        localStorage.setItem('yoy_cliente_nombre', nombre);
+        // No guardamos nombres genéricos de mesa en caché
+        const isGeneric = nombre.toLowerCase().startsWith('mesa ');
+        if (!isGeneric) {
+          localStorage.setItem('yoy_cliente_nombre', nombre);
+        }
       } catch (e) {}
     }
     await actualizarActividadMesa();
@@ -399,9 +408,12 @@ export default function MesaClientePage({ params }) {
           } catch (e) {}
           if (mesa.cliente && mesa.cliente !== 'Público') {
             setClienteNombre(mesa.cliente);
-            try {
-              localStorage.setItem('yoy_cliente_nombre', mesa.cliente);
-            } catch (e) {}
+            const isGeneric = mesa.cliente.toLowerCase().startsWith('mesa ');
+            if (!isGeneric) {
+              try {
+                localStorage.setItem('yoy_cliente_nombre', mesa.cliente);
+              } catch (e) {}
+            }
           }
         } else {
           setMesaInfo(null);

@@ -1235,7 +1235,12 @@ export default function MesasPanel({ showToast }) {
     }
 
     // 2. Si la mesa está libre, la abrimos automáticamente (si aplica mesaId)
-    let clienteName = (targetMesa ? targetMesa.cliente : null) || pedidoDoc.cliente || `Cliente`;
+    let orderClient = pedidoDoc.cliente || '';
+    // Si la orden viene con un nombre genérico de otra mesa (por cache), lo forzamos a la mesa correcta
+    if (orderClient.toLowerCase().startsWith('mesa ') && orderClient.toLowerCase() !== `mesa ${mesaId}`) {
+      orderClient = `Mesa ${mesaId}`;
+    }
+    let clienteName = (targetMesa ? targetMesa.cliente : null) || orderClient || `Mesa ${mesaId}`;
     let updatedMesas = mesas;
     if (targetMesa && targetMesa.estado !== 'ocupada') {
       updatedMesas = mesas.map(m => m.id === mesaId
