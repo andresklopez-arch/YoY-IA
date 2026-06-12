@@ -5713,8 +5713,8 @@ function ModalGasto({ onClose, onConfirm, CATEGORIAS_GASTO }) {
   };
 
   return (
-    <div className="modal-overlay animate-fadeIn" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, backdropFilter: 'blur(3px)' }} onClick={handleClose}>
-      <div className="modal-content animate-slideUp" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-bronze)', borderRadius: 16, width: '90%', maxWidth: 420, padding: 24, boxShadow: 'var(--shadow-xl)' }} onClick={e => e.stopPropagation()}>
+    <div className="modal-overlay animate-fadeIn" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 9999, backdropFilter: 'blur(3px)', overflowY: 'auto', padding: '40px 16px' }} onClick={handleClose}>
+      <div className="modal-content animate-slideUp" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-bronze)', borderRadius: 16, width: '90%', maxWidth: 420, padding: 24, boxShadow: 'var(--shadow-xl)', margin: 'auto 0' }} onClick={e => e.stopPropagation()}>
         <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
           <h3 className="modal-title gradient-bronze" style={{ margin: 0, fontSize: 18, fontWeight: 700 }}><i className="ri-wallet-3-line" style={{ marginRight: 6 }} /> Registrar Gasto Caja</h3>
           <button className="btn-close" onClick={handleClose} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 18, cursor: 'pointer' }}><i className="ri-close-line" /></button>
