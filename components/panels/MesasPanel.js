@@ -3443,7 +3443,7 @@ function ModalCuentasActivas({
   showToast, 
   registrarEvento 
 }) {
-  const [activeTab, setActiveTab] = useState('mesas'); // 'mesas' o 'cuentas'
+  const [activeTab, setActiveTab] = useState('cuentas'); // 'cuentas' o 'mesas'
   const [cuentaSel, setCuentaSel] = useState(null);
   const [mesaSel, setMesaSel] = useState(null);
   
@@ -3463,6 +3463,12 @@ function ModalCuentasActivas({
   const [itemAEliminar, setItemAEliminar] = useState(null); // { cId, itemId, prodName, cant }
 
   const [tick, setTick] = useState(0);
+
+  const calcTotal = (c) => {
+    if (!c) return 0;
+    const tConsumos = (c.consumos || []).reduce((s, i) => s + (i.precio * i.cantidad), 0);
+    return (c.tiempoJuego || 0) + tConsumos;
+  };
 
   // Intervalo de tiempo para actualización en tiempo real
   useEffect(() => {
@@ -3750,28 +3756,6 @@ function ModalCuentasActivas({
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
               <button
                 type="button"
-                onClick={() => { setActiveTab('mesas'); setCuentaSel(null); setMesaSel(null); setShowCheckout(false); }}
-                style={{
-                  background: activeTab === 'mesas' ? 'var(--bronze-subtle)' : 'var(--bg-elevated)',
-                  border: `1px solid ${activeTab === 'mesas' ? 'var(--border-bronze)' : 'var(--border)'}`,
-                  borderRadius: 10,
-                  padding: '10px 14px',
-                  cursor: 'pointer',
-                  color: activeTab === 'mesas' ? 'var(--bronze-light)' : 'var(--text-secondary)',
-                  fontWeight: 700,
-                  fontSize: 12,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 6,
-                  transition: 'all 0.15s ease'
-                }}
-              >
-                <i className="ri-billiards-line" style={{ fontSize: 14 }} />
-                Mesas ({mesasActivas.length})
-              </button>
-              <button
-                type="button"
                 onClick={() => { setActiveTab('cuentas'); setCuentaSel(null); setMesaSel(null); setShowCheckout(false); }}
                 style={{
                   background: activeTab === 'cuentas' ? 'var(--bronze-subtle)' : 'var(--bg-elevated)',
@@ -3791,6 +3775,28 @@ function ModalCuentasActivas({
               >
                 <i className="ri-folder-open-line" style={{ fontSize: 14 }} />
                 Cuentas ({cuentas.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => { setActiveTab('mesas'); setCuentaSel(null); setMesaSel(null); setShowCheckout(false); }}
+                style={{
+                  background: activeTab === 'mesas' ? 'var(--bronze-subtle)' : 'var(--bg-elevated)',
+                  border: `1px solid ${activeTab === 'mesas' ? 'var(--border-bronze)' : 'var(--border)'}`,
+                  borderRadius: 10,
+                  padding: '10px 14px',
+                  cursor: 'pointer',
+                  color: activeTab === 'mesas' ? 'var(--bronze-light)' : 'var(--text-secondary)',
+                  fontWeight: 700,
+                  fontSize: 12,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 6,
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                <i className="ri-billiards-line" style={{ fontSize: 14 }} />
+                Mesas ({mesasActivas.length})
               </button>
             </div>
 
