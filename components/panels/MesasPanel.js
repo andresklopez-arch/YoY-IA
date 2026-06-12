@@ -2918,6 +2918,15 @@ function ModalCuentasActivas({ cuentas, setCuentas, onClose, showToast, registra
   const totalPagaCon = parseFloat(pagaCon) || 0;
   const cambio = totalPagaCon >= totalNeto ? totalPagaCon - totalNeto : 0;
 
+  const billetes = [50, 100, 200, 500, 1000];
+  const quickBills = Array.from(new Set([totalNeto, ...billetes.filter(b => b > totalNeto)])).slice(0, 5);
+
+  const isCheckoutDisabled = totalNeto > 0 && (
+    (metodoPago === 'efectivo' && totalPagaCon < totalNeto) ||
+    (metodoPago === 'transferencia' && !referencia.trim()) ||
+    (metodoPago === 'qr' && !referencia.trim())
+  );
+
   const liquidarCuentaDefinitiva = () => {
     if (!cuentaSel) return;
     const total = calcTotal(cuentaSel);
