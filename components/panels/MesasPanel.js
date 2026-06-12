@@ -2437,6 +2437,8 @@ export default function MesasPanel({ showToast }) {
         <ModalCuentasActivas
           cuentas={cuentasActivas}
           setCuentas={actualizarCuentasFirestore}
+          adminPinHash={adminPinHash}
+          hashPassword={hashPassword}
           onClose={() => setModalCuentas(false)}
           showToast={showToast}
           registrarEvento={registrarEvento}
@@ -2782,7 +2784,7 @@ function ModalFilaVirtual({ fila, setFila, mesas, onAssign, onClose, showToast }
 }
 
 // ── MODAL CUENTAS ACTIVAS ────────────────────────────────
-function ModalCuentasActivas({ cuentas, setCuentas, onClose, showToast, registrarEvento }) {
+function ModalCuentasActivas({ cuentas, setCuentas, adminPinHash, hashPassword, onClose, showToast, registrarEvento }) {
   const [cuentaSel, setCuentaSel] = useState(null);
   const [prodSel, setProdSel] = useState('Corona');
   const [cantSel, setCantSel] = useState(1);
@@ -2794,6 +2796,21 @@ function ModalCuentasActivas({ cuentas, setCuentas, onClose, showToast, registra
   const [referencia, setReferencia] = useState('');
   const [fotoComprobante, setFotoComprobante] = useState('');
   const [camaraActiva, setCamaraActiva] = useState(false);
+
+  // Estados para autorización de eliminación de consumos
+  const [pinEliminar, setPinEliminar] = useState('');
+  const [itemAEliminar, setItemAEliminar] = useState(null); // { cId, itemId, prodName, cant }
+
+  const handleConfirmarEliminarConPin = () => {
+    if (!itemAEliminar) return;
+    if (hashPassword(pinEliminar) !== adminPinHash) {
+      showToast('PIN de autorización incorrecto', 'danger');
+      return;
+    }
+    eliminarConsumo(itemAEliminar.cId, itemAEliminar.itemId);
+    setItemAEliminar(null);
+    setPinEliminar('');
+  };
 
   useEffect(() => {
     let lastBlurTime = 0;
@@ -3028,11 +3045,60 @@ function ModalCuentasActivas({ cuentas, setCuentas, onClose, showToast, registra
                       cuentaSel.consumos.map(item => (
                         <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12 }}>
                           <span style={{ flex: 1 }}>{item.cantidad}x {item.producto} <span style={{ color: 'var(--text-muted)' }}>(${item.precio})</span></span>
-                          <span style={{ fontWeight: 700 }}>${item.precio * item.cantidad} MXN</span>
+                          <span style={{ fontWeight: 700, marginRight: 10 }}>${item.precio * item.cantidad} MXN</span>
+                          <button
+                            className="btn btn-secondary btn-icon sm"
+                            onClick={() => setItemAEliminar({ cId: cuentaSel.id, itemId: item.id, prodName: item.producto, cant: item.cantidad })}
+                            style={{ padding: 4, height: 24, width: 24, border: 'none', background: 'none', color: 'var(--danger)' }}
+                            title="Quitar con PIN de Admin"
+                          >
+                            <i className="ri-close-fill" />
+                          </button>
                         </div>
                       ))
                     )}
                   </div>
+
+                  {/* Prompt de Autorización PIN para Eliminación */}
+                  {itemAEliminar && (
+                    <div style={{
+                      background: 'rgba(217, 83, 79, 0.1)',
+                      border: '1px solid var(--danger)',
+                      borderRadius: 10,
+                      padding: 10,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 6,
+                      animation: 'fadeIn 0.2s ease'
+                    }}>
+                      <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--danger)' }}>
+                        <i className="ri-shield-keyhole-line" style={{ marginRight: 4 }} />
+                        SE REQUIERE AUTORIZACIÓN DE ADMINISTRADOR
+                      </div>
+                      <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>
+                        Confirmar eliminación de {itemAEliminar.cant}x {itemAEliminar.prodName}:
+                      </div>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <input
+                          type="password"
+                          placeholder="Ingrese PIN de Admin"
+                          className="form-input"
+                          style={{ padding: '4px 8px', fontSize: 12, flex: 1 }}
+                          value={pinEliminar}
+                          onChange={e => setPinEliminar(e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') handleConfirmarEliminarConPin();
+                          }}
+                        />
+                        <button className="btn btn-sm btn-primary" style={{ background: 'var(--danger)', padding: '4px 8px', fontSize: 11 }} onClick={handleConfirmarEliminarConPin}>
+                          Confirmar
+                        </button>
+                        <button className="btn btn-sm btn-secondary" style={{ padding: '4px 8px', fontSize: 11 }} onClick={() => { setItemAEliminar(null); setPinEliminar(''); }}>
+                          Cancelar
+                        </button>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Agregar Consumo */}
                   <div style={{ background: 'var(--bg-elevated)', borderRadius: 10, padding: 10, display: 'grid', gridTemplateColumns: '2fr 1fr auto', gap: 6, alignItems: 'end' }}>
