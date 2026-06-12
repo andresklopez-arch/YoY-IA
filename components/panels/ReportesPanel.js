@@ -251,7 +251,23 @@ export default function ReportesPanel({ showToast }) {
   const diasFiltro = filtroGrafico === 'semana' ? 7 : filtroGrafico === 'mes' ? 30 : 365;
   const limiteFecha = ahora - diasFiltro * 24 * 60 * 60 * 1000;
   const eventosPeriodo = bitacora.filter(e => e.fecha && new Date(e.fecha).getTime() >= limiteFecha);
-  const cortesiasPeriodo = eventosPeriodo.filter(e => e.accion === 'Cierre Directo' && e.detalle.includes('Socio sin cargo'));
+  const cortesiasPeriodo = eventosPeriodo.filter(e => e.accion === 'Cierre Directo' && e.detalle && e.detalle.includes('Socio sin cargo'));
+
+  // Auditoría de cortesías por empleado (Sugerencia 2)
+  const cortesiasPorEmpleado = (() => {
+    const porOp = {};
+    eventosPeriodo
+      .filter(e => e.accion === 'Cortesía $0' || (e.accion === 'Cierre Directo' && e.monto === 0 && e.detalle && e.detalle.includes('Socio sin cargo')))
+      .forEach(e => {
+        const key = e.operador || 'Desconocido';
+        if (!porOp[key]) porOp[key] = { total: 0, rol: e.rolOperador || 'staff', eventos: [] };
+        porOp[key].total++;
+        porOp[key].eventos.push(e);
+      });
+    return Object.entries(porOp)
+      .map(([nombre, data]) => ({ nombre, ...data }))
+      .sort((a, b) => b.total - a.total);
+  })();
 
   const getFinanzasPL = () => {
     const totalGastosPeriodo = gastosList
@@ -1188,6 +1204,74 @@ export default function ReportesPanel({ showToast }) {
               </div>
             );
           })()}
+
+          {/* Auditoría de Cortesías por Empleado */}
+          <div className="card" style={{ marginTop: 20 }}>
+            <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
+              <div>
+                <h3 className="card-title"><i className="ri-hand-coin-line" style={{ marginRight: 6, color: '#f97316' }} />Auditoría de Cortesías por Empleado</h3>
+                <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0 }}>Cortesías ($0 MXN) otorgadas por cada operador en el periodo — {filtroGrafico === 'semana' ? 'última semana' : filtroGrafico === 'mes' ? 'último mes' : 'último año'}</p>
+              </div>
+              <span className="badge" style={{ background: 'rgba(249,115,22,0.15)', color: '#f97316', border: '1px solid rgba(249,115,22,0.3)' }}>Anti-Fraude</span>
+            </div>
+            {cortesiasPorEmpleado.length === 0 ? (
+              <div style={{ padding: '30px 0', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
+                <i className="ri-checkbox-circle-line" style={{ fontSize: 28, color: 'var(--success)', display: 'block', marginBottom: 8 }} />
+                No se registraron cortesías en este periodo ✓
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {cortesiasPorEmpleado.map((emp, idx) => {
+                  const riskLevel = emp.total >= 10 ? 'high' : emp.total >= 4 ? 'medium' : 'low';
+                  const riskColor = riskLevel === 'high' ? '#ef4444' : riskLevel === 'medium' ? '#f97316' : '#22c55e';
+                  const riskLabel = riskLevel === 'high' ? '🔴 ALTO' : riskLevel === 'medium' ? '🟠 MEDIO' : '🟢 BAJO';
+                  const maxTotal = cortesiasPorEmpleado[0]?.total || 1;
+                  return (
+                    <div key={emp.nombre} style={{
+                      background: riskLevel === 'high' ? 'rgba(239,68,68,0.06)' : riskLevel === 'medium' ? 'rgba(249,115,22,0.06)' : 'rgba(34,197,94,0.04)',
+                      border: `1px solid ${riskColor}30`,
+                      borderRadius: 12, padding: '12px 16px',
+                      display: 'flex', alignItems: 'center', gap: 14
+                    }}>
+                      <div style={{
+                        width: 38, height: 38, borderRadius: '50%',
+                        background: `${riskColor}20`, border: `2px solid ${riskColor}60`,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 14, fontWeight: 800, color: riskColor, flexShrink: 0
+                      }}>
+                        {idx + 1}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>{emp.nombre}</span>
+                          <span style={{ fontSize: 9, background: `${riskColor}20`, color: riskColor, padding: '1px 6px', borderRadius: 4, fontWeight: 800, textTransform: 'uppercase' }}>
+                            {emp.rol}
+                          </span>
+                          <span style={{ fontSize: 9, color: riskColor, fontWeight: 700, marginLeft: 'auto' }}>{riskLabel}</span>
+                        </div>
+                        <div style={{ height: 6, background: 'var(--bg-elevated)', borderRadius: 3, overflow: 'hidden' }}>
+                          <div style={{
+                            height: '100%',
+                            width: `${(emp.total / maxTotal) * 100}%`,
+                            background: `linear-gradient(90deg, ${riskColor}80, ${riskColor})`,
+                            borderRadius: 3,
+                            transition: 'width 0.5s ease'
+                          }} />
+                        </div>
+                        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3 }}>
+                          Última: {emp.eventos[emp.eventos.length - 1]?.fecha ? new Date(emp.eventos[emp.eventos.length - 1].fecha).toLocaleDateString('es-MX') : 'N/A'}
+                        </div>
+                      </div>
+                      <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                        <div style={{ fontSize: 22, fontWeight: 900, color: riskColor, fontFamily: 'var(--font-display)' }}>{emp.total}</div>
+                        <div style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>cortesías</div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </>
       )}
 

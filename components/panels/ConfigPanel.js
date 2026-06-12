@@ -69,6 +69,10 @@ export default function ConfigPanel({ showToast }) {
   const [nuevoPin, setNuevoPin] = useState('');
   const [confirmarPin, setConfirmarPin] = useState('');
 
+  // --- Límite de cortesías por turno (Sugerencia 3) ---
+  const [maxCortesiasPorTurno, setMaxCortesiasPorTurno] = useState(3);
+  const [savingLimiteCortesias, setSavingLimiteCortesias] = useState(false);
+
   // --- Estados de Recetario y Costeo ---
   const [productos, setProductos] = useState([]);
   const [recetas, setRecetas] = useState([]);
@@ -97,6 +101,17 @@ export default function ConfigPanel({ showToast }) {
 
   useEffect(() => {
     fetchUsuarios();
+    // Cargar límite de cortesías desde Firestore
+    import('@/lib/firebase').then(({ db }) =>
+      import('firebase/firestore').then(({ doc, getDoc }) =>
+        getDoc(doc(db, 'config', 'operacion')).then(snap => {
+          if (snap.exists()) {
+            const d = snap.data();
+            if (d.maxCortesiasPorTurno !== undefined) setMaxCortesiasPorTurno(Number(d.maxCortesiasPorTurno));
+          }
+        }).catch(() => {})
+      )
+    );
     if (typeof window !== 'undefined') {
       try {
         const savedMesas = localStorage.getItem('yoy_billar_mesas');
@@ -865,6 +880,62 @@ export default function ConfigPanel({ showToast }) {
                   <i className="ri-lock-unlock-line" /> Guardar Nuevo PIN
                 </button>
               </form>
+            </div>
+          </div>
+
+          {/* Control de Cortesías por Turno */}
+          <div className="card" style={{ marginTop: 20 }}>
+            <div className="card-header" style={{ marginBottom: 16 }}>
+              <h3 className="card-title"><i className="ri-hand-coin-line" style={{ marginRight: 6 }} />Control de Cortesías por Turno</h3>
+              <span className="badge badge-secondary">Anti-Fraude</span>
+            </div>
+            <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 14, lineHeight: 1.5 }}>
+              Define cuántas cortesías ($0 MXN) puede otorgar un mesero o staff por turno sin requerir autorización del administrador. Al superar este límite, el sistema solicitará el PIN de administrador para continuar.
+            </p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+              <div className="form-group" style={{ flex: 1, margin: 0 }}>
+                <label className="form-label">Máximo de cortesías por turno</label>
+                <input
+                  type="number"
+                  className="form-input"
+                  min={0}
+                  max={20}
+                  value={maxCortesiasPorTurno}
+                  onChange={e => setMaxCortesiasPorTurno(Number(e.target.value) || 0)}
+                  style={{ width: 100, textAlign: 'center', fontSize: 18, fontWeight: 700 }}
+                />
+                <p style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>0 = siempre requiere PIN del admin</p>
+              </div>
+              <button
+                className="btn btn-primary"
+                style={{ flexShrink: 0 }}
+                disabled={savingLimiteCortesias}
+                onClick={async () => {
+                  setSavingLimiteCortesias(true);
+                  try {
+                    const { db } = await import('@/lib/firebase');
+                    const { doc, setDoc, serverTimestamp } = await import('firebase/firestore');
+                    await setDoc(doc(db, 'config', 'operacion'), {
+                      maxCortesiasPorTurno: maxCortesiasPorTurno,
+                      updatedAt: serverTimestamp()
+                    }, { merge: true });
+                    showToast(`Límite de cortesías guardado: ${maxCortesiasPorTurno} por turno`, 'success');
+                  } catch (e) {
+                    console.error(e);
+                    showToast('Error al guardar el límite', 'danger');
+                  } finally {
+                    setSavingLimiteCortesias(false);
+                  }
+                }}
+              >
+                <i className="ri-save-line" /> {savingLimiteCortesias ? 'Guardando...' : 'Guardar Límite'}
+              </button>
+            </div>
+            <div style={{ marginTop: 14, background: 'rgba(249,115,22,0.08)', border: '1px solid rgba(249,115,22,0.2)', borderRadius: 10, padding: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#f97316', fontSize: 12, fontWeight: 700 }}>
+                <i className="ri-information-line" />
+                Configuración actual: {maxCortesiasPorTurno === 0 ? 'Todas las cortesías requieren PIN del administrador' : `Hasta ${maxCortesiasPorTurno} cortesía${maxCortesiasPorTurno !== 1 ? 's' : ''} por turno sin PIN`}
+              </div>
             </div>
           </div>
 

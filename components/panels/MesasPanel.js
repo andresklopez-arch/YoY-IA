@@ -360,6 +360,18 @@ function ModalCerrarMesa({ mesa, cuentasActivas, onClose, onCerrar, onAgregarACu
   const [fotoComprobante, setFotoComprobante] = useState('');
   const [camaraActiva, setCamaraActiva] = useState(false);
 
+  // ── Motivo obligatorio para cortesías ($0 MXN) ──
+  const [showMotivoCortesia, setShowMotivoCortesia] = useState(false);
+  const [motivoCortesia, setMotivoCortesia] = useState('');
+  const MOTIVOS_CORTESIA = [
+    'Cliente frecuente / socio',
+    'Cumpleaños / celebración especial',
+    'Compensación por error del negocio',
+    'Invitado del dueño / autorizado',
+    'Promoción vigente del negocio',
+    'Error de sistema / prueba',
+  ];
+
   const handleImprimirPreTicket = () => {
     imprimirPreTicket(mesa);
     onImprimirPreTicket();
@@ -799,26 +811,81 @@ function ModalCerrarMesa({ mesa, cuentasActivas, onClose, onCerrar, onAgregarACu
                 </button>
                 <button
                   className="btn btn-primary"
-                  onClick={() => onCerrar({ 
-                    costo, 
-                    metodo, 
-                    tiempo: elapsed,
-                    referencia,
-                    pagaCon: pagaConVal,
-                    cambio,
-                    fotoAdjunta: !!fotoComprobante
-                  })}
+                  onClick={() => {
+                    if (costo === 0 && !mesa.socios) {
+                      // Requiere motivo para cortesía
+                      setShowMotivoCortesia(true);
+                    } else {
+                      onCerrar({ costo, metodo, tiempo: elapsed, referencia, pagaCon: pagaConVal, cambio, fotoAdjunta: !!fotoComprobante, motivo: '' });
+                    }
+                  }}
                   disabled={isCerrarDisabled}
                   style={{ 
-                    background: isCerrarDisabled ? 'var(--bg-hover)' : 'linear-gradient(135deg, var(--danger), #ff6b6b)', 
+                    background: isCerrarDisabled ? 'var(--bg-hover)' : costo === 0 ? 'linear-gradient(135deg, #f97316, #fb923c)' : 'linear-gradient(135deg, var(--danger), #ff6b6b)', 
                     padding: '6px 12px', 
                     fontSize: 11,
                     cursor: isCerrarDisabled ? 'not-allowed' : 'pointer',
                     flex: 1
                   }}
                 >
-                  <i className="ri-stop-circle-line" /> Cerrar y Cobrar
+                  <i className="ri-stop-circle-line" /> {costo === 0 ? 'Registrar Cortesía' : 'Cerrar y Cobrar'}
                 </button>
+
+                {/* Modal de Motivo para Cortesía $0 */}
+                {showMotivoCortesia && (
+                  <div className="modal-overlay" style={{ zIndex: 2100 }} onClick={() => setShowMotivoCortesia(false)}>
+                    <div className="modal" style={{ maxWidth: 380 }} onClick={e => e.stopPropagation()}>
+                      <div className="modal-header">
+                        <span className="modal-title" style={{ color: '#f97316', display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <i className="ri-file-text-line" /> Motivo de Cortesía
+                        </span>
+                      </div>
+                      <div className="modal-body">
+                        <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12 }}>
+                          Esta mesa se cerrará en <strong style={{ color: '#f97316' }}>$0 MXN</strong>. Selecciona o escribe el motivo para el registro de auditoría:
+                        </p>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
+                          {MOTIVOS_CORTESIA.map(m => (
+                            <button
+                              key={m}
+                              className="btn btn-secondary"
+                              style={{
+                                textAlign: 'left', fontSize: 11, padding: '7px 12px',
+                                background: motivoCortesia === m ? 'rgba(249,115,22,0.15)' : undefined,
+                                border: motivoCortesia === m ? '1px solid rgba(249,115,22,0.5)' : undefined,
+                                color: motivoCortesia === m ? '#f97316' : undefined,
+                              }}
+                              onClick={() => setMotivoCortesia(m)}
+                            >
+                              {motivoCortesia === m ? '✓ ' : ''}{m}
+                            </button>
+                          ))}
+                        </div>
+                        <textarea
+                          className="form-input"
+                          placeholder="O escribe un motivo personalizado..."
+                          style={{ width: '100%', minHeight: 60, fontSize: 11, resize: 'vertical' }}
+                          value={MOTIVOS_CORTESIA.includes(motivoCortesia) ? '' : motivoCortesia}
+                          onChange={e => setMotivoCortesia(e.target.value)}
+                        />
+                      </div>
+                      <div className="modal-footer">
+                        <button className="btn btn-secondary" onClick={() => setShowMotivoCortesia(false)}>Cancelar</button>
+                        <button
+                          className="btn btn-primary"
+                          style={{ background: 'linear-gradient(135deg, #f97316, #fb923c)' }}
+                          disabled={!motivoCortesia.trim()}
+                          onClick={() => {
+                            setShowMotivoCortesia(false);
+                            onCerrar({ costo: 0, metodo: 'cortesia', tiempo: elapsed, referencia: motivoCortesia.trim(), pagaCon: 0, cambio: 0, fotoAdjunta: false, motivo: motivoCortesia.trim() });
+                          }}
+                        >
+                          <i className="ri-check-line" /> Confirmar Cortesía
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )
           ) : (
@@ -2229,7 +2296,7 @@ export default function MesasPanel({ showToast }) {
     w.document.close();
   };
 
-  const confirmarCerrarMesa = async (mesaId, { costo, metodo, tiempo, referencia, pagaCon, cambio, fotoAdjunta }) => {
+  const confirmarCerrarMesa = async (mesaId, { costo, metodo, tiempo, referencia, pagaCon, cambio, fotoAdjunta, motivo }) => {
     try {
       const mesa = mesas.find(m => m.id === mesaId);
       const clientName = mesa ? mesa.cliente : 'Público';
@@ -2285,14 +2352,16 @@ export default function MesasPanel({ showToast }) {
           cliente: clientName,
           items: itemsAuditoria,
           total: costo,
-          tipo: 'cierre_mesa_liquidada',
+          tipo: costo === 0 ? 'cierre_cortesia' : 'cierre_mesa_liquidada',
           tiempoJuego: tiempo ? (tiempo / 3600000).toFixed(2) + ' hrs' : '0 hrs',
           metodoPago: metodo || 'efectivo',
           referenciaPago: referencia || '',
           pagaCon: pagaCon || 0,
           cambio: cambio || 0,
           fotoAdjunta: fotoAdjunta || false,
-          operador: 'Cajero Principal'
+          motivoCortesia: motivo || '',
+          operador: user ? (user.displayName || user.email || 'Cajero Principal') : 'Cajero Principal',
+          rolOperador: user ? (user.role || 'staff') : 'staff',
         });
       });
 
@@ -2347,9 +2416,14 @@ export default function MesasPanel({ showToast }) {
       if (costo > 0) {
         showToast(`Cobrado $${costo} MXN por ${metodoLabel} ✓`, 'success');
         registrarEvento('Cierre Directo', `Mesa ${mesaId} liquidada y cerrada por ${clientName} ($${costo} MXN por ${metodoLabel}${detalleExtra})`, costo);
-      } else {
+      } else if (mesa && mesa.socios) {
         showToast(`Mesa cerrada (Socio sin cargo)`, 'info');
         registrarEvento('Cierre Directo', `Mesa ${mesaId} cerrada (Socio sin cargo: ${clientName})`);
+      } else {
+        // Cortesía registrada con motivo
+        const motivoTexto = motivo ? ` — Motivo: ${motivo}` : '';
+        showToast(`Cortesía registrada para ${clientName}${motivoTexto}`, 'warning');
+        registrarEvento('Cortesía $0', `Mesa ${mesaId} cerrada en $0 por ${clientName}${motivoTexto}`);
       }
     } catch (err) {
       console.error("Error crítico al procesar el cierre/cobro de la mesa:", err);
