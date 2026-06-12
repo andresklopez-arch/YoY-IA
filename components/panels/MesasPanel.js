@@ -22,6 +22,7 @@ const ESTADO_CONFIG = {
   ocupada:   { label: 'Ocupada',   color: 'var(--mesa-ocupada)',   icon: 'ri-record-circle-line' },
   reservada: { label: 'Reservada', color: 'var(--mesa-reservada)', icon: 'ri-bookmark-fill' },
   manten:    { label: 'Mantenimiento', color: 'var(--mesa-manten)', icon: 'ri-tools-line' },
+  fuera:     { label: 'Fuera de Servicio', color: '#ef4444', icon: 'ri-close-circle-line' },
 };
 
 function formatTime(ms) {
@@ -876,6 +877,45 @@ export default function MesasPanel({ showToast }) {
   const [alertasMesas, setAlertasMesas] = useState({});
   const knownAlertsRef = useRef(new Set());
   const isInitialLoadRef = useRef(true);
+
+  // Cambiar el estado de la mesa rápidamente
+  const cambiarEstadoRapido = (mesa, nuevoEstado) => {
+    if (mesa.estado === 'ocupada' && nuevoEstado !== 'ocupada') {
+      showToast("No puede cambiar el estado de una mesa ocupada directamente. Debe cerrar la cuenta primero.", "warning");
+      return;
+    }
+
+    if (nuevoEstado === 'reservada') {
+      const clienteName = prompt("Ingrese el nombre para la reservación:");
+      if (!clienteName) return; // Cancelado o vacío
+      setMesas(prev => prev.map(m => m.id === mesa.id ? { 
+        ...m, 
+        estado: 'reservada', 
+        cliente: clienteName, 
+        inicio: null, 
+        socios: false, 
+        clienteUid: '', 
+        preTicketImpreso: false 
+      } : m));
+      showToast(`Mesa ${mesa.id} reservada a nombre de ${clienteName}.`, "success");
+    } else {
+      setMesas(prev => prev.map(m => m.id === mesa.id ? { 
+        ...m, 
+        estado: nuevoEstado, 
+        cliente: null, 
+        inicio: null, 
+        socios: false, 
+        clienteUid: '', 
+        preTicketImpreso: false 
+      } : m));
+      const estadoLabels = {
+        libre: 'Disponible (Libre)',
+        manten: 'Mantenimiento',
+        fuera: 'Fuera de Servicio'
+      };
+      showToast(`Mesa ${mesa.id} cambiada a ${estadoLabels[nuevoEstado] || nuevoEstado}.`, "info");
+    }
+  };
 
   // Marcar una solicitud de cliente como atendida en Firestore (Caja/Admin)
   const marcarAlertaAtendida = async (alertaId, e) => {
@@ -2402,6 +2442,68 @@ export default function MesasPanel({ showToast }) {
                     <i className="ri-qr-code-line" />
                   </button>
                 )}
+              </div>
+
+              {/* Barra inteligente de cambio de estado rápido */}
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginTop: 12,
+                paddingTop: 10,
+                borderTop: '1px solid rgba(255,255,255,0.05)',
+                gap: 4
+              }} onClick={e => e.stopPropagation()}>
+                <span style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Estado:</span>
+                <div style={{ display: 'flex', gap: 4 }}>
+                  {[
+                    { estado: 'libre', icon: 'ri-checkbox-blank-circle-line', color: 'var(--mesa-libre)', title: 'Disponible' },
+                    { estado: 'reservada', icon: 'ri-bookmark-fill', color: 'var(--mesa-reservada)', title: 'Reservar' },
+                    { estado: 'manten', icon: 'ri-tools-line', color: 'var(--mesa-manten)', title: 'Mantenimiento' },
+                    { estado: 'fuera', icon: 'ri-close-circle-line', color: '#ef4444', title: 'Fuera de Servicio' }
+                  ].map(item => {
+                    const isActive = mesa.estado === item.estado;
+                    const isDisabled = mesa.estado === 'ocupada';
+                    return (
+                      <button
+                        key={item.estado}
+                        onClick={(e) => { e.stopPropagation(); cambiarEstadoRapido(mesa, item.estado); }}
+                        disabled={isDisabled || isActive}
+                        title={isActive ? `Mesa ya está en estado ${item.title}` : isDisabled ? 'No se puede cambiar estado de mesa ocupada' : `Cambiar a ${item.title}`}
+                        style={{
+                          background: isActive ? `${item.color}20` : 'rgba(255,255,255,0.03)',
+                          border: isActive ? `1px solid ${item.color}` : '1px solid rgba(255,255,255,0.05)',
+                          color: isActive ? item.color : 'var(--text-muted)',
+                          borderRadius: 6,
+                          width: 24,
+                          height: 24,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          cursor: isDisabled || isActive ? 'not-allowed' : 'pointer',
+                          opacity: isDisabled ? 0.3 : 1,
+                          transition: 'all 0.15s'
+                        }}
+                        onMouseEnter={e => {
+                          if (!isDisabled && !isActive) {
+                            e.currentTarget.style.color = '#fff';
+                            e.currentTarget.style.background = 'rgba(255,255,255,0.1)';
+                            e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)';
+                          }
+                        }}
+                        onMouseLeave={e => {
+                          if (!isDisabled && !isActive) {
+                            e.currentTarget.style.color = 'var(--text-muted)';
+                            e.currentTarget.style.background = 'rgba(255,255,255,0.03)';
+                            e.currentTarget.style.borderColor = 'rgba(255,255,255,0.05)';
+                          }
+                        }}
+                      >
+                        <i className={item.icon} style={{ fontSize: 12 }} />
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           );

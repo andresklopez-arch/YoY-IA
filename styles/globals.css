@@ -438,18 +438,21 @@ input, select, textarea {
   transform: translateY(-2px);
 }
 
-/* 2. Estados con Animación Tipo Cometa (ocupada, reservada, manten) */
+/* 2. Estados con Animación Tipo Cometa (ocupada, reservada, manten, fuera) */
 .mesa-card.ocupada,
 .mesa-card.reservada,
-.mesa-card.manten {
+.mesa-card.manten,
+.mesa-card.fuera {
   border: 1px solid transparent; /* Oculta borde estándar, reemplazado por la rotación */
   background: transparent;
+  overflow: hidden;
 }
 
 /* El Cometa: Gradiente Cónico Giratorio */
 .mesa-card.ocupada::before,
 .mesa-card.reservada::before,
-.mesa-card.manten::before {
+.mesa-card.manten::before,
+.mesa-card.fuera::before {
   content: '';
   position: absolute;
   top: -150%;
@@ -460,6 +463,8 @@ input, select, textarea {
   z-index: 1;
   pointer-events: none;
   filter: blur(2px);
+  will-change: transform;
+  transform: translate3d(0, 0, 0);
 }
 
 .mesa-card.ocupada::before {
@@ -471,11 +476,15 @@ input, select, textarea {
 .mesa-card.manten::before {
   background: conic-gradient(from 0deg, var(--mesa-manten) 0%, transparent 25%, transparent 100%);
 }
+.mesa-card.fuera::before {
+  background: conic-gradient(from 0deg, #ef4444 0%, transparent 25%, transparent 100%);
+}
 
 /* Máscara interna para dejar visible solo el contorno de 1px */
 .mesa-card.ocupada::after,
 .mesa-card.reservada::after,
-.mesa-card.manten::after {
+.mesa-card.manten::after,
+.mesa-card.fuera::after {
   content: '';
   position: absolute;
   top: 1px;
@@ -506,7 +515,8 @@ input, select, textarea {
 /* Asegurar que el contenido original de la tarjeta quede sobre el cometa y la máscara */
 .mesa-card.ocupada > *,
 .mesa-card.reservada > *,
-.mesa-card.manten > * {
+.mesa-card.manten > *,
+.mesa-card.fuera > * {
   position: relative;
   z-index: 3;
 }
@@ -525,6 +535,9 @@ input, select, textarea {
 }
 .mesa-card.manten:hover {
   box-shadow: 0 0 20px rgba(107, 114, 128, 0.2);
+}
+.mesa-card.fuera:hover {
+  box-shadow: 0 0 20px rgba(239, 68, 68, 0.2);
 }
 
 /* Soporte para Desactivar Animaciones (Accesibilidad y Preferencias de Usuario) */
@@ -580,11 +593,26 @@ input, select, textarea {
   border-radius: var(--r-lg) var(--r-lg) 0 0;
 }
 
+.mesa-card.sin-animaciones.fuera {
+  border-color: rgba(239, 68, 68, 0.35) !important;
+}
+.mesa-card.sin-animaciones.fuera::before {
+  display: block !important;
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: #ef4444;
+  box-shadow: 0 0 12px #ef4444;
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
+}
+
 /* Soporte nativo para accesibilidad en el sistema operativo */
 @media (prefers-reduced-motion: reduce) {
   .mesa-card.ocupada::before,
   .mesa-card.reservada::before,
-  .mesa-card.manten::before {
+  .mesa-card.manten::before,
+  .mesa-card.fuera::before {
     animation: none !important;
   }
 }
