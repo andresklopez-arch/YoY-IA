@@ -25,6 +25,17 @@ function AppContent() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [toasts, setToasts] = useState([]);
 
+  // Medir y establecer el ancho de la barra de desplazamiento como una variable CSS
+  useEffect(() => {
+    const calculateScrollbarWidth = () => {
+      const width = window.innerWidth - document.documentElement.clientWidth;
+      document.documentElement.style.setProperty('--scrollbar-width', `${width}px`);
+    };
+    calculateScrollbarWidth();
+    window.addEventListener('resize', calculateScrollbarWidth);
+    return () => window.removeEventListener('resize', calculateScrollbarWidth);
+  }, []);
+
   // Asegura que la animación de carga se muestre al menos durante 5 segundos
   useEffect(() => {
     const timer = setTimeout(() => {
