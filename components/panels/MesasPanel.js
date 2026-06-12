@@ -3079,6 +3079,10 @@ export default function MesasPanel({ showToast }) {
         <ModalCuentasActivas
           cuentas={cuentasActivas}
           setCuentas={actualizarCuentasFirestore}
+          mesas={mesas}
+          setMesas={setMesas}
+          imprimirPreTicket={imprimirPreTicket}
+          confirmarCerrarMesa={confirmarCerrarMesa}
           adminPinHash={adminPinHash}
           hashPassword={hashPassword}
           onClose={() => setModalCuentas(false)}
@@ -3426,9 +3430,24 @@ function ModalFilaVirtual({ fila, setFila, mesas, onAssign, onClose, showToast }
 }
 
 // ── MODAL CUENTAS ACTIVAS ────────────────────────────────
-function ModalCuentasActivas({ cuentas, setCuentas, adminPinHash, hashPassword, onClose, showToast, registrarEvento }) {
+function ModalCuentasActivas({ 
+  cuentas, 
+  setCuentas, 
+  mesas, 
+  setMesas, 
+  imprimirPreTicket, 
+  confirmarCerrarMesa, 
+  adminPinHash, 
+  hashPassword, 
+  onClose, 
+  showToast, 
+  registrarEvento 
+}) {
+  const [activeTab, setActiveTab] = useState('mesas'); // 'mesas' o 'cuentas'
   const [cuentaSel, setCuentaSel] = useState(null);
-  const [prodSel, setProdSel] = useState('Corona');
+  const [mesaSel, setMesaSel] = useState(null);
+  
+  const [prodSel, setProdSel] = useState('Cerveza Corona');
   const [cantSel, setCantSel] = useState(1);
   const [metodoPago, setMetodoPago] = useState('efectivo');
   const [showCheckout, setShowCheckout] = useState(false);
@@ -3443,22 +3462,23 @@ function ModalCuentasActivas({ cuentas, setCuentas, adminPinHash, hashPassword, 
   const [pinEliminar, setPinEliminar] = useState('');
   const [itemAEliminar, setItemAEliminar] = useState(null); // { cId, itemId, prodName, cant }
 
-  const handleConfirmarEliminarConPin = () => {
-    if (!itemAEliminar) return;
-    if (hashPassword(pinEliminar) !== adminPinHash) {
-      showToast('PIN de autorización incorrecto', 'danger');
-      return;
-    }
-    eliminarConsumo(itemAEliminar.cId, itemAEliminar.itemId);
-    setItemAEliminar(null);
-    setPinEliminar('');
-  };
+  const [tick, setTick] = useState(0);
 
-  const calcTotal = (c) => {
-    if (!c) return 0;
-    const tConsumos = c.consumos.reduce((s, i) => s + (i.precio * i.cantidad), 0);
-    return c.tiempoJuego + tConsumos;
-  };
+  // Intervalo de tiempo para actualización en tiempo real
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTick(t => t + 1);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Limpiar campos al cambiar de método, cuenta o mesa
+  useEffect(() => {
+    setPagaCon('');
+    setReferencia('');
+    setFotoComprobante('');
+    setCamaraActiva(false);
+  }, [metodoPago, cuentaSel, mesaSel]);
 
   useEffect(() => {
     let lastBlurTime = 0;
@@ -3469,24 +3489,23 @@ function ModalCuentasActivas({ cuentas, setCuentas, adminPinHash, hashPassword, 
             (document.activeElement.tagName === 'INPUT' || 
              document.activeElement.tagName === 'SELECT' || 
              document.activeElement.tagName === 'TEXTAREA')) {
-          const activeEl = document.activeElement;
-          activeEl.blur();
-          
-          // Efecto visual: resplandor dorado momentáneo
-          const originalTransition = activeEl.style.transition;
-          const originalBoxShadow = activeEl.style.boxShadow;
-          activeEl.style.transition = 'box-shadow 0.2s ease';
-          activeEl.style.boxShadow = '0 0 10px var(--bronze-light, #c5a880)';
-          setTimeout(() => {
-            activeEl.style.boxShadow = originalBoxShadow;
-            setTimeout(() => {
-              activeEl.style.transition = originalTransition;
-            }, 200);
-          }, 300);
-          
-          lastBlurTime = now;
-          return;
-        }
+           const activeEl = document.activeElement;
+           activeEl.blur();
+           
+           const originalTransition = activeEl.style.transition;
+           const originalBoxShadow = activeEl.style.boxShadow;
+           activeEl.style.transition = 'box-shadow 0.2s ease';
+           activeEl.style.boxShadow = '0 0 10px var(--bronze-light, #c5a880)';
+           setTimeout(() => {
+             activeEl.style.boxShadow = originalBoxShadow;
+             setTimeout(() => {
+               activeEl.style.transition = originalTransition;
+             }, 200);
+           }, 300);
+           
+           lastBlurTime = now;
+           return;
+         }
 
         if (now - lastBlurTime < 300) {
           return;
@@ -3512,14 +3531,6 @@ function ModalCuentasActivas({ cuentas, setCuentas, adminPinHash, hashPassword, 
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [camaraActiva, showCheckout, pagaCon, referencia, fotoComprobante, onClose]);
 
-  // Limpiar campos al cambiar de método o cuenta
-  useEffect(() => {
-    setPagaCon('');
-    setReferencia('');
-    setFotoComprobante('');
-    setCamaraActiva(false);
-  }, [metodoPago, cuentaSel]);
-
   const PRODUCTOS = [
     { producto: 'Cerveza Corona', precio: 45 },
     { producto: 'Refresco Coca-Cola', precio: 30 },
@@ -3530,8 +3541,49 @@ function ModalCuentasActivas({ cuentas, setCuentas, adminPinHash, hashPassword, 
     { producto: 'Agua Embotellada', precio: 20 },
   ];
 
-  const agregarConsumo = () => {
-    if (!cuentaSel) return;
+  // Dynamic bindings based on active tab and selection
+  const isMesaTab = activeTab === 'mesas';
+  const selectedEntity = isMesaTab ? mesaSel : cuentaSel;
+  
+  let clientName = '';
+  let tiempoJuegoCosto = 0;
+  let consumosList = [];
+  let grandTotal = 0;
+  let durationStr = '00:00:00';
+  let cuentaAsociadaMesa = null;
+
+  if (isMesaTab && mesaSel) {
+    clientName = mesaSel.cliente || `Mesa ${mesaSel.id}`;
+    tiempoJuegoCosto = mesaSel.socios ? 0 : calcCosto(mesaSel);
+    cuentaAsociadaMesa = cuentas.find(c => 
+      c.cliente && (
+        (mesaSel.cliente && c.cliente.toLowerCase() === mesaSel.cliente.toLowerCase()) || 
+        c.cliente.toLowerCase() === `mesa ${mesaSel.id}`
+      )
+    );
+    consumosList = cuentaAsociadaMesa ? cuentaAsociadaMesa.consumos : [];
+    grandTotal = tiempoJuegoCosto + consumosList.reduce((s, i) => s + (i.precio * i.cantidad), 0);
+    durationStr = formatTime(Date.now() - mesaSel.inicio);
+  } else if (!isMesaTab && cuentaSel) {
+    clientName = cuentaSel.cliente;
+    tiempoJuegoCosto = cuentaSel.tiempoJuego || 0;
+    consumosList = cuentaSel.consumos || [];
+    grandTotal = tiempoJuegoCosto + consumosList.reduce((s, i) => s + (i.precio * i.cantidad), 0);
+  }
+
+  const totalNeto = grandTotal;
+  const totalPagaCon = parseFloat(pagaCon) || 0;
+  const cambio = totalPagaCon >= totalNeto ? totalPagaCon - totalNeto : 0;
+  const billetes = [50, 100, 200, 500, 1000];
+  const quickBills = Array.from(new Set([totalNeto, ...billetes.filter(b => b > totalNeto)])).slice(0, 5);
+
+  const isCheckoutDisabled = totalNeto > 0 && (
+    (metodoPago === 'efectivo' && totalPagaCon < totalNeto) ||
+    ((metodoPago === 'transferencia' || metodoPago === 'qr') && !referencia.trim())
+  );
+
+  const handleAgregarConsumo = () => {
+    if (!selectedEntity) return;
     const pInfo = PRODUCTOS.find(p => p.producto.includes(prodSel)) || PRODUCTOS[0];
     const nuevoConsumo = {
       id: Date.now(),
@@ -3540,63 +3592,105 @@ function ModalCuentasActivas({ cuentas, setCuentas, adminPinHash, hashPassword, 
       cantidad: parseInt(cantSel)
     };
 
-    setCuentas(prev => prev.map(c => {
-      if (c.id === cuentaSel.id) {
-        const actualizadas = {
-          ...c,
-          consumos: [...c.consumos, nuevoConsumo]
-        };
-        setCuentaSel(actualizadas);
-        return actualizadas;
-      }
-      return c;
-    }));
+    if (isMesaTab) {
+      setCuentas(prev => {
+        const matchingIdx = prev.findIndex(c => 
+          c.cliente && (
+            (mesaSel.cliente && c.cliente.toLowerCase() === mesaSel.cliente.toLowerCase()) || 
+            c.cliente.toLowerCase() === `mesa ${mesaSel.id}`
+          )
+        );
+        if (matchingIdx >= 0) {
+          return prev.map((c, idx) => idx === matchingIdx ? { ...c, consumos: [...c.consumos, nuevoConsumo] } : c);
+        } else {
+          const nuevaCuenta = {
+            id: Date.now(),
+            cliente: mesaSel.cliente || `Mesa ${mesaSel.id}`,
+            tiempoJuego: 0,
+            consumos: [nuevoConsumo],
+            inicio: mesaSel.inicio
+          };
+          return [...prev, nuevaCuenta];
+        }
+      });
+    } else {
+      setCuentas(prev => prev.map(c => {
+        if (c.id === cuentaSel.id) {
+          const actualizadas = {
+            ...c,
+            consumos: [...c.consumos, nuevoConsumo]
+          };
+          setCuentaSel(actualizadas);
+          return actualizadas;
+        }
+        return c;
+      }));
+    }
 
     showToast(`Agregado ${cantSel}x ${pInfo.producto} ✓`, 'success');
     if (registrarEvento) {
-      registrarEvento('Agregar Consumo', `Agregado ${cantSel}x ${pInfo.producto} a la cuenta de ${cuentaSel.cliente} (Precio: $${pInfo.precio} c/u)`);
+      registrarEvento('Agregar Consumo', `Agregado ${cantSel}x ${pInfo.producto} a la cuenta de ${clientName} (Precio: $${pInfo.precio} c/u)`);
     }
   };
 
-  const eliminarConsumo = (cId, itemId) => {
-    const item = cuentaSel.consumos.find(i => i.id === itemId);
-    const prodName = item ? item.producto : 'Producto';
-    const cant = item ? item.cantidad : 1;
-    setCuentas(prev => prev.map(c => {
-      if (c.id === cId) {
-        const actualizadas = {
-          ...c,
-          consumos: c.consumos.filter(i => i.id !== itemId)
-        };
-        setCuentaSel(actualizadas);
-        return actualizadas;
-      }
-      return c;
-    }));
+  const handleConfirmarEliminarConPin = () => {
+    if (!itemAEliminar) return;
+    if (hashPassword(pinEliminar) !== adminPinHash) {
+      showToast('PIN de autorización incorrecto', 'danger');
+      return;
+    }
+    
+    const { cId, itemId, prodName, cant } = itemAEliminar;
+
+    if (isMesaTab) {
+      setCuentas(prev => prev.map(c => {
+        if (c.cliente && (
+          (mesaSel.cliente && c.cliente.toLowerCase() === mesaSel.cliente.toLowerCase()) || 
+          c.cliente.toLowerCase() === `mesa ${mesaSel.id}`
+        )) {
+          return {
+            ...c,
+            consumos: c.consumos.filter(i => i.id !== itemId)
+          };
+        }
+        return c;
+      }));
+    } else {
+      setCuentas(prev => prev.map(c => {
+        if (c.id === cId) {
+          const actualizadas = {
+            ...c,
+            consumos: c.consumos.filter(i => i.id !== itemId)
+          };
+          setCuentaSel(actualizadas);
+          return actualizadas;
+        }
+        return c;
+      }));
+    }
+
     showToast('Consumo retirado de la cuenta.', 'info');
     if (registrarEvento) {
-      registrarEvento('Eliminar Consumo', `Retirado ${cant}x ${prodName} de la cuenta de ${cuentaSel.cliente}`);
+      registrarEvento('Eliminar Consumo', `Retirado ${cant}x ${prodName} de la cuenta de ${clientName}`);
+    }
+
+    setItemAEliminar(null);
+    setPinEliminar('');
+  };
+
+  const handleImprimirPreTicketMesa = () => {
+    if (!mesaSel) return;
+    imprimirPreTicket(mesaSel);
+    setMesas(prev => prev.map(m => m.id === mesaSel.id ? { ...m, preTicketImpreso: true, preTicketImpresoAt: Date.now() } : m));
+    showToast(`Pre-ticket registrado para Mesa ${mesaSel.id} ✓`, 'success');
+    if (registrarEvento) {
+      registrarEvento('Impresión Pre-Ticket', `Pre-ticket impreso y registrado para Mesa ${mesaSel.id}`);
     }
   };
 
-  const totalNeto = calcTotal(cuentaSel);
-  const totalPagaCon = parseFloat(pagaCon) || 0;
-  const cambio = totalPagaCon >= totalNeto ? totalPagaCon - totalNeto : 0;
+  const handleConfirmarCobro = async () => {
+    if (!selectedEntity) return;
 
-  const billetes = [50, 100, 200, 500, 1000];
-  const quickBills = Array.from(new Set([totalNeto, ...billetes.filter(b => b > totalNeto)])).slice(0, 5);
-
-  const isCheckoutDisabled = totalNeto > 0 && (
-    (metodoPago === 'efectivo' && totalPagaCon < totalNeto) ||
-    (metodoPago === 'transferencia' && !referencia.trim()) ||
-    (metodoPago === 'qr' && !referencia.trim())
-  );
-
-  const liquidarCuentaDefinitiva = () => {
-    if (!cuentaSel) return;
-    const total = calcTotal(cuentaSel);
-    setCuentas(prev => prev.filter(c => c.id !== cuentaSel.id));
-    
     let metodoLabel = metodoPago;
     let detalleExtra = '';
     if (metodoPago === 'efectivo') {
@@ -3612,87 +3706,226 @@ function ModalCuentasActivas({ cuentas, setCuentas, adminPinHash, hashPassword, 
       metodoLabel = 'Tarjeta';
     }
 
-    showToast(`Cuenta de ${cuentaSel.cliente} liquidada con éxito por $${total} MXN ✓`, 'success');
-    if (registrarEvento) {
-      registrarEvento('Liquidar Cuenta', `Cuenta de ${cuentaSel.cliente} cobrada por completo ($${total} MXN por ${metodoLabel}${detalleExtra})`, total);
+    if (isMesaTab) {
+      await confirmarCerrarMesa(mesaSel.id, {
+        costo: grandTotal,
+        metodo: metodoPago,
+        tiempo: Date.now() - mesaSel.inicio,
+        referencia,
+        pagaCon: totalPagaCon.toString(),
+        cambio,
+        fotoAdjunta: fotoComprobante
+      });
+      setMesaSel(null);
+    } else {
+      setCuentas(prev => prev.filter(c => c.id !== cuentaSel.id));
+      showToast(`Cuenta de ${cuentaSel.cliente} liquidada con éxito por $${grandTotal} MXN ✓`, 'success');
+      if (registrarEvento) {
+        registrarEvento('Liquidar Cuenta', `Cuenta de ${cuentaSel.cliente} cobrada por completo ($${grandTotal} MXN por ${metodoLabel}${detalleExtra})`, grandTotal);
+      }
+      setCuentaSel(null);
     }
-    setCuentaSel(null);
+
     setShowCheckout(false);
   };
 
-
+  const mesasActivas = mesas.filter(m => m.estado === 'ocupada');
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" style={{ maxWidth: cuentaSel ? 760 : 500 }} onClick={e => e.stopPropagation()}>
+      <div className="modal" style={{ maxWidth: selectedEntity ? 760 : 500 }} onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <span className="modal-title">
             <i className="ri-folder-open-line" style={{ marginRight: 8, color: 'var(--bronze-light)' }} />
-            Cuentas Activas de Clientes
+            Centro de Cuentas Activas
           </span>
           <button onClick={onClose} className="btn-icon btn btn-secondary" style={{ background: 'none', border: 'none' }}>
             <i className="ri-close-line" style={{ fontSize: 20 }} />
           </button>
         </div>
-        <div className="modal-body" style={{ display: 'grid', gridTemplateColumns: cuentaSel ? '1.1fr 1.3fr' : '1fr', gap: 20 }}>
-          {/* Panel Izquierdo: Lista de cuentas abiertas */}
+        <div className="modal-body" style={{ display: 'grid', gridTemplateColumns: selectedEntity ? '1.1fr 1.3fr' : '1fr', gap: 20 }}>
+          {/* Panel Izquierdo */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <h4 style={{ fontSize: 12, textTransform: 'uppercase', color: 'var(--text-secondary)' }}>Cuentas Abiertas</h4>
-            {cuentas.length === 0 ? (
-              <p style={{ color: 'var(--text-muted)', fontSize: 13, textAlign: 'center', padding: '40px 0' }}>No hay cuentas pendientes.</p>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 380, overflowY: 'auto' }}>
-                {cuentas.map(c => (
-                  <div
-                    key={c.id}
-                    onClick={() => { setCuentaSel(c); setShowCheckout(false); }}
-                    style={{
-                      background: cuentaSel?.id === c.id ? 'var(--bronze-subtle)' : 'var(--bg-elevated)',
-                      border: `1px solid ${cuentaSel?.id === c.id ? 'var(--border-bronze)' : 'var(--border)'}`,
-                      borderRadius: 10, padding: 12, cursor: 'pointer', transition: 'all 0.15s'
-                    }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: 13 }}>
-                      <span>{c.cliente}</span>
-                      <span style={{ color: 'var(--bronze-light)' }}>${calcTotal(c)} MXN</span>
-                    </div>
-                    <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4, display: 'flex', justifyContent: 'space-between' }}>
-                      <span>Juego: ${c.tiempoJuego} MXN</span>
-                      <span>{c.consumos.length} consumos</span>
-                    </div>
+            {/* Tabs */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              <button
+                type="button"
+                onClick={() => { setActiveTab('mesas'); setCuentaSel(null); setMesaSel(null); setShowCheckout(false); }}
+                style={{
+                  background: activeTab === 'mesas' ? 'var(--bronze-subtle)' : 'var(--bg-elevated)',
+                  border: `1px solid ${activeTab === 'mesas' ? 'var(--border-bronze)' : 'var(--border)'}`,
+                  borderRadius: 10,
+                  padding: '10px 14px',
+                  cursor: 'pointer',
+                  color: activeTab === 'mesas' ? 'var(--bronze-light)' : 'var(--text-secondary)',
+                  fontWeight: 700,
+                  fontSize: 12,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 6,
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                <i className="ri-billiards-line" style={{ fontSize: 14 }} />
+                Mesas ({mesasActivas.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => { setActiveTab('cuentas'); setCuentaSel(null); setMesaSel(null); setShowCheckout(false); }}
+                style={{
+                  background: activeTab === 'cuentas' ? 'var(--bronze-subtle)' : 'var(--bg-elevated)',
+                  border: `1px solid ${activeTab === 'cuentas' ? 'var(--border-bronze)' : 'var(--border)'}`,
+                  borderRadius: 10,
+                  padding: '10px 14px',
+                  cursor: 'pointer',
+                  color: activeTab === 'cuentas' ? 'var(--bronze-light)' : 'var(--text-secondary)',
+                  fontWeight: 700,
+                  fontSize: 12,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 6,
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                <i className="ri-folder-open-line" style={{ fontSize: 14 }} />
+                Cuentas ({cuentas.length})
+              </button>
+            </div>
+
+            {/* Listado */}
+            {isMesaTab ? (
+              <>
+                <h4 style={{ fontSize: 11, textTransform: 'uppercase', color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>Mesas en Juego</h4>
+                {mesasActivas.length === 0 ? (
+                  <p style={{ color: 'var(--text-muted)', fontSize: 13, textAlign: 'center', padding: '40px 0' }}>No hay mesas activas ocupadas.</p>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 380, overflowY: 'auto' }}>
+                    {mesasActivas.map(m => {
+                      const cAsoc = cuentas.find(c => 
+                        c.cliente && (
+                          (m.cliente && c.cliente.toLowerCase() === m.cliente.toLowerCase()) || 
+                          c.cliente.toLowerCase() === `mesa ${m.id}`
+                        )
+                      );
+                      const cTotal = cAsoc ? cAsoc.consumos.reduce((s, i) => s + (i.precio * i.cantidad), 0) : 0;
+                      const tCosto = m.socios ? 0 : calcCosto(m);
+                      const totalMesa = tCosto + cTotal;
+                      const tTrans = Date.now() - m.inicio;
+
+                      return (
+                        <div
+                          key={m.id}
+                          onClick={() => { setMesaSel(m); setShowCheckout(false); }}
+                          style={{
+                            background: mesaSel?.id === m.id ? 'var(--bronze-subtle)' : 'var(--bg-elevated)',
+                            border: `1px solid ${mesaSel?.id === m.id ? 'var(--border-bronze)' : 'var(--border)'}`,
+                            borderRadius: 10, padding: 12, cursor: 'pointer', transition: 'all 0.15s'
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: 13 }}>
+                            <span>Mesa {m.id} {m.cliente ? `(${m.cliente})` : ''}</span>
+                            <span style={{ color: 'var(--bronze-light)' }}>${totalMesa} MXN</span>
+                          </div>
+                          <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span>Tiempo: {formatTime(tTrans)}</span>
+                            <div style={{ display: 'flex', gap: 6 }}>
+                              {m.preTicketImpreso && (
+                                <span style={{ color: 'var(--success)', fontSize: 10, display: 'flex', alignItems: 'center', gap: 2 }}>
+                                  <i className="ri-printer-line" /> Impreso
+                                </span>
+                              )}
+                              <span>{cAsoc?.consumos.length || 0} consumos</span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                ))}
-              </div>
+                )}
+              </>
+            ) : (
+              <>
+                <h4 style={{ fontSize: 11, textTransform: 'uppercase', color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>Cuentas Abiertas</h4>
+                {cuentas.length === 0 ? (
+                  <p style={{ color: 'var(--text-muted)', fontSize: 13, textAlign: 'center', padding: '40px 0' }}>No hay cuentas pendientes.</p>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 380, overflowY: 'auto' }}>
+                    {cuentas.map(c => (
+                      <div
+                        key={c.id}
+                        onClick={() => { setCuentaSel(c); setShowCheckout(false); }}
+                        style={{
+                          background: cuentaSel?.id === c.id ? 'var(--bronze-subtle)' : 'var(--bg-elevated)',
+                          border: `1px solid ${cuentaSel?.id === c.id ? 'var(--border-bronze)' : 'var(--border)'}`,
+                          borderRadius: 10, padding: 12, cursor: 'pointer', transition: 'all 0.15s'
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: 13 }}>
+                          <span>{c.cliente}</span>
+                          <span style={{ color: 'var(--bronze-light)' }}>${calcTotal(c)} MXN</span>
+                        </div>
+                        <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4, display: 'flex', justifyContent: 'space-between' }}>
+                          <span>Juego: ${c.tiempoJuego} MXN</span>
+                          <span>{c.consumos.length} consumos</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
             )}
           </div>
 
-          {/* Panel Derecho: Detalle de la cuenta seleccionada */}
-          {cuentaSel && (
+          {/* Panel Derecho */}
+          {selectedEntity && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14, borderLeft: '1px solid var(--border)', paddingLeft: 20 }}>
               {!showCheckout ? (
                 <>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <h3 style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)' }}>Detalle de {cuentaSel.cliente}</h3>
-                    <span className="badge badge-bronze">Cuenta Activa</span>
+                    <div>
+                      <h3 style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>Detalle de {clientName}</h3>
+                      {isMesaTab && (
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                          Mesa Ocupada · Tiempo: <span style={{ color: 'var(--bronze-light)', fontWeight: 700 }}>{durationStr}</span>
+                        </div>
+                      )}
+                    </div>
+                    {isMesaTab && (
+                      <button 
+                        className="btn btn-secondary btn-sm"
+                        onClick={handleImprimirPreTicketMesa}
+                        style={{ padding: '4px 8px', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}
+                        title="Imprimir Pre-Ticket de la Mesa"
+                      >
+                        <i className="ri-printer-line" /> Pre-Ticket
+                      </button>
+                    )}
                   </div>
 
                   {/* Consumos */}
                   <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 220, overflowY: 'auto' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-muted)', borderBottom: '1px solid var(--border)', pb: 4 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-muted)', borderBottom: '1px solid var(--border)', paddingBottom: 4 }}>
                       <span>TIEMPO DE JUEGO ACUMULADO</span>
-                      <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>${cuentaSel.tiempoJuego} MXN</span>
+                      <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>${tiempoJuegoCosto} MXN</span>
                     </div>
 
-                    {cuentaSel.consumos.length === 0 ? (
+                    {consumosList.length === 0 ? (
                       <p style={{ color: 'var(--text-muted)', fontSize: 12, padding: '10px 0' }}>Sin consumos extras.</p>
                     ) : (
-                      cuentaSel.consumos.map(item => (
+                      consumosList.map(item => (
                         <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12 }}>
                           <span style={{ flex: 1 }}>{item.cantidad}x {item.producto} <span style={{ color: 'var(--text-muted)' }}>(${item.precio})</span></span>
                           <span style={{ fontWeight: 700, marginRight: 10 }}>${item.precio * item.cantidad} MXN</span>
                           <button
                             className="btn btn-secondary btn-icon sm"
-                            onClick={() => setItemAEliminar({ cId: cuentaSel.id, itemId: item.id, prodName: item.producto, cant: item.cantidad })}
+                            onClick={() => setItemAEliminar({ 
+                              cId: isMesaTab ? (cuentaAsociadaMesa ? cuentaAsociadaMesa.id : null) : cuentaSel.id, 
+                              itemId: item.id, 
+                              prodName: item.producto, 
+                              cant: item.cantidad 
+                            })}
                             style={{ padding: 4, height: 24, width: 24, border: 'none', background: 'none', color: 'var(--danger)' }}
                             title="Quitar con PIN de Admin"
                           >
@@ -3703,7 +3936,7 @@ function ModalCuentasActivas({ cuentas, setCuentas, adminPinHash, hashPassword, 
                     )}
                   </div>
 
-                  {/* Prompt de Autorización PIN para Eliminación */}
+                  {/* Prompt de Autorización PIN */}
                   {itemAEliminar && (
                     <div style={{
                       background: 'rgba(217, 83, 79, 0.1)',
@@ -3725,7 +3958,7 @@ function ModalCuentasActivas({ cuentas, setCuentas, adminPinHash, hashPassword, 
                       <div style={{ display: 'flex', gap: 6 }}>
                         <input
                           type="password"
-                          placeholder="Ingrese PIN de Admin"
+                          placeholder="PIN de Admin"
                           className="form-input"
                           style={{ padding: '4px 8px', fontSize: 12, flex: 1 }}
                           value={pinEliminar}
@@ -3756,16 +3989,16 @@ function ModalCuentasActivas({ cuentas, setCuentas, adminPinHash, hashPassword, 
                       <label className="form-label" style={{ fontSize: 9 }}>Cant.</label>
                       <input type="number" className="form-input" style={{ padding: '6px 8px', fontSize: 12 }} value={cantSel} onChange={e => setCantSel(e.target.value)} min={1} />
                     </div>
-                    <button className="btn btn-primary btn-sm" style={{ padding: '8px 12px' }} onClick={agregarConsumo}>
+                    <button className="btn btn-primary btn-sm" style={{ padding: '8px 12px' }} onClick={handleAgregarConsumo}>
                       Agregar
                     </button>
                   </div>
 
                   {/* Footer detalle */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border)', pt: 10 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border)', paddingTop: 10 }}>
                     <div>
                       <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>GRAN TOTAL ACUMULADO</div>
-                      <div style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 900, color: 'var(--bronze-light)' }}>${calcTotal(cuentaSel)} MXN</div>
+                      <div style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 900, color: 'var(--bronze-light)' }}>${grandTotal} MXN</div>
                     </div>
                     <button className="btn btn-primary" onClick={() => setShowCheckout(true)} style={{ background: 'linear-gradient(135deg, var(--success), #2ed573)', color: '#0d0d0f' }}>
                       <i className="ri-money-dollar-box-line" /> Cobrar Cuenta
@@ -3779,23 +4012,23 @@ function ModalCuentasActivas({ cuentas, setCuentas, adminPinHash, hashPassword, 
                     <button className="btn btn-secondary btn-icon sm" onClick={() => setShowCheckout(false)} style={{ border: 'none', background: 'none' }}>
                       <i className="ri-arrow-left-line" style={{ fontSize: 18 }} />
                     </button>
-                    <h3 style={{ fontSize: 16, fontWeight: 800 }}>Liquidar Cuenta: {cuentaSel.cliente}</h3>
+                    <h3 style={{ fontSize: 15, fontWeight: 800 }}>Liquidar Cuenta: {clientName}</h3>
                   </div>
 
                   <div style={{ background: 'var(--bg-elevated)', padding: 10, borderRadius: 10 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border)', pb: 4, fontSize: 11 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border)', paddingBottom: 4, fontSize: 11 }}>
                       <span>Tiempo de Juego</span>
-                      <span>${cuentaSel.tiempoJuego} MXN</span>
+                      <span>${tiempoJuegoCosto} MXN</span>
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 4, borderBottom: '1px solid var(--border)', pb: 4 }}>
-                      {cuentaSel.consumos.map(item => (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 4, borderBottom: '1px solid var(--border)', paddingBottom: 4 }}>
+                      {consumosList.map(item => (
                         <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--text-secondary)' }}>
                           <span>{item.cantidad}x {item.producto}</span>
                           <span>${item.precio * item.cantidad} MXN</span>
                         </div>
                       ))}
                     </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', mt: 6, fontWeight: 900, fontSize: 14 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontWeight: 900, fontSize: 14 }}>
                       <span>Total Neto</span>
                       <span style={{ color: 'var(--bronze-light)' }}>${totalNeto} MXN</span>
                     </div>
@@ -3831,7 +4064,7 @@ function ModalCuentasActivas({ cuentas, setCuentas, adminPinHash, hashPassword, 
                     </div>
                   </div>
 
-                  {/* Sub-Paneles Condicionales de Liquidación en Cuenta */}
+                  {/* Sub-Paneles Condicionales */}
                   {metodoPago === 'efectivo' && totalNeto > 0 && (
                     <div style={{
                       background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 10, padding: 10, display: 'flex', flexDirection: 'column', gap: 6, animation: 'fadeIn 0.2s ease'
@@ -3961,13 +4194,13 @@ function ModalCuentasActivas({ cuentas, setCuentas, adminPinHash, hashPassword, 
 
                   <button 
                     className="btn btn-primary btn-lg" 
-                    onClick={liquidarCuentaDefinitiva} 
+                    onClick={handleConfirmarCobro} 
                     disabled={isCheckoutDisabled}
                     style={{ 
                       background: isCheckoutDisabled ? 'var(--bg-hover)' : 'linear-gradient(135deg, var(--success), #2ed573)', 
                       color: isCheckoutDisabled ? 'var(--text-muted)' : '#0d0d0f', 
                       width: '100%', 
-                      mt: 6,
+                      marginTop: 6,
                       cursor: isCheckoutDisabled ? 'not-allowed' : 'pointer'
                     }}
                   >
