@@ -527,6 +527,68 @@ input, select, textarea {
   box-shadow: 0 0 20px rgba(107, 114, 128, 0.2);
 }
 
+/* Soporte para Desactivar Animaciones (Accesibilidad y Preferencias de Usuario) */
+.mesa-card.sin-animaciones::before,
+.mesa-card.sin-animaciones::after {
+  display: none !important;
+}
+
+.mesa-card.sin-animaciones {
+  background: var(--bg-card) !important;
+  border: 1px solid var(--border) !important;
+}
+
+/* Bordes y barras superiores estáticos de colores para cuando las animaciones estén apagadas */
+.mesa-card.sin-animaciones.ocupada {
+  border-color: rgba(239, 68, 68, 0.35) !important;
+}
+.mesa-card.sin-animaciones.ocupada::before {
+  display: block !important;
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: var(--mesa-ocupada);
+  box-shadow: 0 0 12px var(--mesa-ocupada);
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
+}
+
+.mesa-card.sin-animaciones.reservada {
+  border-color: rgba(245, 158, 11, 0.35) !important;
+}
+.mesa-card.sin-animaciones.reservada::before {
+  display: block !important;
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: var(--mesa-reservada);
+  box-shadow: 0 0 12px var(--mesa-reservada);
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
+}
+
+.mesa-card.sin-animaciones.manten {
+  border-color: rgba(107, 114, 128, 0.35) !important;
+}
+.mesa-card.sin-animaciones.manten::before {
+  display: block !important;
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: var(--mesa-manten);
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
+}
+
+/* Soporte nativo para accesibilidad en el sistema operativo */
+@media (prefers-reduced-motion: reduce) {
+  .mesa-card.ocupada::before,
+  .mesa-card.reservada::before,
+  .mesa-card.manten::before {
+    animation: none !important;
+  }
+}
+
 /* Animación de rotación para el cometa */
 @keyframes rotate-comet {
   0% {

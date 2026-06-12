@@ -841,6 +841,17 @@ function useLiveTick() {
 export default function MesasPanel({ showToast }) {
   const [mesas, setMesas] = useState(INIT_MESAS);
   const [filtro, setFiltro] = useState('todas');
+  const [animacionesActivas, setAnimacionesActivas] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('yoy_billar_animaciones_activas');
+      return saved !== 'false';
+    }
+    return true;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('yoy_billar_animaciones_activas', animacionesActivas);
+  }, [animacionesActivas]);
   const [modalAbrir, setModalAbrir] = useState(null);
   const [modalCerrar, setModalCerrar] = useState(null);
   const [modalNuevaMesa, setModalNuevaMesa] = useState(false);
@@ -2084,13 +2095,30 @@ export default function MesasPanel({ showToast }) {
             </button>
           ))}
         </div>
-        <button
-          onClick={imprimirTodosLosQRs}
-          className="btn btn-secondary btn-sm"
-          style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--bronze-light)', borderColor: 'var(--border-bronze)' }}
-        >
-          <i className="ri-qr-code-line" /> Imprimir todos los QRs
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            onClick={() => setAnimacionesActivas(prev => !prev)}
+            className="btn btn-secondary btn-sm"
+            style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: 6, 
+              color: animacionesActivas ? 'var(--bronze-light)' : 'var(--text-muted)', 
+              borderColor: animacionesActivas ? 'var(--border-bronze)' : 'var(--border)' 
+            }}
+            title="Activar/Desactivar efectos de cometa animados"
+          >
+            <i className={animacionesActivas ? "ri-sparkling-fill" : "ri-sparkling-line"} /> 
+            {animacionesActivas ? 'Animaciones: ON' : 'Animaciones: OFF'}
+          </button>
+          <button
+            onClick={imprimirTodosLosQRs}
+            className="btn btn-secondary btn-sm"
+            style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--bronze-light)', borderColor: 'var(--border-bronze)' }}
+          >
+            <i className="ri-qr-code-line" /> Imprimir todos los QRs
+          </button>
+        </div>
       </div>
 
       {/* Grid de mesas */}
@@ -2111,19 +2139,36 @@ export default function MesasPanel({ showToast }) {
           const badgeText = isPorCobrar ? '⏳ Por Cobrar' : cfg.label;
           const badgeDotColor = isPorCobrar ? '#f59e0b' : cfg.color;
 
+          let cometDuration = '4s';
+          if (mesa.estado === 'ocupada') {
+            if (totalMesa > 600 || elapsed > 3 * 3600 * 1000) {
+              cometDuration = '1.8s'; // Muy rápido (Alto consumo o mucho tiempo)
+            } else if (totalMesa > 300 || elapsed > 1.5 * 3600 * 1000) {
+              cometDuration = '2.8s'; // Moderadamente rápido
+            }
+          }
+
+          const baseStyle = {
+            '--comet-duration': cometDuration
+          };
+
+          const dynamicStyle = hasAlert ? {
+            boxShadow: '0 0 16px rgba(239, 68, 68, 0.3)',
+            border: '1px solid rgba(239, 68, 68, 0.4)',
+            animation: 'pulseBorder 2.5s infinite ease-in-out'
+          } : isPorCobrar ? {
+            border: '1.5px dashed #f59e0b',
+            boxShadow: '0 0 12px rgba(245, 158, 11, 0.15)',
+          } : {};
+
+          const mergedStyle = { ...baseStyle, ...dynamicStyle };
+
           return (
               <div
                 key={mesa.id}
-                className={`mesa-card ${mesa.estado} ${isPorCobrar ? 'por-cobrar' : ''} ${hasAlert ? 'has-alert' : ''}`}
+                className={`mesa-card ${mesa.estado} ${isPorCobrar ? 'por-cobrar' : ''} ${hasAlert ? 'has-alert' : ''} ${!animacionesActivas ? 'sin-animaciones' : ''}`}
                 onClick={() => abrirMesa(mesa)}
-                style={hasAlert ? {
-                  boxShadow: '0 0 16px rgba(239, 68, 68, 0.3)',
-                  border: '1px solid rgba(239, 68, 68, 0.4)',
-                  animation: 'pulseBorder 2.5s infinite ease-in-out'
-                } : isPorCobrar ? {
-                  border: '1.5px dashed #f59e0b',
-                  boxShadow: '0 0 12px rgba(245, 158, 11, 0.15)',
-                } : {}}
+                style={mergedStyle}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
                   <div className="mesa-number">{mesa.id}</div>
