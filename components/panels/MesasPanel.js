@@ -868,6 +868,8 @@ export default function MesasPanel({ showToast }) {
   const [modalQR, setModalQR] = useState(null); // mesa para mostrar QR
   const [modalStatusCambio, setModalStatusCambio] = useState(null); // { mesa, nuevoEstado }
   const [modalHistorial, setModalHistorial] = useState(null); // mesa
+  const [modalReservasCentral, setModalReservasCentral] = useState(false);
+  const [modalAvisar, setModalAvisar] = useState(null); // mesa
 
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [mostrarCobroManual, setMostrarCobroManual] = useState(false);
@@ -892,11 +894,13 @@ export default function MesasPanel({ showToast }) {
         ...m, 
         estado: 'libre', 
         cliente: null, 
+        telefono: '',
         inicio: null, 
         socios: false, 
         clienteUid: '', 
         preTicketImpreso: false,
         reservadaAt: null,
+        limiteReservaMs: null,
         motivo: ''
       } : m));
       registrarEvento('Cambio Estado', `Mesa ${mesa.id} cambiada a Disponible (Libre).`);
@@ -907,7 +911,7 @@ export default function MesasPanel({ showToast }) {
   };
 
   // Confirmación del cambio de estado desde el modal interactivo
-  const confirmarStatusCambio = (valor, limiteMinutos) => {
+  const confirmarStatusCambio = (valor, limiteMinutos, telefono = '') => {
     if (!modalStatusCambio) return;
     const { mesa, nuevoEstado } = modalStatusCambio;
 
@@ -918,6 +922,7 @@ export default function MesasPanel({ showToast }) {
         ...m, 
         estado: 'reservada', 
         cliente: clienteName, 
+        telefono: telefono.trim(),
         inicio: null, 
         socios: false, 
         clienteUid: '', 
@@ -925,7 +930,7 @@ export default function MesasPanel({ showToast }) {
         reservadaAt: Date.now(),
         limiteReservaMs: limiteMs
       } : m));
-      registrarEvento('Reservación Mesa', `Mesa ${mesa.id} reservada a nombre de ${clienteName} por ${limiteMinutos} minutos.`);
+      registrarEvento('Reservación Mesa', `Mesa ${mesa.id} reservada a nombre de ${clienteName} (${telefono.trim() || 'Sin tel'}) por ${limiteMinutos} minutos.`);
       showToast(`Mesa ${mesa.id} reservada a nombre de ${clienteName} (${limiteMinutos} min).`, "success");
     } else {
       const motivo = valor.trim();
@@ -939,11 +944,13 @@ export default function MesasPanel({ showToast }) {
         ...m, 
         estado: nuevoEstado, 
         cliente: null, 
+        telefono: '',
         inicio: null, 
         socios: false, 
         clienteUid: '', 
         preTicketImpreso: false,
         reservadaAt: null,
+        limiteReservaMs: null,
         motivo: motivo,
         historialManten: [logEntrada, ...(m.historialManten || [])].slice(0, 10)
       } : m));
@@ -1665,7 +1672,7 @@ export default function MesasPanel({ showToast }) {
 
   const confirmarAbrirMesa = (mesaId, { cliente, esSocio, rentarTaco, rentarBolas, rentarTiza }) => {
     setMesas(prev => prev.map(m => m.id === mesaId
-      ? { ...m, estado: 'ocupada', cliente, inicio: Date.now(), socios: esSocio, rentarTaco, rentarBolas, rentarTiza, clienteUid: '', preTicketImpreso: false }
+      ? { ...m, estado: 'ocupada', cliente, inicio: Date.now(), socios: esSocio, rentarTaco, rentarBolas, rentarTiza, clienteUid: '', preTicketImpreso: false, reservadaAt: null, limiteReservaMs: null, telefono: '' }
       : m
     ));
     
@@ -1748,10 +1755,13 @@ export default function MesasPanel({ showToast }) {
           ...m,
           estado: 'libre',
           cliente: null,
+          telefono: '',
           inicio: null,
           socios: false,
           filaId: null,
-          clienteUid: ''
+          clienteUid: '',
+          reservadaAt: null,
+          limiteReservaMs: null
         };
       }
       return m;
@@ -1804,7 +1814,7 @@ export default function MesasPanel({ showToast }) {
     }
 
     setMesas(prev => prev.map(m => m.id === modalCerrar.id
-      ? { ...m, estado: 'libre', cliente: null, inicio: null, socios: false, clienteUid: '', preTicketImpreso: false }
+      ? { ...m, estado: 'libre', cliente: null, telefono: '', inicio: null, socios: false, clienteUid: '', preTicketImpreso: false, reservadaAt: null, limiteReservaMs: null }
       : m
     ));
 
@@ -2088,7 +2098,7 @@ export default function MesasPanel({ showToast }) {
     }).catch(err => console.error("Error al buscar alertas y pedidos de mesa:", err));
 
     setMesas(prev => prev.map(m => m.id === mesaId
-      ? { ...m, estado: 'libre', cliente: null, inicio: null, socios: false, clienteUid: '', preTicketImpreso: false }
+      ? { ...m, estado: 'libre', cliente: null, telefono: '', inicio: null, socios: false, clienteUid: '', preTicketImpreso: false, reservadaAt: null, limiteReservaMs: null }
       : m
     ));
     setModalCerrar(null);
@@ -2164,7 +2174,7 @@ export default function MesasPanel({ showToast }) {
         {[
           { label: 'Libres', value: totales.libres, icon: 'ri-checkbox-blank-circle-line', color: 'icon-success', accent: 'var(--success)' },
           { label: 'Ocupadas', value: totales.ocupadas, icon: 'ri-record-circle-line', color: 'icon-danger', accent: 'var(--danger)' },
-          { label: 'Reservadas', value: totales.reservadas, icon: 'ri-bookmark-fill', color: 'icon-bronze', accent: 'var(--bronze-light)' },
+          { label: 'Reservadas', value: totales.reservadas, icon: 'ri-bookmark-fill', color: 'icon-bronze', accent: 'var(--bronze-light)', onClick: () => setModalReservasCentral(true) },
           { label: 'Cuentas Activas', value: `${cuentasActivas.length} cls`, icon: 'ri-folder-open-line', color: 'icon-bronze', accent: 'var(--bronze-light)', onClick: () => setModalCuentas(true) },
           { label: 'Ingresos en curso', value: `$${ingresosActivos}`, icon: 'ri-coins-line', color: 'icon-blue', accent: 'var(--blue-light)' },
         ].map((s, i) => (
@@ -2301,7 +2311,7 @@ export default function MesasPanel({ showToast }) {
                 onClick={() => abrirMesa(mesa)}
                 style={mergedStyle}
               >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
                   <div className="mesa-number">{mesa.id}</div>
                   <span 
                     className={`mesa-status-badge ${mesa.estado}`}
@@ -2315,7 +2325,7 @@ export default function MesasPanel({ showToast }) {
                   </span>
                 </div>
 
-                <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 6 }}>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 3 }}>
                   {mesa.tipo}
                 </div>
 
@@ -2327,7 +2337,7 @@ export default function MesasPanel({ showToast }) {
                       {mesa.cliente}
                       {mesa.socios && <span className="badge badge-bronze" style={{ marginLeft: 6, fontSize: 8 }}>Socio</span>}
                     </div>
-                    <div className="mesa-rate" style={{ marginTop: 6, fontSize: 13, fontWeight: 700, color: 'var(--bronze-light)' }}>
+                    <div className="mesa-rate" style={{ marginTop: 4, fontSize: 13, fontWeight: 700, color: 'var(--bronze-light)' }}>
                       {mesa.socios && consumosTotal === 0 ? 'Sin cargo' : `$${mesa.socios ? consumosTotal : totalMesa} MXN`}
                       {consumosTotal > 0 && (
                         <span style={{ fontSize: 9, color: 'var(--text-muted)', display: 'block', fontWeight: 'normal', marginTop: 2 }}>
@@ -2339,15 +2349,23 @@ export default function MesasPanel({ showToast }) {
                 )}
 
                 {mesa.estado === 'reservada' && (
-                  <div className="mesa-client" style={{ marginTop: 6 }}>
-                    <i className="ri-bookmark-line" style={{ fontSize: 10, marginRight: 4 }} />
-                    {mesa.cliente}
+                  <div className="mesa-client" style={{ marginTop: 4, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <div style={{ display: 'flex', alignItems: 'center' }}>
+                      <i className="ri-bookmark-line" style={{ fontSize: 10, marginRight: 4 }} />
+                      {mesa.cliente}
+                    </div>
+                    {mesa.telefono && (
+                      <div style={{ fontSize: 10, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <i className="ri-phone-line" style={{ fontSize: 10 }} />
+                        {mesa.telefono}
+                      </div>
+                    )}
                   </div>
                 )}
 
                 {mesa.estado === 'manten' && (
                   <div 
-                    style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6, display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}
+                    style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}
                     title={mesa.motivo ? `Detalle: ${mesa.motivo}` : 'En mantenimiento'}
                   >
                     <i className="ri-tools-line" />
@@ -2368,7 +2386,7 @@ export default function MesasPanel({ showToast }) {
 
                 {mesa.estado === 'fuera' && (
                   <div 
-                    style={{ fontSize: 11, color: '#f87171', marginTop: 6, display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}
+                    style={{ fontSize: 11, color: '#f87171', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}
                     title={mesa.motivo ? `Detalle: ${mesa.motivo}` : 'Fuera de servicio'}
                   >
                     <i className="ri-close-circle-line" />
@@ -2506,9 +2524,19 @@ export default function MesasPanel({ showToast }) {
 
               <div className="mesa-actions" onClick={e => e.stopPropagation()}>
                 {mesa.estado === 'libre' && (
-                  <button className="btn btn-success btn-sm" style={{ flex: 1 }} onClick={() => abrirMesa(mesa)}>
-                    <i className="ri-play-fill" /> Abrir
-                  </button>
+                  <div style={{ display: 'flex', gap: 6, width: '100%' }}>
+                    <button className="btn btn-success btn-sm" style={{ flex: 1 }} onClick={() => abrirMesa(mesa)}>
+                      <i className="ri-play-fill" /> Abrir
+                    </button>
+                    <button 
+                      className="btn btn-secondary btn-sm btn-icon" 
+                      title="Avisar Cliente (Mesa Disponible)" 
+                      onClick={() => setModalAvisar(mesa)}
+                      style={{ color: 'var(--bronze-light)' }}
+                    >
+                      <i className="ri-notification-3-line" />
+                    </button>
+                  </div>
                 )}
                 {mesa.estado === 'ocupada' && (
                   <>
@@ -2560,8 +2588,8 @@ export default function MesasPanel({ showToast }) {
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
-                marginTop: 12,
-                paddingTop: 10,
+                marginTop: 8,
+                paddingTop: 6,
                 borderTop: '1px solid rgba(255,255,255,0.05)',
                 gap: 4
               }} onClick={e => e.stopPropagation()}>
@@ -2638,6 +2666,29 @@ export default function MesasPanel({ showToast }) {
         <ModalHistorial
           mesa={modalHistorial}
           onClose={() => setModalHistorial(null)}
+        />
+      )}
+
+      {/* ── MODAL RESERVAS CENTRAL ────────────────────────── */}
+      {modalReservasCentral && (
+        <ModalReservasCentral
+          mesas={mesas}
+          setMesas={setMesas}
+          onClose={() => setModalReservasCentral(false)}
+          registrarEvento={registrarEvento}
+          showToast={showToast}
+          abrirMesa={abrirMesa}
+        />
+      )}
+
+      {/* ── MODAL AVISAR CLIENTE ─────────────────────────── */}
+      {modalAvisar && (
+        <ModalAvisarCliente
+          mesa={modalAvisar}
+          fila={fila}
+          onClose={() => setModalAvisar(null)}
+          registrarEvento={registrarEvento}
+          showToast={showToast}
         />
       )}
 
@@ -4499,6 +4550,7 @@ function ModalCobroManual({ nuevoMonto, setNuevoMonto, nuevaDesc, setNuevaDesc, 
 function ModalStatusCambio({ mesa, nuevoEstado, onClose, onConfirm }) {
   const [valor, setValor] = useState('');
   const [limiteReserva, setLimiteReserva] = useState(30);
+  const [telefono, setTelefono] = useState('');
   const [isClosing, setIsClosing] = useState(false);
 
   const handleClose = () => {
@@ -4507,7 +4559,7 @@ function ModalStatusCambio({ mesa, nuevoEstado, onClose, onConfirm }) {
   };
 
   const handleConfirm = () => {
-    onConfirm(valor, parseInt(limiteReserva));
+    onConfirm(valor, parseInt(limiteReserva), telefono);
   };
 
   useEffect(() => {
@@ -4521,7 +4573,7 @@ function ModalStatusCambio({ mesa, nuevoEstado, onClose, onConfirm }) {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [valor, limiteReserva]);
+  }, [valor, limiteReserva, telefono]);
 
   const isReserva = nuevoEstado === 'reservada';
   const title = isReserva ? `Reservar ${mesa.nombre}` : `Poner ${mesa.nombre} en ${nuevoEstado === 'manten' ? 'Mantenimiento' : 'Fuera de Servicio'}`;
@@ -4552,24 +4604,36 @@ function ModalStatusCambio({ mesa, nuevoEstado, onClose, onConfirm }) {
                 autoFocus 
               />
             </div>
-            
+
             {isReserva && (
-              <div className="form-group">
-                <label className="form-label">Tiempo límite de reservación</label>
-                <select 
-                  className="form-select" 
-                  value={limiteReserva} 
-                  onChange={e => setLimiteReserva(parseInt(e.target.value))}
-                >
-                  <option value={15}>15 minutos</option>
-                  <option value={30}>30 minutos (Recomendado)</option>
-                  <option value={45}>45 minutos</option>
-                  <option value={60}>1 hora</option>
-                </select>
-                <span style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 4, display: 'block' }}>
-                  Transcurrido este tiempo, la mesa volverá a estar disponible automáticamente.
-                </span>
-              </div>
+              <>
+                <div className="form-group">
+                  <label className="form-label">Número Telefónico (Opcional)</label>
+                  <input 
+                    className="form-input" 
+                    placeholder="Ej: 5512345678" 
+                    value={telefono} 
+                    onChange={e => setTelefono(e.target.value)} 
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Tiempo límite de reservación</label>
+                  <select 
+                    className="form-select" 
+                    value={limiteReserva} 
+                    onChange={e => setLimiteReserva(parseInt(e.target.value))}
+                  >
+                    <option value={15}>15 minutos</option>
+                    <option value={30}>30 minutos (Recomendado)</option>
+                    <option value={45}>45 minutos</option>
+                    <option value={60}>1 hora</option>
+                  </select>
+                  <span style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 4, display: 'block' }}>
+                    Transcurrido este tiempo, la mesa volverá a estar disponible automáticamente.
+                  </span>
+                </div>
+              </>
             )}
           </div>
         </div>
@@ -4657,6 +4721,440 @@ function ModalHistorial({ mesa, onClose }) {
         </div>
         <div className="modal-footer">
           <button className="btn btn-secondary" onClick={handleClose}>Cerrar</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ModalReservasCentral({ mesas, setMesas, onClose, registrarEvento, showToast, abrirMesa }) {
+  const [cliente, setCliente] = useState('');
+  const [telefono, setTelefono] = useState('');
+  const [limiteMinutos, setLimiteMinutos] = useState(30);
+  const [mesasSeleccionadas, setMesasSeleccionadas] = useState([]); // Array of IDs
+  const [isClosing, setIsClosing] = useState(false);
+
+  const handleClose = () => {
+    setIsClosing(true);
+    setTimeout(onClose, 200);
+  };
+
+  const activeReservations = mesas.filter(m => m.estado === 'reservada');
+  const availableTables = mesas.filter(m => m.estado === 'libre');
+
+  const handleToggleMesaSelection = (id) => {
+    setMesasSeleccionadas(prev => 
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    );
+  };
+
+  const handleSaveReservation = () => {
+    if (!cliente.trim()) {
+      showToast("Ingresa el nombre del cliente.", "warning");
+      return;
+    }
+    if (mesasSeleccionadas.length === 0) {
+      showToast("Selecciona al menos una mesa.", "warning");
+      return;
+    }
+
+    const limiteMs = (limiteMinutos || 30) * 60 * 1000;
+    
+    setMesas(prev => prev.map(m => {
+      if (mesasSeleccionadas.includes(m.id)) {
+        return {
+          ...m,
+          estado: 'reservada',
+          cliente: cliente.trim(),
+          telefono: telefono.trim(),
+          inicio: null,
+          socios: false,
+          clienteUid: '',
+          preTicketImpreso: false,
+          reservadaAt: Date.now(),
+          limiteReservaMs: limiteMs
+        };
+      }
+      return m;
+    }));
+
+    const mesasNombres = mesasSeleccionadas.map(id => `Mesa ${id}`).join(', ');
+    registrarEvento('Reservación Múltiple', `Reservación de ${mesasNombres} para ${cliente.trim()} (${telefono.trim() || 'Sin tel'}) por ${limiteMinutos} min.`);
+    showToast(`Mesa(s) ${mesasNombres} reservada(s) con éxito.`, "success");
+
+    // Reset form
+    setCliente('');
+    setTelefono('');
+    setMesasSeleccionadas([]);
+  };
+
+  const handleLiberarMesa = (mesa) => {
+    setMesas(prev => prev.map(m => m.id === mesa.id ? {
+      ...m,
+      estado: 'libre',
+      cliente: null,
+      telefono: '',
+      inicio: null,
+      socios: false,
+      clienteUid: '',
+      preTicketImpreso: false,
+      reservadaAt: null,
+      limiteReservaMs: null
+    } : m));
+    registrarEvento('Libera Reserva', `Reserva de Mesa ${mesa.id} (${mesa.cliente}) cancelada.`);
+    showToast(`Mesa ${mesa.id} liberada.`, "info");
+  };
+
+  const handleActivarMesa = (mesa) => {
+    handleClose();
+    setTimeout(() => abrirMesa(mesa), 220);
+  };
+
+  return (
+    <div className={`modal-overlay ${isClosing ? 'modal-closing' : ''}`} onClick={handleClose}>
+      <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 650, width: '95%' }}>
+        <div className="modal-header">
+          <span className="modal-title">
+            <i className="ri-bookmark-fill" style={{ marginRight: 8, color: 'var(--bronze-light)' }} />
+            Libro Central de Reservaciones
+          </span>
+          <button onClick={handleClose} className="btn-icon btn btn-secondary" style={{ background: 'none', border: 'none' }}>
+            <i className="ri-close-line" style={{ fontSize: 20 }} />
+          </button>
+        </div>
+        <div className="modal-body" style={{ maxHeight: '70vh', overflowY: 'auto', display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 20 }}>
+          
+          {/* Columna Izquierda: Reservas Activas */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <h4 style={{ fontSize: 13, textTransform: 'uppercase', color: 'var(--bronze-light)', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: 6, margin: 0 }}>
+              Reservas Activas ({activeReservations.length})
+            </h4>
+            
+            {activeReservations.length === 0 ? (
+              <div style={{ padding: '40px 0', textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>
+                No hay mesas reservadas en este momento.
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, overflowY: 'auto', maxHeight: '45vh' }}>
+                {activeReservations.map(m => {
+                  const transcurrido = Date.now() - (m.reservadaAt || Date.now());
+                  const limiteMs = m.limiteReservaMs || (30 * 60 * 1000);
+                  const restanteMin = Math.max(0, Math.ceil((limiteMs - transcurrido) / 60000));
+                  return (
+                    <div 
+                      key={m.id} 
+                      style={{
+                        background: 'var(--bg-elevated)',
+                        border: '1px solid var(--border)',
+                        borderRadius: 10,
+                        padding: 10,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 6
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <strong style={{ fontSize: 12, color: 'var(--bronze-light)' }}>{m.nombre}</strong>
+                        <span style={{ fontSize: 10, background: 'rgba(245, 158, 11, 0.12)', color: 'var(--mesa-reservada)', padding: '1px 5px', borderRadius: 4 }}>
+                          {restanteMin} min rest
+                        </span>
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--text-primary)' }}>
+                        👤 {m.cliente}
+                      </div>
+                      {m.telefono && (
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                          📞 {m.telefono}
+                        </div>
+                      )}
+                      <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+                        <button 
+                          className="btn btn-success btn-xs" 
+                          style={{ flex: 1, padding: '4px 6px', fontSize: 10 }}
+                          onClick={() => handleActivarMesa(m)}
+                        >
+                          Activar
+                        </button>
+                        <button 
+                          className="btn btn-secondary btn-xs" 
+                          style={{ flex: 1, padding: '4px 6px', fontSize: 10 }}
+                          onClick={() => handleLiberarMesa(m)}
+                        >
+                          Liberar
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Columna Derecha: Nueva Reserva */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, borderLeft: '1px solid rgba(255,255,255,0.05)', paddingLeft: 20 }}>
+            <h4 style={{ fontSize: 13, textTransform: 'uppercase', color: 'var(--bronze-light)', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: 6, margin: 0 }}>
+              Nueva Reserva
+            </h4>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div className="form-group">
+                <label className="form-label">Nombre del Cliente</label>
+                <input 
+                  className="form-input" 
+                  placeholder="Ej: Juan Pérez" 
+                  value={cliente} 
+                  onChange={e => setCliente(e.target.value)} 
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Número Telefónico</label>
+                <input 
+                  className="form-input" 
+                  placeholder="Ej: 5512345678" 
+                  value={telefono} 
+                  onChange={e => setTelefono(e.target.value)} 
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Límite de Tiempo</label>
+                <select 
+                  className="form-select" 
+                  value={limiteMinutos} 
+                  onChange={e => setLimiteMinutos(parseInt(e.target.value))}
+                >
+                  <option value={15}>15 minutos</option>
+                  <option value={30}>30 minutos (Recomendado)</option>
+                  <option value={45}>45 minutos</option>
+                  <option value={60}>1 hora</option>
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Seleccionar Mesa(s) Disponibles</label>
+                {availableTables.length === 0 ? (
+                  <div style={{ fontSize: 11, color: '#ef4444', marginTop: 4 }}>
+                    No hay mesas disponibles para reservar en este momento.
+                  </div>
+                ) : (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, maxHeight: '18vh', overflowY: 'auto', padding: 4, background: 'rgba(0,0,0,0.2)', borderRadius: 8 }}>
+                    {availableTables.map(m => (
+                      <label 
+                        key={m.id} 
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          fontSize: 11,
+                          cursor: 'pointer',
+                          padding: '4px 6px',
+                          borderRadius: 6,
+                          background: mesasSeleccionadas.includes(m.id) ? 'rgba(205,127,50,0.15)' : 'transparent',
+                          border: mesasSeleccionadas.includes(m.id) ? '1px solid rgba(205,127,50,0.3)' : '1px solid transparent'
+                        }}
+                      >
+                        <input 
+                          type="checkbox" 
+                          checked={mesasSeleccionadas.includes(m.id)}
+                          onChange={() => handleToggleMesaSelection(m.id)}
+                          style={{ accentColor: 'var(--bronze-light)' }}
+                        />
+                        <span>{m.nombre}</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <button 
+                className="btn btn-primary" 
+                style={{ width: '100%', marginTop: 8 }}
+                onClick={handleSaveReservation}
+                disabled={!cliente.trim() || mesasSeleccionadas.length === 0}
+              >
+                Reservar Mesa(s)
+              </button>
+            </div>
+          </div>
+
+        </div>
+        <div className="modal-footer">
+          <button className="btn btn-secondary" onClick={handleClose}>Cerrar</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ModalAvisarCliente({ mesa, fila, onClose, registrarEvento, showToast }) {
+  const [cliente, setCliente] = useState('');
+  const [telefono, setTelefono] = useState('');
+  const [mensaje, setMensaje] = useState(`¡Hola! La ${mesa.nombre} (${mesa.tipo}) ya está disponible para ti en YoY Billar. ¡Te esperamos!`);
+  const [selectedFilaId, setSelectedFilaId] = useState('');
+  const [isClosing, setIsClosing] = useState(false);
+
+  const handleClose = () => {
+    setIsClosing(true);
+    setTimeout(onClose, 200);
+  };
+
+  useEffect(() => {
+    if (cliente) {
+      setMensaje(`¡Hola ${cliente}! La ${mesa.nombre} (${mesa.tipo}) ya está disponible para ti en YoY Billar. ¡Te esperamos!`);
+    }
+  }, [cliente, mesa]);
+
+  const getCleanPhone = (num) => {
+    let p = num.replace(/\D/g, ''); // leave only digits
+    if (p.startsWith('52') && p.length > 10) return p;
+    if (p.length === 10) return '52' + p; // default Mexico prefix if 10 digits
+    return p;
+  };
+
+  const handleSend = (canal) => {
+    if (!telefono.trim()) {
+      showToast("Ingresa un número telefónico.", "warning");
+      return;
+    }
+
+    const cleanPhone = getCleanPhone(telefono.trim());
+    const encodedText = encodeURIComponent(mensaje);
+    let url = '';
+
+    switch (canal) {
+      case 'sms':
+        url = `sms:${telefono.trim()}${window.navigator.userAgent.match(/iPhone|iPad|iPod/i) ? '&' : '?'}body=${encodedText}`;
+        break;
+      case 'wa':
+      case 'wab':
+        url = `https://wa.me/${cleanPhone}?text=${encodedText}`;
+        break;
+      case 'tg':
+        url = `https://t.me/share/url?text=${encodedText}`;
+        break;
+      default:
+        return;
+    }
+
+    window.open(url, '_blank');
+    registrarEvento('Aviso Disponibilidad', `Aviso de mesa ${mesa.id} disponible enviado a ${cliente || 'Cliente'} (${telefono}) vía ${canal.toUpperCase()}`);
+    showToast(`Enlace de ${canal.toUpperCase()} abierto para notificar al cliente.`, "success");
+    handleClose();
+  };
+
+  return (
+    <div className={`modal-overlay ${isClosing ? 'modal-closing' : ''}`} onClick={handleClose}>
+      <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 400 }}>
+        <div className="modal-header">
+          <span className="modal-title">
+            <i className="ri-notification-3-line" style={{ marginRight: 8, color: 'var(--bronze-light)' }} />
+            Avisar Disponibilidad — {mesa.nombre}
+          </span>
+          <button onClick={handleClose} className="btn-icon btn btn-secondary" style={{ background: 'none', border: 'none' }}>
+            <i className="ri-close-line" style={{ fontSize: 20 }} />
+          </button>
+        </div>
+        <div className="modal-body">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            
+            {fila && fila.length > 0 && (
+              <div className="form-group">
+                <label className="form-label" style={{ fontSize: 10, color: 'var(--bronze-light)' }}>
+                  Auto-llenar desde Fila Virtual
+                </label>
+                <select 
+                  className="form-select"
+                  value={selectedFilaId}
+                  onChange={(e) => {
+                    const id = e.target.value;
+                    setSelectedFilaId(id);
+                    const item = fila.find(f => f.id === parseInt(id));
+                    if (item) {
+                      setCliente(item.cliente || '');
+                      setTelefono(item.contacto || '');
+                    }
+                  }}
+                >
+                  <option value="">-- Seleccionar cliente en espera --</option>
+                  {fila.map(f => (
+                    <option key={f.id} value={f.id}>
+                      {f.cliente} ({f.contacto}) - {f.tipo}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <div className="form-group">
+              <label className="form-label">Nombre del Cliente</label>
+              <input 
+                className="form-input" 
+                placeholder="Ej: Juan Pérez" 
+                value={cliente} 
+                onChange={e => setCliente(e.target.value)} 
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Número Telefónico (10 dígitos o con prefijo)</label>
+              <input 
+                className="form-input" 
+                placeholder="Ej: 5512345678" 
+                value={telefono} 
+                onChange={e => setTelefono(e.target.value)} 
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Mensaje a enviar</label>
+              <textarea 
+                className="form-input"
+                style={{ height: 80, resize: 'none', fontSize: 11, lineHeight: '1.4' }}
+                value={mensaje} 
+                onChange={e => setMensaje(e.target.value)} 
+              />
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 6 }}>
+              <label className="form-label" style={{ marginBottom: 2 }}>Seleccionar canal de envío:</label>
+              
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                <button 
+                  className="btn btn-secondary" 
+                  style={{ background: 'rgba(37, 211, 102, 0.08)', border: '1px solid rgba(37, 211, 102, 0.3)', color: '#25d366', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 11 }}
+                  onClick={() => handleSend('wa')}
+                >
+                  <i className="ri-whatsapp-line" style={{ fontSize: 14 }} /> WhatsApp
+                </button>
+                <button 
+                  className="btn btn-secondary" 
+                  style={{ background: 'rgba(18, 140, 126, 0.08)', border: '1px solid rgba(18, 140, 126, 0.3)', color: '#128c7e', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 11 }}
+                  onClick={() => handleSend('wab')}
+                >
+                  <i className="ri-whatsapp-line" style={{ fontSize: 14 }} /> WA Business
+                </button>
+                <button 
+                  className="btn btn-secondary" 
+                  style={{ background: 'rgba(0, 136, 204, 0.08)', border: '1px solid rgba(0, 136, 204, 0.3)', color: '#0088cc', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 11 }}
+                  onClick={() => handleSend('tg')}
+                >
+                  <i className="ri-telegram-line" style={{ fontSize: 14 }} /> Telegram
+                </button>
+                <button 
+                  className="btn btn-secondary" 
+                  style={{ background: 'rgba(100, 110, 120, 0.08)', border: '1px solid rgba(100, 110, 120, 0.3)', color: '#a0aec0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 11 }}
+                  onClick={() => handleSend('sms')}
+                >
+                  <i className="ri-message-3-line" style={{ fontSize: 14 }} /> SMS (Texto)
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+        <div className="modal-footer">
+          <button className="btn btn-secondary" onClick={handleClose}>Cancelar</button>
         </div>
       </div>
     </div>

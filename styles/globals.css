@@ -399,15 +399,15 @@ input, select, textarea {
 /* ── MESA CARDS (Estado de Mesas) ────────────────────────── */
 .mesa-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(155px, 1fr));
+  gap: 10px;
 }
 
 .mesa-card {
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--r-lg);
-  padding: 16px;
+  padding: 10px;
   cursor: pointer;
   transition: all var(--t-normal);
   position: relative;
@@ -669,7 +669,7 @@ input, select, textarea {
   font-size: 22px;
   font-weight: 700;
   letter-spacing: 0.1em;
-  margin: 10px 0 4px;
+  margin: 4px 0 2px;
   color: var(--bronze-light);
 }
 
@@ -690,7 +690,7 @@ input, select, textarea {
 .mesa-actions {
   display: flex;
   gap: 6px;
-  margin-top: 12px;
+  margin-top: 8px;
 }
 
 /* ── BOTONES ──────────────────────────────────────────────── */
