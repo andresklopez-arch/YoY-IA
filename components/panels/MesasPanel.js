@@ -866,6 +866,8 @@ export default function MesasPanel({ showToast }) {
   const [modalComanda, setModalComanda] = useState(false);
   const [productosBajos, setProductosBajos] = useState([]);
   const [modalQR, setModalQR] = useState(null); // mesa para mostrar QR
+  const [modalStatusCambio, setModalStatusCambio] = useState(null); // { mesa, nuevoEstado }
+  const [modalHistorial, setModalHistorial] = useState(null); // mesa
 
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [mostrarCobroManual, setMostrarCobroManual] = useState(false);
@@ -885,9 +887,33 @@ export default function MesasPanel({ showToast }) {
       return;
     }
 
+    if (nuevoEstado === 'libre') {
+      setMesas(prev => prev.map(m => m.id === mesa.id ? { 
+        ...m, 
+        estado: 'libre', 
+        cliente: null, 
+        inicio: null, 
+        socios: false, 
+        clienteUid: '', 
+        preTicketImpreso: false,
+        reservadaAt: null,
+        motivo: ''
+      } : m));
+      registrarEvento('Cambio Estado', `Mesa ${mesa.id} cambiada a Disponible (Libre).`);
+      showToast(`Mesa ${mesa.id} cambiada a Disponible (Libre).`, "info");
+    } else {
+      setModalStatusCambio({ mesa, nuevoEstado });
+    }
+  };
+
+  // Confirmación del cambio de estado desde el modal interactivo
+  const confirmarStatusCambio = (valor, limiteMinutos) => {
+    if (!modalStatusCambio) return;
+    const { mesa, nuevoEstado } = modalStatusCambio;
+
     if (nuevoEstado === 'reservada') {
-      const clienteName = prompt("Ingrese el nombre para la reservación:");
-      if (!clienteName) return; // Cancelado o vacío
+      const clienteName = valor.trim();
+      const limiteMs = (limiteMinutos || 30) * 60 * 1000;
       setMesas(prev => prev.map(m => m.id === mesa.id ? { 
         ...m, 
         estado: 'reservada', 
@@ -896,15 +922,18 @@ export default function MesasPanel({ showToast }) {
         socios: false, 
         clienteUid: '', 
         preTicketImpreso: false,
-        reservadaAt: Date.now()
+        reservadaAt: Date.now(),
+        limiteReservaMs: limiteMs
       } : m));
-      registrarEvento('Reservación Mesa', `Mesa ${mesa.id} reservada a nombre de ${clienteName}`);
-      showToast(`Mesa ${mesa.id} reservada a nombre de ${clienteName}.`, "success");
+      registrarEvento('Reservación Mesa', `Mesa ${mesa.id} reservada a nombre de ${clienteName} por ${limiteMinutos} minutos.`);
+      showToast(`Mesa ${mesa.id} reservada a nombre de ${clienteName} (${limiteMinutos} min).`, "success");
     } else {
-      let motivo = '';
-      if (nuevoEstado === 'manten' || nuevoEstado === 'fuera') {
-        motivo = prompt(`Ingrese el motivo para poner la mesa en ${nuevoEstado === 'manten' ? 'Mantenimiento' : 'Fuera de Servicio'} (opcional):`) || '';
-      }
+      const motivo = valor.trim();
+      const logEntrada = {
+        fecha: new Date().toISOString(),
+        estado: nuevoEstado,
+        motivo: motivo || 'Sin motivo especificado'
+      };
 
       setMesas(prev => prev.map(m => m.id === mesa.id ? { 
         ...m, 
@@ -915,20 +944,21 @@ export default function MesasPanel({ showToast }) {
         clienteUid: '', 
         preTicketImpreso: false,
         reservadaAt: null,
-        motivo: motivo
+        motivo: motivo,
+        historialManten: [logEntrada, ...(m.historialManten || [])].slice(0, 10)
       } : m));
       
       const estadoLabels = {
-        libre: 'Disponible (Libre)',
         manten: 'Mantenimiento',
         fuera: 'Fuera de Servicio'
       };
       
       const detalleLog = motivo ? `Motivo: ${motivo}` : 'Sin motivo especificado';
       registrarEvento('Cambio Estado', `Mesa ${mesa.id} cambiada a ${estadoLabels[nuevoEstado] || nuevoEstado}. ${detalleLog}`);
-      
       showToast(`Mesa ${mesa.id} cambiada a ${estadoLabels[nuevoEstado] || nuevoEstado}.`, "info");
     }
+
+    setModalStatusCambio(null);
   };
 
   // Marcar una solicitud de cliente como atendida en Firestore (Caja/Admin)
@@ -1440,16 +1470,16 @@ export default function MesasPanel({ showToast }) {
   ]);
   const tick = useLiveTick();
 
-  // Auto-liberador de reservaciones expiradas (más de 30 minutos sin activar)
+  // Auto-liberador de reservaciones expiradas (tiempo configurable)
   useEffect(() => {
     const ahora = Date.now();
-    const tiempoLimite = 30 * 60 * 1000; // 30 minutos
     let huboCambios = false;
 
     const nuevasMesas = mesas.map(m => {
-      if (m.estado === 'reservada' && m.reservadaAt && (ahora - m.reservadaAt > tiempoLimite)) {
+      const limiteMs = m.limiteReservaMs || (30 * 60 * 1000); // 30 min por defecto
+      if (m.estado === 'reservada' && m.reservadaAt && (ahora - m.reservadaAt > limiteMs)) {
         huboCambios = true;
-        registrarEvento('Reserva Expirada', `Reservación de la Mesa ${m.id} (${m.cliente || ''}) expiró tras 30 minutos.`);
+        registrarEvento('Reserva Expirada', `Reservación de la Mesa ${m.id} (${m.cliente || ''}) expiró.`);
         return {
           ...m,
           estado: 'libre',
@@ -1458,7 +1488,8 @@ export default function MesasPanel({ showToast }) {
           socios: false,
           clienteUid: '',
           preTicketImpreso: false,
-          reservadaAt: null
+          reservadaAt: null,
+          limiteReservaMs: null
         };
       }
       return m;
@@ -2316,25 +2347,43 @@ export default function MesasPanel({ showToast }) {
 
                 {mesa.estado === 'manten' && (
                   <div 
-                    style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6, display: 'flex', alignItems: 'center', gap: 4 }}
+                    style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6, display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}
                     title={mesa.motivo ? `Detalle: ${mesa.motivo}` : 'En mantenimiento'}
                   >
                     <i className="ri-tools-line" />
-                    <span style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                    <span style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', maxWidth: '80%' }}>
                       En reparación {mesa.motivo ? `(${mesa.motivo})` : ''}
                     </span>
+                    {mesa.historialManten && mesa.historialManten.length > 0 && (
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); setModalHistorial(mesa); }} 
+                        style={{ background: 'none', border: 'none', color: 'var(--bronze-light)', fontSize: 9, cursor: 'pointer', display: 'inline-flex', padding: 0 }}
+                        title="Ver historial de incidencias"
+                      >
+                        [Historial]
+                      </button>
+                    )}
                   </div>
                 )}
 
                 {mesa.estado === 'fuera' && (
                   <div 
-                    style={{ fontSize: 11, color: '#f87171', marginTop: 6, display: 'flex', alignItems: 'center', gap: 4 }}
+                    style={{ fontSize: 11, color: '#f87171', marginTop: 6, display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}
                     title={mesa.motivo ? `Detalle: ${mesa.motivo}` : 'Fuera de servicio'}
                   >
                     <i className="ri-close-circle-line" />
-                    <span style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                    <span style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', maxWidth: '80%' }}>
                       Fuera de servicio {mesa.motivo ? `(${mesa.motivo})` : ''}
                     </span>
+                    {mesa.historialManten && mesa.historialManten.length > 0 && (
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); setModalHistorial(mesa); }} 
+                        style={{ background: 'none', border: 'none', color: 'var(--bronze-light)', fontSize: 9, cursor: 'pointer', display: 'inline-flex', padding: 0 }}
+                        title="Ver historial de incidencias"
+                      >
+                        [Historial]
+                      </button>
+                    )}
                   </div>
                 )}
 
@@ -2573,6 +2622,24 @@ export default function MesasPanel({ showToast }) {
       </div>
 
       {/* Modales */}
+      
+      {/* ── MODAL CAMBIO DE ESTADO ────────────────────────── */}
+      {modalStatusCambio && (
+        <ModalStatusCambio
+          mesa={modalStatusCambio.mesa}
+          nuevoEstado={modalStatusCambio.nuevoEstado}
+          onClose={() => setModalStatusCambio(null)}
+          onConfirm={confirmarStatusCambio}
+        />
+      )}
+
+      {/* ── MODAL HISTORIAL MANTENIMIENTO ─────────────────── */}
+      {modalHistorial && (
+        <ModalHistorial
+          mesa={modalHistorial}
+          onClose={() => setModalHistorial(null)}
+        />
+      )}
 
       {/* ── MODAL QR DE MESA ─────────────────────────── */}
       {modalQR && (
@@ -4423,6 +4490,173 @@ function ModalCobroManual({ nuevoMonto, setNuevoMonto, nuevaDesc, setNuevaDesc, 
         <div className="modal-footer">
           <button className="btn btn-secondary" onClick={handleClose}>Cancelar</button>
           <button className="btn btn-primary" onClick={onConfirm}>Registrar</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ModalStatusCambio({ mesa, nuevoEstado, onClose, onConfirm }) {
+  const [valor, setValor] = useState('');
+  const [limiteReserva, setLimiteReserva] = useState(30);
+  const [isClosing, setIsClosing] = useState(false);
+
+  const handleClose = () => {
+    setIsClosing(true);
+    setTimeout(onClose, 200);
+  };
+
+  const handleConfirm = () => {
+    onConfirm(valor, parseInt(limiteReserva));
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') handleClose();
+      if (e.key === 'Enter') {
+        if (nuevoEstado !== 'reservada' || valor.trim()) {
+          handleConfirm();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [valor, limiteReserva]);
+
+  const isReserva = nuevoEstado === 'reservada';
+  const title = isReserva ? `Reservar ${mesa.nombre}` : `Poner ${mesa.nombre} en ${nuevoEstado === 'manten' ? 'Mantenimiento' : 'Fuera de Servicio'}`;
+  const label = isReserva ? 'Nombre del Cliente' : 'Motivo / Detalle del Estado';
+  const placeholder = isReserva ? 'Ej: Juan Pérez, Reserva 8:00 PM...' : 'Ej: Cambio de paño, Falla luz superior (opcional)...';
+
+  return (
+    <div className={`modal-overlay ${isClosing ? 'modal-closing' : ''}`} onClick={handleClose}>
+      <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 400 }}>
+        <div className="modal-header">
+          <span className="modal-title">
+            <i className={isReserva ? "ri-bookmark-fill" : "ri-tools-line"} style={{ marginRight: 8, color: 'var(--bronze-light)' }} />
+            {title}
+          </span>
+          <button onClick={handleClose} className="btn-icon btn btn-secondary" style={{ background: 'none', border: 'none' }}>
+            <i className="ri-close-line" style={{ fontSize: 20 }} />
+          </button>
+        </div>
+        <div className="modal-body">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div className="form-group">
+              <label className="form-label">{label}</label>
+              <input 
+                className="form-input" 
+                placeholder={placeholder} 
+                value={valor} 
+                onChange={e => setValor(e.target.value)} 
+                autoFocus 
+              />
+            </div>
+            
+            {isReserva && (
+              <div className="form-group">
+                <label className="form-label">Tiempo límite de reservación</label>
+                <select 
+                  className="form-select" 
+                  value={limiteReserva} 
+                  onChange={e => setLimiteReserva(parseInt(e.target.value))}
+                >
+                  <option value={15}>15 minutos</option>
+                  <option value={30}>30 minutos (Recomendado)</option>
+                  <option value={45}>45 minutos</option>
+                  <option value={60}>1 hora</option>
+                </select>
+                <span style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 4, display: 'block' }}>
+                  Transcurrido este tiempo, la mesa volverá a estar disponible automáticamente.
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="modal-footer">
+          <button className="btn btn-secondary" onClick={handleClose}>Cancelar</button>
+          <button 
+            className="btn btn-primary" 
+            onClick={handleConfirm}
+            disabled={isReserva && !valor.trim()}
+          >
+            Confirmar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ModalHistorial({ mesa, onClose }) {
+  const [isClosing, setIsClosing] = useState(false);
+  const handleClose = () => {
+    setIsClosing(true);
+    setTimeout(onClose, 200);
+  };
+
+  const formatearFecha = (iso) => {
+    try {
+      const d = new Date(iso);
+      return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    } catch {
+      return iso;
+    }
+  };
+
+  return (
+    <div className={`modal-overlay ${isClosing ? 'modal-closing' : ''}`} onClick={handleClose}>
+      <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 450 }}>
+        <div className="modal-header">
+          <span className="modal-title">
+            <i className="ri-history-line" style={{ marginRight: 8, color: 'var(--bronze-light)' }} />
+            Historial de Incidencias — {mesa.nombre}
+          </span>
+          <button onClick={handleClose} className="btn-icon btn btn-secondary" style={{ background: 'none', border: 'none' }}>
+            <i className="ri-close-line" style={{ fontSize: 20 }} />
+          </button>
+        </div>
+        <div className="modal-body" style={{ maxHeight: '60vh', overflowY: 'auto' }}>
+          {(!mesa.historialManten || mesa.historialManten.length === 0) ? (
+            <div style={{ padding: '20px 0', textAlign: 'center', color: 'var(--text-muted)' }}>
+              No hay incidencias registradas en el historial de esta mesa.
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {mesa.historialManten.map((item, idx) => (
+                <div 
+                  key={idx} 
+                  style={{
+                    background: 'var(--bg-elevated)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 10,
+                    padding: 12,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 6
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 10 }}>
+                    <span style={{ 
+                      color: item.estado === 'manten' ? 'var(--mesa-manten)' : '#ef4444',
+                      fontWeight: 700,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em'
+                    }}>
+                      {item.estado === 'manten' ? '🔧 Mantenimiento' : '🚫 Fuera de Servicio'}
+                    </span>
+                    <span style={{ color: 'var(--text-muted)' }}>{formatearFecha(item.fecha)}</span>
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--text-primary)', fontWeight: 500, wordBreak: 'break-word' }}>
+                    {item.motivo}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="modal-footer">
+          <button className="btn btn-secondary" onClick={handleClose}>Cerrar</button>
         </div>
       </div>
     </div>
