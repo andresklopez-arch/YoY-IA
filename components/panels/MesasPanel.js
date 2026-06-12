@@ -875,6 +875,8 @@ export default function MesasPanel({ showToast }) {
   const [modalVincular, setModalVincular] = useState(null);
   const [modalBitacora, setModalBitacora] = useState(false);
   const [bitacora, setBitacora] = useState([]);
+  const [limiteBitacora, setLimiteBitacora] = useState(50);
+  const [hasMoreBitacora, setHasMoreBitacora] = useState(true);
   const [modalComanda, setModalComanda] = useState(false);
   const [productosBajos, setProductosBajos] = useState([]);
   const [modalQR, setModalQR] = useState(null); // mesa para mostrar QR
@@ -1700,10 +1702,11 @@ export default function MesasPanel({ showToast }) {
 
   // Escuchar bitácora de Firestore en tiempo real para mantener sincronizado a todo el staff
   useEffect(() => {
-    const q = query(collection(db, 'bitacora'), orderBy('fecha', 'desc'), limit(100));
+    const q = query(collection(db, 'bitacora'), orderBy('fecha', 'desc'), limit(limiteBitacora));
     const unsub = onSnapshot(q, snap => {
       const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       setBitacora(items);
+      setHasMoreBitacora(items.length === limiteBitacora);
       try {
         localStorage.setItem('yoy_billar_bitacora', obfuscate(items));
       } catch (err) {
@@ -1719,7 +1722,7 @@ export default function MesasPanel({ showToast }) {
       }
     });
     return unsub;
-  }, []);
+  }, [limiteBitacora]);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -3187,7 +3190,12 @@ export default function MesasPanel({ showToast }) {
         <ModalBitacora
           bitacora={bitacora}
           onClear={limpiarBitacora}
-          onClose={() => setModalBitacora(false)}
+          onClose={() => {
+            setModalBitacora(false);
+            setLimiteBitacora(50);
+          }}
+          onLoadMore={() => setLimiteBitacora(prev => prev + 50)}
+          hasMore={hasMoreBitacora}
         />
       )}
       {modalComanda && (
@@ -4521,7 +4529,7 @@ function ModalVincularCliente({ mesa, onClose, onConfirm }) {
 }
 
 // ── MODAL BITÁCORA (SUGERENCIA 2) ────────────────────────
-function ModalBitacora({ bitacora, onClear, onClose }) {
+function ModalBitacora({ bitacora, onClear, onClose, onLoadMore, hasMore }) {
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" style={{ maxWidth: 600 }} onClick={e => e.stopPropagation()}>
@@ -4542,7 +4550,7 @@ function ModalBitacora({ bitacora, onClear, onClose }) {
           </div>
         </div>
         <div className="modal-body">
-          <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>Últimos 100 movimientos de mesas, consumos y caja en este dispositivo.</p>
+          <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>Movimientos de mesas, consumos y caja del negocio.</p>
           {bitacora.length === 0 ? (
             <p style={{ color: 'var(--text-muted)', fontSize: 13, textAlign: 'center', padding: '60px 0' }}>No hay registros disponibles en la bitácora.</p>
           ) : (
@@ -4569,6 +4577,11 @@ function ModalBitacora({ bitacora, onClear, onClose }) {
                   </div>
                 );
               })}
+              {hasMore && (
+                <button className="btn btn-secondary btn-sm" onClick={onLoadMore} style={{ width: '100%', marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                  <i className="ri-arrow-down-s-line" /> Cargar más registros...
+                </button>
+              )}
             </div>
           )}
         </div>
