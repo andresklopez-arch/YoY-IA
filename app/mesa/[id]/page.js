@@ -512,6 +512,10 @@ export default function MesaClientePage({ params }) {
       alert('Operación denegada: Esta mesa no se encuentra activa en caja. Solicita su apertura.');
       return;
     }
+    if (mesaInfo.preTicketImpreso) {
+      alert('Operación denegada: La mesa se encuentra en proceso de cobro (pre-ticket impreso). No se permiten pedidos adicionales.');
+      return;
+    }
     setEnviando(true);
     const items = Object.entries(carrito).map(([id, cant]) => {
       const prod = productos.find(p => p.id === parseInt(id));
@@ -572,6 +576,10 @@ export default function MesaClientePage({ params }) {
     }
     if (!mesaInfo || mesaInfo.estado !== 'ocupada') {
       alert('Operación denegada: Esta mesa no se encuentra activa en caja. Solicita su apertura.');
+      return;
+    }
+    if (mesaInfo.preTicketImpreso) {
+      alert('Operación denegada: La mesa se encuentra en proceso de cobro. No se permite solicitar asistencias adicionales.');
       return;
     }
     setEnviando(true);
@@ -763,6 +771,60 @@ export default function MesaClientePage({ params }) {
         <p style={{ color: 'var(--cl-muted)', maxWidth: 320, fontSize: 14, lineHeight: 1.6 }}>
           No hemos podido detectar el número de mesa en el enlace. Por favor, escanea nuevamente el código QR ubicado en tu mesa física.
         </p>
+      </div>
+    );
+  }
+
+  if (mesaInfo && mesaInfo.estado === 'ocupada' && mesaInfo.preTicketImpreso) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        background: 'var(--bg-primary, #0c0c0e)',
+        color: '#fff',
+        fontFamily: "'Inter', sans-serif",
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '30px 20px',
+        boxSizing: 'border-box',
+        textAlign: 'center'
+      }}>
+        <style>{`
+          @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap');
+          :root {
+            --bg-elevated: #16161a;
+            --border-bronze: #cd7f32;
+            --bronze-light: #c5a880;
+          }
+        `}</style>
+        <div style={{
+          background: 'var(--bg-elevated, #16161a)',
+          border: '1px solid var(--border-bronze, #cd7f32)',
+          borderRadius: 20,
+          padding: '40px 24px',
+          maxWidth: 400,
+          boxShadow: '0 8px 32px rgba(0,0,0,0.5), 0 0 16px rgba(205,127,50,0.1)'
+        }}>
+          <div style={{ fontSize: 64, marginBottom: 20, animation: 'pulse 2s infinite' }}>⏳</div>
+          <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--bronze-light, #c5a880)', margin: '0 0 12px' }}>
+            Cuenta en Proceso
+          </h2>
+          <div style={{ fontSize: 16, fontWeight: 700, margin: '0 0 16px' }}>Mesa {mesaId} ({mesaInfo.cliente || 'Público'})</div>
+          <p style={{ fontSize: 13, color: '#aaa', lineHeight: 1.5, margin: '0 0 24px' }}>
+            Tu pre-ticket de cuenta ya ha sido impreso y se encuentra en caja. En breve el mesero llevará la cuenta a tu mesa o puedes proceder directamente a pagar en caja.
+          </p>
+          <div style={{
+            fontSize: 11,
+            color: '#777',
+            background: 'rgba(255,255,255,0.02)',
+            padding: '10px 14px',
+            borderRadius: 10,
+            border: '1px solid rgba(255,255,255,0.05)'
+          }}>
+            <i className="ri-information-line" style={{ marginRight: 4 }} /> No se permiten pedidos ni asistencias adicionales por este medio en este momento.
+          </div>
+        </div>
       </div>
     );
   }
