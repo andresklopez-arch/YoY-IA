@@ -641,20 +641,27 @@ export default function BarPanel({ showToast }) {
       tipo: l.tipo,
       cantidad: l.cantidad,
       detalle: l.detalle,
-      operador: l.operador || 'Sistema'
+      operador: l.operador || 'Sistema',
+      monto: 0
     })),
     ...dbLogs.map(l => {
       const fechaISO = l.fecha?.toDate ? l.fecha.toDate().toISOString() : new Date().toISOString();
-      const prodNombres = l.items?.map(i => `${i.cantidad}x ${i.nombre}`).join(', ') || 'Varios';
+      const prodNombres = l.items && l.items.length > 0 
+        ? l.items.map(i => `${i.cantidad}x ${i.nombre}`).join(', ') 
+        : 'Renta de mesa (Tiempo)';
       const cantTotal = l.items?.reduce((s, i) => s + i.cantidad, 0) || 0;
+      const esCierre = l.tipo === 'cierre_mesa_liquidada';
       return {
         id: l.id,
         fecha: fechaISO,
         producto: prodNombres,
-        tipo: 'venta_qr',
+        tipo: esCierre ? 'cierre' : 'venta_qr',
         cantidad: cantTotal,
-        detalle: `Descuento automático comanda Mesa ${l.mesaId} (${l.cliente})`,
-        operador: 'Cliente QR'
+        detalle: esCierre
+          ? `Mesa ${l.mesaId} cerrada por ${l.cliente} (Total: $${l.total || 0} MXN cobrado vía ${(l.metodoPago || 'efectivo').toUpperCase()})`
+          : `Descuento automático comanda Mesa ${l.mesaId} (${l.cliente})`,
+        operador: esCierre ? (l.operador || 'Cajero Principal') : 'Cliente QR',
+        monto: l.total || 0
       };
     })
   ].sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
@@ -888,12 +895,13 @@ export default function BarPanel({ showToast }) {
                   const isEntrada = l.tipo === 'entrada';
                   const isMerma = l.tipo === 'merma';
                   const isVentaQr = l.tipo === 'venta_qr';
+                  const isCierre = l.tipo === 'cierre';
                   const isAjustePrecio = l.tipo === 'ajuste_precio';
                   return (
                     <div key={l.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 10, fontSize: 12 }}>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <span className={`badge ${isEntrada ? 'badge-success' : isMerma ? 'badge-danger' : isVentaQr ? 'badge-info' : 'badge-bronze'}`} style={{ fontSize: 8, padding: '1px 4px' }}>
+                          <span className={`badge ${isEntrada ? 'badge-success' : isMerma ? 'badge-danger' : isVentaQr ? 'badge-info' : isCierre ? 'badge-success' : 'badge-bronze'}`} style={{ fontSize: 8, padding: '1px 4px' }}>
                             {l.tipo.toUpperCase()}
                           </span>
                           <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{new Date(l.fecha).toLocaleString()}</span>
@@ -902,8 +910,8 @@ export default function BarPanel({ showToast }) {
                         <span style={{ color: 'var(--text-secondary)', fontSize: 11 }}>{l.detalle}</span>
                       </div>
                       {!isAjustePrecio && (
-                        <div style={{ fontSize: 14, fontWeight: 800, color: isEntrada ? 'var(--success)' : isVentaQr ? 'var(--info)' : 'var(--danger)' }}>
-                          {isEntrada ? '+' : '-'}{l.cantidad}
+                        <div style={{ fontSize: 14, fontWeight: 800, color: isEntrada ? 'var(--success)' : isCierre ? 'var(--success)' : isVentaQr ? 'var(--info)' : 'var(--danger)' }}>
+                          {isEntrada ? '+' : isCierre ? '+$' : '-'}{isCierre ? l.monto : l.cantidad}
                         </div>
                       )}
                     </div>
