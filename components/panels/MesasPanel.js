@@ -1099,6 +1099,7 @@ export default function MesasPanel({ showToast }) {
     const unsub = onSnapshot(q, snap => {
       const alertsMap = {};
       let hasNewAlert = false;
+      let newAlertType = null;
       const currentAlerts = new Set();
 
       snap.docs.forEach(doc => {
@@ -1124,6 +1125,9 @@ export default function MesasPanel({ showToast }) {
         // Si no es la carga inicial y detectamos un id que no estaba en knownAlerts
         if (!isInitialLoadRef.current && !knownAlertsRef.current.has(id)) {
           hasNewAlert = true;
+          if (!newAlertType || data.tipo === 'cuenta' || (data.tipo === 'pedido' && newAlertType !== 'cuenta')) {
+            newAlertType = data.tipo || 'asistencia';
+          }
         }
       });
 
@@ -1131,25 +1135,37 @@ export default function MesasPanel({ showToast }) {
       isInitialLoadRef.current = false;
       setAlertasMesas(alertsMap);
 
-      if (hasNewAlert) {
-        // Reproducir sonido sutil de chime (high double chime) y vibración
+      if (hasNewAlert && newAlertType) {
+        // Reproducir sonido de campana selectivo y vibración
         try {
           const ctx = new (window.AudioContext || window.webkitAudioContext)();
-          const osc1 = ctx.createOscillator();
-          const gain1 = ctx.createGain();
-          osc1.connect(gain1); gain1.connect(ctx.destination);
-          osc1.frequency.value = 587.33; // D5
-          gain1.gain.value = 0.08;
-          osc1.start(); osc1.stop(ctx.currentTime + 0.12);
           
-          setTimeout(() => {
-            const osc2 = ctx.createOscillator();
-            const gain2 = ctx.createGain();
-            osc2.connect(gain2); gain2.connect(ctx.destination);
-            osc2.frequency.value = 698.46; // F5
-            gain2.gain.value = 0.08;
-            osc2.start(); osc2.stop(ctx.currentTime + 0.22);
-          }, 120);
+          const playTone = (freq, startOffset, duration, volume = 0.06) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.frequency.value = freq;
+            gain.gain.setValueAtTime(volume, ctx.currentTime + startOffset);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + startOffset + duration);
+            osc.start(ctx.currentTime + startOffset);
+            osc.stop(ctx.currentTime + startOffset + duration);
+          };
+
+          if (newAlertType === 'cuenta') {
+            // Sonido "Caja/Cobro" (E5 -> G5 -> C6) - Notas ascendentes brillantes
+            playTone(659.25, 0, 0.25);
+            playTone(783.99, 0.08, 0.25);
+            playTone(1046.50, 0.16, 0.4);
+          } else if (newAlertType === 'pedido') {
+            // Sonido "Pedido" (F5 -> A5) - Doble nota alegre
+            playTone(698.46, 0, 0.2);
+            playTone(880.00, 0.08, 0.3);
+          } else {
+            // Sonido "Asistencia" (A4 -> A4) - Doble tono de aviso
+            playTone(440.00, 0, 0.25, 0.08);
+            playTone(440.00, 0.15, 0.25, 0.08);
+          }
 
           if (typeof navigator !== 'undefined' && navigator.vibrate) {
             navigator.vibrate([100, 50, 100]); // Vibración doble
@@ -2228,27 +2244,40 @@ export default function MesasPanel({ showToast }) {
                     display: 'flex',
                     flexDirection: 'column',
                     gap: 6,
-                    background: 'rgba(239,68,68,0.06)',
-                    border: '1px solid rgba(239,68,68,0.15)',
-                    borderRadius: 10,
-                    padding: '8px 10px',
+                    background: 'transparent',
+                    border: 'none',
+                    borderRadius: 0,
+                    padding: 0,
                     animation: 'fadeIn 0.2s ease-in-out'
                   }} onClick={e => e.stopPropagation()}>
                     {alertsForMesa.map(alerta => {
                       let icon = '🔔';
                       let label = alerta.etiqueta || 'Asistencia';
                       let badgeColor = 'var(--warning)';
+                      let alertBg = 'rgba(245, 158, 11, 0.08)';
+                      let alertBorder = 'rgba(245, 158, 11, 0.25)';
+                      let textColor = '#f59e0b';
+                      
                       if (alerta.tipo === 'cuenta') {
                         icon = '💳';
-                        label = `Cuenta: $${alerta.totalAcumulado || ''}`;
+                        label = `Pedir Cuenta: $${alerta.totalAcumulado || ''}`;
                         badgeColor = 'var(--success)';
+                        alertBg = 'rgba(34, 197, 94, 0.1)';
+                        alertBorder = 'rgba(34, 197, 94, 0.3)';
+                        textColor = '#4ade80';
                       } else if (alerta.tipo === 'asistencia') {
                         icon = alerta.icono || '🙋';
                         badgeColor = 'var(--danger)';
+                        alertBg = 'rgba(239, 68, 68, 0.1)';
+                        alertBorder = 'rgba(239, 68, 68, 0.3)';
+                        textColor = '#f87171';
                       } else if (alerta.tipo === 'pedido') {
                         icon = '🥤';
                         label = `Pedido (${alerta.items?.reduce((s,i)=>s+i.cantidad,0) || 0} pz)`;
                         badgeColor = 'var(--info)';
+                        alertBg = 'rgba(59, 130, 246, 0.1)';
+                        alertBorder = 'rgba(59, 130, 246, 0.3)';
+                        textColor = '#60a5fa';
                       }
 
                       return (
@@ -2257,13 +2286,19 @@ export default function MesasPanel({ showToast }) {
                           alignItems: 'center',
                           justifyContent: 'space-between',
                           fontSize: 11,
-                          color: '#fff',
+                          color: textColor,
                           fontWeight: 600,
-                          gap: 6
+                          gap: 6,
+                          background: alertBg,
+                          border: `1px solid ${alertBorder}`,
+                          borderRadius: 8,
+                          padding: '6px 8px',
+                          width: '100%',
+                          boxShadow: '0 2px 4px rgba(0,0,0,0.15)'
                         }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             <span style={{ fontSize: 13, animation: alerta.tipo !== 'pedido' ? 'pulse 1.2s infinite' : 'none' }}>{icon}</span>
-                            <span style={{ color: badgeColor }}>{label}</span>
+                            <span>{label}</span>
                           </div>
                           {alerta.tipo === 'pedido' ? (
                             <button
@@ -2272,7 +2307,7 @@ export default function MesasPanel({ showToast }) {
                               style={{
                                 background: 'rgba(59,130,246,0.15)',
                                 border: '1px solid rgba(59,130,246,0.35)',
-                                color: 'var(--info)',
+                                color: '#60a5fa',
                                 borderRadius: 4,
                                 padding: '2px 6px',
                                 display: 'flex',
@@ -2295,7 +2330,7 @@ export default function MesasPanel({ showToast }) {
                               style={{
                                 background: 'rgba(34,197,94,0.12)',
                                 border: '1px solid rgba(34,197,94,0.3)',
-                                color: 'var(--success)',
+                                color: '#4ade80',
                                 borderRadius: 4,
                                 width: 20,
                                 height: 20,
