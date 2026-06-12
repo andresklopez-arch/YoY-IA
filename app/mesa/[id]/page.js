@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useCallback, use } from 'react';
+import { useState, useEffect, useCallback, use, useRef } from 'react';
 import {
   collection, addDoc, onSnapshot, query,
   where, orderBy, serverTimestamp, doc, updateDoc, setDoc, getDoc
@@ -72,8 +72,17 @@ export default function MesaClientePage({ params }) {
   const [showAsistConfirm, setShowAsistConfirm] = useState(null);
   const [enviando, setEnviando] = useState(false);
   const [exito, setExito] = useState(null); // 'pedido' | 'asistencia' | 'cuenta'
-  const [mesaInfo, setMesaInfo] = useState(null);
+  const [mesaInfo, setMesaInfo] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem(`yoy_mesa_info_${mesaId}`);
+        return stored ? JSON.parse(stored) : null;
+      } catch (e) {}
+    }
+    return null;
+  });
   const [loadingMesaInfo, setLoadingMesaInfo] = useState(true);
+  const [notification, setNotification] = useState(null);
 
   // Nombre del cliente (pre-poblado si la mesa tiene cliente asignado)
   const [clienteNombre, setClienteNombre] = useState(() => {
@@ -384,6 +393,9 @@ export default function MesaClientePage({ params }) {
         const mesa = list.find(m => m.id === mesaId);
         if (mesa) {
           setMesaInfo(mesa);
+          try {
+            localStorage.setItem(`yoy_mesa_info_${mesaId}`, JSON.stringify(mesa));
+          } catch (e) {}
           if (mesa.cliente && mesa.cliente !== 'Público') {
             setClienteNombre(mesa.cliente);
             try {
@@ -400,6 +412,36 @@ export default function MesaClientePage({ params }) {
     });
     return unsub;
   }, [mesaId]);
+
+  // Detectar cambios en la configuración de la mesa en tiempo real y mostrar notificaciones
+  const prevMesaConfig = useRef(null);
+  useEffect(() => {
+    if (!mesaInfo) return;
+    
+    if (prevMesaConfig.current) {
+      const prev = prevMesaConfig.current;
+      const changes = [];
+      if (prev.tarifa !== mesaInfo.tarifa) changes.push(`Tarifa a $${mesaInfo.tarifa}/hr`);
+      if (prev.rentarTaco !== mesaInfo.rentarTaco) changes.push(mesaInfo.rentarTaco ? 'Taco Premium añadido' : 'Taco Premium retirado');
+      if (prev.rentarBolas !== mesaInfo.rentarBolas) changes.push(mesaInfo.rentarBolas ? 'Bolas Premium añadidas' : 'Bolas Premium retiradas');
+      if (prev.rentarTiza !== mesaInfo.rentarTiza) changes.push(mesaInfo.rentarTiza ? 'Tiza Premium añadida' : 'Tiza Premium retirada');
+      if (prev.socios !== mesaInfo.socios) changes.push(mesaInfo.socios ? 'Tarifa miembro activada' : 'Tarifa miembro desactivada');
+
+      if (changes.length > 0) {
+        setNotification(`Mesa actualizada: ${changes.join(', ')} ⚡`);
+        const timer = setTimeout(() => setNotification(null), 4000);
+        return () => clearTimeout(timer);
+      }
+    }
+
+    prevMesaConfig.current = {
+      tarifa: mesaInfo.tarifa,
+      rentarTaco: mesaInfo.rentarTaco,
+      rentarBolas: mesaInfo.rentarBolas,
+      rentarTiza: mesaInfo.rentarTiza,
+      socios: mesaInfo.socios
+    };
+  }, [mesaInfo]);
 
   // ── Reclamar y Bloquear Mesa en tiempo real con inactividad de 15 minutos ──
   useEffect(() => {
@@ -1037,6 +1079,31 @@ export default function MesaClientePage({ params }) {
           </div>
         )}
 
+        {notification && (
+          <div style={{
+            background: 'linear-gradient(135deg, rgba(205,127,50,0.15), rgba(15,13,12,0.95))',
+            border: '1px solid var(--cl-border-bronze, rgba(205,127,50,0.45))',
+            borderRadius: 14,
+            padding: '14px 16px',
+            marginBottom: 16,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            animation: 'slideUp 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+            boxShadow: '0 8px 24px rgba(205,127,50,0.15)'
+          }}>
+            <span style={{ fontSize: 26 }}>⚡</span>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--cl-bronze-light)' }}>
+                Configuración Actualizada
+              </div>
+              <div style={{ fontSize: 12, color: '#fff', marginTop: 2 }}>
+                {notification}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* ════════════════════════ TAB: MENÚ ════════════════════════ */}
         {tab === 'menu' && (
           <>
@@ -1293,6 +1360,41 @@ export default function MesaClientePage({ params }) {
                 ))}
               </div>
             )}
+
+            {(() => {
+              const costoProductos = pedidosMesa
+                .filter(p => p.tipo === 'pedido')
+                .reduce((s, p) => s + (p.total || 0), 0);
+              if (totalAcumulado === 0) return null;
+              
+              const pctMesa = Math.round((tiempoData.costo / totalAcumulado) * 100);
+              const pctConsumo = Math.round((costoProductos / totalAcumulado) * 100);
+              
+              return (
+                <div style={{ background: 'var(--cl-card)', border: '1px solid var(--cl-border)', borderRadius: 16, padding: 14, marginBottom: 16 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--cl-muted)', marginBottom: 8, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    <span>Proporción de Gasto</span>
+                    <span>{pctConsumo}% Consumo</span>
+                  </div>
+                  
+                  <div style={{ height: 8, background: 'rgba(255,255,255,0.05)', borderRadius: 4, overflow: 'hidden', display: 'flex' }}>
+                    {tiempoData.costo > 0 && <div style={{ width: `${(tiempoData.costo / totalAcumulado) * 100}%`, background: 'var(--cl-bronze-light, #cd7f32)', transition: 'width 0.3s ease' }} />}
+                    {costoProductos > 0 && <div style={{ width: `${(costoProductos / totalAcumulado) * 100}%`, background: '#22c55e', transition: 'width 0.3s ease' }} />}
+                  </div>
+                  
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginTop: 8, fontSize: 11 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: 'var(--cl-text-secondary)' }}>
+                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--cl-bronze-light)' }} />
+                      Mesa: ${tiempoData.costo} ({pctMesa}%)
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: 'var(--cl-text-secondary)' }}>
+                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e' }} />
+                      Menú: ${costoProductos} ({pctConsumo}%)
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
 
             <div className="mc-total-box" style={{ marginTop: 8, marginBottom: 16 }}>
               <div style={{ fontSize: 11, color: 'var(--cl-bronze-light)', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 700, marginBottom: 6 }}>Total Acumulado (Mesa + Consumo)</div>
