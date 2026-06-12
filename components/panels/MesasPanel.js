@@ -2114,7 +2114,7 @@ export default function MesasPanel({ showToast }) {
           return (
               <div
                 key={mesa.id}
-                className={`mesa-card ${mesa.estado} ${isPorCobrar ? 'por-cobrar' : ''}`}
+                className={`mesa-card ${mesa.estado} ${isPorCobrar ? 'por-cobrar' : ''} ${hasAlert ? 'has-alert' : ''}`}
                 onClick={() => abrirMesa(mesa)}
                 style={hasAlert ? {
                   boxShadow: '0 0 16px rgba(239, 68, 68, 0.3)',
