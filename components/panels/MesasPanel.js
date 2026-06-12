@@ -408,7 +408,18 @@ function ModalCerrarMesa({ mesa, cuentasActivas, onClose, onCerrar, onAgregarACu
     setCamaraActiva(false);
   }, [metodo]);
 
-  const costo = calcCosto({ ...mesa, inicio: mesa.inicio });
+  const cuentaAsociada = cuentasActivas.find(c => 
+    c.cliente && (
+      (mesa.cliente && c.cliente.toLowerCase() === mesa.cliente.toLowerCase()) || 
+      c.cliente.toLowerCase() === `mesa ${mesa.id}`
+    )
+  );
+  const consumosTotal = cuentaAsociada 
+    ? cuentaAsociada.consumos.reduce((sum, item) => sum + item.precio * item.cantidad, 0)
+    : 0;
+
+  const costoTiempo = calcCosto({ ...mesa, inicio: mesa.inicio });
+  const costo = mesa.socios ? consumosTotal : (costoTiempo + consumosTotal);
   const hrs = (elapsed / 3600000).toFixed(2);
 
   // Lógica de cálculo de efectivo
@@ -451,6 +462,19 @@ function ModalCerrarMesa({ mesa, cuentasActivas, onClose, onCerrar, onAgregarACu
                 {(!mesa.socios || costo > 0) && <div style={{ fontSize: 9, color: 'var(--text-muted)', lineHeight: 1 }}>MXN</div>}
               </div>
             </div>
+
+            {/* Breakdown de consumos if any */}
+            {consumosTotal > 0 && (
+              <div style={{ background: 'var(--bg-elevated)', borderRadius: 10, padding: '8px 12px', fontSize: 10, border: '1px solid var(--border)' }}>
+                <div style={{ fontWeight: 'bold', color: 'var(--bronze-light)', marginBottom: 4 }}>Detalle de Consumos:</div>
+                <ul style={{ margin: 0, paddingLeft: 14, color: 'var(--text-muted)' }}>
+                  {!mesa.socios && <li>Tiempo de juego: ${costoTiempo}</li>}
+                  {cuentaAsociada.consumos.map((item, idx) => (
+                    <li key={idx}>{item.cantidad}x {item.producto} (${item.precio * item.cantidad})</li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             {(mesa.rentarTaco || mesa.rentarBolas || mesa.rentarTiza) && (
               <div style={{ fontSize: 10, color: 'var(--bronze-light)', padding: '6px 10px', background: 'var(--bg-elevated)', borderRadius: 8, border: '1px solid var(--border)' }}>
@@ -715,7 +739,7 @@ function ModalCerrarMesa({ mesa, cuentasActivas, onClose, onCerrar, onAgregarACu
             <button
               className="btn btn-primary"
               onClick={() => onAgregarACuenta({
-                costo,
+                costo: costoTiempo,
                 cuentaId: cuentaSeleccionada,
                 nombreNuevo: nuevoCliente || 'Cliente Temporal'
               })}
@@ -984,8 +1008,8 @@ export default function MesasPanel({ showToast }) {
         const id = doc.id;
         currentAlerts.add(id);
 
-        // Auto-cargar pedidos a la cuenta de forma reactiva si fueron atendidos por mesero o admin o si ya están listos/en camino/entregados
-        const debCargar = data.atendidoMesero || data.atendidoAdmin || ['listo', 'en_camino', 'entregado'].includes(data.estado);
+        // Auto-cargar pedidos a la cuenta de forma reactiva si es un pedido o si fue atendido por mesero o admin o si ya está listo/en camino/entregados
+        const debCargar = data.tipo === 'pedido' || data.atendidoMesero || data.atendidoAdmin || ['listo', 'en_camino', 'entregado'].includes(data.estado);
         if (data.tipo === 'pedido' && !data.cargadoACuenta && debCargar) {
           cargarPedidoACuenta(mesaId || 0, { id, ...data }, true);
         }
@@ -1569,6 +1593,14 @@ export default function MesasPanel({ showToast }) {
     const mesa = mesas.find(m => m.id === mesaId);
     const clientName = mesa ? mesa.cliente : 'Público';
 
+    // Eliminar la cuenta asociada de cuentasActivas ya que ha sido liquidada
+    setCuentasActivas(prev => prev.filter(c => 
+      !(c.cliente && (
+        (mesa && mesa.cliente && c.cliente.toLowerCase() === mesa.cliente.toLowerCase()) || 
+        c.cliente.toLowerCase() === `mesa ${mesaId}`
+      ))
+    ));
+
     // Desactivar/atender/finalizar todas las alertas y consumos de la mesa en Firestore en lote (batch)
     const qAlerts = query(
       collection(db, 'mesa_pedidos'),
@@ -1620,8 +1652,20 @@ export default function MesasPanel({ showToast }) {
   };
 
   const ingresosActivos = mesas
-    .filter(m => m.estado === 'ocupada' && !m.socios)
-    .reduce((sum, m) => sum + calcCosto(m), 0);
+    .filter(m => m.estado === 'ocupada')
+    .reduce((sum, m) => {
+      const cuentaAsociada = cuentasActivas.find(c => 
+        c.cliente && (
+          (m.cliente && c.cliente.toLowerCase() === m.cliente.toLowerCase()) || 
+          c.cliente.toLowerCase() === `mesa ${m.id}`
+        )
+      );
+      const consumosTotal = cuentaAsociada 
+        ? cuentaAsociada.consumos.reduce((s, item) => s + item.precio * item.cantidad, 0)
+        : 0;
+      const costoTiempo = m.socios ? 0 : calcCosto(m);
+      return sum + costoTiempo + consumosTotal;
+    }, 0);
 
   return (
     <div style={{ minHeight: isFullscreen ? '100vh' : 'auto', padding: isFullscreen ? '20px' : '0', background: isFullscreen ? 'var(--bg-main)' : 'transparent' }}>
@@ -1740,6 +1784,16 @@ export default function MesasPanel({ showToast }) {
         {mesasFiltradas.map(mesa => {
           const elapsed = mesa.inicio ? Date.now() - mesa.inicio : 0;
           const costo = calcCosto(mesa);
+          const cuentaAsociada = cuentasActivas.find(c => 
+            c.cliente && (
+              (mesa.cliente && c.cliente.toLowerCase() === mesa.cliente.toLowerCase()) || 
+              c.cliente.toLowerCase() === `mesa ${mesa.id}`
+            )
+          );
+          const consumosTotal = cuentaAsociada 
+            ? cuentaAsociada.consumos.reduce((s, item) => s + item.precio * item.cantidad, 0)
+            : 0;
+          const totalMesa = costo + consumosTotal;
           const cfg = ESTADO_CONFIG[mesa.estado];
           const alertsForMesa = alertasMesas[mesa.id] || [];
           const hasAlert = alertsForMesa.length > 0;
@@ -1776,7 +1830,12 @@ export default function MesasPanel({ showToast }) {
                       {mesa.socios && <span className="badge badge-bronze" style={{ marginLeft: 6, fontSize: 8 }}>Socio</span>}
                     </div>
                     <div className="mesa-rate" style={{ marginTop: 6, fontSize: 13, fontWeight: 700, color: 'var(--bronze-light)' }}>
-                      {mesa.socios ? 'Sin cargo' : `$${costo} MXN`}
+                      {mesa.socios && consumosTotal === 0 ? 'Sin cargo' : `$${mesa.socios ? consumosTotal : totalMesa} MXN`}
+                      {consumosTotal > 0 && (
+                        <span style={{ fontSize: 9, color: 'var(--text-muted)', display: 'block', fontWeight: 'normal', marginTop: 2 }}>
+                          (Tiempo: ${costo} + Consumo: ${consumosTotal})
+                        </span>
+                      )}
                     </div>
                   </>
                 )}
