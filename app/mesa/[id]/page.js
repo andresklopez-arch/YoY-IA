@@ -83,6 +83,7 @@ export default function MesaClientePage({ params }) {
   });
   const [loadingMesaInfo, setLoadingMesaInfo] = useState(true);
   const [notification, setNotification] = useState(null);
+  const [cuentasActivas, setCuentasActivas] = useState([]);
 
   // Nombre del cliente (pre-poblado si la mesa tiene cliente asignado)
   const [clienteNombre, setClienteNombre] = useState(() => {
@@ -443,6 +444,19 @@ export default function MesaClientePage({ params }) {
     };
   }, [mesaInfo]);
 
+  // ── Leer cuentas activas en tiempo real desde Firestore ──
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, 'config', 'cuentas_estado'), snap => {
+      if (snap.exists()) {
+        const list = snap.data().cuentas || [];
+        setCuentasActivas(list);
+      }
+    }, err => {
+      console.error("Error al escuchar cuentas activas en Firestore:", err);
+    });
+    return unsub;
+  }, []);
+
   // ── Reclamar y Bloquear Mesa en tiempo real con inactividad de 15 minutos ──
   useEffect(() => {
     if (authStatus !== 'conectado' || !auth.currentUser || !mesaInfo || mesaInfo.estado !== 'ocupada') return;
@@ -764,10 +778,19 @@ export default function MesaClientePage({ params }) {
 
   const tiempoData = getTiempoJuegoData();
 
+  // ── Buscar cuenta asociada y calcular consumos reales de la caja ──
+  const cuentaAsociada = cuentasActivas.find(c => 
+    c.cliente && (
+      (mesaInfo?.cliente && c.cliente.toLowerCase() === mesaInfo.cliente.toLowerCase()) || 
+      c.cliente.toLowerCase() === `mesa ${mesaId}`
+    )
+  );
+
+  const consumosList = cuentaAsociada ? (cuentaAsociada.consumos || []) : [];
+  const costoConsumoReal = consumosList.reduce((sum, item) => sum + (item.precio || 0) * (item.cantidad || 0), 0);
+
   // ── Calcular total acumulado ─────────────────────────────
-  const totalAcumulado = pedidosMesa
-    .filter(p => p.tipo === 'pedido')
-    .reduce((s, p) => s + (p.total || 0), 0) + tiempoData.costo;
+  const totalAcumulado = tiempoData.costo + costoConsumoReal;
 
   const pendientesEntrega = pedidosMesa.filter(p => p.tipo === 'pedido' && p.estado === 'pendiente').length;
 
@@ -1317,58 +1340,72 @@ export default function MesaClientePage({ params }) {
             )}
 
             <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--cl-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>
-              🍹 Consumos de Menú
+              🍹 Consumos de Menú (Cargados en cuenta)
             </div>
 
-            {pedidosMesa.filter(p => p.tipo === 'pedido').length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '24px 16px', background: 'rgba(255,255,255,0.02)', border: '1px dashed var(--cl-border)', borderRadius: 14, marginBottom: 16 }}>
-                <i className="ri-receipt-line" style={{ fontSize: 24, color: 'var(--cl-muted)', display: 'block', marginBottom: 8 }} />
-                <p style={{ margin: 0, fontSize: 13, color: 'var(--cl-muted)' }}>Aún no has ordenado productos del menú.</p>
+            {consumosList.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '20px 16px', background: 'rgba(255,255,255,0.02)', border: '1px dashed var(--cl-border)', borderRadius: 14, marginBottom: 16 }}>
+                <i className="ri-receipt-line" style={{ fontSize: 22, color: 'var(--cl-muted)', display: 'block', marginBottom: 6 }} />
+                <p style={{ margin: 0, fontSize: 12, color: 'var(--cl-muted)' }}>Ningún consumo cargado oficialmente en la mesa todavía.</p>
               </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
-                {pedidosMesa.filter(p => p.tipo === 'pedido').map(pedido => (
-                  <div key={pedido.id} style={{ background: 'var(--cl-card)', border: '1px solid var(--cl-border)', borderRadius: 14, padding: '14px 16px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                      <span style={{ fontSize: 11, color: 'var(--cl-muted)' }}>
-                        {pedido.createdAt?.toDate ? pedido.createdAt.toDate().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }) : '—'}
-                      </span>
-                      <span style={{
-                        fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 999,
-                        background: pedido.estado === 'entregado' ? 'rgba(34,197,94,0.15)' : 
-                                    pedido.estado === 'listo' ? 'rgba(167,139,250,0.15)' : 
-                                    pedido.estado === 'en_camino' ? 'rgba(245,158,11,0.15)' : 'rgba(59,130,246,0.15)',
-                        color: pedido.estado === 'entregado' ? '#22c55e' : 
-                               pedido.estado === 'listo' ? '#a78bfa' : 
-                               pedido.estado === 'en_camino' ? '#f59e0b' : '#3b82f6',
-                      }}>
-                        {pedido.estado === 'entregado' ? '✅ Entregado' : 
-                         pedido.estado === 'listo' ? '🍳 Preparado' : 
-                         pedido.estado === 'en_camino' ? '🚀 En camino' : '⏳ Pendiente'}
-                      </span>
-                    </div>
-                    {pedido.items?.map((item, i) => (
-                      <div key={i} className="mc-cuenta-item" style={{ paddingTop: i === 0 ? 0 : 8 }}>
-                        <span style={{ fontSize: 13 }}>{item.cantidad}× {item.nombre}</span>
-                        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--cl-bronze-light)' }}>${item.subtotal}</span>
-                      </div>
-                    ))}
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--cl-border)' }}>
-                      <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--cl-bronze-light)' }}>Total: ${pedido.total}</span>
-                    </div>
+              <div style={{ background: 'var(--cl-card)', border: '1px solid var(--cl-border)', borderRadius: 16, padding: '14px 16px', marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {consumosList.map((item, idx) => (
+                  <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13, paddingBottom: idx === consumosList.length - 1 ? 0 : 8, borderBottom: idx === consumosList.length - 1 ? 'none' : '1px solid rgba(255,255,255,0.03)' }}>
+                    <span>{item.cantidad}× {item.producto}</span>
+                    <span style={{ fontWeight: 700, color: 'var(--cl-bronze-light)' }}>${(item.precio || 0) * (item.cantidad || 0)}</span>
                   </div>
                 ))}
+                <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: 8, borderTop: '1px solid var(--cl-border)' }}>
+                  <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--cl-bronze-light)' }}>Subtotal Consumo: ${costoConsumoReal}</span>
+                </div>
               </div>
             )}
 
             {(() => {
-              const costoProductos = pedidosMesa
-                .filter(p => p.tipo === 'pedido')
-                .reduce((s, p) => s + (p.total || 0), 0);
+              const ordenesEnProceso = pedidosMesa.filter(p => p.tipo === 'pedido' && p.estado !== 'entregado');
+              if (ordenesEnProceso.length === 0) return null;
+              
+              return (
+                <>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--cl-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: 16, marginBottom: 10 }}>
+                    ⏳ Pedidos en Preparación / Camino
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
+                    {ordenesEnProceso.map(pedido => (
+                      <div key={pedido.id} style={{ background: 'rgba(255,255,255,0.01)', border: '1px dashed var(--cl-border)', borderRadius: 14, padding: '12px 14px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                          <span style={{ fontSize: 11, color: 'var(--cl-muted)' }}>
+                            {pedido.createdAt?.toDate ? pedido.createdAt.toDate().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }) : '—'}
+                          </span>
+                          <span style={{
+                            fontSize: 9, fontWeight: 800, padding: '1px 6px', borderRadius: 999,
+                            background: pedido.estado === 'listo' ? 'rgba(167,139,250,0.15)' : 
+                                        pedido.estado === 'en_camino' ? 'rgba(245,158,11,0.15)' : 'rgba(59,130,246,0.15)',
+                            color: pedido.estado === 'listo' ? '#a78bfa' : 
+                                   pedido.estado === 'en_camino' ? '#f59e0b' : '#3b82f6',
+                          }}>
+                            {pedido.estado === 'listo' ? '🍳 Preparado' : 
+                             pedido.estado === 'en_camino' ? '🚀 En camino' : '⏳ Pendiente'}
+                          </span>
+                        </div>
+                        {pedido.items?.map((item, i) => (
+                          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--cl-text-secondary)', padding: '2px 0' }}>
+                            <span>{item.cantidad}× {item.nombre}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                </>
+              );
+            })()}
+
+            {(() => {
               if (totalAcumulado === 0) return null;
               
               const pctMesa = Math.round((tiempoData.costo / totalAcumulado) * 100);
-              const pctConsumo = Math.round((costoProductos / totalAcumulado) * 100);
+              const pctConsumo = Math.round((costoConsumoReal / totalAcumulado) * 100);
               
               return (
                 <div style={{ background: 'var(--cl-card)', border: '1px solid var(--cl-border)', borderRadius: 16, padding: 14, marginBottom: 16 }}>
@@ -1379,7 +1416,7 @@ export default function MesaClientePage({ params }) {
                   
                   <div style={{ height: 8, background: 'rgba(255,255,255,0.05)', borderRadius: 4, overflow: 'hidden', display: 'flex' }}>
                     {tiempoData.costo > 0 && <div style={{ width: `${(tiempoData.costo / totalAcumulado) * 100}%`, background: 'var(--cl-bronze-light, #cd7f32)', transition: 'width 0.3s ease' }} />}
-                    {costoProductos > 0 && <div style={{ width: `${(costoProductos / totalAcumulado) * 100}%`, background: '#22c55e', transition: 'width 0.3s ease' }} />}
+                    {costoConsumoReal > 0 && <div style={{ width: `${(costoConsumoReal / totalAcumulado) * 100}%`, background: '#22c55e', transition: 'width 0.3s ease' }} />}
                   </div>
                   
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginTop: 8, fontSize: 11 }}>
@@ -1389,7 +1426,7 @@ export default function MesaClientePage({ params }) {
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: 'var(--cl-text-secondary)' }}>
                       <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e' }} />
-                      Menú: ${costoProductos} ({pctConsumo}%)
+                      Menú: ${costoConsumoReal} ({pctConsumo}%)
                     </div>
                   </div>
                 </div>
