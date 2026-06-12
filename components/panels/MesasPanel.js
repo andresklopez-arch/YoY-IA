@@ -1698,6 +1698,29 @@ export default function MesasPanel({ showToast }) {
     }
   }, []);
 
+  // Escuchar bitácora de Firestore en tiempo real para mantener sincronizado a todo el staff
+  useEffect(() => {
+    const q = query(collection(db, 'bitacora'), orderBy('fecha', 'desc'), limit(100));
+    const unsub = onSnapshot(q, snap => {
+      const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      setBitacora(items);
+      try {
+        localStorage.setItem('yoy_billar_bitacora', obfuscate(items));
+      } catch (err) {
+        console.error("Error al respaldar bitácora en localStorage:", err);
+      }
+    }, err => {
+      console.error("Error al escuchar bitácora en tiempo real:", err);
+      try {
+        const saved = localStorage.getItem('yoy_billar_bitacora');
+        if (saved) setBitacora(deobfuscate(saved) || []);
+      } catch (e) {
+        console.error(e);
+      }
+    });
+    return unsub;
+  }, []);
+
   useEffect(() => {
     if (typeof window !== 'undefined') {
       try {
@@ -1781,32 +1804,37 @@ export default function MesasPanel({ showToast }) {
   }, [fila]);
 
   // ── REGISTRO DE AUDITORÍA Y BITÁCORA OFUSCADA (SUGERENCIA 1 Y 2) ──────────
-  const registrarEvento = (accion, detalle, monto = 0) => {
+  // ── REGISTRO DE AUDITORÍA Y BITÁCORA OFUSCADA (SUGERENCIA 1 Y 2) ──────────
+  const registrarEvento = async (accion, detalle, monto = 0) => {
     const nuevoEvento = {
-      id: Date.now(),
       fecha: new Date().toISOString(),
       accion,
       detalle,
       monto,
       operador: 'Cajero Principal'
     };
-    setBitacora(prev => {
-      const act = [nuevoEvento, ...prev].slice(0, 100);
-      try {
-        localStorage.setItem('yoy_billar_bitacora', obfuscate(act));
-      } catch (err) {
-        console.error("Error al guardar bitácora:", err);
-      }
-      return act;
-    });
+    try {
+      await addDoc(collection(db, 'bitacora'), nuevoEvento);
+    } catch (err) {
+      console.error("Error al registrar evento en Firestore:", err);
+      // Fallback local instantáneo si está offline
+      setBitacora(prev => [{ id: Date.now(), ...nuevoEvento }, ...prev].slice(0, 100));
+    }
   };
 
-  const limpiarBitacora = () => {
+  const limpiarBitacora = async () => {
     setBitacora([]);
     try {
       localStorage.removeItem('yoy_billar_bitacora');
+      const q = query(collection(db, 'bitacora'), limit(100));
+      const snap = await getDocs(q);
+      if (!snap.empty) {
+        const batch = writeBatch(db);
+        snap.docs.forEach(d => batch.delete(d.ref));
+        await batch.commit();
+      }
     } catch (err) {
-      console.error(err);
+      console.error("Error al limpiar bitácora en la nube:", err);
     }
     showToast('Bitácora limpiada correctamente.', 'info');
   };
@@ -2217,29 +2245,54 @@ export default function MesasPanel({ showToast }) {
           }))
         : [];
 
-      await addDoc(collection(db, 'historial_stock'), {
-        fecha: serverTimestamp(),
-        mesaId: mesaId,
-        cliente: clientName,
-        items: itemsAuditoria,
-        total: costo,
-        tipo: 'cierre_mesa_liquidada',
-        tiempoJuego: tiempo ? (tiempo / 3600000).toFixed(2) + ' hrs' : '0 hrs',
-        metodoPago: metodo || 'efectivo',
-        referenciaPago: referencia || '',
-        pagaCon: pagaCon || 0,
-        cambio: cambio || 0,
-        fotoAdjunta: fotoAdjunta || false,
-        operador: 'Cajero Principal'
+      // Ejecutar la liquidación de la cuenta y el registro de auditoría en una transacción atómica
+      const stockRef = doc(collection(db, 'historial_stock'));
+      const cuentasRef = doc(db, 'config', 'cuentas_estado');
+      let updatedCuentas = [];
+
+      await runTransaction(db, async (transaction) => {
+        const sfDoc = await transaction.get(cuentasRef);
+        let currentCuentas = [];
+        if (sfDoc.exists()) {
+          currentCuentas = sfDoc.data().cuentas || [];
+        }
+
+        updatedCuentas = currentCuentas.filter(c => 
+          !(c.cliente && (
+            (mesa && mesa.cliente && c.cliente.toLowerCase() === mesa.cliente.toLowerCase()) || 
+            c.cliente.toLowerCase() === `mesa ${mesaId}`
+          ))
+        );
+
+        // Actualizar cuentas estado
+        transaction.set(cuentasRef, {
+          cuentas: updatedCuentas,
+          updatedAt: serverTimestamp()
+        });
+
+        // Registrar en historial_stock
+        transaction.set(stockRef, {
+          fecha: serverTimestamp(),
+          mesaId: mesaId,
+          cliente: clientName,
+          items: itemsAuditoria,
+          total: costo,
+          tipo: 'cierre_mesa_liquidada',
+          tiempoJuego: tiempo ? (tiempo / 3600000).toFixed(2) + ' hrs' : '0 hrs',
+          metodoPago: metodo || 'efectivo',
+          referenciaPago: referencia || '',
+          pagaCon: pagaCon || 0,
+          cambio: cambio || 0,
+          fotoAdjunta: fotoAdjunta || false,
+          operador: 'Cajero Principal'
+        });
       });
 
-      // Eliminar la cuenta asociada de cuentasActivas ya que ha sido liquidada de forma transaccional
-      await actualizarCuentasFirestore(prev => prev.filter(c => 
-        !(c.cliente && (
-          (mesa && mesa.cliente && c.cliente.toLowerCase() === mesa.cliente.toLowerCase()) || 
-          c.cliente.toLowerCase() === `mesa ${mesaId}`
-        ))
-      ));
+      // Actualizar caché local y estado
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('yoy_billar_cuentas', obfuscate(updatedCuentas));
+      }
+      setCuentasActivas(updatedCuentas);
 
       // Desactivar/atender/finalizar todas las alertas y consumos de la mesa en Firestore en lote (batch)
       const qAlerts = query(
