@@ -1349,7 +1349,7 @@ export default function ReportesPanel({ showToast }) {
                               paddingLeft: 8,
                               marginBottom: 8
                             }}>
-                              "{encuesta.comentarios}"
+                              &ldquo;{encuesta.comentarios}&rdquo;
                             </div>
 
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 10px', fontSize: 10, color: 'var(--text-muted)' }}>
