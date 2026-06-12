@@ -969,15 +969,37 @@ function MeseroContent() {
   );
 }
 
+const calcCosto = (m) => {
+  if (!m || !m.inicio) return 0;
+  const hrs = (Date.now() - m.inicio) / 3600000;
+  let baseCosto = m.socios ? 0 : Math.ceil(hrs * m.tarifa);
+  let premiumCosto = 0;
+  if (m.rentarTaco) premiumCosto += Math.ceil(hrs * 25);
+  if (m.rentarBolas) premiumCosto += Math.ceil(hrs * 35);
+  if (m.rentarTiza) premiumCosto += 10;
+  return baseCosto + premiumCosto;
+};
+
 function ModalCuentasMesero({ cuentas, mesas, alertasAsistencia, isOffline, onClose, showToast }) {
   const [expandedId, setExpandedId] = useState(null);
   const [filtroTexto, setFiltroTexto] = useState('');
+  const [tick, setTick] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTick(t => t + 1);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   const pedirCuenta = async (cuenta) => {
-    const mesaAsociada = mesas.find(m => m.cliente && m.cliente.toLowerCase() === cuenta.cliente.toLowerCase());
+    const mesaAsociada = mesas.find(m => m.id === cuenta.mesaId || (m.cliente && m.cliente.toLowerCase() === cuenta.cliente.toLowerCase()));
     const mesaId = mesaAsociada ? mesaAsociada.id : 0;
     const consumosTotal = cuenta.consumos.reduce((sum, item) => sum + item.precio * item.cantidad, 0);
-    const totalAcumulado = cuenta.tiempoJuego + consumosTotal;
+    const costoTiempo = (mesaAsociada && mesaAsociada.estado === 'ocupada')
+      ? (mesaAsociada.socios ? 0 : calcCosto(mesaAsociada))
+      : (cuenta.tiempoJuego || 0);
+    const totalAcumulado = costoTiempo + consumosTotal;
 
     const dataAlerta = {
       mesaId: mesaId,
@@ -1024,7 +1046,7 @@ function ModalCuentasMesero({ cuentas, mesas, alertasAsistencia, isOffline, onCl
 
   const cuentasFiltradas = cuentas.filter(c => {
     const term = filtroTexto.toLowerCase();
-    const mesaAsociada = mesas.find(m => m.cliente && m.cliente.toLowerCase() === c.cliente.toLowerCase());
+    const mesaAsociada = mesas.find(m => m.id === c.mesaId || (m.cliente && m.cliente.toLowerCase() === c.cliente.toLowerCase()));
     const matchCliente = c.cliente.toLowerCase().includes(term);
     const matchMesa = mesaAsociada ? `mesa ${mesaAsociada.id}`.includes(term) : false;
     return matchCliente || matchMesa;
@@ -1084,7 +1106,10 @@ function ModalCuentasMesero({ cuentas, mesas, alertasAsistencia, isOffline, onCl
               {cuentasFiltradas.map(c => {
                 const mesaAsociada = mesas.find(m => m.id === c.mesaId || (m.cliente && m.cliente.toLowerCase() === c.cliente.toLowerCase()));
                 const consumosTotal = c.consumos.reduce((sum, item) => sum + item.precio * item.cantidad, 0);
-                const total = c.tiempoJuego + consumosTotal;
+                const costoTiempo = (mesaAsociada && mesaAsociada.estado === 'ocupada')
+                  ? (mesaAsociada.socios ? 0 : calcCosto(mesaAsociada))
+                  : (c.tiempoJuego || 0);
+                const total = costoTiempo + consumosTotal;
                 const isExpanded = expandedId === c.id;
 
                 const cuentaSolicitada = (alertasAsistencia || []).some(alerta => 
@@ -1111,7 +1136,7 @@ function ModalCuentasMesero({ cuentas, mesas, alertasAsistencia, isOffline, onCl
                       <div>
                         <div style={{ fontWeight: 800, fontSize: 14, color: '#fff' }}>{displayClienteName}</div>
                         <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
-                          {c.mesaId ? `📍 Mesa ${c.mesaId}` : (mesaAsociada ? `📍 Mesa ${mesaAsociada.id}` : '👤 Cuenta Directa')} · Tiempo: ${c.tiempoJuego}
+                          {c.mesaId ? `📍 Mesa ${c.mesaId}` : (mesaAsociada ? `📍 Mesa ${mesaAsociada.id}` : '👤 Cuenta Directa')} · Tiempo: ${costoTiempo}
                         </div>
                       </div>
                       <div style={{ textAlign: 'right' }}>
