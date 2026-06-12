@@ -2298,84 +2298,151 @@ export default function MesasPanel({ showToast }) {
         background: 'var(--bg-elevated)',
         border: '1px solid var(--border-bronze)',
         borderRadius: 12,
-        padding: '8px 16px',
+        padding: '12px 16px',
         display: 'flex',
-        flexWrap: 'wrap',
-        justifyContent: 'space-between',
-        alignItems: 'center',
+        flexDirection: 'column',
         gap: 12,
         boxShadow: 'var(--shadow-sm)'
       }}>
-        {/* Lado Izquierdo: Estado Actual de Ocupación y Estadísticas (Totalmente Homogéneo) */}
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-          {/* Indicador de Porcentaje de Ocupación */}
-          <div className="btn btn-secondary btn-sm" style={{ cursor: 'default', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 6 }}>
-            <div style={{
-              width: 8,
-              height: 8,
-              borderRadius: '50%',
-              background: pctOcupacion > 70 ? 'var(--danger)' : (pctOcupacion > 30 ? '#f59e0b' : 'var(--success)'),
-              boxShadow: `0 0 8px ${pctOcupacion > 70 ? 'var(--danger)' : (pctOcupacion > 30 ? '#f59e0b' : 'var(--success)')}`
-            }} />
-            <span>OCUPACIÓN: <strong style={{ color: 'var(--bronze-light)' }}>{pctOcupacion}%</strong></span>
+        {/* Fila 1: Estadísticas (izquierda) y Acciones (derecha) */}
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: 12,
+          width: '100%'
+        }}>
+          {/* Lado Izquierdo: Estado Actual de Ocupación y Estadísticas (Totalmente Homogéneo) */}
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+            {/* Indicador de Porcentaje de Ocupación */}
+            <div className="btn btn-secondary btn-sm" style={{ cursor: 'default', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div style={{
+                width: 8,
+                height: 8,
+                borderRadius: '50%',
+                background: pctOcupacion > 70 ? 'var(--danger)' : (pctOcupacion > 30 ? '#f59e0b' : 'var(--success)'),
+                boxShadow: `0 0 8px ${pctOcupacion > 70 ? 'var(--danger)' : (pctOcupacion > 30 ? '#f59e0b' : 'var(--success)')}`
+              }} />
+              <span>OCUPACIÓN: <strong style={{ color: 'var(--bronze-light)' }}>{pctOcupacion}%</strong></span>
+            </div>
+
+            {/* Libres */}
+            <div className="btn btn-secondary btn-sm" style={{ cursor: 'default', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <i className="ri-checkbox-blank-circle-line" style={{ color: 'var(--success)' }} />
+              <span>LIBRES: <strong style={{ color: 'var(--success)' }}>{totales.libres}</strong></span>
+            </div>
+
+            {/* Ocupadas */}
+            <div className="btn btn-secondary btn-sm" style={{ cursor: 'default', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <i className="ri-record-circle-line" style={{ color: 'var(--danger)' }} />
+              <span>OCUPADAS: <strong style={{ color: 'var(--danger)' }}>{totales.ocupadas}</strong></span>
+            </div>
+
+            {/* Reservadas (Interactiva) */}
+            <button className="btn btn-secondary btn-sm" style={{ color: 'var(--text-secondary)' }} onClick={() => setModalReservasCentral(true)}>
+              <i className="ri-bookmark-fill" style={{ color: 'var(--bronze-light)' }} />
+              <span>RESERVADAS: <strong style={{ color: 'var(--bronze-light)' }}>{totales.reservadas}</strong></span>
+            </button>
+
+            {/* Cuentas Activas (Interactiva) */}
+            <button className="btn btn-secondary btn-sm" style={{ color: 'var(--text-secondary)' }} onClick={() => setModalCuentas(true)}>
+              <i className="ri-folder-open-line" style={{ color: 'var(--bronze-light)' }} />
+              <span>ACTIVAS: <strong style={{ color: 'var(--bronze-light)' }}>{cuentasActivas.length}</strong></span>
+            </button>
           </div>
 
-          {/* Libres */}
-          <div className="btn btn-secondary btn-sm" style={{ cursor: 'default', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 6 }}>
-            <i className="ri-checkbox-blank-circle-line" style={{ color: 'var(--success)' }} />
-            <span>LIBRES: <strong style={{ color: 'var(--success)' }}>{totales.libres}</strong></span>
+          {/* Lado Derecho: Acciones de Caja (Homogéneo) */}
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+            <button className="btn btn-secondary btn-sm" onClick={toggleFullscreen} title="Activar Modo Kiosco">
+              <i className={isFullscreen ? 'ri-fullscreen-exit-fill' : 'ri-fullscreen-fill'} style={{ marginRight: 4 }} />
+              {isFullscreen ? 'Salir' : 'Kiosco'}
+            </button>
+
+            <button className="btn btn-primary btn-sm" onClick={() => setMostrarCobroManual(true)}>
+              <i className="ri-add-circle-line" /> Cobro Manual
+            </button>
+
+            <button className="btn btn-secondary btn-sm" onClick={() => setModalFila(true)}>
+              <i className="ri-qr-code-line" /> Fila Virtual
+              {fila.length > 0 && (
+                <span className="badge badge-bronze" style={{ marginLeft: 6, padding: '2px 6px', fontSize: 9 }}>
+                  {fila.length}
+                </span>
+              )}
+            </button>
+
+            <button className="btn btn-secondary btn-sm" onClick={() => setModalComanda(true)}>
+              <i className="ri-cup-line" /> Comanda
+            </button>
+
+            <button className="btn btn-secondary btn-sm" onClick={() => setModalAbrirCuenta(true)}>
+              <i className="ri-folder-add-line" /> Abrir Cuenta
+            </button>
+
+            <button className="btn btn-danger btn-sm" onClick={() => setModalGasto(true)}>
+              <i className="ri-wallet-3-line" style={{ marginRight: 4 }} /> Gasto
+            </button>
           </div>
-
-          {/* Ocupadas */}
-          <div className="btn btn-secondary btn-sm" style={{ cursor: 'default', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 6 }}>
-            <i className="ri-record-circle-line" style={{ color: 'var(--danger)' }} />
-            <span>OCUPADAS: <strong style={{ color: 'var(--danger)' }}>{totales.ocupadas}</strong></span>
-          </div>
-
-          {/* Reservadas (Interactiva) */}
-          <button className="btn btn-secondary btn-sm" style={{ color: 'var(--text-secondary)' }} onClick={() => setModalReservasCentral(true)}>
-            <i className="ri-bookmark-fill" style={{ color: 'var(--bronze-light)' }} />
-            <span>RESERVADAS: <strong style={{ color: 'var(--bronze-light)' }}>{totales.reservadas}</strong></span>
-          </button>
-
-          {/* Cuentas Activas (Interactiva) */}
-          <button className="btn btn-secondary btn-sm" style={{ color: 'var(--text-secondary)' }} onClick={() => setModalCuentas(true)}>
-            <i className="ri-folder-open-line" style={{ color: 'var(--bronze-light)' }} />
-            <span>ACTIVAS: <strong style={{ color: 'var(--bronze-light)' }}>{cuentasActivas.length}</strong></span>
-          </button>
         </div>
 
-        {/* Lado Derecho: Acciones de Caja (Homogéneo) */}
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-          <button className="btn btn-secondary btn-sm" onClick={toggleFullscreen} title="Activar Modo Kiosco">
-            <i className={isFullscreen ? 'ri-fullscreen-exit-fill' : 'ri-fullscreen-fill'} style={{ marginRight: 4 }} />
-            {isFullscreen ? 'Salir' : 'Kiosco'}
-          </button>
+        {/* Línea divisoria horizontal interna */}
+        <div style={{ height: 1, background: 'var(--border-bronze)', opacity: 0.25, width: '100%' }} />
 
-          <button className="btn btn-primary btn-sm" onClick={() => setMostrarCobroManual(true)}>
-            <i className="ri-add-circle-line" /> Cobro Manual
-          </button>
+        {/* Fila 2: Filtros de Vista (izquierda) y Utilidades (derecha) */}
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: 12,
+          width: '100%'
+        }}>
+          {/* Lado Izquierdo: Filtros de Estado de Mesa */}
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {[
+              { id: 'todas', label: 'Todas' },
+              { id: 'libre', label: 'Libres' },
+              { id: 'ocupada', label: 'Ocupadas' },
+              { id: 'reservada', label: 'Reservadas' },
+              { id: 'manten', label: 'Mantenimiento' },
+            ].map(f => (
+              <button
+                key={f.id}
+                onClick={() => setFiltro(f.id)}
+                className={`btn btn-sm ${filtro === f.id ? 'btn-primary' : 'btn-secondary'}`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
 
-          <button className="btn btn-secondary btn-sm" onClick={() => setModalFila(true)}>
-            <i className="ri-qr-code-line" /> Fila Virtual
-            {fila.length > 0 && (
-              <span className="badge badge-bronze" style={{ marginLeft: 6, padding: '2px 6px', fontSize: 9 }}>
-                {fila.length}
-              </span>
-            )}
-          </button>
+          {/* Lado Derecho: Controles del Panel (Animaciones y QRs) */}
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            <button
+              onClick={() => setAnimacionesActivas(prev => !prev)}
+              className="btn btn-secondary btn-sm"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                color: animacionesActivas ? 'var(--bronze-light)' : 'var(--text-muted)',
+                borderColor: animacionesActivas ? 'var(--border-bronze)' : 'var(--border)'
+              }}
+              title="Activar/Desactivar efectos de cometa animados"
+            >
+              <i className={animacionesActivas ? "ri-sparkling-fill" : "ri-sparkling-line"} />
+              {animacionesActivas ? 'Animaciones: ON' : 'Animaciones: OFF'}
+            </button>
 
-          <button className="btn btn-secondary btn-sm" onClick={() => setModalComanda(true)}>
-            <i className="ri-cup-line" /> Comanda
-          </button>
-
-          <button className="btn btn-secondary btn-sm" onClick={() => setModalAbrirCuenta(true)}>
-            <i className="ri-folder-add-line" /> Abrir Cuenta
-          </button>
-
-          <button className="btn btn-danger btn-sm" onClick={() => setModalGasto(true)}>
-            <i className="ri-wallet-3-line" style={{ marginRight: 4 }} /> Gasto
-          </button>
+            <button
+              onClick={imprimirTodosLosQRs}
+              className="btn btn-secondary btn-sm"
+              style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--bronze-light)', borderColor: 'var(--border-bronze)' }}
+            >
+              <i className="ri-qr-code-line" /> Imprimir todos los QRs
+            </button>
+          </div>
         </div>
       </div>
 
@@ -2409,51 +2476,6 @@ export default function MesasPanel({ showToast }) {
           </button>
         </div>
       )}
-
-      {/* Filtros */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          {[
-            { id: 'todas', label: 'Todas' },
-            { id: 'libre', label: 'Libres' },
-            { id: 'ocupada', label: 'Ocupadas' },
-            { id: 'reservada', label: 'Reservadas' },
-            { id: 'manten', label: 'Mantenimiento' },
-          ].map(f => (
-            <button
-              key={f.id}
-              onClick={() => setFiltro(f.id)}
-              className={`btn btn-sm ${filtro === f.id ? 'btn-primary' : 'btn-secondary'}`}
-            >
-              {f.label}
-            </button>
-          ))}
-        </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button
-            onClick={() => setAnimacionesActivas(prev => !prev)}
-            className="btn btn-secondary btn-sm"
-            style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: 6, 
-              color: animacionesActivas ? 'var(--bronze-light)' : 'var(--text-muted)', 
-              borderColor: animacionesActivas ? 'var(--border-bronze)' : 'var(--border)' 
-            }}
-            title="Activar/Desactivar efectos de cometa animados"
-          >
-            <i className={animacionesActivas ? "ri-sparkling-fill" : "ri-sparkling-line"} /> 
-            {animacionesActivas ? 'Animaciones: ON' : 'Animaciones: OFF'}
-          </button>
-          <button
-            onClick={imprimirTodosLosQRs}
-            className="btn btn-secondary btn-sm"
-            style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--bronze-light)', borderColor: 'var(--border-bronze)' }}
-          >
-            <i className="ri-qr-code-line" /> Imprimir todos los QRs
-          </button>
-        </div>
-      </div>
 
       {/* Grid de mesas */}
       <div className="mesa-grid">
