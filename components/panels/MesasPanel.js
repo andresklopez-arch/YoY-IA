@@ -5701,6 +5701,14 @@ function ModalGasto({ onClose, onConfirm, CATEGORIAS_GASTO }) {
     notas: ''
   });
 
+  useEffect(() => {
+    const originalStyle = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = originalStyle;
+    };
+  }, []);
+
   const sugerencias = SUGERENCIAS_POR_CATEGORIA[form.categoria] || [];
 
   const handleSubmit = (e) => {
