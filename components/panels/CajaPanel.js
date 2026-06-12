@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { db } from '@/lib/firebase';
 import { doc, onSnapshot, query, collection, orderBy, limit, getDocs, writeBatch } from 'firebase/firestore';
 import { deobfuscate, obfuscate } from '@/lib/crypto';
+import { useAuth } from '@/lib/auth-context';
 
 const TRANSACCIONES = [
   { id: 1, tipo: 'mesa', descripcion: 'Mesa 2 - 1.5h', cliente: 'Carlos R.', monto: 120, metodo: 'efectivo', hora: '14:30', color: 'var(--success)' },
@@ -29,6 +30,7 @@ const hashPassword = (pwd) => {
 };
 
 export default function CajaPanel({ showToast }) {
+  const { user } = useAuth();
   const [isAdminUnlocked, setIsAdminUnlocked] = useState(false);
   const [adminPassword, setAdminPassword] = useState('');
   const [adminPinHash, setAdminPinHash] = useState('170440'); // Hash of '1111'
@@ -262,11 +264,12 @@ export default function CajaPanel({ showToast }) {
 
 
   const guardarCorteCaja = () => {
+    const nombreOperador = user ? (user.name || user.alias || user.email) : 'Administrador';
     setCobros(prev => [{
       id: Date.now(),
       tipo: 'corte',
       descripcion: `Corte de Caja (Contado: $${sumaContada.toLocaleString()} - Esperado: $${totalEfectivoEsperado.toLocaleString()})`,
-      cliente: 'Administrador',
+      cliente: nombreOperador,
       monto: diferencia,
       metodo: 'efectivo',
       hora: new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }),

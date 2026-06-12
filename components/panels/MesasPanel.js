@@ -4,6 +4,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { obfuscate, deobfuscate } from '@/lib/crypto';
 import { db } from '@/lib/firebase';
+import { useAuth } from '@/lib/auth-context';
 import { doc, onSnapshot, setDoc, getDoc, serverTimestamp, collection, query, where, getDocs, writeBatch, updateDoc, runTransaction, addDoc } from 'firebase/firestore';
 
 // ── DATOS INICIALES DE MESAS ───────────────────────────────
@@ -852,6 +853,7 @@ function useLiveTick() {
 
 // ── PANEL PRINCIPAL DE MESAS ──────────────────────────────
 export default function MesasPanel({ showToast }) {
+  const { user } = useAuth();
   const [mesas, setMesas] = useState(INIT_MESAS);
   const [filtro, setFiltro] = useState('todas');
   const [animacionesActivas, setAnimacionesActivas] = useState(() => {
@@ -1809,12 +1811,13 @@ export default function MesasPanel({ showToast }) {
   // ── REGISTRO DE AUDITORÍA Y BITÁCORA OFUSCADA (SUGERENCIA 1 Y 2) ──────────
   // ── REGISTRO DE AUDITORÍA Y BITÁCORA OFUSCADA (SUGERENCIA 1 Y 2) ──────────
   const registrarEvento = async (accion, detalle, monto = 0) => {
+    const nombreOperador = user ? (user.name || user.alias || user.email) : 'Cajero Principal';
     const nuevoEvento = {
       fecha: new Date().toISOString(),
       accion,
       detalle,
       monto,
-      operador: 'Cajero Principal'
+      operador: nombreOperador
     };
     try {
       await addDoc(collection(db, 'bitacora'), nuevoEvento);

@@ -4,6 +4,7 @@ import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianG
 import { db } from '@/lib/firebase';
 import { doc, onSnapshot, setDoc, serverTimestamp, collection, query, orderBy, limit, addDoc } from 'firebase/firestore';
 import { obfuscate, deobfuscate } from '@/lib/crypto';
+import { useAuth } from '@/lib/auth-context';
 
 // ── DATOS HISTÓRICOS IA (RECOMENDACIÓN 2) ──────────────────
 const HISTORICO_DATA = [
@@ -31,6 +32,7 @@ const CATEGORIAS = ['Todas', 'Cerveza', 'Refresco', 'Snack', 'Comida', 'Bebida']
 
 
 export default function BarPanel({ showToast }) {
+  const { user } = useAuth();
   const [productos, setProductos] = useState([]);
   const [filtro, setFiltro] = useState('Todas');
   const [busqueda, setBusqueda] = useState('');
@@ -253,12 +255,13 @@ export default function BarPanel({ showToast }) {
 
   // Sincronización automática con la Bitácora General de Caja (Recomendación 3)
   const registrarEnBitacoraGeneral = async (accion, detalle, monto = 0) => {
+    const nombreOperador = user ? (user.name || user.alias || user.email) : 'Sistema IA / Inventario';
     const nuevoEvento = {
       fecha: new Date().toISOString(),
       accion,
       detalle,
       monto,
-      operador: 'Sistema IA / Inventario'
+      operador: nombreOperador
     };
     try {
       await addDoc(collection(db, 'bitacora'), nuevoEvento);
