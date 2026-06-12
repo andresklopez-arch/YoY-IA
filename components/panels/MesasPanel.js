@@ -2194,50 +2194,60 @@ export default function MesasPanel({ showToast }) {
   };
 
   const confirmarCerrarMesa = async (mesaId, { costo, metodo, tiempo, referencia, pagaCon, cambio, fotoAdjunta }) => {
-    const mesa = mesas.find(m => m.id === mesaId);
-    const clientName = mesa ? mesa.cliente : 'Público';
+    try {
+      const mesa = mesas.find(m => m.id === mesaId);
+      const clientName = mesa ? mesa.cliente : 'Público';
 
-    // Buscar la cuenta asociada para auditar el detalle de consumos al cerrar (Sugerencia 2)
-    const cuentaAsociada = cuentasActivas.find(c => 
-      c.cliente && (
-        (mesa && mesa.cliente && c.cliente.toLowerCase() === mesa.cliente.toLowerCase()) || 
-        c.cliente.toLowerCase() === `mesa ${mesaId}`
-      )
-    );
+      // Buscar la cuenta asociada para auditar el detalle de consumos al cerrar
+      const cuentaAsociada = cuentasActivas.find(c => 
+        c.cliente && (
+          (mesa && mesa.cliente && c.cliente.toLowerCase() === mesa.cliente.toLowerCase()) || 
+          c.cliente.toLowerCase() === `mesa ${mesaId}`
+        )
+      );
 
-    if (cuentaAsociada && cuentaAsociada.consumos && cuentaAsociada.consumos.length > 0) {
-      addDoc(collection(db, 'historial_stock'), {
+      // Registrar SIEMPRE el cierre en historial_stock para auditoría en la nube (evitando pérdida de información)
+      const itemsAuditoria = (cuentaAsociada && cuentaAsociada.consumos)
+        ? cuentaAsociada.consumos.map(item => ({
+            productoId: item.id || 0,
+            nombre: item.producto,
+            precio: item.precio,
+            cantidad: item.cantidad,
+            subtotal: item.precio * item.cantidad
+          }))
+        : [];
+
+      await addDoc(collection(db, 'historial_stock'), {
         fecha: serverTimestamp(),
         mesaId: mesaId,
         cliente: clientName,
-        items: cuentaAsociada.consumos.map(item => ({
-          productoId: item.id || 0,
-          nombre: item.producto,
-          precio: item.precio,
-          cantidad: item.cantidad,
-          subtotal: item.precio * item.cantidad
-        })),
+        items: itemsAuditoria,
         total: costo,
         tipo: 'cierre_mesa_liquidada',
-        tiempoJuego: tiempo ? (tiempo / 3600000).toFixed(2) + ' hrs' : '0 hrs'
-      }).catch(err => console.error("Error al registrar auditoría de cierre de mesa:", err));
-    }
+        tiempoJuego: tiempo ? (tiempo / 3600000).toFixed(2) + ' hrs' : '0 hrs',
+        metodoPago: metodo || 'efectivo',
+        referenciaPago: referencia || '',
+        pagaCon: pagaCon || 0,
+        cambio: cambio || 0,
+        fotoAdjunta: fotoAdjunta || false,
+        operador: 'Cajero Principal'
+      });
 
-    // Eliminar la cuenta asociada de cuentasActivas ya que ha sido liquidada de forma transaccional
-    await actualizarCuentasFirestore(prev => prev.filter(c => 
-      !(c.cliente && (
-        (mesa && mesa.cliente && c.cliente.toLowerCase() === mesa.cliente.toLowerCase()) || 
-        c.cliente.toLowerCase() === `mesa ${mesaId}`
-      ))
-    ));
+      // Eliminar la cuenta asociada de cuentasActivas ya que ha sido liquidada de forma transaccional
+      await actualizarCuentasFirestore(prev => prev.filter(c => 
+        !(c.cliente && (
+          (mesa && mesa.cliente && c.cliente.toLowerCase() === mesa.cliente.toLowerCase()) || 
+          c.cliente.toLowerCase() === `mesa ${mesaId}`
+        ))
+      ));
 
-    // Desactivar/atender/finalizar todas las alertas y consumos de la mesa en Firestore en lote (batch)
-    const qAlerts = query(
-      collection(db, 'mesa_pedidos'),
-      where('mesaId', '==', mesaId),
-      where('estado', 'in', ['pendiente', 'listo', 'en_camino', 'entregado'])
-    );
-    getDocs(qAlerts).then(snap => {
+      // Desactivar/atender/finalizar todas las alertas y consumos de la mesa en Firestore en lote (batch)
+      const qAlerts = query(
+        collection(db, 'mesa_pedidos'),
+        where('mesaId', '==', mesaId),
+        where('estado', 'in', ['pendiente', 'listo', 'en_camino', 'entregado'])
+      );
+      const snap = await getDocs(qAlerts);
       if (!snap.empty) {
         const batch = writeBatch(db);
         snap.docs.forEach(d => {
@@ -2249,16 +2259,15 @@ export default function MesasPanel({ showToast }) {
             updatedAt: serverTimestamp()
           });
         });
-        batch.commit().catch(err => console.error("Error al confirmar lote de alertas atendidas/finalizadas:", err));
+        await batch.commit();
       }
-    }).catch(err => console.error("Error al buscar alertas y pedidos de mesa:", err));
 
-    setMesas(prev => prev.map(m => m.id === mesaId
-      ? { ...m, estado: 'libre', cliente: null, telefono: '', inicio: null, socios: false, clienteUid: '', preTicketImpreso: false, reservadaAt: null, limiteReservaMs: null }
-      : m
-    ));
-    setModalCerrar(null);
-    if (costo > 0) {
+      setMesas(prev => prev.map(m => m.id === mesaId
+        ? { ...m, estado: 'libre', cliente: null, telefono: '', inicio: null, socios: false, clienteUid: '', preTicketImpreso: false, reservadaAt: null, limiteReservaMs: null }
+        : m
+      ));
+      setModalCerrar(null);
+
       let metodoLabel = metodo;
       let detalleExtra = '';
       if (metodo === 'efectivo') {
@@ -2273,11 +2282,17 @@ export default function MesasPanel({ showToast }) {
       } else if (metodo === 'tarjeta') {
         metodoLabel = 'Tarjeta';
       }
-      showToast(`Cobrado $${costo} MXN por ${metodoLabel} ✓`, 'success');
-      registrarEvento('Cierre Directo', `Mesa ${mesaId} liquidada y cerrada por ${clientName} ($${costo} MXN por ${metodoLabel}${detalleExtra})`, costo);
-    } else {
-      showToast(`Mesa cerrada (Socio sin cargo)`, 'info');
-      registrarEvento('Cierre Directo', `Mesa ${mesaId} cerrada (Socio sin cargo: ${clientName})`);
+
+      if (costo > 0) {
+        showToast(`Cobrado $${costo} MXN por ${metodoLabel} ✓`, 'success');
+        registrarEvento('Cierre Directo', `Mesa ${mesaId} liquidada y cerrada por ${clientName} ($${costo} MXN por ${metodoLabel}${detalleExtra})`, costo);
+      } else {
+        showToast(`Mesa cerrada (Socio sin cargo)`, 'info');
+        registrarEvento('Cierre Directo', `Mesa ${mesaId} cerrada (Socio sin cargo: ${clientName})`);
+      }
+    } catch (err) {
+      console.error("Error crítico al procesar el cierre/cobro de la mesa:", err);
+      showToast("Error de base de datos al registrar el cobro. Verifique conexión.", "danger");
     }
   };
 
