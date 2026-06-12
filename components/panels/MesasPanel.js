@@ -25,6 +25,17 @@ const ESTADO_CONFIG = {
   fuera:     { label: 'Fuera de Servicio', color: '#ef4444', icon: 'ri-close-circle-line' },
 };
 
+const CATEGORIAS_GASTO = [
+  { id: 'mesas',      label: 'Mantenimiento Mesas',  icon: '🎱', color: '#cd7f32' },
+  { id: 'accesorios', label: 'Accesorios',            icon: '🎯', color: '#e3a869' },
+  { id: 'bar',        label: 'Bar e Insumos',         icon: '🍺', color: '#3b82f6' },
+  { id: 'servicios',  label: 'Servicios',             icon: '💡', color: '#f59e0b' },
+  { id: 'limpieza',   label: 'Limpieza',              icon: '🧹', color: '#22c55e' },
+  { id: 'reparacion', label: 'Reparaciones',          icon: '🛠️', color: '#ef4444' },
+  { id: 'admin',      label: 'Administrativos',       icon: '📋', color: '#b0b8c8' },
+  { id: 'otro',       label: 'Otro / Personalizado',  icon: '➕', color: '#6b7280' },
+];
+
 function formatTime(ms) {
   if (!ms) return '00:00:00';
   const s = Math.floor(ms / 1000);
@@ -870,6 +881,7 @@ export default function MesasPanel({ showToast }) {
   const [modalHistorial, setModalHistorial] = useState(null); // mesa
   const [modalReservasCentral, setModalReservasCentral] = useState(false);
   const [modalAvisar, setModalAvisar] = useState(null); // mesa
+  const [modalGasto, setModalGasto] = useState(false);
 
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [mostrarCobroManual, setMostrarCobroManual] = useState(false);
@@ -907,6 +919,25 @@ export default function MesasPanel({ showToast }) {
       showToast(`Mesa ${mesa.id} cambiada a Disponible (Libre).`, "info");
     } else {
       setModalStatusCambio({ mesa, nuevoEstado });
+    }
+  };
+
+  // Registro rápido de gasto de caja
+  const confirmarRegistroGasto = async (gastoData) => {
+    try {
+      await addDoc(collection(db, 'gastos'), {
+        categoria: gastoData.categoria,
+        descripcion: gastoData.descripcion,
+        monto: Number(gastoData.monto),
+        fecha: gastoData.fecha,
+        proveedor: gastoData.proveedor || '',
+        notas: gastoData.notas || '',
+        createdAt: serverTimestamp()
+      });
+      showToast('Gasto registrado exitosamente 💸', 'success');
+      setModalGasto(false);
+    } catch (err) {
+      showToast('Error al registrar el gasto: ' + err.message, 'error');
     }
   };
 
@@ -2135,56 +2166,59 @@ export default function MesasPanel({ showToast }) {
 
   return (
     <div style={{ minHeight: isFullscreen ? '100vh' : 'auto', padding: isFullscreen ? '20px' : '0', background: isFullscreen ? 'var(--bg-main)' : 'transparent' }}>
-      <div className="page-header">
+      <div className="page-header" style={{ marginBottom: 20 }}>
         <div>
           <h1 className="page-title gradient-bronze">Control de Mesas</h1>
           <p className="page-subtitle">Gestión en tiempo real · {mesas.length} mesas registradas · {isFullscreen ? 'Modo Kiosco Activo' : 'Modo Estándar'}</p>
         </div>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          {/* Botón de Modo Kiosco */}
-          <button className="btn btn-secondary btn-sm" onClick={toggleFullscreen} title="Activar Modo Kiosco">
-            <i className={isFullscreen ? 'ri-fullscreen-exit-fill' : 'ri-fullscreen-fill'} style={{ marginRight: 4 }} />
-            {isFullscreen ? 'Salir Kiosco' : 'Modo Kiosco'}
-          </button>
-          <button className="btn btn-primary btn-sm" onClick={() => setMostrarCobroManual(true)}>
-            <i className="ri-add-circle-line" /> Cobro Manual
-          </button>
-          <button className="btn btn-secondary btn-sm" onClick={() => setModalFila(true)}>
-            <i className="ri-qr-code-line" /> Fila Virtual
-            {fila.length > 0 && (
-              <span className="badge badge-bronze" style={{ marginLeft: 6, padding: '2px 6px', fontSize: 9 }}>
-                {fila.length}
-              </span>
-            )}
-          </button>
-          <button className="btn btn-secondary btn-sm" style={{ color: 'var(--bronze-light)', borderColor: 'var(--border-bronze)' }} onClick={() => setModalComanda(true)}>
-            <i className="ri-cup-line" /> Comanda
-          </button>
-          <button className="btn btn-secondary btn-sm" style={{ color: 'var(--bronze-light)', borderColor: 'var(--border-bronze)' }} onClick={() => setModalAbrirCuenta(true)}>
-            <i className="ri-folder-add-line" /> Abrir Cuenta
-          </button>
-          <button className="btn btn-primary btn-sm" onClick={() => setModalNuevaMesa(true)}>
-            <i className="ri-add-line" /> Nueva Mesa
-          </button>
-        </div>
-      </div>
-
-      {/* Stats rápidas compactas */}
-      <div className="stat-grid-compact" style={{ marginBottom: 24 }}>
-        {[
-          { label: 'Libres', value: totales.libres, icon: 'ri-checkbox-blank-circle-line', color: 'icon-success', accent: 'var(--success)' },
-          { label: 'Ocupadas', value: totales.ocupadas, icon: 'ri-record-circle-line', color: 'icon-danger', accent: 'var(--danger)' },
-          { label: 'Reservadas', value: totales.reservadas, icon: 'ri-bookmark-fill', color: 'icon-bronze', accent: 'var(--bronze-light)', onClick: () => setModalReservasCentral(true) },
-          { label: 'Cuentas Activas', value: `${cuentasActivas.length} cls`, icon: 'ri-folder-open-line', color: 'icon-bronze', accent: 'var(--bronze-light)', onClick: () => setModalCuentas(true) },
-        ].map((s, i) => (
-          <div key={i} className="stat-card-compact" style={{ cursor: s.onClick ? 'pointer' : 'default' }} onClick={s.onClick}>
-            <div className={`stat-card-icon ${s.color}`}><i className={s.icon} /></div>
-            <div className="stat-card-compact-content">
-              <div className="stat-card-value" style={{ color: s.accent }}>{s.value}</div>
-              <div className="stat-card-label">{s.label}</div>
-            </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-end' }}>
+          {/* Fila 1: Botones de Acción */}
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+            <button className="btn btn-secondary btn-sm" onClick={toggleFullscreen} title="Activar Modo Kiosco">
+              <i className={isFullscreen ? 'ri-fullscreen-exit-fill' : 'ri-fullscreen-fill'} style={{ marginRight: 4 }} />
+              {isFullscreen ? 'Salir' : 'Kiosco'}
+            </button>
+            <button className="btn btn-primary btn-sm" onClick={() => setMostrarCobroManual(true)}>
+              <i className="ri-add-circle-line" /> Cobro Manual
+            </button>
+            <button className="btn btn-secondary btn-sm" onClick={() => setModalFila(true)}>
+              <i className="ri-qr-code-line" /> Fila Virtual
+              {fila.length > 0 && (
+                <span className="badge badge-bronze" style={{ marginLeft: 6, padding: '2px 6px', fontSize: 9 }}>
+                  {fila.length}
+                </span>
+              )}
+            </button>
+            <button className="btn btn-secondary btn-sm" style={{ color: 'var(--bronze-light)', borderColor: 'var(--border-bronze)' }} onClick={() => setModalComanda(true)}>
+              <i className="ri-cup-line" /> Comanda
+            </button>
+            <button className="btn btn-secondary btn-sm" style={{ color: 'var(--bronze-light)', borderColor: 'var(--border-bronze)' }} onClick={() => setModalAbrirCuenta(true)}>
+              <i className="ri-folder-add-line" /> Abrir Cuenta
+            </button>
+            <button className="btn btn-secondary btn-sm" style={{ color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.3)', background: 'rgba(239, 68, 68, 0.05)' }} onClick={() => setModalGasto(true)}>
+              <i className="ri-wallet-3-line" style={{ marginRight: 4 }} /> Gasto
+            </button>
+            <button className="btn btn-primary btn-sm" onClick={() => setModalNuevaMesa(true)}>
+              <i className="ri-add-line" /> Nueva Mesa
+            </button>
           </div>
-        ))}
+
+          {/* Fila 2: Indicadores de Estadísticas (mismo tamaño que botones) */}
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+            <div className="btn btn-secondary btn-sm" style={{ cursor: 'default', color: 'var(--success)', borderColor: 'rgba(34,197,94,0.3)', background: 'rgba(34,197,94,0.05)', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <i className="ri-checkbox-blank-circle-line" /> Libres: <strong>{totales.libres}</strong>
+            </div>
+            <div className="btn btn-secondary btn-sm" style={{ cursor: 'default', color: 'var(--danger)', borderColor: 'rgba(239,68,68,0.3)', background: 'rgba(239,68,68,0.05)', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <i className="ri-record-circle-line" /> Ocupadas: <strong>{totales.ocupadas}</strong>
+            </div>
+            <button className="btn btn-secondary btn-sm" style={{ color: 'var(--bronze-light)', borderColor: 'var(--border-bronze)', display: 'flex', alignItems: 'center', gap: 6 }} onClick={() => setModalReservasCentral(true)}>
+              <i className="ri-bookmark-fill" /> Reservadas: <strong>{totales.reservadas}</strong>
+            </button>
+            <button className="btn btn-secondary btn-sm" style={{ color: 'var(--bronze-light)', borderColor: 'var(--border-bronze)', display: 'flex', alignItems: 'center', gap: 6 }} onClick={() => setModalCuentas(true)}>
+              <i className="ri-folder-open-line" /> Activas: <strong>{cuentasActivas.length} cls</strong>
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Alerta de Inventario Crítico IA (Sugerencia 2) */}
@@ -2679,6 +2713,15 @@ export default function MesasPanel({ showToast }) {
           registrarEvento={registrarEvento}
           showToast={showToast}
           abrirMesa={abrirMesa}
+        />
+      )}
+
+      {/* ── MODAL REGISTRO DE GASTO ────────────────────────── */}
+      {modalGasto && (
+        <ModalGasto
+          onClose={() => setModalGasto(false)}
+          onConfirm={confirmarRegistroGasto}
+          CATEGORIAS_GASTO={CATEGORIAS_GASTO}
         />
       )}
 
@@ -5157,6 +5200,121 @@ function ModalAvisarCliente({ mesa, fila, onClose, registrarEvento, showToast })
         <div className="modal-footer">
           <button className="btn btn-secondary" onClick={handleClose}>Cancelar</button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function ModalGasto({ onClose, onConfirm, CATEGORIAS_GASTO }) {
+  const [form, setForm] = useState({
+    categoria: 'mesas',
+    descripcion: '',
+    monto: '',
+    fecha: new Date().toISOString().slice(0, 10),
+    proveedor: '',
+    notas: ''
+  });
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    onConfirm(form);
+  };
+
+  const handleClose = () => {
+    onClose();
+  };
+
+  return (
+    <div className="modal-overlay animate-fadeIn" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, backdropFilter: 'blur(3px)' }} onClick={handleClose}>
+      <div className="modal-content animate-slideUp" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-bronze)', borderRadius: 16, width: '90%', maxWidth: 420, padding: 24, boxShadow: 'var(--shadow-xl)' }} onClick={e => e.stopPropagation()}>
+        <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+          <h3 className="modal-title gradient-bronze" style={{ margin: 0, fontSize: 18, fontWeight: 700 }}><i className="ri-wallet-3-line" style={{ marginRight: 6 }} /> Registrar Gasto Caja</h3>
+          <button className="btn-close" onClick={handleClose} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 18, cursor: 'pointer' }}><i className="ri-close-line" /></button>
+        </div>
+        
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div className="form-group">
+            <label className="form-label">Descripción / Concepto</label>
+            <input 
+              type="text" 
+              className="form-input" 
+              placeholder="Ej. Compra de tizas, Repuestos de tacos" 
+              value={form.descripcion} 
+              onChange={e => setForm(p => ({ ...p, descripcion: e.target.value }))} 
+              required 
+            />
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div className="form-group">
+              <label className="form-label">Monto (MXN)</label>
+              <input 
+                type="number" 
+                min="0.01" 
+                step="0.01" 
+                className="form-input" 
+                placeholder="0.00" 
+                value={form.monto} 
+                onChange={e => setForm(p => ({ ...p, monto: e.target.value }))} 
+                required 
+              />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Fecha</label>
+              <input 
+                type="date" 
+                className="form-input" 
+                value={form.fecha} 
+                onChange={e => setForm(p => ({ ...p, fecha: e.target.value }))} 
+                required 
+              />
+            </div>
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Categoría de Gasto</label>
+            <select 
+              className="form-select" 
+              value={form.categoria} 
+              onChange={e => setForm(p => ({ ...p, categoria: e.target.value }))}
+              style={{ width: '100%', padding: '10px 12px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 10, color: 'var(--text-main)', outline: 'none' }}
+            >
+              {CATEGORIAS_GASTO.map(c => (
+                <option key={c.id} value={c.id} style={{ background: 'var(--bg-card)' }}>
+                  {c.icon} {c.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Proveedor (Opcional)</label>
+            <input 
+              type="text" 
+              className="form-input" 
+              placeholder="Ej. Distribuidora Billares" 
+              value={form.proveedor} 
+              onChange={e => setForm(p => ({ ...p, proveedor: e.target.value }))} 
+            />
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Notas (Opcional)</label>
+            <textarea 
+              className="form-input" 
+              rows={2} 
+              placeholder="Detalles adicionales..." 
+              value={form.notes || form.notas || ''} 
+              onChange={e => setForm(p => ({ ...p, notas: e.target.value }))}
+              style={{ resize: 'none', padding: '10px 12px' }}
+            />
+          </div>
+
+          <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
+            <button type="button" className="btn btn-secondary" style={{ flex: 1 }} onClick={handleClose}>Cancelar</button>
+            <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>Registrar Gasto</button>
+          </div>
+        </form>
       </div>
     </div>
   );
