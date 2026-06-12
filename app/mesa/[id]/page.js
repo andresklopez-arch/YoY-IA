@@ -780,10 +780,11 @@ export default function MesaClientePage({ params }) {
 
   // ── Buscar cuenta asociada y calcular consumos reales de la caja ──
   const cuentaAsociada = cuentasActivas.find(c => 
-    c.cliente && (
-      (mesaInfo?.cliente && c.cliente.toLowerCase() === mesaInfo.cliente.toLowerCase()) || 
+    c.mesaId === mesaId ||
+    (c.cliente && (
+      (mesaInfo?.cliente && !['público', 'publico'].includes(mesaInfo.cliente.toLowerCase()) && c.cliente.toLowerCase() === mesaInfo.cliente.toLowerCase()) || 
       c.cliente.toLowerCase() === `mesa ${mesaId}`
-    )
+    ))
   );
 
   const consumosList = cuentaAsociada ? (cuentaAsociada.consumos || []) : [];

@@ -439,10 +439,11 @@ function ModalCerrarMesa({ mesa, cuentasActivas, onClose, onCerrar, onAgregarACu
   }, [metodo]);
 
   const cuentaAsociada = cuentasActivas.find(c => 
-    c.cliente && (
-      (mesa.cliente && c.cliente.toLowerCase() === mesa.cliente.toLowerCase()) || 
+    c.mesaId === mesa.id ||
+    (c.cliente && (
+      (mesa.cliente && !['público', 'publico'].includes(mesa.cliente.toLowerCase()) && c.cliente.toLowerCase() === mesa.cliente.toLowerCase()) || 
       c.cliente.toLowerCase() === `mesa ${mesa.id}`
-    )
+    ))
   );
   const consumosTotal = cuentaAsociada 
     ? cuentaAsociada.consumos.reduce((sum, item) => sum + item.precio * item.cantidad, 0)
@@ -1260,11 +1261,22 @@ export default function MesasPanel({ showToast }) {
           currentCuentas = cuentasSnap.data().cuentas || [];
         }
 
-        // Buscar o crear la cuenta activa en la transacción
-        const cuentaExistente = currentCuentas.find(c => c.cliente && c.cliente.toLowerCase() === clienteName.toLowerCase());
-        let nuevasCuentas = [...currentCuentas];
+        // Si la mesa estaba libre y se abre por pedido, purgamos cualquier cuenta leftover de esta mesa
+        let filteredCuentas = currentCuentas;
+        if (targetMesa && targetMesa.estado !== 'ocupada') {
+          filteredCuentas = currentCuentas.filter(c => 
+            !(c.mesaId === mesaId || (c.cliente && c.cliente.toLowerCase() === `mesa ${mesaId}`))
+          );
+        }
+
+        // Buscar o crear la cuenta activa en la transacción usando las cuentas filtradas
+        const cuentaExistente = filteredCuentas.find(c => 
+          c.mesaId === mesaId || 
+          (c.cliente && c.cliente.toLowerCase() === clienteName.toLowerCase())
+        );
+        let nuevasCuentas = [...filteredCuentas];
         if (cuentaExistente) {
-          nuevasCuentas = currentCuentas.map(c => {
+          nuevasCuentas = filteredCuentas.map(c => {
             if (c.id === cuentaExistente.id) {
               const nuevosConsumos = [...c.consumos];
               orderItems.forEach(cartItem => {
@@ -1292,6 +1304,7 @@ export default function MesasPanel({ showToast }) {
         } else {
           const nuevaCuenta = {
             id: Date.now(),
+            mesaId: mesaId,
             cliente: clienteName,
             tiempoJuego: 0,
             consumos: orderItems.map(item => ({
@@ -1693,10 +1706,11 @@ export default function MesasPanel({ showToast }) {
     const map = {};
     mesas.forEach(m => {
       const cuentaAsociada = cuentasActivas.find(c => 
-        c.cliente && (
-          (m.cliente && c.cliente.toLowerCase() === m.cliente.toLowerCase()) || 
+        c.mesaId === m.id ||
+        (c.cliente && (
+          (m.cliente && !['público', 'publico'].includes(m.cliente.toLowerCase()) && c.cliente.toLowerCase() === m.cliente.toLowerCase()) || 
           c.cliente.toLowerCase() === `mesa ${m.id}`
-        )
+        ))
       );
       map[m.id] = cuentaAsociada 
         ? cuentaAsociada.consumos.reduce((s, item) => s + item.precio * item.cantidad, 0)
@@ -1934,6 +1948,11 @@ export default function MesasPanel({ showToast }) {
       ? { ...m, estado: 'ocupada', cliente, inicio: Date.now(), socios: esSocio, rentarTaco, rentarBolas, rentarTiza, clienteUid: '', preTicketImpreso: false, reservadaAt: null, limiteReservaMs: null, telefono: '' }
       : m
     ));
+
+    // Limpiar cualquier cuenta leftover de esta mesa para asegurar que inicia en $0
+    actualizarCuentasFirestore(prev => prev.filter(c => 
+      !(c.mesaId === mesaId || (c.cliente && c.cliente.toLowerCase() === `mesa ${mesaId}`))
+    )).catch(err => console.error("Error al limpiar cuenta vieja al abrir mesa:", err));
     
     if (modalAbrir && modalAbrir.filaId) {
       setFila(prev => prev.filter(f => f.id !== modalAbrir.filaId));
@@ -2169,10 +2188,11 @@ export default function MesasPanel({ showToast }) {
 
   const imprimirPreTicket = (mesa) => {
     const cuentaAsociada = cuentasActivas.find(c => 
-      c.cliente && (
-        (mesa.cliente && c.cliente.toLowerCase() === mesa.cliente.toLowerCase()) || 
+      c.mesaId === mesa.id ||
+      (c.cliente && (
+        (mesa.cliente && !['público', 'publico'].includes(mesa.cliente.toLowerCase()) && c.cliente.toLowerCase() === mesa.cliente.toLowerCase()) || 
         c.cliente.toLowerCase() === `mesa ${mesa.id}`
-      )
+      ))
     );
     const consumos = cuentaAsociada ? cuentaAsociada.consumos : [];
     const costoTiempo = calcCosto({ ...mesa, inicio: mesa.inicio });
@@ -2303,10 +2323,11 @@ export default function MesasPanel({ showToast }) {
 
       // Buscar la cuenta asociada para auditar el detalle de consumos al cerrar
       const cuentaAsociada = cuentasActivas.find(c => 
-        c.cliente && (
-          (mesa && mesa.cliente && c.cliente.toLowerCase() === mesa.cliente.toLowerCase()) || 
+        c.mesaId === mesaId ||
+        (c.cliente && (
+          (mesa && mesa.cliente && !['público', 'publico'].includes(mesa.cliente.toLowerCase()) && c.cliente.toLowerCase() === mesa.cliente.toLowerCase()) || 
           c.cliente.toLowerCase() === `mesa ${mesaId}`
-        )
+        ))
       );
 
       // Registrar SIEMPRE el cierre en historial_stock para auditoría en la nube (evitando pérdida de información)
@@ -2333,10 +2354,10 @@ export default function MesasPanel({ showToast }) {
         }
 
         updatedCuentas = currentCuentas.filter(c => 
-          !(c.cliente && (
-            (mesa && mesa.cliente && c.cliente.toLowerCase() === mesa.cliente.toLowerCase()) || 
+          !(c.mesaId === mesaId || (c.cliente && (
+            (mesa && mesa.cliente && !['público', 'publico'].includes(mesa.cliente.toLowerCase()) && c.cliente.toLowerCase() === mesa.cliente.toLowerCase()) || 
             c.cliente.toLowerCase() === `mesa ${mesaId}`
-          ))
+          )))
         );
 
         // Actualizar cuentas estado
@@ -3757,16 +3778,18 @@ function ModalCuentasActivas({
     if (isMesaTab) {
       setCuentas(prev => {
         const matchingIdx = prev.findIndex(c => 
-          c.cliente && (
-            (mesaSel.cliente && c.cliente.toLowerCase() === mesaSel.cliente.toLowerCase()) || 
+          c.mesaId === mesaSel.id ||
+          (c.cliente && (
+            (mesaSel.cliente && !['público', 'publico'].includes(mesaSel.cliente.toLowerCase()) && c.cliente.toLowerCase() === mesaSel.cliente.toLowerCase()) || 
             c.cliente.toLowerCase() === `mesa ${mesaSel.id}`
-          )
+          ))
         );
         if (matchingIdx >= 0) {
           return prev.map((c, idx) => idx === matchingIdx ? { ...c, consumos: [...c.consumos, nuevoConsumo] } : c);
         } else {
           const nuevaCuenta = {
             id: Date.now(),
+            mesaId: mesaSel.id,
             cliente: mesaSel.cliente || `Mesa ${mesaSel.id}`,
             tiempoJuego: 0,
             consumos: [nuevoConsumo],
@@ -4863,7 +4886,10 @@ function ModalRegistrarComanda({ mesas, setMesas, cuentasActivas, actualizarCuen
       if (!targetMesa) return;
 
       actualizarCuentasFirestore(prev => {
-        const cuentaExistente = prev.find(c => c.cliente.toLowerCase() === targetMesa.cliente.toLowerCase());
+        const cuentaExistente = prev.find(c => 
+          c.mesaId === targetMesa.id ||
+          (c.cliente && !['público', 'publico'].includes(targetMesa.cliente.toLowerCase()) && c.cliente.toLowerCase() === targetMesa.cliente.toLowerCase())
+        );
         let nuevasCuentas;
         if (cuentaExistente) {
           nuevasCuentas = prev.map(c => {
@@ -4892,10 +4918,11 @@ function ModalRegistrarComanda({ mesas, setMesas, cuentasActivas, actualizarCuen
             return c;
           });
           showToast(`Comanda enviada a la cuenta de ${targetMesa.cliente} (Mesa ${targetMesa.id}) ✓`, 'success');
-          registrarEvento('Comanda a Cuenta', `Comanda de ${carrito.map(i=>`${i.cantidad}x ${i.nombre}`).join(', ')} enviada a la cuenta de ${targetMesa.cliente} (Mesa ${targetMesa.id})`, total);
+          registrarEvento('Comanda a Cuenta', `Comanda de ${carrito.map(i=>`${i.semibold || i.nombre}`).join(', ')} enviada a la cuenta de ${targetMesa.cliente} (Mesa ${targetMesa.id})`, total);
         } else {
           const nuevaCuenta = {
             id: Date.now(),
+            mesaId: targetMesa.id,
             cliente: targetMesa.cliente,
             tiempoJuego: 0,
             consumos: carrito.map(item => ({
