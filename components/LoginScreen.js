@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { db } from '@/lib/firebase';
-import { collection, getDocs, query, orderBy } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, addDoc } from 'firebase/firestore';
 import { getClientDomain } from '@/lib/tenant';
 
 export default function LoginScreen({ showToast }) {
@@ -21,6 +21,29 @@ export default function LoginScreen({ showToast }) {
   const [bloqueado, setBloqueado] = useState(false);
   const [segundosBloqueo, setSegundosBloqueo] = useState(0);
   const [modalError, setModalError] = useState(null); // { titulo, mensaje, intentos }
+
+  // Check for active lockout in localStorage on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const lockoutUntil = localStorage.getItem('yoy_lockout_until');
+      if (lockoutUntil) {
+        const remainingMs = parseInt(lockoutUntil, 10) - Date.now();
+        if (remainingMs > 0) {
+          const secs = Math.ceil(remainingMs / 1000);
+          setBloqueado(true);
+          setSegundosBloqueo(secs);
+          setIntentosRestantes(0);
+          setModalError({
+            titulo: 'Acceso Bloqueado',
+            mensaje: `El acceso a esta terminal sigue bloqueado temporalmente por seguridad.`,
+            intentos: 0
+          });
+        } else {
+          localStorage.removeItem('yoy_lockout_until');
+        }
+      }
+    }
+  }, []);
 
   useEffect(() => {
     const fetchUsers = async () => {
@@ -42,6 +65,49 @@ export default function LoginScreen({ showToast }) {
     fetchUsers();
   }, []);
 
+  // Web Audio API warning buzzer
+  const playBuzzerSound = () => {
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(120, ctx.currentTime);
+      
+      gain.gain.setValueAtTime(0.18, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.8);
+      
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      
+      osc.start();
+      osc.stop(ctx.currentTime + 0.8);
+    } catch (err) {
+      console.error("Fallo al reproducir zumbador de alerta:", err);
+    }
+  };
+
+  // Log to Firestore audit log
+  const logAccessAttempt = async (userEmail, method, exito, statusDetail) => {
+    try {
+      const clientDomain = getClientDomain();
+      await addDoc(collection(db, 'auditoria_accesos'), {
+        fecha: new Date(),
+        usuario: userEmail || 'Desconocido',
+        metodo: method,
+        exito: exito,
+        detalle: statusDetail,
+        dominio: clientDomain,
+        userAgent: typeof window !== 'undefined' ? window.navigator.userAgent : 'Server'
+      });
+    } catch (err) {
+      console.error("Error al registrar auditoria de acceso:", err);
+    }
+  };
+
   // Countdown Timer Effect for Lockout
   useEffect(() => {
     if (segundosBloqueo > 0) {
@@ -51,6 +117,9 @@ export default function LoginScreen({ showToast }) {
             clearInterval(timer);
             setBloqueado(false);
             setIntentosRestantes(3);
+            if (typeof window !== 'undefined') {
+              localStorage.removeItem('yoy_lockout_until');
+            }
             return 0;
           }
           return prev - 1;
@@ -67,6 +136,8 @@ export default function LoginScreen({ showToast }) {
       return;
     }
     setLoading(true);
+    const targetEmail = loginMethod === 'nip' ? `NIP-${nip}` : (usersList.length > 0 ? selectedEmail : email);
+    
     try {
       if (loginMethod === 'nip') {
         if (!nip) {
@@ -75,23 +146,59 @@ export default function LoginScreen({ showToast }) {
         }
         await login(nip, '');
       } else {
-        const targetEmail = usersList.length > 0 ? selectedEmail : email;
         if (!targetEmail || !password) {
           setLoading(false);
           return;
         }
         await login(targetEmail, password);
       }
+      
+      // Clear penalties on successful login
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('yoy_lockout_penalties');
+        localStorage.removeItem('yoy_lockout_until');
+      }
       setIntentosRestantes(3);
+      await logAccessAttempt(targetEmail, loginMethod, true, 'success');
+      
     } catch (err) {
       setIntentosRestantes(prev => {
         const nuevosIntentos = prev - 1;
+        
+        // Log access failure in firestore
+        logAccessAttempt(targetEmail, loginMethod, false, nuevosIntentos <= 0 ? 'lockout' : 'incorrect_credentials');
+
         if (nuevosIntentos <= 0) {
+          // Play sound
+          playBuzzerSound();
+
+          // Calculate exponential backoff duration
+          let penalties = 0;
+          if (typeof window !== 'undefined') {
+            penalties = parseInt(localStorage.getItem('yoy_lockout_penalties') || '0', 10) + 1;
+            localStorage.setItem('yoy_lockout_penalties', penalties.toString());
+          } else {
+            penalties = 1;
+          }
+
+          let durationSecs = 30; // default 1st
+          if (penalties === 2) {
+            durationSecs = 300; // 5 min
+          } else if (penalties >= 3) {
+            durationSecs = 900; // 15 min
+          }
+
+          const lockoutUntil = Date.now() + durationSecs * 1000;
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('yoy_lockout_until', lockoutUntil.toString());
+          }
+
           setBloqueado(true);
-          setSegundosBloqueo(30);
+          setSegundosBloqueo(durationSecs);
+          
           setModalError({
             titulo: 'Acceso Bloqueado',
-            mensaje: 'Has superado el límite de intentos permitidos. El acceso ha sido bloqueado temporalmente por 30 segundos.',
+            mensaje: `Has superado el límite de intentos permitidos. El acceso a esta terminal ha sido bloqueado temporalmente por ${durationSecs >= 60 ? (durationSecs / 60) + ' minutos' : durationSecs + ' segundos'}.`,
             intentos: 0
           });
           return 0;
@@ -121,6 +228,11 @@ export default function LoginScreen({ showToast }) {
     setLoading(true);
     try {
       await login(creds[role].e, creds[role].p);
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('yoy_lockout_penalties');
+        localStorage.removeItem('yoy_lockout_until');
+      }
+      await logAccessAttempt(creds[role].e, 'demo_quick', true, 'demo_success');
     } catch(e) {
       showToast(e.message, 'error');
     } finally {

@@ -848,6 +848,57 @@ input, select, textarea {
 .icon-danger  { background: rgba(239,68,68,0.1); color: var(--danger); }
 .icon-blue    { background: rgba(37,99,235,0.1); color: var(--blue-light); }
 
+/* ── COMPACT STATS ─────────────────────────────────────────── */
+.stat-grid-compact {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.stat-card-compact {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  transition: all var(--t-fast);
+}
+
+.stat-card-compact:hover {
+  border-color: var(--border-bronze);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(205,127,50,0.05);
+}
+
+.stat-card-compact .stat-card-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--r-sm);
+  font-size: 15px;
+  margin-bottom: 0;
+  flex-shrink: 0;
+}
+
+.stat-card-compact-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.stat-card-compact .stat-card-value {
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.stat-card-compact .stat-card-label {
+  font-size: 8.5px;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+}
+
 /* ── INPUTS / FORMULARIOS ──────────────────────────────────── */
 .form-group {
   display: flex;
@@ -1143,6 +1194,7 @@ tbody td {
   }
   .mesa-grid { grid-template-columns: repeat(2, 1fr); }
   .stat-grid { grid-template-columns: repeat(2, 1fr); }
+  .stat-grid-compact { grid-template-columns: repeat(2, 1fr); }
   .page-content { padding: 16px; }
 }
 

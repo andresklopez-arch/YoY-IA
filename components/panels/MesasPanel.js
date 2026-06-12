@@ -2169,19 +2169,20 @@ export default function MesasPanel({ showToast }) {
         </div>
       </div>
 
-      {/* Stats rápidas */}
-      <div className="stat-grid" style={{ marginBottom: 24 }}>
+      {/* Stats rápidas compactas */}
+      <div className="stat-grid-compact" style={{ marginBottom: 24 }}>
         {[
           { label: 'Libres', value: totales.libres, icon: 'ri-checkbox-blank-circle-line', color: 'icon-success', accent: 'var(--success)' },
           { label: 'Ocupadas', value: totales.ocupadas, icon: 'ri-record-circle-line', color: 'icon-danger', accent: 'var(--danger)' },
           { label: 'Reservadas', value: totales.reservadas, icon: 'ri-bookmark-fill', color: 'icon-bronze', accent: 'var(--bronze-light)', onClick: () => setModalReservasCentral(true) },
           { label: 'Cuentas Activas', value: `${cuentasActivas.length} cls`, icon: 'ri-folder-open-line', color: 'icon-bronze', accent: 'var(--bronze-light)', onClick: () => setModalCuentas(true) },
-          { label: 'Ingresos en curso', value: `$${ingresosActivos}`, icon: 'ri-coins-line', color: 'icon-blue', accent: 'var(--blue-light)' },
         ].map((s, i) => (
-          <div key={i} className="stat-card" style={{ cursor: s.onClick ? 'pointer' : 'default' }} onClick={s.onClick}>
+          <div key={i} className="stat-card-compact" style={{ cursor: s.onClick ? 'pointer' : 'default' }} onClick={s.onClick}>
             <div className={`stat-card-icon ${s.color}`}><i className={s.icon} /></div>
-            <div className="stat-card-value" style={{ color: s.accent, fontSize: 26 }}>{s.value}</div>
-            <div className="stat-card-label">{s.label}</div>
+            <div className="stat-card-compact-content">
+              <div className="stat-card-value" style={{ color: s.accent }}>{s.value}</div>
+              <div className="stat-card-label">{s.label}</div>
+            </div>
           </div>
         ))}
       </div>
