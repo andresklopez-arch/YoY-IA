@@ -1812,12 +1812,14 @@ export default function MesasPanel({ showToast }) {
   // ── REGISTRO DE AUDITORÍA Y BITÁCORA OFUSCADA (SUGERENCIA 1 Y 2) ──────────
   const registrarEvento = async (accion, detalle, monto = 0) => {
     const nombreOperador = user ? (user.name || user.alias || user.email) : 'Cajero Principal';
+    const rolOperador = user ? (user.role || 'staff') : 'staff';
     const nuevoEvento = {
       fecha: new Date().toISOString(),
       accion,
       detalle,
       monto,
-      operador: nombreOperador
+      operador: nombreOperador,
+      rolOperador: rolOperador
     };
     try {
       await addDoc(collection(db, 'bitacora'), nuevoEvento);

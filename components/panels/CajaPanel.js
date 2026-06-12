@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { db } from '@/lib/firebase';
-import { doc, onSnapshot, query, collection, orderBy, limit, getDocs, writeBatch } from 'firebase/firestore';
+import { doc, onSnapshot, query, collection, orderBy, limit, getDocs, startAfter, writeBatch } from 'firebase/firestore';
 import { deobfuscate, obfuscate } from '@/lib/crypto';
 import { useAuth } from '@/lib/auth-context';
 
@@ -40,11 +40,13 @@ export default function CajaPanel({ showToast }) {
     1000: '', 500: '', 200: '', 100: '', 50: '', 20: '', 10: '', 5: '', 2: '', 1: '', 0.5: ''
   });
 
-  // Estados de Bitácora
+  // Estados de Bitácora con cursor de paginación (startAfter)
   const [bitacora, setBitacora] = useState([]);
   const [mostrarBitacora, setMostrarBitacora] = useState(false);
   const [limiteBitacora, setLimiteBitacora] = useState(50);
   const [hasMoreBitacora, setHasMoreBitacora] = useState(true);
+  const [lastBitacoraDoc, setLastBitacoraDoc] = useState(null);
+  const [loadingMoreBitacora, setLoadingMoreBitacora] = useState(false);
 
   // Cola de impresión térmica
   const [colaImpresion, setColaImpresion] = useState([
@@ -186,13 +188,14 @@ export default function CajaPanel({ showToast }) {
     }
   }, [cobros]);
 
-  // Escuchar bitácora de Firestore en tiempo real para CajaPanel
+  // Escuchar bitácora de Firestore: primera página con onSnapshot (50 docs)
   useEffect(() => {
-    const q = query(collection(db, 'bitacora'), orderBy('fecha', 'desc'), limit(limiteBitacora));
+    const q = query(collection(db, 'bitacora'), orderBy('fecha', 'desc'), limit(50));
     const unsub = onSnapshot(q, snap => {
       const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       setBitacora(items);
-      setHasMoreBitacora(items.length === limiteBitacora);
+      setLastBitacoraDoc(snap.docs[snap.docs.length - 1] || null);
+      setHasMoreBitacora(snap.docs.length === 50);
       try {
         localStorage.setItem('yoy_billar_bitacora', obfuscate(items));
       } catch (err) {
@@ -208,7 +211,7 @@ export default function CajaPanel({ showToast }) {
       }
     });
     return unsub;
-  }, [limiteBitacora]);
+  }, []);
 
   const limpiarBitacora = async () => {
     setBitacora([]);
@@ -490,19 +493,33 @@ export default function CajaPanel({ showToast }) {
                     Se detectaron {cortesiasHoy.length} mesas o cuentas cerradas sin cargo o cortesías hoy. Por favor, verifícalas antes de proceder:
                   </p>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 4, maxHeight: 120, overflowY: 'auto', paddingRight: 4 }}>
-                    {cortesiasHoy.map(b => (
-                      <div key={b.id} style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 8, padding: '8px 10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                          <span style={{ fontSize: 10, fontWeight: 700, color: '#fff' }}>{b.detalle}</span>
-                          <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>
-                            Operador: {b.operador}
+                    {cortesiasHoy.map(b => {
+                      const esMesero = b.rolOperador && b.rolOperador !== 'admin';
+                      return (
+                        <div key={b.id} style={{
+                          background: esMesero ? 'rgba(249,115,22,0.1)' : 'rgba(0,0,0,0.2)',
+                          border: esMesero ? '1px solid rgba(249,115,22,0.35)' : '1px solid rgba(255,255,255,0.05)',
+                          borderRadius: 8, padding: '8px 10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10
+                        }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <span style={{ fontSize: 10, fontWeight: 700, color: '#fff' }}>{b.detalle}</span>
+                              {esMesero && (
+                                <span style={{ fontSize: 8, background: 'rgba(249,115,22,0.2)', color: '#f97316', padding: '1px 5px', borderRadius: 4, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>
+                                  ⚠ {b.rolOperador || 'staff'}
+                                </span>
+                              )}
+                            </div>
+                            <span style={{ fontSize: 9, color: esMesero ? '#f97316' : 'var(--text-muted)' }}>
+                              Operador: {b.operador}
+                            </span>
+                          </div>
+                          <span style={{ fontSize: 9, color: 'var(--text-muted)', fontFamily: 'var(--font-display)', whiteSpace: 'nowrap' }}>
+                            {new Date(b.fecha).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
                           </span>
                         </div>
-                        <span style={{ fontSize: 9, color: 'var(--text-muted)', fontFamily: 'var(--font-display)', whiteSpace: 'nowrap' }}>
-                          {new Date(b.fecha).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -579,9 +596,27 @@ export default function CajaPanel({ showToast }) {
           onClose={() => {
             setMostrarBitacora(false);
             setLimiteBitacora(50);
+            setLastBitacoraDoc(null);
+            setLoadingMoreBitacora(false);
           }}
-          onLoadMore={() => setLimiteBitacora(prev => prev + 50)}
+          onLoadMore={async () => {
+            if (!lastBitacoraDoc || loadingMoreBitacora) return;
+            setLoadingMoreBitacora(true);
+            try {
+              const q = query(collection(db, 'bitacora'), orderBy('fecha', 'desc'), startAfter(lastBitacoraDoc), limit(50));
+              const snap = await getDocs(q);
+              const newItems = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+              setBitacora(prev => [...prev, ...newItems]);
+              setLastBitacoraDoc(snap.docs[snap.docs.length - 1] || null);
+              setHasMoreBitacora(snap.docs.length === 50);
+            } catch (e) {
+              console.error('Error al cargar más bitácora:', e);
+            } finally {
+              setLoadingMoreBitacora(false);
+            }
+          }}
           hasMore={hasMoreBitacora}
+          loadingMore={loadingMoreBitacora}
         />
       )}
     </div>
@@ -589,7 +624,7 @@ export default function CajaPanel({ showToast }) {
 }
 
 // ── MODAL BITÁCORA ───────────────────────────────────────
-function ModalBitacora({ bitacora, onClear, onClose, onLoadMore, hasMore }) {
+function ModalBitacora({ bitacora, onClear, onClose, onLoadMore, hasMore, loadingMore }) {
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" style={{ maxWidth: 600 }} onClick={e => e.stopPropagation()}>
@@ -638,8 +673,17 @@ function ModalBitacora({ bitacora, onClear, onClose, onLoadMore, hasMore }) {
                 );
               })}
               {hasMore && (
-                <button className="btn btn-secondary btn-sm" onClick={onLoadMore} style={{ width: '100%', marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-                  <i className="ri-arrow-down-s-line" /> Cargar más registros...
+                <button
+                  className="btn btn-secondary btn-sm"
+                  onClick={onLoadMore}
+                  disabled={loadingMore}
+                  style={{ width: '100%', marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, opacity: loadingMore ? 0.7 : 1, cursor: loadingMore ? 'not-allowed' : 'pointer' }}
+                >
+                  {loadingMore ? (
+                    <>⧗ Cargando...</>
+                  ) : (
+                    <><i className="ri-arrow-down-s-line" /> Cargar más registros...</>
+                  )}
                 </button>
               )}
             </div>
