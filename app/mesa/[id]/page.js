@@ -100,6 +100,18 @@ export default function MesaClientePage({ params }) {
   const [showNombre, setShowNombre] = useState(false);
   const [isOffline, setIsOffline] = useState(false);
 
+  // Limpiar activamente el caché si es un nombre genérico de otra mesa
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('yoy_cliente_nombre') || '';
+        if (cached.toLowerCase().startsWith('mesa ') && cached.toLowerCase() !== `mesa ${mesaId}`) {
+          localStorage.removeItem('yoy_cliente_nombre');
+        }
+      } catch (e) {}
+    }
+  }, [mesaId]);
+
   // Estados de Diagnóstico de Red/Conexión
   const [authStatus, setAuthStatus] = useState('cargando'); // 'conectado' | 'error' | 'cargando'
   const [authError, setAuthError] = useState('');

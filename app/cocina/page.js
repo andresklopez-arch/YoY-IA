@@ -523,9 +523,14 @@ function CocinaContent() {
                             <span style={{ fontSize: 18, fontWeight: 900, color: 'var(--bronze-light)' }}>
                               Mesa {pedido.mesaId}
                             </span>
-                            <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 8 }}>
-                              {pedido.cliente}
-                            </span>
+                            {pedido.cliente && 
+                             !pedido.cliente.toLowerCase().startsWith('mesa ') && 
+                             pedido.cliente.toLowerCase() !== 'público' && 
+                             pedido.cliente.toLowerCase() !== 'publico' && (
+                              <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 8 }}>
+                                ({pedido.cliente})
+                              </span>
+                            )}
                           </div>
                           <div style={{ textAlign: 'right' }}>
                             <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
@@ -587,7 +592,14 @@ function CocinaContent() {
                 {historial.map(pedido => (
                   <div key={pedido.id} style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 12, padding: 12, fontSize: 12 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: 6, marginBottom: 6 }}>
-                      <span style={{ fontWeight: 800, color: 'var(--text-secondary)' }}>Mesa {pedido.mesaId}</span>
+                      <span style={{ fontWeight: 800, color: 'var(--text-secondary)' }}>
+                        Mesa {pedido.mesaId}
+                        {pedido.cliente && 
+                         !pedido.cliente.toLowerCase().startsWith('mesa ') && 
+                         pedido.cliente.toLowerCase() !== 'público' && 
+                         pedido.cliente.toLowerCase() !== 'publico' && 
+                         ` (${pedido.cliente})`}
+                      </span>
                       <span style={{
                         fontSize: 9, fontWeight: 800, padding: '1px 6px', borderRadius: 99,
                         background: pedido.estado === 'entregado' ? 'rgba(34,197,94,0.15)' : 'rgba(205,127,50,0.15)',
