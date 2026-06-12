@@ -1379,9 +1379,7 @@ function IAReportesTab({ showToast }) {
     return () => unsubs.forEach(u => u());
   }, []);
 
-  useEffect(() => {
-    if (empleados.length || gastos.length) generarInsights();
-  }, [empleados, gastos, pagos, asistencias]);
+
 
   const mesActual = new Date().toISOString().slice(0, 7);
   const mesAnterior = (() => { const d = new Date(); d.setMonth(d.getMonth() - 1); return d.toISOString().slice(0, 7); })();
@@ -1499,6 +1497,10 @@ function IAReportesTab({ showToast }) {
     setInsights(nuevosInsights.sort((a, b) => ({ alta: 0, media: 1, baja: 2 }[a.prioridad] - { alta: 0, media: 1, baja: 2 }[b.prioridad])));
     setLoadingIA(false);
   }, [empleados, gastos, pagos, asistencias, totalGastosMes, totalGastosAnterior, totalNomina]);
+
+  useEffect(() => {
+    if (empleados.length || gastos.length) generarInsights();
+  }, [empleados, gastos, pagos, asistencias, generarInsights]);
 
   const insightColors = {
     alerta:    { color: '#f59e0b', bg: 'rgba(245,158,11,0.1)',  border: 'rgba(245,158,11,0.3)'  },
