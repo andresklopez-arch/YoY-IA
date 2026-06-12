@@ -2242,58 +2242,78 @@ export default function MesasPanel({ showToast }) {
 
   return (
     <div style={{ minHeight: isFullscreen ? '100vh' : 'auto', padding: isFullscreen ? '20px' : '0', background: isFullscreen ? 'var(--bg-main)' : 'transparent' }}>
-      <div className="page-header" style={{ marginBottom: 20 }}>
+      <div className="page-header" style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <h1 className="page-title gradient-bronze">Control de Mesas</h1>
-          <p className="page-subtitle">Gestión en tiempo real · {mesas.length} mesas registradas · {isFullscreen ? 'Modo Kiosco Activo' : 'Modo Estándar'}</p>
+          {/* Botón de Cuentas Activas destacado (el más importante, pendientes de cobrar) */}
+          <button 
+            className="btn" 
+            style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: 8, 
+              padding: '6px 14px',
+              background: 'rgba(205,127,50,0.15)',
+              border: '1px solid var(--border-bronze)',
+              color: 'var(--bronze-light)',
+              fontWeight: 700,
+              fontSize: 12,
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em',
+              borderRadius: 8,
+              cursor: 'pointer',
+              transition: 'all 0.15s'
+            }} 
+            onClick={() => setModalCuentas(true)}
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(205,127,50,0.25)'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(205,127,50,0.15)'; }}
+            title="Ver Cuentas Activas Pendientes de Cobro"
+          >
+            <i className="ri-folder-open-line" style={{ fontSize: 14 }} /> 
+            <span>Cuentas Activas:</span>
+            <strong style={{ fontSize: 13, color: '#fff', background: 'var(--bronze)', padding: '2px 8px', borderRadius: 6, marginLeft: 2 }}>{cuentasActivas.length}</strong>
+          </button>
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-end' }}>
-          {/* Fila 1: Botones de Acción */}
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-            <button className="btn btn-secondary btn-sm" onClick={toggleFullscreen} title="Activar Modo Kiosco">
-              <i className={isFullscreen ? 'ri-fullscreen-exit-fill' : 'ri-fullscreen-fill'} style={{ marginRight: 4 }} />
-              {isFullscreen ? 'Salir' : 'Kiosco'}
-            </button>
-            <button className="btn btn-primary btn-sm" onClick={() => setMostrarCobroManual(true)}>
-              <i className="ri-add-circle-line" /> Cobro Manual
-            </button>
-            <button className="btn btn-secondary btn-sm" onClick={() => setModalFila(true)}>
-              <i className="ri-qr-code-line" /> Fila Virtual
-              {fila.length > 0 && (
-                <span className="badge badge-bronze" style={{ marginLeft: 6, padding: '2px 6px', fontSize: 9 }}>
-                  {fila.length}
-                </span>
-              )}
-            </button>
-            <button className="btn btn-secondary btn-sm" style={{ color: 'var(--bronze-light)', borderColor: 'var(--border-bronze)' }} onClick={() => setModalComanda(true)}>
-              <i className="ri-cup-line" /> Comanda
-            </button>
-            <button className="btn btn-secondary btn-sm" style={{ color: 'var(--bronze-light)', borderColor: 'var(--border-bronze)' }} onClick={() => setModalAbrirCuenta(true)}>
-              <i className="ri-folder-add-line" /> Abrir Cuenta
-            </button>
-            <button className="btn btn-secondary btn-sm" style={{ color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.3)', background: 'rgba(239, 68, 68, 0.05)' }} onClick={() => setModalGasto(true)}>
-              <i className="ri-wallet-3-line" style={{ marginRight: 4 }} /> Gasto
-            </button>
-            <button className="btn btn-primary btn-sm" onClick={() => setModalNuevaMesa(true)}>
-              <i className="ri-add-line" /> Nueva Mesa
-            </button>
-          </div>
+        
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'flex-end' }}>
+          {/* Botones de Acción */}
+          <button className="btn btn-secondary btn-sm" onClick={toggleFullscreen} title="Activar Modo Kiosco">
+            <i className={isFullscreen ? 'ri-fullscreen-exit-fill' : 'ri-fullscreen-fill'} style={{ marginRight: 4 }} />
+            {isFullscreen ? 'Salir' : 'Kiosco'}
+          </button>
+          <button className="btn btn-primary btn-sm" onClick={() => setMostrarCobroManual(true)}>
+            <i className="ri-add-circle-line" /> Cobro Manual
+          </button>
+          <button className="btn btn-secondary btn-sm" onClick={() => setModalFila(true)}>
+            <i className="ri-qr-code-line" /> Fila Virtual
+            {fila.length > 0 && (
+              <span className="badge badge-bronze" style={{ marginLeft: 6, padding: '2px 6px', fontSize: 9 }}>
+                {fila.length}
+              </span>
+            )}
+          </button>
+          <button className="btn btn-secondary btn-sm" style={{ color: 'var(--bronze-light)', borderColor: 'var(--border-bronze)' }} onClick={() => setModalComanda(true)}>
+            <i className="ri-cup-line" /> Comanda
+          </button>
+          <button className="btn btn-secondary btn-sm" style={{ color: 'var(--bronze-light)', borderColor: 'var(--border-bronze)' }} onClick={() => setModalAbrirCuenta(true)}>
+            <i className="ri-folder-add-line" /> Abrir Cuenta
+          </button>
+          <button className="btn btn-secondary btn-sm" style={{ color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.3)', background: 'rgba(239, 68, 68, 0.05)' }} onClick={() => setModalGasto(true)}>
+            <i className="ri-wallet-3-line" style={{ marginRight: 4 }} /> Gasto
+          </button>
 
-          {/* Fila 2: Indicadores de Estadísticas (mismo tamaño que botones) */}
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-            <div className="btn btn-secondary btn-sm" style={{ cursor: 'default', color: 'var(--success)', borderColor: 'rgba(34,197,94,0.3)', background: 'rgba(34,197,94,0.05)', display: 'flex', alignItems: 'center', gap: 6 }}>
-              <i className="ri-checkbox-blank-circle-line" /> Libres: <strong>{totales.libres}</strong>
-            </div>
-            <div className="btn btn-secondary btn-sm" style={{ cursor: 'default', color: 'var(--danger)', borderColor: 'rgba(239,68,68,0.3)', background: 'rgba(239,68,68,0.05)', display: 'flex', alignItems: 'center', gap: 6 }}>
-              <i className="ri-record-circle-line" /> Ocupadas: <strong>{totales.ocupadas}</strong>
-            </div>
-            <button className="btn btn-secondary btn-sm" style={{ color: 'var(--bronze-light)', borderColor: 'var(--border-bronze)', display: 'flex', alignItems: 'center', gap: 6 }} onClick={() => setModalReservasCentral(true)}>
-              <i className="ri-bookmark-fill" /> Reservadas: <strong>{totales.reservadas}</strong>
-            </button>
-            <button className="btn btn-secondary btn-sm" style={{ color: 'var(--bronze-light)', borderColor: 'var(--border-bronze)', display: 'flex', alignItems: 'center', gap: 6 }} onClick={() => setModalCuentas(true)}>
-              <i className="ri-folder-open-line" /> Activas: <strong>{cuentasActivas.length} cls</strong>
-            </button>
+          {/* Línea divisoria */}
+          <div style={{ width: 1, height: 18, background: 'var(--border)', margin: '0 4px' }} />
+
+          {/* Indicadores de Estadísticas de Mesas */}
+          <div className="btn btn-secondary btn-sm" style={{ cursor: 'default', color: 'var(--success)', borderColor: 'rgba(34,197,94,0.3)', background: 'rgba(34,197,94,0.05)', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <i className="ri-checkbox-blank-circle-line" /> Libres: <strong>{totales.libres}</strong>
           </div>
+          <div className="btn btn-secondary btn-sm" style={{ cursor: 'default', color: 'var(--danger)', borderColor: 'rgba(239,68,68,0.3)', background: 'rgba(239,68,68,0.05)', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <i className="ri-record-circle-line" /> Ocupadas: <strong>{totales.ocupadas}</strong>
+          </div>
+          <button className="btn btn-secondary btn-sm" style={{ color: 'var(--bronze-light)', borderColor: 'var(--border-bronze)', display: 'flex', alignItems: 'center', gap: 6 }} onClick={() => setModalReservasCentral(true)}>
+            <i className="ri-bookmark-fill" /> Reservadas: <strong>{totales.reservadas}</strong>
+          </button>
         </div>
       </div>
 
