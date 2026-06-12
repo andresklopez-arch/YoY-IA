@@ -17,6 +17,13 @@ function MeseroContent() {
   const [sonido, setSonido] = useState(true);
   const [ultimoCount, setUltimoCount] = useState(0);
   const { user } = useAuth();
+  
+  const [showCuentasModal, setShowCuentasModal] = useState(false);
+  const [toast, setToast] = useState(null);
+  const showToast = (message, type = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
 
   // Estados para capturar venta
   const [showCapturarModal, setShowCapturarModal] = useState(false);
@@ -554,14 +561,25 @@ function MeseroContent() {
         {/* ── STATS ───────────────────────────────────── */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, marginBottom: 24 }}>
           {[
-            { key: 'todos',      label: 'Total',      icon: 'ri-list-check-2',            color: 'var(--text-primary)' },
-            { key: 'pedido',     label: 'Pedidos',    icon: 'ri-restaurant-line',          color: 'var(--bronze-light)' },
-            { key: 'asistencia', label: 'Asistencia', icon: 'ri-customer-service-2-line',  color: 'var(--info)' },
-            { key: 'cuenta',     label: 'Cuentas',    icon: 'ri-secure-payment-line',      color: 'var(--success)' },
+            { key: 'todos',      label: 'Total',      icon: 'ri-list-check-2',            color: 'var(--text-primary)', count: counts.todos },
+            { key: 'pedido',     label: 'Pedidos',    icon: 'ri-restaurant-line',          color: 'var(--bronze-light)', count: counts.pedido },
+            { key: 'asistencia', label: 'Asistencia', icon: 'ri-customer-service-2-line',  color: 'var(--info)', count: counts.asistencia },
+            { key: 'cuenta',     label: 'Cuentas',    icon: 'ri-secure-payment-line',      color: 'var(--success)', count: cuentas.length },
           ].map(s => (
-            <div key={s.key} className="stat-card" style={{ cursor: 'pointer', border: filtro === s.key ? '1px solid var(--border-bronze)' : '1px solid var(--border)' }} onClick={() => setFiltro(s.key)}>
+            <div 
+              key={s.key} 
+              className="stat-card" 
+              style={{ cursor: 'pointer', border: (s.key === 'cuenta' && showCuentasModal) || (s.key !== 'cuenta' && filtro === s.key) ? '1px solid var(--border-bronze)' : '1px solid var(--border)' }} 
+              onClick={() => {
+                if (s.key === 'cuenta') {
+                  setShowCuentasModal(true);
+                } else {
+                  setFiltro(s.key);
+                }
+              }}
+            >
               <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 4 }}>{s.label}</div>
-              <div style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 800, color: s.color }}>{counts[s.key]}</div>
+              <div style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 800, color: s.color }}>{s.count}</div>
             </div>
           ))}
         </div>
@@ -867,6 +885,180 @@ function MeseroContent() {
           </div>
         </div>
       )}
+      {showCuentasModal && (
+        <ModalCuentasMesero
+          cuentas={cuentas}
+          mesas={mesas}
+          onClose={() => setShowCuentasModal(false)}
+          showToast={showToast}
+        />
+      )}
+      {toast && (
+        <div style={{
+          position: 'fixed',
+          bottom: 24,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          background: toast.type === 'error' ? 'var(--danger)' : 'linear-gradient(135deg, var(--bronze), var(--bronze-light))',
+          color: toast.type === 'error' ? '#fff' : '#0d0d0f',
+          padding: '12px 24px',
+          borderRadius: 12,
+          fontWeight: 700,
+          boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
+          zIndex: 2000,
+          animation: 'fadeInUp 0.3s ease'
+        }}>
+          {toast.message}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ModalCuentasMesero({ cuentas, mesas, onClose, showToast }) {
+  const [expandedId, setExpandedId] = useState(null);
+
+  const pedirCuenta = async (cuenta) => {
+    const mesaAsociada = mesas.find(m => m.cliente && m.cliente.toLowerCase() === cuenta.cliente.toLowerCase());
+    const mesaId = mesaAsociada ? mesaAsociada.id : 0;
+    const consumosTotal = cuenta.consumos.reduce((sum, item) => sum + item.precio * item.cantidad, 0);
+    const totalAcumulado = cuenta.tiempoJuego + consumosTotal;
+
+    try {
+      await addDoc(collection(db, 'mesa_pedidos'), {
+        mesaId: mesaId,
+        cliente: cuenta.cliente,
+        tipo: 'cuenta',
+        etiqueta: 'Solicita Cuenta (Caja)',
+        estado: 'pendiente',
+        totalAcumulado: totalAcumulado,
+        atendidoAdmin: false,
+        atendidoMesero: false,
+        createdAt: serverTimestamp()
+      });
+      showToast(`Solicitud de cuenta enviada a caja para ${cuenta.cliente} ✓`, 'success');
+    } catch (err) {
+      console.error(err);
+      alert('Error al solicitar la cuenta: ' + err.message);
+    }
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose} style={{ zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)' }}>
+      <div className="modal" style={{ maxWidth: 500, maxHeight: '80vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+        <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <i className="ri-secure-payment-line" style={{ color: 'var(--success)' }} />
+            Cuentas Activas (${cuentas.length})
+          </span>
+          <button onClick={onClose} className="btn-icon btn btn-secondary" style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 20, cursor: 'pointer' }}>
+            <i className="ri-close-line" />
+          </button>
+        </div>
+        <div className="modal-body" style={{ overflowY: 'auto', flex: 1, padding: '12px 16px', textAlign: 'left' }}>
+          {cuentas.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-muted)' }}>
+              No hay cuentas activas en este momento.
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {cuentas.map(c => {
+                const mesaAsociada = mesas.find(m => m.cliente && m.cliente.toLowerCase() === c.cliente.toLowerCase());
+                const consumosTotal = c.consumos.reduce((sum, item) => sum + item.precio * item.cantidad, 0);
+                const total = c.tiempoJuego + consumosTotal;
+                const isExpanded = expandedId === c.id;
+
+                return (
+                  <div key={c.id} style={{
+                    background: 'var(--bg-elevated)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 12,
+                    padding: 12,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 8
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <div style={{ fontWeight: 800, fontSize: 14, color: '#fff' }}>{c.cliente}</div>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                          {mesaAsociada ? `📍 Mesa ${mesaAsociada.id}` : '👤 Cuenta Directa'} · Tiempo: ${c.tiempoJuego}
+                        </div>
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontSize: 16, fontWeight: 900, color: 'var(--success)' }}>${total} MXN</div>
+                        <button
+                          onClick={() => setExpandedId(isExpanded ? null : c.id)}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: 'var(--bronze-light)',
+                            fontSize: 11,
+                            cursor: 'pointer',
+                            textDecoration: 'underline',
+                            padding: '4px 0 0'
+                          }}
+                        >
+                          {isExpanded ? 'Ocultar detalle ▲' : 'Ver detalle ▼'}
+                        </button>
+                      </div>
+                    </div>
+
+                    {isExpanded && (
+                      <div style={{
+                        background: 'rgba(0, 0, 0, 0.15)',
+                        borderRadius: 8,
+                        padding: 8,
+                        fontSize: 12,
+                        marginTop: 4,
+                        border: '1px solid rgba(255, 255, 255, 0.05)'
+                      }}>
+                        <div style={{ fontWeight: 'bold', color: 'var(--bronze-light)', marginBottom: 4 }}>Productos consumidos:</div>
+                        {c.consumos.length === 0 ? (
+                          <div style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>Sin consumos registrados</div>
+                        ) : (
+                          <ul style={{ margin: 0, paddingLeft: 16, color: 'var(--text-secondary)' }}>
+                            {c.consumos.map((item, idx) => (
+                              <li key={idx} style={{ marginBottom: 2 }}>
+                                {item.cantidad}x {item.producto} (${item.precio * item.cantidad})
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    )}
+
+                    <div style={{ borderTop: '1px solid rgba(255, 255, 255, 0.05)', paddingTop: 8, marginTop: 4, display: 'flex', justifyContent: 'flex-end' }}>
+                      <button
+                        className="btn btn-sm"
+                        onClick={() => pedirCuenta(c)}
+                        style={{
+                          background: 'linear-gradient(135deg, var(--bronze), var(--bronze-light))',
+                          color: '#0d0d0f',
+                          fontWeight: 700,
+                          fontSize: 11,
+                          padding: '6px 12px',
+                          borderRadius: 8,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          border: 'none',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <i className="ri-secure-payment-line" /> Pedir Cuenta (Caja)
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+        <div className="modal-footer" style={{ padding: '8px 16px', display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid var(--border)' }}>
+          <button className="btn btn-secondary" onClick={onClose}>Cerrar</button>
+        </div>
+      </div>
     </div>
   );
 }
