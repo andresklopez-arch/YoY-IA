@@ -41,6 +41,8 @@ export default function CajaPanel({ showToast }) {
   // Estados de Bitácora
   const [bitacora, setBitacora] = useState([]);
   const [mostrarBitacora, setMostrarBitacora] = useState(false);
+  const [limiteBitacora, setLimiteBitacora] = useState(50);
+  const [hasMoreBitacora, setHasMoreBitacora] = useState(true);
 
   // Cola de impresión térmica
   const [colaImpresion, setColaImpresion] = useState([
@@ -184,10 +186,11 @@ export default function CajaPanel({ showToast }) {
 
   // Escuchar bitácora de Firestore en tiempo real para CajaPanel
   useEffect(() => {
-    const q = query(collection(db, 'bitacora'), orderBy('fecha', 'desc'), limit(100));
+    const q = query(collection(db, 'bitacora'), orderBy('fecha', 'desc'), limit(limiteBitacora));
     const unsub = onSnapshot(q, snap => {
       const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       setBitacora(items);
+      setHasMoreBitacora(items.length === limiteBitacora);
       try {
         localStorage.setItem('yoy_billar_bitacora', obfuscate(items));
       } catch (err) {
@@ -203,7 +206,7 @@ export default function CajaPanel({ showToast }) {
       }
     });
     return unsub;
-  }, []);
+  }, [limiteBitacora]);
 
   const limpiarBitacora = async () => {
     setBitacora([]);
@@ -238,6 +241,14 @@ export default function CajaPanel({ showToast }) {
     return acc + (parseFloat(val) * qty);
   }, 0);
   const diferencia = sumaContada - totalEfectivoEsperado;
+
+  const cortesiasHoy = bitacora.filter(b => {
+    const esHoy = b.fecha && (new Date(b.fecha).toDateString() === new Date().toDateString());
+    if (!esHoy) return false;
+    const esCierre = b.accion === 'Cierre Directo' || b.accion === 'Liquidar Cuenta' || b.accion === 'Cobro Manual';
+    const esMontoCero = b.monto === 0 || (b.detalle && (b.detalle.includes('Socio sin cargo') || b.detalle.includes('$0 MXN') || b.detalle.includes('cerrada (Socio sin cargo')));
+    return esCierre && esMontoCero;
+  });
 
   const handleUnlockAdmin = () => {
     if (hashPassword(adminPassword) === adminPinHash) {
@@ -456,6 +467,42 @@ export default function CajaPanel({ showToast }) {
               <button onClick={() => setMostrarCorte(false)} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 20 }}>✕</button>
             </div>
             <div className="modal-body" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
+              {/* Alerta de Cuentas Sospechosas o Cortesías en $0 MXN de Hoy */}
+              {cortesiasHoy.length > 0 && (
+                <div style={{
+                  background: 'rgba(239, 68, 68, 0.1)',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  borderRadius: 12,
+                  padding: 14,
+                  marginBottom: 20,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 8
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#ef4444', fontWeight: 800, fontSize: 13 }}>
+                    <i className="ri-error-warning-line" style={{ fontSize: 16 }} />
+                    <span>⚠️ AUDITORÍA: Cortesías / Cierres $0 MXN hoy</span>
+                  </div>
+                  <p style={{ fontSize: 11, color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>
+                    Se detectaron {cortesiasHoy.length} mesas o cuentas cerradas sin cargo o cortesías hoy. Por favor, verifícalas antes de proceder:
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 4, maxHeight: 120, overflowY: 'auto', paddingRight: 4 }}>
+                    {cortesiasHoy.map(b => (
+                      <div key={b.id} style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 8, padding: '8px 10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                          <span style={{ fontSize: 10, fontWeight: 700, color: '#fff' }}>{b.detalle}</span>
+                          <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>
+                            Operador: {b.operador}
+                          </span>
+                        </div>
+                        <span style={{ fontSize: 9, color: 'var(--text-muted)', fontFamily: 'var(--font-display)', whiteSpace: 'nowrap' }}>
+                          {new Date(b.fecha).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
                 {/* Billetes */}
                 <div>
@@ -526,7 +573,12 @@ export default function CajaPanel({ showToast }) {
         <ModalBitacora
           bitacora={bitacora}
           onClear={limpiarBitacora}
-          onClose={() => setMostrarBitacora(false)}
+          onClose={() => {
+            setMostrarBitacora(false);
+            setLimiteBitacora(50);
+          }}
+          onLoadMore={() => setLimiteBitacora(prev => prev + 50)}
+          hasMore={hasMoreBitacora}
         />
       )}
     </div>
@@ -534,7 +586,7 @@ export default function CajaPanel({ showToast }) {
 }
 
 // ── MODAL BITÁCORA ───────────────────────────────────────
-function ModalBitacora({ bitacora, onClear, onClose }) {
+function ModalBitacora({ bitacora, onClear, onClose, onLoadMore, hasMore }) {
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" style={{ maxWidth: 600 }} onClick={e => e.stopPropagation()}>
@@ -555,7 +607,7 @@ function ModalBitacora({ bitacora, onClear, onClose }) {
           </div>
         </div>
         <div className="modal-body">
-          <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>Últimos 100 movimientos de mesas, consumos y caja en este dispositivo.</p>
+          <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>Movimientos de mesas, consumos y caja del negocio.</p>
           {bitacora.length === 0 ? (
             <p style={{ color: 'var(--text-muted)', fontSize: 13, textAlign: 'center', padding: '60px 0' }}>No hay registros disponibles en la bitácora.</p>
           ) : (
@@ -582,6 +634,11 @@ function ModalBitacora({ bitacora, onClear, onClose }) {
                   </div>
                 );
               })}
+              {hasMore && (
+                <button className="btn btn-secondary btn-sm" onClick={onLoadMore} style={{ width: '100%', marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                  <i className="ri-arrow-down-s-line" /> Cargar más registros...
+                </button>
+              )}
             </div>
           )}
         </div>
