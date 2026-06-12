@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { obfuscate, deobfuscate } from '@/lib/crypto';
 import { db } from '@/lib/firebase';
 import { doc, onSnapshot, setDoc, getDoc, serverTimestamp, collection, query, where, getDocs, writeBatch, updateDoc, runTransaction, addDoc } from 'firebase/firestore';
@@ -5700,14 +5701,7 @@ function ModalGasto({ onClose, onConfirm, CATEGORIAS_GASTO }) {
     proveedor: '',
     notas: ''
   });
-
-  useEffect(() => {
-    const originalStyle = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = originalStyle;
-    };
-  }, []);
+  useBodyScrollLock(true);
 
   const sugerencias = SUGERENCIAS_POR_CATEGORIA[form.categoria] || [];
 
