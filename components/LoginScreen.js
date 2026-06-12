@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { db } from '@/lib/firebase';
 import { collection, getDocs, query, orderBy, addDoc } from 'firebase/firestore';
@@ -21,6 +21,21 @@ export default function LoginScreen({ showToast }) {
   const [bloqueado, setBloqueado] = useState(false);
   const [segundosBloqueo, setSegundosBloqueo] = useState(0);
   const [modalError, setModalError] = useState(null); // { titulo, mensaje, intentos }
+  const passwordRef = useRef(null);
+  const nipRef = useRef(null);
+
+  const cerrarModalError = () => {
+    setModalError(null);
+    setTimeout(() => {
+      if (loginMethod === 'nip') {
+        nipRef.current?.focus();
+        nipRef.current?.select();
+      } else {
+        passwordRef.current?.focus();
+        passwordRef.current?.select();
+      }
+    }, 50);
+  };
 
   // Check for active lockout in localStorage on mount
   useEffect(() => {
@@ -129,8 +144,25 @@ export default function LoginScreen({ showToast }) {
     }
   }, [segundosBloqueo]);
 
+  // Interceptar teclas cuando el modal de error está activo para cerrarlo y re-enfocar
+  useEffect(() => {
+    if (!modalError) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Enter' || e.key === 'Escape' || e.key === ' ') {
+        e.preventDefault();
+        cerrarModalError();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [modalError, loginMethod]);
+
   const handleLogin = async (e) => {
     e.preventDefault();
+    if (modalError) {
+      cerrarModalError();
+      return;
+    }
     if (bloqueado) {
       showToast(`Acceso bloqueado. Inténtalo de nuevo en ${segundosBloqueo} segundos.`, 'error');
       return;
@@ -300,6 +332,7 @@ export default function LoginScreen({ showToast }) {
               <div className="form-group">
                 <label className="form-label">NIP del Empleado</label>
                 <input
+                  ref={nipRef}
                   className="form-input"
                   type="password"
                   maxLength={6}
@@ -358,6 +391,7 @@ export default function LoginScreen({ showToast }) {
                   <label className="form-label">Contraseña</label>
                   <div style={{ position: 'relative' }}>
                     <input
+                      ref={passwordRef}
                       className="form-input"
                       type={showPass ? 'text' : 'password'}
                       placeholder="••••••••"
@@ -449,7 +483,7 @@ export default function LoginScreen({ showToast }) {
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999,
           backdropFilter: 'blur(4px)'
-        }} onClick={() => setModalError(null)}>
+        }} onClick={cerrarModalError}>
           <div style={{
             background: 'var(--bg-card)',
             border: '1px solid var(--border-bronze)',
@@ -515,7 +549,7 @@ export default function LoginScreen({ showToast }) {
             <button
               className="btn btn-primary"
               style={{ width: '100%', padding: '10px 0' }}
-              onClick={() => setModalError(null)}
+              onClick={cerrarModalError}
             >
               Entendido
             </button>

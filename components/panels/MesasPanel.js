@@ -2313,43 +2313,122 @@ export default function MesasPanel({ showToast }) {
           gap: 12,
           width: '100%'
         }}>
-          {/* Lado Izquierdo: Estado Actual de Ocupación y Estadísticas (Totalmente Homogéneo) */}
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-            {/* Indicador de Porcentaje de Ocupación */}
-            <div className="btn btn-secondary btn-sm" style={{ cursor: 'default', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 6 }}>
+          {/* Lado Izquierdo: Estado Actual (Cuentas Activas destacada en primer lugar y resto segmentadas) */}
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+            {/* Cuentas Activas (Protagonista destacado en primer lugar) */}
+            <button
+              className="btn btn-primary btn-sm"
+              style={{
+                padding: '6px 14px',
+                fontSize: 11,
+                fontWeight: 800,
+                letterSpacing: '0.05em',
+                boxShadow: '0 0 15px var(--bronze-glow)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6
+              }}
+              onClick={() => setModalCuentas(true)}
+            >
+              <i className="ri-folder-open-line" style={{ fontSize: 13 }} />
+              <span>ACTIVAS: <strong style={{ fontSize: 12 }}>{cuentasActivas.length} CLS</strong></span>
+            </button>
+
+            {/* Cápsula Segmentada Unificada (Sin espacios intermedios y con ligeros códigos de color) */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              background: 'var(--bg-elevated)',
+              border: '1px solid var(--border-bronze)',
+              borderRadius: 8,
+              overflow: 'hidden',
+              boxShadow: 'var(--shadow-sm)'
+            }}>
+              {/* Ocupación */}
               <div style={{
-                width: 8,
-                height: 8,
-                borderRadius: '50%',
-                background: pctOcupacion > 70 ? 'var(--danger)' : (pctOcupacion > 30 ? '#f59e0b' : 'var(--success)'),
-                boxShadow: `0 0 8px ${pctOcupacion > 70 ? 'var(--danger)' : (pctOcupacion > 30 ? '#f59e0b' : 'var(--success)')}`
-              }} />
-              <span>OCUPACIÓN: <strong style={{ color: 'var(--bronze-light)' }}>{pctOcupacion}%</strong></span>
+                padding: '6px 12px',
+                fontSize: 10,
+                fontWeight: 700,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                height: 28,
+                borderRight: '1px solid var(--border-bronze)',
+                background: 'rgba(245, 158, 11, 0.02)',
+                color: '#f59e0b',
+                whiteSpace: 'nowrap'
+              }}>
+                <div style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: '50%',
+                  background: pctOcupacion > 70 ? 'var(--danger)' : (pctOcupacion > 30 ? '#f59e0b' : 'var(--success)'),
+                  boxShadow: `0 0 6px ${pctOcupacion > 70 ? 'var(--danger)' : (pctOcupacion > 30 ? '#f59e0b' : 'var(--success)')}`
+                }} />
+                <span style={{ color: 'var(--text-secondary)' }}>OCUPACIÓN: <strong style={{ color: '#f59e0b' }}>{pctOcupacion}%</strong></span>
+              </div>
+
+              {/* Libres */}
+              <div style={{
+                padding: '6px 12px',
+                fontSize: 10,
+                fontWeight: 700,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                height: 28,
+                borderRight: '1px solid var(--border-bronze)',
+                background: 'rgba(34, 197, 94, 0.02)',
+                color: 'var(--success)',
+                whiteSpace: 'nowrap'
+              }}>
+                <i className="ri-checkbox-blank-circle-line" style={{ color: 'var(--success)', fontSize: 11 }} />
+                <span style={{ color: 'var(--text-secondary)' }}>LIBRES: <strong style={{ color: 'var(--success)' }}>{totales.libres}</strong></span>
+              </div>
+
+              {/* Ocupadas */}
+              <div style={{
+                padding: '6px 12px',
+                fontSize: 10,
+                fontWeight: 700,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                height: 28,
+                borderRight: '1px solid var(--border-bronze)',
+                background: 'rgba(239, 68, 68, 0.02)',
+                color: 'var(--danger)',
+                whiteSpace: 'nowrap'
+              }}>
+                <i className="ri-record-circle-line" style={{ color: 'var(--danger)', fontSize: 11 }} />
+                <span style={{ color: 'var(--text-secondary)' }}>OCUPADAS: <strong style={{ color: 'var(--danger)' }}>{totales.ocupadas}</strong></span>
+              </div>
+
+              {/* Reservadas (Interactiva) */}
+              <button
+                onClick={() => setModalReservasCentral(true)}
+                style={{
+                  padding: '6px 12px',
+                  fontSize: 10,
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  height: 28,
+                  background: 'rgba(227, 168, 105, 0.02)',
+                  border: 'none',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s',
+                  color: 'var(--bronze-light)',
+                  whiteSpace: 'nowrap'
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = 'rgba(227, 168, 105, 0.08)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'rgba(227, 168, 105, 0.02)'}
+              >
+                <i className="ri-bookmark-fill" style={{ color: 'var(--bronze-light)', fontSize: 11 }} />
+                <span style={{ color: 'var(--text-secondary)' }}>RESERVADAS: <strong style={{ color: 'var(--bronze-light)' }}>{totales.reservadas}</strong></span>
+              </button>
             </div>
-
-            {/* Libres */}
-            <div className="btn btn-secondary btn-sm" style={{ cursor: 'default', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 6 }}>
-              <i className="ri-checkbox-blank-circle-line" style={{ color: 'var(--success)' }} />
-              <span>LIBRES: <strong style={{ color: 'var(--success)' }}>{totales.libres}</strong></span>
-            </div>
-
-            {/* Ocupadas */}
-            <div className="btn btn-secondary btn-sm" style={{ cursor: 'default', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 6 }}>
-              <i className="ri-record-circle-line" style={{ color: 'var(--danger)' }} />
-              <span>OCUPADAS: <strong style={{ color: 'var(--danger)' }}>{totales.ocupadas}</strong></span>
-            </div>
-
-            {/* Reservadas (Interactiva) */}
-            <button className="btn btn-secondary btn-sm" style={{ color: 'var(--text-secondary)' }} onClick={() => setModalReservasCentral(true)}>
-              <i className="ri-bookmark-fill" style={{ color: 'var(--bronze-light)' }} />
-              <span>RESERVADAS: <strong style={{ color: 'var(--bronze-light)' }}>{totales.reservadas}</strong></span>
-            </button>
-
-            {/* Cuentas Activas (Interactiva) */}
-            <button className="btn btn-secondary btn-sm" style={{ color: 'var(--text-secondary)' }} onClick={() => setModalCuentas(true)}>
-              <i className="ri-folder-open-line" style={{ color: 'var(--bronze-light)' }} />
-              <span>ACTIVAS: <strong style={{ color: 'var(--bronze-light)' }}>{cuentasActivas.length}</strong></span>
-            </button>
           </div>
 
           {/* Lado Derecho: Acciones de Caja (Homogéneo) */}
