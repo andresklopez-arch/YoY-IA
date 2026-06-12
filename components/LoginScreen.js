@@ -194,6 +194,11 @@ export default function LoginScreen({ showToast }) {
       await logAccessAttempt(targetEmail, loginMethod, true, 'success');
       
     } catch (err) {
+      if (loginMethod === 'nip') {
+        setNip('');
+      } else {
+        setPassword('');
+      }
       setIntentosRestantes(prev => {
         const nuevosIntentos = prev - 1;
         
