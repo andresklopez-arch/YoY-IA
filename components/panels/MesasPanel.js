@@ -893,6 +893,7 @@ export default function MesasPanel({ showToast }) {
   const [alertasMesas, setAlertasMesas] = useState({});
   const knownAlertsRef = useRef(new Set());
   const isInitialLoadRef = useRef(true);
+  const prevMesasStateRef = useRef([]);
 
   // Cambiar el estado de la mesa rápidamente
   const cambiarEstadoRapido = (mesa, nuevoEstado) => {
@@ -1705,8 +1706,55 @@ export default function MesasPanel({ showToast }) {
           mesas: mesas,
           updatedAt: serverTimestamp()
         }).catch(err => console.error("Error definitivo al sincronizar mesas con Firestore:", err));
+
+        // Registrar historial de ocupación en Firestore para futuros reportes
+        const prevMesas = prevMesasStateRef.current;
+        let huboCambio = false;
+
+        if (prevMesas.length === 0) {
+          prevMesasStateRef.current = mesas.map(m => ({ id: m.id, estado: m.estado }));
+        } else {
+          for (const m of mesas) {
+            const prevM = prevMesas.find(pm => pm.id === m.id);
+            if (!prevM || prevM.estado !== m.estado) {
+              huboCambio = true;
+              break;
+            }
+          }
+        }
+
+        if (huboCambio) {
+          prevMesasStateRef.current = mesas.map(m => ({ id: m.id, estado: m.estado }));
+          const totalMesas = mesas.length || 1;
+          const ocupadas = mesas.filter(m => m.estado === 'ocupada').length;
+          const libres = mesas.filter(m => m.estado === 'libre').length;
+          const reservadas = mesas.filter(m => m.estado === 'reservada').length;
+          const manten = mesas.filter(m => m.estado === 'manten').length;
+          const pct = Math.round((ocupadas / totalMesas) * 100);
+
+          const docData = {
+            fecha: new Date().toISOString(),
+            timestamp: serverTimestamp(),
+            pctOcupacion: pct,
+            totalMesas,
+            ocupadas,
+            libres,
+            reservadas,
+            manten,
+            detallesMesas: mesas.map(m => ({
+              id: m.id,
+              nombre: m.nombre || `Mesa ${m.id}`,
+              estado: m.estado,
+              cliente: m.cliente || ''
+            }))
+          };
+
+          addDoc(collection(db, 'historial_ocupacion'), docData)
+            .then(() => console.log("Historial de ocupación registrado exitosamente en Firestore"))
+            .catch(err => console.error("Error al registrar historial de ocupación:", err));
+        }
       } catch (err) {
-        console.error("Error al guardar mesas:", err);
+        console.error("Error al guardar mesas u ocupar historial:", err);
       }
     }
   }, [mesas]);
@@ -2240,49 +2288,74 @@ export default function MesasPanel({ showToast }) {
       return sum + costoTiempo + consumosTotal;
     }, 0);
 
+  const totalMesasCount = mesas.length || 1;
+  const pctOcupacion = Math.round((totales.ocupadas / totalMesasCount) * 100);
+
   return (
     <div style={{ minHeight: isFullscreen ? '100vh' : 'auto', padding: isFullscreen ? '20px' : '0', background: isFullscreen ? 'var(--bg-main)' : 'transparent' }}>
-      <div className="page-header" style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
-          {/* Botón de Cuentas Activas destacado (el más importante, pendientes de cobrar) */}
-          <button 
-            className="btn" 
-            style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: 8, 
-              padding: '6px 14px',
-              background: 'rgba(205,127,50,0.15)',
-              border: '1px solid var(--border-bronze)',
-              color: 'var(--bronze-light)',
-              fontWeight: 700,
-              fontSize: 12,
-              textTransform: 'uppercase',
-              letterSpacing: '0.05em',
-              borderRadius: 8,
-              cursor: 'pointer',
-              transition: 'all 0.15s'
-            }} 
-            onClick={() => setModalCuentas(true)}
-            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(205,127,50,0.25)'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(205,127,50,0.15)'; }}
-            title="Ver Cuentas Activas Pendientes de Cobro"
-          >
-            <i className="ri-folder-open-line" style={{ fontSize: 14 }} /> 
-            <span>Cuentas Activas:</span>
-            <strong style={{ fontSize: 13, color: '#fff', background: 'var(--bronze)', padding: '2px 8px', borderRadius: 6, marginLeft: 2 }}>{cuentasActivas.length}</strong>
+      <div className="page-header" style={{
+        marginBottom: 16,
+        background: 'var(--bg-elevated)',
+        border: '1px solid var(--border-bronze)',
+        borderRadius: 12,
+        padding: '8px 16px',
+        display: 'flex',
+        flexWrap: 'wrap',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        gap: 12,
+        boxShadow: 'var(--shadow-sm)'
+      }}>
+        {/* Lado Izquierdo: Estado Actual de Ocupación y Estadísticas (Totalmente Homogéneo) */}
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+          {/* Indicador de Porcentaje de Ocupación */}
+          <div className="btn btn-secondary btn-sm" style={{ cursor: 'default', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div style={{
+              width: 8,
+              height: 8,
+              borderRadius: '50%',
+              background: pctOcupacion > 70 ? 'var(--danger)' : (pctOcupacion > 30 ? '#f59e0b' : 'var(--success)'),
+              boxShadow: `0 0 8px ${pctOcupacion > 70 ? 'var(--danger)' : (pctOcupacion > 30 ? '#f59e0b' : 'var(--success)')}`
+            }} />
+            <span>OCUPACIÓN: <strong style={{ color: 'var(--bronze-light)' }}>{pctOcupacion}%</strong></span>
+          </div>
+
+          {/* Libres */}
+          <div className="btn btn-secondary btn-sm" style={{ cursor: 'default', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <i className="ri-checkbox-blank-circle-line" style={{ color: 'var(--success)' }} />
+            <span>LIBRES: <strong style={{ color: 'var(--success)' }}>{totales.libres}</strong></span>
+          </div>
+
+          {/* Ocupadas */}
+          <div className="btn btn-secondary btn-sm" style={{ cursor: 'default', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <i className="ri-record-circle-line" style={{ color: 'var(--danger)' }} />
+            <span>OCUPADAS: <strong style={{ color: 'var(--danger)' }}>{totales.ocupadas}</strong></span>
+          </div>
+
+          {/* Reservadas (Interactiva) */}
+          <button className="btn btn-secondary btn-sm" style={{ color: 'var(--text-secondary)' }} onClick={() => setModalReservasCentral(true)}>
+            <i className="ri-bookmark-fill" style={{ color: 'var(--bronze-light)' }} />
+            <span>RESERVADAS: <strong style={{ color: 'var(--bronze-light)' }}>{totales.reservadas}</strong></span>
+          </button>
+
+          {/* Cuentas Activas (Interactiva) */}
+          <button className="btn btn-secondary btn-sm" style={{ color: 'var(--text-secondary)' }} onClick={() => setModalCuentas(true)}>
+            <i className="ri-folder-open-line" style={{ color: 'var(--bronze-light)' }} />
+            <span>ACTIVAS: <strong style={{ color: 'var(--bronze-light)' }}>{cuentasActivas.length}</strong></span>
           </button>
         </div>
-        
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'flex-end' }}>
-          {/* Botones de Acción */}
+
+        {/* Lado Derecho: Acciones de Caja (Homogéneo) */}
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
           <button className="btn btn-secondary btn-sm" onClick={toggleFullscreen} title="Activar Modo Kiosco">
             <i className={isFullscreen ? 'ri-fullscreen-exit-fill' : 'ri-fullscreen-fill'} style={{ marginRight: 4 }} />
             {isFullscreen ? 'Salir' : 'Kiosco'}
           </button>
+
           <button className="btn btn-primary btn-sm" onClick={() => setMostrarCobroManual(true)}>
             <i className="ri-add-circle-line" /> Cobro Manual
           </button>
+
           <button className="btn btn-secondary btn-sm" onClick={() => setModalFila(true)}>
             <i className="ri-qr-code-line" /> Fila Virtual
             {fila.length > 0 && (
@@ -2291,28 +2364,17 @@ export default function MesasPanel({ showToast }) {
               </span>
             )}
           </button>
-          <button className="btn btn-secondary btn-sm" style={{ color: 'var(--bronze-light)', borderColor: 'var(--border-bronze)' }} onClick={() => setModalComanda(true)}>
+
+          <button className="btn btn-secondary btn-sm" onClick={() => setModalComanda(true)}>
             <i className="ri-cup-line" /> Comanda
           </button>
-          <button className="btn btn-secondary btn-sm" style={{ color: 'var(--bronze-light)', borderColor: 'var(--border-bronze)' }} onClick={() => setModalAbrirCuenta(true)}>
+
+          <button className="btn btn-secondary btn-sm" onClick={() => setModalAbrirCuenta(true)}>
             <i className="ri-folder-add-line" /> Abrir Cuenta
           </button>
-          <button className="btn btn-secondary btn-sm" style={{ color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.3)', background: 'rgba(239, 68, 68, 0.05)' }} onClick={() => setModalGasto(true)}>
+
+          <button className="btn btn-danger btn-sm" onClick={() => setModalGasto(true)}>
             <i className="ri-wallet-3-line" style={{ marginRight: 4 }} /> Gasto
-          </button>
-
-          {/* Línea divisoria */}
-          <div style={{ width: 1, height: 18, background: 'var(--border)', margin: '0 4px' }} />
-
-          {/* Indicadores de Estadísticas de Mesas */}
-          <div className="btn btn-secondary btn-sm" style={{ cursor: 'default', color: 'var(--success)', borderColor: 'rgba(34,197,94,0.3)', background: 'rgba(34,197,94,0.05)', display: 'flex', alignItems: 'center', gap: 6 }}>
-            <i className="ri-checkbox-blank-circle-line" /> Libres: <strong>{totales.libres}</strong>
-          </div>
-          <div className="btn btn-secondary btn-sm" style={{ cursor: 'default', color: 'var(--danger)', borderColor: 'rgba(239,68,68,0.3)', background: 'rgba(239,68,68,0.05)', display: 'flex', alignItems: 'center', gap: 6 }}>
-            <i className="ri-record-circle-line" /> Ocupadas: <strong>{totales.ocupadas}</strong>
-          </div>
-          <button className="btn btn-secondary btn-sm" style={{ color: 'var(--bronze-light)', borderColor: 'var(--border-bronze)', display: 'flex', alignItems: 'center', gap: 6 }} onClick={() => setModalReservasCentral(true)}>
-            <i className="ri-bookmark-fill" /> Reservadas: <strong>{totales.reservadas}</strong>
           </button>
         </div>
       </div>
