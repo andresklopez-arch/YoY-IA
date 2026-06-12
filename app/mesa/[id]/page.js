@@ -458,15 +458,31 @@ export default function MesaClientePage({ params }) {
     );
     const unsub = onSnapshot(q, snap => {
       const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      items.sort((a, b) => {
+      
+      // Filtrar comandas antiguas creadas antes del inicio de la sesión actual de la mesa
+      const inicioSesion = mesaInfo?.inicio || 0;
+      const estadoMesa = mesaInfo?.estado || '';
+      let filteredItems = items;
+      
+      if (estadoMesa === 'ocupada' && inicioSesion > 0) {
+        filteredItems = items.filter(item => {
+          const itemTime = item.createdAt?.toDate ? item.createdAt.toDate().getTime() : (item.createdAt || 0);
+          return !itemTime || itemTime >= inicioSesion;
+        });
+      } else if (estadoMesa !== 'ocupada') {
+        // Si la mesa no está ocupada, no debería haber comandas activas visibles para el cliente
+        filteredItems = [];
+      }
+
+      filteredItems.sort((a, b) => {
         const tA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : (a.createdAt || 0);
         const tB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : (b.createdAt || 0);
         return tB - tA;
       });
-      setPedidosMesa(items);
+      setPedidosMesa(filteredItems);
     });
     return unsub;
-  }, [mesaId]);
+  }, [mesaId, mesaInfo?.inicio, mesaInfo?.estado]);
 
   // ── Carrito ─────────────────────────────────────────────
   const modificarCarrito = (prodId, delta) => {
