@@ -16,6 +16,12 @@ export default function LoginScreen({ showToast }) {
   const [usersList, setUsersList] = useState([]);
   const [selectedEmail, setSelectedEmail] = useState('');
 
+  // Lockout States
+  const [intentosRestantes, setIntentosRestantes] = useState(3);
+  const [bloqueado, setBloqueado] = useState(false);
+  const [segundosBloqueo, setSegundosBloqueo] = useState(0);
+  const [modalError, setModalError] = useState(null); // { titulo, mensaje, intentos }
+
   useEffect(() => {
     const fetchUsers = async () => {
       try {
@@ -36,26 +42,75 @@ export default function LoginScreen({ showToast }) {
     fetchUsers();
   }, []);
 
+  // Countdown Timer Effect for Lockout
+  useEffect(() => {
+    if (segundosBloqueo > 0) {
+      const timer = setInterval(() => {
+        setSegundosBloqueo(prev => {
+          if (prev <= 1) {
+            clearInterval(timer);
+            setBloqueado(false);
+            setIntentosRestantes(3);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+      return () => clearInterval(timer);
+    }
+  }, [segundosBloqueo]);
+
   const handleLogin = async (e) => {
     e.preventDefault();
+    if (bloqueado) {
+      showToast(`Acceso bloqueado. Inténtalo de nuevo en ${segundosBloqueo} segundos.`, 'error');
+      return;
+    }
     setLoading(true);
     try {
       if (loginMethod === 'nip') {
-        if (!nip) return;
+        if (!nip) {
+          setLoading(false);
+          return;
+        }
         await login(nip, '');
       } else {
         const targetEmail = usersList.length > 0 ? selectedEmail : email;
-        if (!targetEmail || !password) return;
+        if (!targetEmail || !password) {
+          setLoading(false);
+          return;
+        }
         await login(targetEmail, password);
       }
+      setIntentosRestantes(3);
     } catch (err) {
-      showToast(err.message, 'error');
+      setIntentosRestantes(prev => {
+        const nuevosIntentos = prev - 1;
+        if (nuevosIntentos <= 0) {
+          setBloqueado(true);
+          setSegundosBloqueo(30);
+          setModalError({
+            titulo: 'Acceso Bloqueado',
+            mensaje: 'Has superado el límite de intentos permitidos. El acceso ha sido bloqueado temporalmente por 30 segundos.',
+            intentos: 0
+          });
+          return 0;
+        } else {
+          setModalError({
+            titulo: 'Credenciales Incorrectas',
+            mensaje: 'El usuario o contraseña ingresados no son correctos. Por favor, verifica tus datos.',
+            intentos: nuevosIntentos
+          });
+          return nuevosIntentos;
+        }
+      });
     } finally {
       setLoading(false);
     }
   };
 
   const quickLogin = async (role) => {
+    if (bloqueado) return;
     const clientDomain = getClientDomain();
     const creds = {
       admin:   { e: `admin@${clientDomain}`, p: '1234' },
@@ -218,13 +273,22 @@ export default function LoginScreen({ showToast }) {
             <button
               type="submit"
               className="btn btn-primary btn-lg"
-              disabled={loading}
-              style={{ marginTop: 8, width: '100%' }}
+              disabled={loading || bloqueado}
+              style={{
+                marginTop: 8,
+                width: '100%',
+                background: bloqueado ? 'rgba(239, 68, 68, 0.2)' : undefined,
+                borderColor: bloqueado ? 'rgba(239, 68, 68, 0.3)' : undefined,
+                color: bloqueado ? '#f87171' : undefined
+              }}
             >
-              {loading
-                ? <><i className="ri-loader-4-line animate-spin" /> Ingresando...</>
-                : <><i className="ri-login-circle-line" /> Ingresar al Sistema</>
-              }
+              {bloqueado ? (
+                <><i className="ri-time-line" /> Bloqueado ({segundosBloqueo}s)</>
+              ) : loading ? (
+                <><i className="ri-loader-4-line animate-spin" /> Ingresando...</>
+              ) : (
+                <><i className="ri-login-circle-line" /> Ingresar al Sistema</>
+              )}
             </button>
           </form>
 
@@ -243,7 +307,7 @@ export default function LoginScreen({ showToast }) {
                 <button
                   key={role}
                   onClick={() => quickLogin(role)}
-                  disabled={loading}
+                  disabled={loading || bloqueado}
                   style={{
                     background: 'var(--bg-elevated)', border: '1px solid var(--border)',
                     borderRadius: 10, padding: '8px 12px', cursor: 'pointer',
@@ -266,6 +330,86 @@ export default function LoginScreen({ showToast }) {
           YoY IA BILLAR By Alfonso Iturbide v1.0 · Powered by IA
         </p>
       </div>
+
+      {/* Modal de Error de Credenciales */}
+      {modalError && (
+        <div className="modal-overlay" style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999,
+          backdropFilter: 'blur(4px)'
+        }} onClick={() => setModalError(null)}>
+          <div style={{
+            background: 'var(--bg-card)',
+            border: '1px solid var(--border-bronze)',
+            borderRadius: 16,
+            width: '90%',
+            maxWidth: 360,
+            padding: 24,
+            textAlign: 'center',
+            boxShadow: 'var(--shadow-xl), 0 0 30px rgba(239, 68, 68, 0.15)',
+            animation: 'fadeIn 0.2s ease-in-out'
+          }} onClick={e => e.stopPropagation()}>
+            <div style={{
+              width: 50, height: 50, borderRadius: '50%',
+              background: modalError.intentos === 0 ? 'rgba(239, 68, 68, 0.12)' : 'rgba(245, 158, 11, 0.12)',
+              color: modalError.intentos === 0 ? '#ef4444' : '#f59e0b',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              margin: '0 auto 16px', fontSize: 24
+            }}>
+              <i className={modalError.intentos === 0 ? "ri-error-warning-line" : "ri-lock-password-line"} />
+            </div>
+            
+            <h3 style={{
+              margin: '0 0 10px', fontSize: 18, fontWeight: 700,
+              color: modalError.intentos === 0 ? '#ef4444' : 'var(--bronze-light)'
+            }}>
+              {modalError.titulo}
+            </h3>
+            
+            <p style={{
+              margin: '0 0 20px', fontSize: 13, color: 'var(--text-secondary)',
+              lineHeight: '1.5'
+            }}>
+              {modalError.mensaje}
+            </p>
+            
+            {modalError.intentos > 0 ? (
+              <div style={{
+                background: 'rgba(255,255,255,0.03)',
+                border: '1px solid var(--border)',
+                borderRadius: 10,
+                padding: '10px 14px',
+                marginBottom: 20,
+                fontSize: 12,
+                color: 'var(--text-muted)'
+              }}>
+                Intentos restantes: <strong style={{ color: '#ef4444', fontSize: 14 }}>{modalError.intentos}</strong>
+              </div>
+            ) : (
+              <div style={{
+                background: 'rgba(239,68,68,0.05)',
+                border: '1px solid rgba(239,68,68,0.2)',
+                borderRadius: 10,
+                padding: '10px 14px',
+                marginBottom: 20,
+                fontSize: 12,
+                color: '#f87171',
+                fontWeight: 600
+              }}>
+                Acceso bloqueado por 30 segundos.
+              </div>
+            )}
+            
+            <button
+              className="btn btn-primary"
+              style={{ width: '100%', padding: '10px 0' }}
+              onClick={() => setModalError(null)}
+            >
+              Entendido
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
