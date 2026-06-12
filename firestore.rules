@@ -45,6 +45,9 @@ service cloud.firestore {
     match /historial_stock/{document} {
       allow read, write: if true;
     }
+    match /bitacora/{document} {
+      allow read, write: if true;
+    }
     match /intentos_fallidos_qr/{document} {
       allow create: if true;
       allow read, update, delete: if true;
