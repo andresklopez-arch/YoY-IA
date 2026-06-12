@@ -1,8 +1,8 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { db } from '@/lib/firebase';
-import { collection, query, onSnapshot } from 'firebase/firestore';
-import { deobfuscate } from '@/lib/crypto';
+import { collection, query, onSnapshot, orderBy, limit } from 'firebase/firestore';
+import { deobfuscate, obfuscate } from '@/lib/crypto';
 
 // Chart with tooltip hover
 function BarChart({ data, height = 120, color = 'var(--bronze)' }) {
@@ -145,6 +145,7 @@ export default function ReportesPanel({ showToast }) {
   const [empleadosList, setEmpleadosList] = useState([]);
   const [encuestasList, setEncuestasList] = useState([]);
   const [pedidosList, setPedidosList] = useState([]);
+  const [bitacora, setBitacora] = useState([]);
   const [showPrintPL, setShowPrintPL] = useState(false);
   const [limitePresupuesto, setLimitePresupuesto] = useState(15000);
   const [ahora] = useState(() => Date.now());
@@ -181,12 +182,33 @@ export default function ReportesPanel({ showToast }) {
       setPedidosList(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     }, err => console.warn("Error cargando pedidos en ReportesPanel:", err));
 
+    // Escuchar bitácora de Firestore en tiempo real para ReportesPanel
+    const qBitacora = query(collection(db, 'bitacora'), orderBy('fecha', 'desc'), limit(100));
+    const unsubBitacora = onSnapshot(qBitacora, snap => {
+      const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      setBitacora(items);
+      try {
+        localStorage.setItem('yoy_billar_bitacora', obfuscate(items));
+      } catch (err) {
+        console.error(err);
+      }
+    }, err => {
+      console.error("Error al escuchar bitácora en ReportesPanel:", err);
+      try {
+        const saved = localStorage.getItem('yoy_billar_bitacora');
+        if (saved) setBitacora(deobfuscate(saved) || []);
+      } catch (e) {
+        console.error(e);
+      }
+    });
+
     return () => {
       unsubGastos();
       unsubPagos();
       unsubEmp();
       unsubEncuestas();
       unsubPedidos();
+      unsubBitacora();
     };
   }, []);
 
@@ -226,13 +248,12 @@ export default function ReportesPanel({ showToast }) {
     };
   };
 
+  const diasFiltro = filtroGrafico === 'semana' ? 7 : filtroGrafico === 'mes' ? 30 : 365;
+  const limiteFecha = ahora - diasFiltro * 24 * 60 * 60 * 1000;
+  const eventosPeriodo = bitacora.filter(e => e.fecha && new Date(e.fecha).getTime() >= limiteFecha);
+  const cortesiasPeriodo = eventosPeriodo.filter(e => e.accion === 'Cierre Directo' && e.detalle.includes('Socio sin cargo'));
+
   const getFinanzasPL = () => {
-    let diasFiltro = 7;
-    if (filtroGrafico === 'mes') diasFiltro = 30;
-    if (filtroGrafico === 'anio') diasFiltro = 365;
-
-    const limiteFecha = ahora - diasFiltro * 24 * 60 * 60 * 1000;
-
     const totalGastosPeriodo = gastosList
       .filter(g => {
         const fechaG = g.fecha ? new Date(g.fecha).getTime() : 0;
@@ -261,19 +282,14 @@ export default function ReportesPanel({ showToast }) {
       inscripcionesTorneo = 68000;
     }
 
+    const sumMesas = eventosPeriodo
+      .filter(e => e.accion === 'Cierre Directo' || e.accion === 'Mesa a Cuenta')
+      .reduce((s, e) => s + Math.abs(Number(e.monto) || 0), 0);
+    
+    if (sumMesas > 0) rentasMesas = sumMesas;
+
     if (typeof window !== 'undefined') {
       try {
-        const rawBitacora = localStorage.getItem('yoy_billar_bitacora');
-        if (rawBitacora) {
-          const eventos = deobfuscate(rawBitacora) || [];
-          const eventosPeriodo = eventos.filter(e => new Date(e.fecha).getTime() >= limiteFecha);
-          
-          const sumMesas = eventosPeriodo
-            .filter(e => e.accion === 'Cierre Directo' || e.accion === 'Mesa a Cuenta')
-            .reduce((s, e) => s + Math.abs(Number(e.monto) || 0), 0);
-          
-          if (sumMesas > 0) rentasMesas = sumMesas;
-        }
 
         const rawTorneos = localStorage.getItem('yoy_billar_torneos');
         if (rawTorneos) {
@@ -931,6 +947,49 @@ export default function ReportesPanel({ showToast }) {
                   </table>
                 </div>
               </div>
+            </div>
+          </div>
+
+          {/* Auditoría de Cortesías y Socios ($0) */}
+          <div className="card" style={{ marginTop: 20 }}>
+            <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h3 className="card-title" style={{ color: 'var(--bronze-light)' }}>
+                  <i className="ri-shield-user-line" style={{ marginRight: 6 }} /> Auditoría de Cierres de Socio y Cortesías ($0 MXN)
+                </h3>
+                <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0 }}>Registro de cierres de mesas liquidadas sin cargo para socios autorizados o cortesías</p>
+              </div>
+              <span className="badge badge-bronze">
+                {cortesiasPeriodo.length} Cortesías
+              </span>
+            </div>
+            <div className="table-container" style={{ marginTop: 15 }}>
+              {cortesiasPeriodo.length === 0 ? (
+                <p style={{ color: 'var(--text-muted)', fontSize: 12, padding: '20px 0', textAlign: 'center', margin: 0 }}>
+                  No se registraron cierres sin cargo ($0 MXN) en este periodo.
+                </p>
+              ) : (
+                <table className="table" style={{ fontSize: 12 }}>
+                  <thead>
+                    <tr>
+                      <th>Fecha</th>
+                      <th>Operador</th>
+                      <th>Descripción del Cierre</th>
+                      <th style={{ textAlign: 'right' }}>Monto</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {cortesiasPeriodo.map(e => (
+                      <tr key={e.id}>
+                        <td>{new Date(e.fecha).toLocaleString()}</td>
+                        <td><strong style={{ color: 'var(--text-secondary)' }}>{e.operador || 'Cajero'}</strong></td>
+                        <td style={{ color: 'var(--text-secondary)' }}>{e.detalle}</td>
+                        <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--success)' }}>$0.00 MXN</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
             </div>
           </div>
         </>
