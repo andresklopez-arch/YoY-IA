@@ -56,6 +56,15 @@ export default function MesaClientePage({ params }) {
 
   const [tab, setTab] = useState('menu');
   const [productos, setProductos] = useState([]);
+  const [now, setNow] = useState(Date.now());
+
+  // Ticker timer para actualizar el tiempo jugado en tiempo real
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setNow(Date.now());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
   const [carrito, setCarrito] = useState({}); // { prodId: cantidad }
   const [tiposAsistencia, setTiposAsistencia] = useState(DEFAULT_ASISTENCIAS);
   const [pedidosMesa, setPedidosMesa] = useState([]);
@@ -683,10 +692,40 @@ export default function MesaClientePage({ params }) {
     setEnviando(false);
   };
 
+  // Calcular tiempo y costo de juego en tiempo real
+  const getTiempoJuegoData = () => {
+    if (!mesaInfo || !mesaInfo.inicio || mesaInfo.estado !== 'ocupada') {
+      return { elapsedStr: '00:00:00', costo: 0, hrs: 0 };
+    }
+    const diffMs = Math.max(0, now - mesaInfo.inicio);
+    const s = Math.floor(diffMs / 1000);
+    const h = Math.floor(s / 3600).toString().padStart(2, '0');
+    const m = Math.floor((s % 3600) / 60).toString().padStart(2, '0');
+    const sc = (s % 60).toString().padStart(2, '0');
+    
+    const hrs = diffMs / 3600000;
+    let baseCosto = mesaInfo.socios ? 0 : Math.ceil(hrs * mesaInfo.tarifa);
+    let premiumCosto = 0;
+    if (mesaInfo.rentarTaco) premiumCosto += Math.ceil(hrs * 25);
+    if (mesaInfo.rentarBolas) premiumCosto += Math.ceil(hrs * 35);
+    if (mesaInfo.rentarTiza) premiumCosto += 10;
+    const costo = baseCosto + premiumCosto;
+
+    return {
+      elapsedStr: `${h}:${m}:${sc}`,
+      costo,
+      hrs,
+      baseCosto,
+      premiumCosto
+    };
+  };
+
+  const tiempoData = getTiempoJuegoData();
+
   // ── Calcular total acumulado ─────────────────────────────
   const totalAcumulado = pedidosMesa
     .filter(p => p.tipo === 'pedido')
-    .reduce((s, p) => s + (p.total || 0), 0);
+    .reduce((s, p) => s + (p.total || 0), 0) + tiempoData.costo;
 
   const pendientesEntrega = pedidosMesa.filter(p => p.tipo === 'pedido' && p.estado === 'pendiente').length;
 
@@ -1161,15 +1200,68 @@ export default function MesaClientePage({ params }) {
               <span style={{ fontSize: 12, color: 'var(--cl-muted)' }}>Actualizando en tiempo real</span>
             </div>
 
+            {/* 🕒 TIEMPO DE JUEGO */}
+            {mesaInfo?.inicio && mesaInfo?.estado === 'ocupada' && (
+              <div style={{
+                background: 'linear-gradient(135deg, var(--cl-card), rgba(205,127,50,0.05))',
+                border: '1px solid var(--cl-border-bronze, rgba(205,127,50,0.3))',
+                borderRadius: 16,
+                padding: '16px 20px',
+                marginBottom: 16,
+                boxShadow: '0 4px 20px rgba(0,0,0,0.2)'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--cl-bronze-light)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                    🕒 Tiempo de Juego
+                  </span>
+                  <span style={{
+                    fontFamily: 'monospace',
+                    fontSize: 15,
+                    fontWeight: 700,
+                    color: '#fff',
+                    background: 'rgba(255,255,255,0.06)',
+                    padding: '2px 8px',
+                    borderRadius: 8
+                  }}>
+                    {tiempoData.elapsedStr}
+                  </span>
+                </div>
+                
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--cl-text-secondary)' }}>
+                    <span>Tarifa por hora:</span>
+                    <span>${mesaInfo.tarifa}/hr {mesaInfo.socios && '(Socio)'}</span>
+                  </div>
+                  
+                  {(mesaInfo.rentarTaco || mesaInfo.rentarBolas || mesaInfo.rentarTiza) && (
+                    <div style={{ fontSize: 11, color: 'var(--cl-muted)', paddingLeft: 8, borderLeft: '2px solid rgba(205,127,50,0.2)', margin: '4px 0', display: 'flex', flexDirection: 'column', gap: 3 }}>
+                      {mesaInfo.rentarTaco && <div>• Renta de Taco Premium (+$25/hr)</div>}
+                      {mesaInfo.rentarBolas && <div>• Renta de Bolas Premium (+$35/hr)</div>}
+                      {mesaInfo.rentarTiza && <div>• Renta de Tiza Premium (+$10 pago único)</div>}
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, fontWeight: 700, marginTop: 4, paddingTop: 6, borderTop: '1px dashed var(--cl-border)' }}>
+                    <span style={{ color: '#fff' }}>Costo de Mesa:</span>
+                    <span style={{ color: 'var(--cl-bronze-light)' }}>${tiempoData.costo}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--cl-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>
+              🍹 Consumos de Menú
+            </div>
+
             {pedidosMesa.filter(p => p.tipo === 'pedido').length === 0 ? (
-              <div className="mc-empty">
-                <i className="ri-receipt-line" />
-                <p>Aún no tienes pedidos. ¡Ordena algo del menú!</p>
+              <div style={{ textAlign: 'center', padding: '24px 16px', background: 'rgba(255,255,255,0.02)', border: '1px dashed var(--cl-border)', borderRadius: 14, marginBottom: 16 }}>
+                <i className="ri-receipt-line" style={{ fontSize: 24, color: 'var(--cl-muted)', display: 'block', marginBottom: 8 }} />
+                <p style={{ margin: 0, fontSize: 13, color: 'var(--cl-muted)' }}>Aún no has ordenado productos del menú.</p>
               </div>
             ) : (
-              <>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
                 {pedidosMesa.filter(p => p.tipo === 'pedido').map(pedido => (
-                  <div key={pedido.id} style={{ background: 'var(--cl-card)', border: '1px solid var(--cl-border)', borderRadius: 14, padding: '14px 16px', marginBottom: 10 }}>
+                  <div key={pedido.id} style={{ background: 'var(--cl-card)', border: '1px solid var(--cl-border)', borderRadius: 14, padding: '14px 16px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                       <span style={{ fontSize: 11, color: 'var(--cl-muted)' }}>
                         {pedido.createdAt?.toDate ? pedido.createdAt.toDate().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }) : '—'}
@@ -1199,12 +1291,14 @@ export default function MesaClientePage({ params }) {
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
 
-                <div className="mc-total-box">
-                  <div style={{ fontSize: 11, color: 'var(--cl-bronze-light)', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 700, marginBottom: 6 }}>Total Acumulado</div>
-                  <div style={{ fontSize: 36, fontWeight: 900, color: 'var(--cl-bronze-light)', fontVariantNumeric: 'tabular-nums' }}>${totalAcumulado}</div>
-                  <div style={{ fontSize: 11, color: 'var(--cl-muted)', marginTop: 4 }}>MXN · Mesa {mesaId}</div>
-                </div>
+            <div className="mc-total-box" style={{ marginTop: 8, marginBottom: 16 }}>
+              <div style={{ fontSize: 11, color: 'var(--cl-bronze-light)', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 700, marginBottom: 6 }}>Total Acumulado (Mesa + Consumo)</div>
+              <div style={{ fontSize: 36, fontWeight: 900, color: 'var(--cl-bronze-light)', fontVariantNumeric: 'tabular-nums' }}>${totalAcumulado}</div>
+              <div style={{ fontSize: 11, color: 'var(--cl-muted)', marginTop: 4 }}>MXN · Mesa {mesaId}</div>
+            </div>
 
                 {!isSecondaryDevice && mesaInfo?.clienteUid === auth.currentUser?.uid && (
                   <button
@@ -1229,8 +1323,6 @@ export default function MesaClientePage({ params }) {
                     <i className="ri-logout-box-line" /> Cerrar Sesión de esta Mesa
                   </button>
                 )}
-              </>
-            )}
           </>
         )}
 
