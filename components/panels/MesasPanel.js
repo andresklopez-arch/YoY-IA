@@ -3019,15 +3019,7 @@ function ModalCuentasActivas({ cuentas, setCuentas, onClose, showToast, registra
                       cuentaSel.consumos.map(item => (
                         <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12 }}>
                           <span style={{ flex: 1 }}>{item.cantidad}x {item.producto} <span style={{ color: 'var(--text-muted)' }}>(${item.precio})</span></span>
-                          <span style={{ fontWeight: 700, marginRight: 10 }}>${item.precio * item.cantidad} MXN</span>
-                          <button
-                            className="btn btn-secondary btn-icon sm"
-                            onClick={() => eliminarConsumo(cuentaSel.id, item.id)}
-                            style={{ padding: 4, height: 24, width: 24, border: 'none', background: 'none', color: 'var(--danger)' }}
-                            title="Quitar"
-                          >
-                            <i className="ri-close-fill" />
-                          </button>
+                          <span style={{ fontWeight: 700 }}>${item.precio * item.cantidad} MXN</span>
                         </div>
                       ))
                     )}
