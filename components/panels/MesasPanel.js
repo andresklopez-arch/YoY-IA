@@ -348,11 +348,28 @@ function ModalAbrirMesa({ mesa, onClose, onConfirm }) {
 
 // ── MODAL CERRAR MESA ────────────────────────────────────
 function ModalCerrarMesa({ mesa, cuentasActivas, onClose, onCerrar, onAgregarACuenta, imprimirPreTicket, onImprimirPreTicket }) {
+  const cuentaAsociada = cuentasActivas.find(c => 
+    c.mesaId === mesa.id ||
+    (c.cliente && (
+      (mesa.cliente && !['público', 'publico'].includes(mesa.cliente.toLowerCase()) && c.cliente.toLowerCase() === mesa.cliente.toLowerCase()) || 
+      c.cliente.toLowerCase() === `mesa ${mesa.id}`
+    ))
+  );
+
   const [elapsed, setElapsed] = useState(Date.now() - (mesa.inicio || Date.now()));
   const [metodo, setMetodo] = useState('efectivo');
   const [tipoCierre, setTipoCierre] = useState('liquidar'); // 'liquidar' o 'cuenta'
   const [cuentaSeleccionada, setCuentaSeleccionada] = useState('');
   const [nuevoCliente, setNuevoCliente] = useState(mesa.cliente || '');
+
+  // Pre-seleccionar la cuenta asociada de la mesa si existe
+  useEffect(() => {
+    if (cuentaAsociada) {
+      setCuentaSeleccionada(cuentaAsociada.id);
+    } else {
+      setCuentaSeleccionada('');
+    }
+  }, [cuentaAsociada]);
 
   // Nuevos estados para cálculo de cambio, QR y transferencia con foto
   const [pagaCon, setPagaCon] = useState('');
@@ -438,13 +455,6 @@ function ModalCerrarMesa({ mesa, cuentasActivas, onClose, onCerrar, onAgregarACu
     setCamaraActiva(false);
   }, [metodo]);
 
-  const cuentaAsociada = cuentasActivas.find(c => 
-    c.mesaId === mesa.id ||
-    (c.cliente && (
-      (mesa.cliente && !['público', 'publico'].includes(mesa.cliente.toLowerCase()) && c.cliente.toLowerCase() === mesa.cliente.toLowerCase()) || 
-      c.cliente.toLowerCase() === `mesa ${mesa.id}`
-    ))
-  );
   const consumosTotal = cuentaAsociada 
     ? cuentaAsociada.consumos.reduce((sum, item) => sum + item.precio * item.cantidad, 0)
     : 0;
@@ -2069,7 +2079,7 @@ export default function MesasPanel({ showToast }) {
 
   const agregarSesionACuenta = async ({ costo, cuentaId, nombreNuevo }) => {
     if (cuentaId) {
-      await actualizarCuentasFirestore(prev => prev.map(c => c.id === parseInt(cuentaId)
+      await actualizarCuentasFirestore(prev => prev.map(c => String(c.id) === String(cuentaId)
         ? { 
             ...c, 
             tiempoJuego: c.tiempoJuego + costo,
@@ -2079,7 +2089,7 @@ export default function MesasPanel({ showToast }) {
           }
         : c
       ));
-      const targetCuenta = cuentasActivas.find(c => c.id === parseInt(cuentaId));
+      const targetCuenta = cuentasActivas.find(c => String(c.id) === String(cuentaId));
       const clientName = targetCuenta ? targetCuenta.cliente : cuentaId;
       showToast(`Mesa cerrada. Costo de $${costo} MXN agregado a la cuenta del cliente.`, 'success');
       registrarEvento('Mesa a Cuenta', `Mesa ${modalCerrar.nombre} agregada a la cuenta de ${clientName}`, costo);
@@ -4947,11 +4957,11 @@ function ModalRegistrarComanda({ mesas, setMesas, cuentasActivas, actualizarCuen
       }).catch(err => console.error("Error al guardar comanda en cuenta mesa:", err));
     } else if (destinoTipo === 'cuenta') {
       actualizarCuentasFirestore(prev => {
-        const targetCuenta = prev.find(c => c.id === parseInt(destinoId));
+        const targetCuenta = prev.find(c => String(c.id) === String(destinoId));
         if (!targetCuenta) return prev;
 
         const nuevasCuentas = prev.map(c => {
-          if (c.id === targetCuenta.id) {
+          if (String(c.id) === String(targetCuenta.id)) {
             const nuevosConsumos = [...c.consumos];
             carrito.forEach(cartItem => {
               const existeItem = nuevosConsumos.find(i => 
