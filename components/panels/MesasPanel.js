@@ -895,10 +895,17 @@ export default function MesasPanel({ showToast }) {
         inicio: null, 
         socios: false, 
         clienteUid: '', 
-        preTicketImpreso: false 
+        preTicketImpreso: false,
+        reservadaAt: Date.now()
       } : m));
+      registrarEvento('Reservación Mesa', `Mesa ${mesa.id} reservada a nombre de ${clienteName}`);
       showToast(`Mesa ${mesa.id} reservada a nombre de ${clienteName}.`, "success");
     } else {
+      let motivo = '';
+      if (nuevoEstado === 'manten' || nuevoEstado === 'fuera') {
+        motivo = prompt(`Ingrese el motivo para poner la mesa en ${nuevoEstado === 'manten' ? 'Mantenimiento' : 'Fuera de Servicio'} (opcional):`) || '';
+      }
+
       setMesas(prev => prev.map(m => m.id === mesa.id ? { 
         ...m, 
         estado: nuevoEstado, 
@@ -906,13 +913,20 @@ export default function MesasPanel({ showToast }) {
         inicio: null, 
         socios: false, 
         clienteUid: '', 
-        preTicketImpreso: false 
+        preTicketImpreso: false,
+        reservadaAt: null,
+        motivo: motivo
       } : m));
+      
       const estadoLabels = {
         libre: 'Disponible (Libre)',
         manten: 'Mantenimiento',
         fuera: 'Fuera de Servicio'
       };
+      
+      const detalleLog = motivo ? `Motivo: ${motivo}` : 'Sin motivo especificado';
+      registrarEvento('Cambio Estado', `Mesa ${mesa.id} cambiada a ${estadoLabels[nuevoEstado] || nuevoEstado}. ${detalleLog}`);
+      
       showToast(`Mesa ${mesa.id} cambiada a ${estadoLabels[nuevoEstado] || nuevoEstado}.`, "info");
     }
   };
@@ -1425,6 +1439,36 @@ export default function MesasPanel({ showToast }) {
     { id: 2, cliente: 'Diana L.', contacto: '55-8765-4321', tipo: 'Snooker', personas: 2, registro: Date.now() - 5*60000 },
   ]);
   const tick = useLiveTick();
+
+  // Auto-liberador de reservaciones expiradas (más de 30 minutos sin activar)
+  useEffect(() => {
+    const ahora = Date.now();
+    const tiempoLimite = 30 * 60 * 1000; // 30 minutos
+    let huboCambios = false;
+
+    const nuevasMesas = mesas.map(m => {
+      if (m.estado === 'reservada' && m.reservadaAt && (ahora - m.reservadaAt > tiempoLimite)) {
+        huboCambios = true;
+        registrarEvento('Reserva Expirada', `Reservación de la Mesa ${m.id} (${m.cliente || ''}) expiró tras 30 minutos.`);
+        return {
+          ...m,
+          estado: 'libre',
+          cliente: null,
+          inicio: null,
+          socios: false,
+          clienteUid: '',
+          preTicketImpreso: false,
+          reservadaAt: null
+        };
+      }
+      return m;
+    });
+
+    if (huboCambios) {
+      setMesas(nuevasMesas);
+      showToast("Una o más reservaciones expiraron y las mesas fueron liberadas.", "info");
+    }
+  }, [tick]);
 
   // ── Memorización de Consumos por Mesa (Sugerencia 1) ──
   const consumosPorMesa = useMemo(() => {
@@ -2271,8 +2315,26 @@ export default function MesasPanel({ showToast }) {
                 )}
 
                 {mesa.estado === 'manten' && (
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <i className="ri-tools-line" /> En reparación
+                  <div 
+                    style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6, display: 'flex', alignItems: 'center', gap: 4 }}
+                    title={mesa.motivo ? `Detalle: ${mesa.motivo}` : 'En mantenimiento'}
+                  >
+                    <i className="ri-tools-line" />
+                    <span style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                      En reparación {mesa.motivo ? `(${mesa.motivo})` : ''}
+                    </span>
+                  </div>
+                )}
+
+                {mesa.estado === 'fuera' && (
+                  <div 
+                    style={{ fontSize: 11, color: '#f87171', marginTop: 6, display: 'flex', alignItems: 'center', gap: 4 }}
+                    title={mesa.motivo ? `Detalle: ${mesa.motivo}` : 'Fuera de servicio'}
+                  >
+                    <i className="ri-close-circle-line" />
+                    <span style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                      Fuera de servicio {mesa.motivo ? `(${mesa.motivo})` : ''}
+                    </span>
                   </div>
                 )}
 
