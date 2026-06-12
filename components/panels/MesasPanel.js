@@ -892,49 +892,50 @@ export default function MesasPanel({ showToast }) {
       registrarEvento('Apertura Auto', `Mesa ${mesaId} abierta automáticamente por pedido de cliente (${clienteName})`);
     }
 
-    // 3. Buscar la cuenta activa o crear una nueva
-    const cuentaExistente = cuentasActivas.find(c => c.cliente && c.cliente.toLowerCase() === clienteName.toLowerCase());
-    
-    let nuevasCuentas = [...cuentasActivas];
-    if (cuentaExistente) {
-      nuevasCuentas = cuentasActivas.map(c => {
-        if (c.id === cuentaExistente.id) {
-          const nuevosConsumos = [...c.consumos];
-          orderItems.forEach(cartItem => {
-            const existeItem = nuevosConsumos.find(i => i.producto === cartItem.nombre);
-            if (existeItem) {
-              existeItem.cantidad += cartItem.cantidad;
-            } else {
-              nuevosConsumos.push({
-                id: Date.now() + Math.random(),
-                producto: cartItem.nombre,
-                precio: cartItem.precio,
-                cantidad: cartItem.cantidad
-              });
-            }
-          });
-          return { ...c, consumos: nuevosConsumos };
-        }
-        return c;
-      });
-    } else {
-      const nuevaCuenta = {
-        id: Date.now(),
-        cliente: clienteName,
-        tiempoJuego: 0,
-        consumos: orderItems.map(item => ({
-          id: Date.now() + Math.random(),
-          producto: item.nombre,
-          precio: item.precio,
-          cantidad: item.cantidad
-        })),
-        inicio: Date.now()
-      };
-      nuevasCuentas.push(nuevaCuenta);
-    }
-
-    setCuentasActivas(nuevasCuentas);
-    localStorage.setItem('yoy_billar_cuentas', obfuscate(nuevasCuentas));
+    // 3. Buscar la cuenta activa o crear una nueva y guardarla usando actualización funcional para evitar condiciones de carrera
+    setCuentasActivas(prev => {
+      const cuentaExistente = prev.find(c => c.cliente && c.cliente.toLowerCase() === clienteName.toLowerCase());
+      let nuevasCuentas = [...prev];
+      if (cuentaExistente) {
+        nuevasCuentas = prev.map(c => {
+          if (c.id === cuentaExistente.id) {
+            const nuevosConsumos = [...c.consumos];
+            orderItems.forEach(cartItem => {
+              const existeItem = nuevosConsumos.find(i => i.producto === cartItem.nombre);
+              if (existeItem) {
+                existeItem.cantidad += cartItem.cantidad;
+              } else {
+                nuevosConsumos.push({
+                  id: Date.now() + Math.random(),
+                  producto: cartItem.nombre,
+                  precio: cartItem.precio,
+                  cantidad: cartItem.cantidad
+                });
+              }
+            });
+            return { ...c, consumos: nuevosConsumos };
+          }
+          return c;
+        });
+      } else {
+        const nuevaCuenta = {
+          id: Date.now(),
+          cliente: clienteName,
+          tiempoJuego: 0,
+          consumos: orderItems.map(item => ({
+            id: Date.now() + Math.random(),
+            producto: item.nombre,
+            precio: item.precio,
+            margin: 0,
+            cantidad: item.cantidad
+          })),
+          inicio: Date.now()
+        };
+        nuevasCuentas.push(nuevaCuenta);
+      }
+      localStorage.setItem('yoy_billar_cuentas', obfuscate(nuevasCuentas));
+      return nuevasCuentas;
+    });
 
     // 4. Guardar inventario actualizado en Firestore, registrar auditoría y marcar como entregado de forma atómica
     try {
@@ -3454,11 +3455,59 @@ function ModalRegistrarComanda({ mesas, setMesas, cuentasActivas, setCuentasActi
       const targetMesa = mesas.find(m => m.id === parseInt(destinoId));
       if (!targetMesa) return;
 
-      const cuentaExistente = cuentasActivas.find(c => c.cliente.toLowerCase() === targetMesa.cliente.toLowerCase());
+      setCuentasActivas(prev => {
+        const cuentaExistente = prev.find(c => c.cliente.toLowerCase() === targetMesa.cliente.toLowerCase());
+        let nuevasCuentas;
+        if (cuentaExistente) {
+          nuevasCuentas = prev.map(c => {
+            if (c.id === cuentaExistente.id) {
+              const nuevosConsumos = [...c.consumos];
+              carrito.forEach(cartItem => {
+                const existeItem = nuevosConsumos.find(i => i.producto === cartItem.nombre);
+                if (existeItem) {
+                  existeItem.cantidad += cartItem.cantidad;
+                } else {
+                  nuevosConsumos.push({
+                    id: Date.now() + Math.random(),
+                    producto: cartItem.nombre,
+                    precio: cartItem.precioVenta,
+                    cantidad: cartItem.cantidad
+                  });
+                }
+              });
+              return { ...c, consumos: nuevosConsumos };
+            }
+            return c;
+          });
+          showToast(`Comanda enviada a la cuenta de ${targetMesa.cliente} (Mesa ${targetMesa.id}) ✓`, 'success');
+          registrarEvento('Comanda a Cuenta', `Comanda de ${carrito.map(i=>`${i.cantidad}x ${i.nombre}`).join(', ')} enviada a la cuenta de ${targetMesa.cliente} (Mesa ${targetMesa.id})`, total);
+        } else {
+          const nuevaCuenta = {
+            id: Date.now(),
+            cliente: targetMesa.cliente,
+            tiempoJuego: 0,
+            consumos: carrito.map(item => ({
+              id: Date.now() + Math.random(),
+              producto: item.nombre,
+              precio: item.precioVenta,
+              cantidad: item.cantidad
+            })),
+            inicio: Date.now()
+          };
+          nuevasCuentas = [...prev, nuevaCuenta];
+          showToast(`Comanda cargada a la cuenta de ${targetMesa.cliente} (Mesa ${targetMesa.id}) ✓`, 'success');
+          registrarEvento('Comanda a Mesa', `Comanda de ${carrito.map(i=>`${i.cantidad}x ${i.nombre}`).join(', ')} cargada a la cuenta activa de ${targetMesa.cliente} (Mesa ${targetMesa.id})`, total);
+        }
+        localStorage.setItem('yoy_billar_cuentas', obfuscate(nuevasCuentas));
+        return nuevasCuentas;
+      });
+    } else if (destinoTipo === 'cuenta') {
+      setCuentasActivas(prev => {
+        const targetCuenta = prev.find(c => c.id === parseInt(destinoId));
+        if (!targetCuenta) return prev;
 
-      if (cuentaExistente) {
-        setCuentasActivas(prev => prev.map(c => {
-          if (c.id === cuentaExistente.id) {
+        const nuevasCuentas = prev.map(c => {
+          if (c.id === targetCuenta.id) {
             const nuevosConsumos = [...c.consumos];
             carrito.forEach(cartItem => {
               const existeItem = nuevosConsumos.find(i => i.producto === cartItem.nombre);
@@ -3476,52 +3525,12 @@ function ModalRegistrarComanda({ mesas, setMesas, cuentasActivas, setCuentasActi
             return { ...c, consumos: nuevosConsumos };
           }
           return c;
-        }));
-        showToast(`Comanda enviada a la cuenta de ${targetMesa.cliente} (Mesa ${targetMesa.id}) ✓`, 'success');
-        registrarEvento('Comanda a Cuenta', `Comanda de ${carrito.map(i=>`${i.cantidad}x ${i.nombre}`).join(', ')} enviada a la cuenta de ${targetMesa.cliente} (Mesa ${targetMesa.id})`, total);
-      } else {
-        const nuevaCuenta = {
-          id: Date.now(),
-          cliente: targetMesa.cliente,
-          tiempoJuego: 0,
-          consumos: carrito.map(item => ({
-            id: Date.now() + Math.random(),
-            producto: item.nombre,
-            precio: item.precioVenta,
-            cantidad: item.cantidad
-          })),
-          inicio: Date.now()
-        };
-        setCuentasActivas(prev => [...prev, nuevaCuenta]);
-        showToast(`Comanda cargada a la cuenta de ${targetMesa.cliente} (Mesa ${targetMesa.id}) ✓`, 'success');
-        registrarEvento('Comanda a Mesa', `Comanda de ${carrito.map(i=>`${i.cantidad}x ${i.nombre}`).join(', ')} cargada a la cuenta activa de ${targetMesa.cliente} (Mesa ${targetMesa.id})`, total);
-      }
-    } else if (destinoTipo === 'cuenta') {
-      const targetCuenta = cuentasActivas.find(c => c.id === parseInt(destinoId));
-      if (!targetCuenta) return;
-
-      setCuentasActivas(prev => prev.map(c => {
-        if (c.id === targetCuenta.id) {
-          const nuevosConsumos = [...c.consumos];
-          carrito.forEach(cartItem => {
-            const existeItem = nuevosConsumos.find(i => i.producto === cartItem.nombre);
-            if (existeItem) {
-              existeItem.cantidad += cartItem.cantidad;
-            } else {
-              nuevosConsumos.push({
-                id: Date.now() + Math.random(),
-                producto: cartItem.nombre,
-                precio: cartItem.precioVenta,
-                cantidad: cartItem.cantidad
-              });
-            }
-          });
-          return { ...c, consumos: nuevosConsumos };
-        }
-        return c;
-      }));
-      showToast(`Comanda agregada a la cuenta de ${targetCuenta.cliente} ✓`, 'success');
-      registrarEvento('Comanda a Cuenta', `Comanda de ${carrito.map(i=>`${i.cantidad}x ${i.nombre}`).join(', ')} agregada a la cuenta de ${targetCuenta.cliente}`, total);
+        });
+        showToast(`Comanda agregada a la cuenta de ${targetCuenta.cliente} ✓`, 'success');
+        registrarEvento('Comanda a Cuenta', `Comanda de ${carrito.map(i=>`${i.cantidad}x ${i.nombre}`).join(', ')} agregada a la cuenta de ${targetCuenta.cliente}`, total);
+        localStorage.setItem('yoy_billar_cuentas', obfuscate(nuevasCuentas));
+        return nuevasCuentas;
+      });
     } else if (destinoTipo === 'llevar') {
       showToast(`Comanda registrada Para Llevar. Total: $${total} MXN ✓`, 'success');
       registrarEvento('Venta Barra', `Comanda Para Llevar: ${carrito.map(i=>`${i.cantidad}x ${i.nombre}`).join(', ')} liquidada al momento`, total);
