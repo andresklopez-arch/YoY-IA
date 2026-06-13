@@ -195,15 +195,27 @@ export default function TorneosPanel({ showToast }) {
   };
 
   const handleEliminarTorneo = async (torneoId) => {
-    if (!window.confirm('¿Estás seguro de que deseas eliminar este torneo? Esta acción no se puede deshacer.')) {
+    const torneo = torneos.find(t => t.id === torneoId);
+    if (!torneo) return;
+
+    if (!window.confirm(`¿Estás seguro de que deseas eliminar el torneo "${torneo.nombre}"?`)) {
       return;
     }
 
-    const updatedTorneos = torneos.filter(t => t.id !== torneoId);
+    const updatedTorneos = torneos.map(t => {
+      if (t.id === torneoId) {
+        return { ...t, estado: 'eliminado' };
+      }
+      return t;
+    });
     await saveTorneos(updatedTorneos);
 
+    // Save for undo
+    setUltimoTorneoEliminado(torneo);
+
     if (torneoActivo?.id === torneoId) {
-      setTorneoActivo(updatedTorneos.length > 0 ? updatedTorneos[0] : null);
+      const act = updatedTorneos.find(t => t.estado !== 'eliminado');
+      setTorneoActivo(act || null);
     }
 
     showToast('Torneo eliminado correctamente.', 'success');
@@ -211,13 +223,45 @@ export default function TorneosPanel({ showToast }) {
     try {
       await addDoc(collection(db, 'bitacora'), {
         fecha: new Date().toISOString(),
-        accion: 'Torneo Eliminado',
-        detalle: `Se eliminó el torneo ID: ${torneoId}. El ranking global no fue afectado.`,
+        accion: 'Torneo Eliminado (Soft)',
+        detalle: `Se eliminó logicamente el torneo "${torneo.nombre}" (ID: ${torneoId}). El ranking global no fue afectado.`,
         monto: 0,
         operador: 'Operador YoY'
       });
     } catch (e) {
       console.error("Error al registrar eliminación en bitácora:", e);
+    }
+  };
+
+  const handleDeshacerEliminacion = async () => {
+    if (!ultimoTorneoEliminado) return;
+
+    const torneoId = ultimoTorneoEliminado.id;
+    const updatedTorneos = torneos.map(t => {
+      if (t.id === torneoId) {
+        return { ...t, estado: ultimoTorneoEliminado.estado };
+      }
+      return t;
+    });
+
+    await saveTorneos(updatedTorneos);
+
+    const restored = updatedTorneos.find(t => t.id === torneoId);
+    if (restored) setTorneoActivo(restored);
+
+    showToast(`Torneo "${ultimoTorneoEliminado.nombre}" restaurado con éxito.`, 'success');
+    setUltimoTorneoEliminado(null);
+
+    try {
+      await addDoc(collection(db, 'bitacora'), {
+        fecha: new Date().toISOString(),
+        accion: 'Torneo Restaurado',
+        detalle: `Se restauró el torneo "${ultimoTorneoEliminado.nombre}" (ID: ${torneoId}).`,
+        monto: 0,
+        operador: 'Operador YoY'
+      });
+    } catch (e) {
+      console.error("Error al registrar restauración en bitácora:", e);
     }
   };
 
