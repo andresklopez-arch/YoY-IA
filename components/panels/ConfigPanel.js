@@ -1,8 +1,29 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { db } from '@/lib/firebase';
 import { collection, getDocs, addDoc, query, orderBy, deleteDoc, doc, where, setDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { obfuscate, deobfuscate, hashPasswordSecure } from '@/lib/crypto';
+
+function areMesasEqual(arr1, arr2) {
+  if (!arr1 || !arr2) return arr1 === arr2;
+  if (arr1.length !== arr2.length) return false;
+  for (let i = 0; i < arr1.length; i++) {
+    const m1 = arr1[i];
+    const m2 = arr2[i];
+    if (m1.id !== m2.id ||
+        m1.estado !== m2.estado ||
+        m1.cliente !== m2.cliente ||
+        m1.inicio !== m2.inicio ||
+        m1.tarifa !== m2.tarifa ||
+        m1.tipo !== m2.tipo ||
+        m1.socios !== m2.socios ||
+        m1.clienteUid !== m2.clienteUid ||
+        m1.preTicketImpreso !== m2.preTicketImpreso) {
+      return false;
+    }
+  }
+  return true;
+}
 import { getClientDomain } from '@/lib/tenant';
 
 const hashPassword = (pwd) => {
@@ -49,6 +70,10 @@ export default function ConfigPanel({ showToast }) {
 
   // --- Estados de Mesas Config ---
   const [mesas, setMesas] = useState([]);
+  const mesasRef = useRef(mesas);
+  useEffect(() => {
+    mesasRef.current = mesas;
+  }, [mesas]);
   const [nuevaMesa, setNuevaMesa] = useState({ id: '', nombre: '', tarifa: '', tipo: 'Pool' });
   const [editingMesaId, setEditingMesaId] = useState(null);
 
@@ -118,7 +143,10 @@ export default function ConfigPanel({ showToast }) {
       if (snap.exists()) {
         const data = snap.data();
         if (data && Array.isArray(data.mesas)) {
-          setMesas(data.mesas);
+          const isDifferent = !areMesasEqual(data.mesas, mesasRef.current);
+          if (isDifferent) {
+            setMesas(data.mesas);
+          }
         }
       } else {
         const defaultMesas = [
@@ -314,12 +342,20 @@ export default function ConfigPanel({ showToast }) {
 
   const handleSaveMesa = (e) => {
     e.preventDefault();
-    if (!nuevaMesa.id || !nuevaMesa.nombre || !nuevaMesa.tarifa) {
-      showToast('Completa todos los campos para guardar la mesa', 'warning');
-      return;
+    const nextMesaId = mesas.length > 0 ? Math.max(...mesas.map(m => m.id)) + 1 : 1;
+
+    if (editingMesaId !== null) {
+      if (!nuevaMesa.nombre || !nuevaMesa.tarifa) {
+        showToast('Completa todos los campos para guardar la mesa', 'warning');
+        return;
+      }
+    } else {
+      if (!nuevaMesa.tarifa) {
+        showToast('Por favor ingresa la tarifa para la mesa', 'warning');
+        return;
+      }
     }
 
-    const mesaId = parseInt(nuevaMesa.id);
     const mesaTarifa = parseFloat(nuevaMesa.tarifa);
 
     if (editingMesaId !== null) {
@@ -339,13 +375,11 @@ export default function ConfigPanel({ showToast }) {
       setNuevaMesa({ id: '', nombre: '', tarifa: '', tipo: 'Pool' });
       showToast('Mesa modificada correctamente', 'success');
     } else {
-      if (mesas.some(m => m.id === mesaId)) {
-        showToast('Ya existe una mesa con ese número / ID', 'danger');
-        return;
-      }
+      const mesaId = nextMesaId;
+      const mesaNombre = nuevaMesa.nombre.trim() || `Mesa ${mesaId}`;
       const nueva = {
         id: mesaId,
-        nombre: nuevaMesa.nombre,
+        nombre: mesaNombre,
         tipo: nuevaMesa.tipo,
         estado: 'libre',
         cliente: null,
@@ -736,21 +770,17 @@ export default function ConfigPanel({ showToast }) {
                     <input
                       type="number"
                       className="form-input"
-                      placeholder="Num"
-                      value={nuevaMesa.id}
-                      onChange={e => setNuevaMesa(p => ({ ...p, id: e.target.value }))}
-                      disabled={editingMesaId !== null}
-                      required
+                      value={editingMesaId !== null ? nuevaMesa.id : (mesas.length > 0 ? Math.max(...mesas.map(m => m.id)) + 1 : 1)}
+                      disabled={true}
                     />
                   </div>
                   <div className="form-group">
-                    <label className="form-label">Nombre</label>
+                    <label className="form-label">Nombre (Opcional)</label>
                     <input
                       className="form-input"
-                      placeholder="Ej: Mesa 1"
+                      placeholder={editingMesaId !== null ? "Ej: Mesa 1" : `Mesa ${(mesas.length > 0 ? Math.max(...mesas.map(m => m.id)) + 1 : 1)}`}
                       value={nuevaMesa.nombre}
                       onChange={e => setNuevaMesa(p => ({ ...p, nombre: e.target.value }))}
-                      required
                     />
                   </div>
                 </div>

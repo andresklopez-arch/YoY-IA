@@ -54,7 +54,41 @@ export default function MesaClientePage({ params }) {
   const { id } = use(params);
   const mesaId = parseInt(id);
 
-  const [tab, setTab] = useState('menu');
+  // Actualizar el timestamp de última actividad de la mesa en Firestore
+  const actualizarActividadMesa = async () => {
+    if (!auth.currentUser || !mesaId) return;
+    try {
+      const ref = doc(db, 'config', 'mesas_estado');
+      const snap = await getDoc(ref);
+      if (snap.exists()) {
+        const list = snap.data().mesas || [];
+        const updatedList = list.map(m => m.id === mesaId
+          ? { ...m, clienteLastActive: Date.now() }
+          : m
+        );
+        await setDoc(ref, {
+          mesas: updatedList,
+          updatedAt: serverTimestamp()
+        });
+      }
+    } catch (err) {
+      console.error("Error al actualizar actividad de mesa:", err);
+    }
+  };
+
+  const lastActivityWriteRef = useRef(0);
+  const renewSessionIfNeeded = async () => {
+    if (Date.now() - lastActivityWriteRef.current > 30000) {
+      lastActivityWriteRef.current = Date.now();
+      await actualizarActividadMesa();
+    }
+  };
+
+  const [tab, setTabRaw] = useState('menu');
+  const setTab = (newTab) => {
+    renewSessionIfNeeded();
+    setTabRaw(newTab);
+  };
   const [productos, setProductos] = useState([]);
   const [now, setNow] = useState(Date.now());
 
@@ -137,28 +171,7 @@ export default function MesaClientePage({ params }) {
     return Promise.race([writePromise, timeoutPromise]);
   };
 
-  // ── Guardar nombre en Firebase ──
-  // Actualizar el timestamp de última actividad de la mesa en Firestore
-  const actualizarActividadMesa = async () => {
-    if (!auth.currentUser || !mesaId) return;
-    try {
-      const ref = doc(db, 'config', 'mesas_estado');
-      const snap = await getDoc(ref);
-      if (snap.exists()) {
-        const list = snap.data().mesas || [];
-        const updatedList = list.map(m => m.id === mesaId
-          ? { ...m, clienteLastActive: Date.now() }
-          : m
-        );
-        await setDoc(ref, {
-          mesas: updatedList,
-          updatedAt: serverTimestamp()
-        });
-      }
-    } catch (err) {
-      console.error("Error al actualizar actividad de mesa:", err);
-    }
-  };
+
 
   // Cerrar la sesión de forma manual (liberar la mesa)
   const liberarMesa = async () => {
@@ -594,6 +607,7 @@ export default function MesaClientePage({ params }) {
 
   // ── Carrito ─────────────────────────────────────────────
   const modificarCarrito = (prodId, delta) => {
+    renewSessionIfNeeded();
     setCarrito(prev => {
       const actual = prev[prodId] || 0;
       const nuevo = Math.max(0, actual + delta);

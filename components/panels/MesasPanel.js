@@ -7,6 +7,27 @@ import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth-context';
 import { doc, onSnapshot, setDoc, getDoc, serverTimestamp, collection, query, where, getDocs, writeBatch, updateDoc, runTransaction, addDoc, orderBy, limit } from 'firebase/firestore';
 
+function areMesasEqual(arr1, arr2) {
+  if (!arr1 || !arr2) return arr1 === arr2;
+  if (arr1.length !== arr2.length) return false;
+  for (let i = 0; i < arr1.length; i++) {
+    const m1 = arr1[i];
+    const m2 = arr2[i];
+    if (m1.id !== m2.id ||
+        m1.estado !== m2.estado ||
+        m1.cliente !== m2.cliente ||
+        m1.inicio !== m2.inicio ||
+        m1.tarifa !== m2.tarifa ||
+        m1.tipo !== m2.tipo ||
+        m1.socios !== m2.socios ||
+        m1.clienteUid !== m2.clienteUid ||
+        m1.preTicketImpreso !== m2.preTicketImpreso) {
+      return false;
+    }
+  }
+  return true;
+}
+
 // ── DATOS INICIALES DE MESAS ───────────────────────────────
 const INIT_MESAS = [
   { id: 1, nombre: 'Mesa 1', tipo: 'Carambola 3B', estado: 'libre',    cliente: null, inicio: null, tarifa: 80, socios: false, clienteUid: '' },
@@ -1814,7 +1835,7 @@ export default function MesasPanel({ showToast }) {
       if (snap.exists()) {
         const data = snap.data();
         if (data && Array.isArray(data.mesas)) {
-          const isDifferent = JSON.stringify(data.mesas) !== JSON.stringify(mesasRef.current);
+          const isDifferent = !areMesasEqual(data.mesas, mesasRef.current);
           if (isDifferent) {
             isIncomingUpdateRef.current = true;
             setMesas(data.mesas);
