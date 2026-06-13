@@ -14,6 +14,11 @@ export default function TorneosPanel({ showToast }) {
   const [vista, setVista] = useState('ranking');
   const [ultimoTorneoEliminado, setUltimoTorneoEliminado] = useState(null);
 
+  // Reversión y visor de rondas
+  const [partidasBackupSorteo, setPartidasBackupSorteo] = useState(null);
+  const [rondaBackupSorteo, setRondaBackupSorteo] = useState(null);
+  const [rondaSeleccionadaFiltro, setRondaSeleccionadaFiltro] = useState(1);
+
   // Modales
   const [showCrearTorneo, setShowCrearTorneo] = useState(false);
   const [showRegistrarPartida, setShowRegistrarPartida] = useState(false);
@@ -51,6 +56,12 @@ export default function TorneosPanel({ showToast }) {
   const [modalityTab, setModalityTab] = useState('pool');
   const [rankingHistorico, setRankingHistorico] = useState({ pool: [], carambola: [], snooker: [] });
   const [nuevoJuegoTipo, setNuevoJuegoTipo] = useState('Pool');
+
+  useEffect(() => {
+    if (torneoActivo) {
+      setRondaSeleccionadaFiltro(torneoActivo.rondaActual || 1);
+    }
+  }, [torneoActivo?.id, torneoActivo?.rondaActual]);
 
   useEffect(() => {
     // Escucha en tiempo real de Firestore para los torneos con reconciliación offline LWW
@@ -837,6 +848,45 @@ export default function TorneosPanel({ showToast }) {
     }
   };
 
+  const handleDeshacerSorteo = () => {
+    if (!torneoActivo || !partidasBackupSorteo || !rondaBackupSorteo) return;
+
+    const updatedTorneos = torneos.map(t => {
+      if (t.id === torneoActivo.id) {
+        return {
+          ...t,
+          partidas: partidasBackupSorteo,
+          rondaActual: rondaBackupSorteo
+        };
+      }
+      return t;
+    });
+
+    saveTorneos(updatedTorneos);
+
+    const updatedAct = updatedTorneos.find(t => t.id === torneoActivo.id);
+    if (updatedAct) {
+      setTorneoActivo(updatedAct);
+    }
+
+    setPartidasBackupSorteo(null);
+    setRondaBackupSorteo(null);
+
+    showToast('Sorteo revertido con éxito. Se regresó a la ronda anterior.', 'success');
+
+    try {
+      addDoc(collection(db, 'bitacora'), {
+        fecha: new Date().toISOString(),
+        accion: 'Sorteo Revertido',
+        detalle: `Se deshizo el sorteo de ronda en el torneo "${torneoActivo.nombre}".`,
+        monto: 0,
+        operador: 'Operador YoY'
+      });
+    } catch (e) {
+      console.error("Error al registrar en bitácora:", e);
+    }
+  };
+
   const handleCrearTorneo = (e) => {
     e.preventDefault();
     if (!nuevoNombre || !nuevaFecha) {
@@ -1426,11 +1476,16 @@ export default function TorneosPanel({ showToast }) {
                 <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px solid rgba(255,255,255,0.06)', fontSize: 10 }}>
                   <div style={{ fontWeight: 600, color: 'var(--bronze-light)', marginBottom: 4 }}>Top 4 Final:</div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 8px' }}>
-                    {t.ranking.slice(0, 4).map((r, idx) => (
-                      <div key={r.nombre} style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: 'var(--text-secondary)' }}>
-                        {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : '4º'} {r.nombre}
-                      </div>
-                    ))}
+                    {t.ranking.slice(0, 4).map((r, idx) => {
+                      const medal = idx === 0 ? '⭐' : idx === 1 ? '🥇' : idx === 2 ? '🥈' : '🥉';
+                      const textColor = idx === 0 ? 'var(--gold, #ffd700)' : idx === 1 ? 'var(--bronze-light)' : idx === 2 ? '#e0e0e0' : '#cd7f32';
+                      const fontWeight = idx === 0 ? 700 : 500;
+                      return (
+                        <div key={r.nombre} style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: textColor, fontWeight }}>
+                          {medal} {r.nombre}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -1441,6 +1496,31 @@ export default function TorneosPanel({ showToast }) {
         {/* Detalle del torneo */}
         {torneoActivo ? (
           <div>
+            {partidasBackupSorteo && rondaBackupSorteo && (
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                background: 'rgba(59, 130, 246, 0.1)',
+                border: '1px solid rgba(59, 130, 246, 0.2)',
+                borderRadius: 8,
+                padding: '10px 16px',
+                marginBottom: 16,
+                fontSize: 13,
+                color: 'var(--text-primary)'
+              }}>
+                <span>🔄 Se generó un nuevo sorteo. Puedes deshacer la operación si hubo algún error.</span>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-xs"
+                  onClick={handleDeshacerSorteo}
+                  style={{ padding: '4px 12px' }}
+                >
+                  Deshacer Sorteo
+                </button>
+              </div>
+            )}
+            
             {/* Header del torneo */}
             <div className="card card-bronze" style={{ marginBottom: 16 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -1588,7 +1668,7 @@ export default function TorneosPanel({ showToast }) {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                   <h3 style={{ fontSize: 14, fontWeight: 700, margin: 0 }}>
-                    {torneoActivo.estado === 'activo' ? `Partidas - Ronda ${torneoActivo.rondaActual || 1}` : 'Historial de Partidas'}
+                    Partidas - Ronda {rondaSeleccionadaFiltro}
                   </h3>
                   {torneoActivo.estado === 'activo' && (
                     <button 
@@ -1602,6 +1682,27 @@ export default function TorneosPanel({ showToast }) {
                   )}
                 </div>
 
+                {/* Selector de Rondas */}
+                {torneoActivo.partidas.length > 0 && (() => {
+                  const rondasDisponibles = Array.from(new Set(torneoActivo.partidas.map(p => p.ronda))).sort((a, b) => a - b);
+                  if (rondasDisponibles.length <= 1) return null;
+                  return (
+                    <div style={{ display: 'flex', gap: 6, marginBottom: 8, overflowX: 'auto', paddingBottom: 4 }}>
+                      {rondasDisponibles.map(rNum => (
+                        <button
+                          key={rNum}
+                          type="button"
+                          className={`btn btn-xs ${rondaSeleccionadaFiltro === rNum ? 'btn-primary' : 'btn-secondary'}`}
+                          onClick={() => setRondaSeleccionadaFiltro(rNum)}
+                          style={{ minWidth: 60 }}
+                        >
+                          Ronda {rNum}
+                        </button>
+                      ))}
+                    </div>
+                  );
+                })()}
+
                 {torneoActivo.partidas.length === 0 ? (
                   <div className="card" style={{ textAlign: 'center', padding: 32 }}>
                     <i className="ri-sword-line" style={{ fontSize: 36, color: 'var(--text-muted)', display: 'block', marginBottom: 8 }} />
@@ -1610,7 +1711,7 @@ export default function TorneosPanel({ showToast }) {
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                     {torneoActivo.partidas
-                      .filter(p => torneoActivo.estado !== 'activo' || p.ronda === torneoActivo.rondaActual)
+                      .filter(p => p.ronda === rondaSeleccionadaFiltro)
                       .map(p => {
                         const esActivo = p.estado === 'activo';
                         return (
