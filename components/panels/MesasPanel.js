@@ -1828,6 +1828,31 @@ export default function MesasPanel({ showToast }) {
     }
   }, []);
 
+  // Limpieza automática de clientes anónimos con más de 30 días de antigüedad
+  useEffect(() => {
+    const limpiarClientesAnonimosViejos = async () => {
+      try {
+        const limiteTiempo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+        const q = query(
+          collection(db, 'clientes_anonimos'),
+          where('updatedAt', '<', limiteTiempo)
+        );
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          const batch = writeBatch(db);
+          snap.docs.forEach(doc => {
+            batch.delete(doc.ref);
+          });
+          await batch.commit();
+          console.log(`[Seguridad] Se eliminaron ${snap.size} registros obsoletos de clientes_anonimos.`);
+        }
+      } catch (err) {
+        console.warn("Error al limpiar clientes anónimos obsoletos:", err);
+      }
+    };
+    limpiarClientesAnonimosViejos();
+  }, []);
+
   // Escuchar mesas de Firestore en tiempo real como fuente única de verdad
   useEffect(() => {
     const docRef = doc(db, 'config', 'mesas_estado');

@@ -47,6 +47,14 @@ const DEFAULT_ASISTENCIAS = [
   { id: 'urgente',       label: 'Urgente',              icon: '🚨', color: '#ef4444' },
 ];
 
+// ── CONSTANTES DE NOMBRES DE LOCALSTORAGE CON VERSIONADO ──
+const KEY_CLIENTE_NOMBRE = 'yoy_v2_cliente_nombre';
+const KEY_PENDING_ORDERS = 'yoy_v2_pending_orders';
+const KEY_PENDING_SURVEYS = 'yoy_v2_pending_surveys';
+const KEY_CLIENT_CACHED_STOCK = 'yoy_v2_client_cached_stock';
+const getMesaInfoKey = (id) => `yoy_v2_mesa_info_${id}`;
+const getMesaSessionInicioKey = (id) => `yoy_v2_mesa_session_inicio_${id}`;
+
 // ═══════════════════════════════════════════════════════════
 // PÁGINA PÚBLICA DEL CLIENTE (sin autenticación)
 // ═══════════════════════════════════════════════════════════
@@ -109,7 +117,7 @@ export default function MesaClientePage({ params }) {
   const [mesaInfo, setMesaInfo] = useState(() => {
     if (typeof window !== 'undefined') {
       try {
-        const stored = localStorage.getItem(`yoy_mesa_info_${mesaId}`);
+        const stored = localStorage.getItem(getMesaInfoKey(mesaId));
         return stored ? JSON.parse(stored) : null;
       } catch (e) {}
     }
@@ -122,7 +130,7 @@ export default function MesaClientePage({ params }) {
   // Nombre del cliente (pre-poblado si la mesa tiene cliente asignado)
   const [clienteNombre, setClienteNombre] = useState(() => {
     if (typeof window !== 'undefined') {
-      const rawCached = localStorage.getItem('yoy_cliente_nombre') || '';
+      const rawCached = localStorage.getItem(KEY_CLIENTE_NOMBRE) || '';
       const cached = rawCached.startsWith('[RC4-STATIC]') ? (deobfuscateStatic(rawCached) || '') : rawCached;
       // Si el nombre guardado en caché es el nombre de otra mesa, lo ignoramos
       if (cached.toLowerCase().startsWith('mesa ') && cached.toLowerCase() !== `mesa ${mesaId}`) {
@@ -139,10 +147,10 @@ export default function MesaClientePage({ params }) {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       try {
-        const rawCached = localStorage.getItem('yoy_cliente_nombre') || '';
+        const rawCached = localStorage.getItem(KEY_CLIENTE_NOMBRE) || '';
         const cached = rawCached.startsWith('[RC4-STATIC]') ? (deobfuscateStatic(rawCached) || '') : rawCached;
         if (cached.toLowerCase().startsWith('mesa ') && cached.toLowerCase() !== `mesa ${mesaId}`) {
-          localStorage.removeItem('yoy_cliente_nombre');
+          localStorage.removeItem(KEY_CLIENTE_NOMBRE);
         }
       } catch (e) {}
     }
@@ -212,7 +220,7 @@ export default function MesaClientePage({ params }) {
         // No guardamos nombres genéricos de mesa en caché
         const isGeneric = nombre.toLowerCase().startsWith('mesa ');
         if (!isGeneric) {
-          localStorage.setItem('yoy_cliente_nombre', obfuscateStatic(nombre));
+          localStorage.setItem(KEY_CLIENTE_NOMBRE, obfuscateStatic(nombre));
         }
       } catch (e) {}
     }
@@ -249,7 +257,7 @@ export default function MesaClientePage({ params }) {
     const sincronizarEncuestasPendientes = async () => {
       if (typeof window === 'undefined' || isOffline) return;
       try {
-        const rawPending = localStorage.getItem('yoy_pending_surveys');
+        const rawPending = localStorage.getItem(KEY_PENDING_SURVEYS);
         if (!rawPending) return;
         const pending = JSON.parse(rawPending);
         if (!Array.isArray(pending) || pending.length === 0) return;
@@ -274,9 +282,9 @@ export default function MesaClientePage({ params }) {
         }
 
         if (remaining.length > 0) {
-          localStorage.setItem('yoy_pending_surveys', JSON.stringify(remaining));
+          localStorage.setItem(KEY_PENDING_SURVEYS, JSON.stringify(remaining));
         } else {
-          localStorage.removeItem('yoy_pending_surveys');
+          localStorage.removeItem(KEY_PENDING_SURVEYS);
         }
       } catch (e) {
         console.warn("Error en sync de encuestas offline:", e);
@@ -291,7 +299,7 @@ export default function MesaClientePage({ params }) {
     const sincronizarPedidosPendientes = async () => {
       if (typeof window === 'undefined' || isOffline) return;
       try {
-        const rawPending = localStorage.getItem('yoy_pending_orders');
+        const rawPending = localStorage.getItem(KEY_PENDING_ORDERS);
         if (!rawPending) return;
         const pending = JSON.parse(rawPending);
         if (!Array.isArray(pending) || pending.length === 0) return;
@@ -323,9 +331,9 @@ export default function MesaClientePage({ params }) {
         }
 
         if (remaining.length > 0) {
-          localStorage.setItem('yoy_pending_orders', JSON.stringify(remaining));
+          localStorage.setItem(KEY_PENDING_ORDERS, JSON.stringify(remaining));
         } else {
-          localStorage.removeItem('yoy_pending_orders');
+          localStorage.removeItem(KEY_PENDING_ORDERS);
         }
       } catch (e) {
         console.warn("Error en sync de comandas offline:", e);
@@ -384,7 +392,7 @@ export default function MesaClientePage({ params }) {
   useEffect(() => {
     // Intentar precargar desde la caché offline local
     try {
-      const cached = localStorage.getItem('yoy_client_cached_stock');
+      const cached = localStorage.getItem(KEY_CLIENT_CACHED_STOCK);
       if (cached) {
         const parsed = JSON.parse(cached);
         if (Array.isArray(parsed) && parsed.length > 0) {
@@ -400,7 +408,7 @@ export default function MesaClientePage({ params }) {
         const filtered = prods.filter(p => p.stock > 0);
         setProductos(filtered);
         try {
-          localStorage.setItem('yoy_client_cached_stock', JSON.stringify(prods));
+          localStorage.setItem(KEY_CLIENT_CACHED_STOCK, JSON.stringify(prods));
         } catch (e) {}
       } else {
         // Fallback: productos de demostración
@@ -431,17 +439,17 @@ export default function MesaClientePage({ params }) {
         if (mesa) {
           setMesaInfo(mesa);
           try {
-            localStorage.setItem(`yoy_mesa_info_${mesaId}`, JSON.stringify(mesa));
+            localStorage.setItem(getMesaInfoKey(mesaId), JSON.stringify(mesa));
           } catch (e) {}
           
           // Verificar si es una nueva sesión para limpiar el nombre de cliente anterior
           if (typeof window !== 'undefined') {
             try {
-              const savedInicio = localStorage.getItem(`yoy_mesa_session_inicio_${mesaId}`) || '';
+              const savedInicio = localStorage.getItem(getMesaSessionInicioKey(mesaId)) || '';
               const currentInicio = mesa.inicio ? String(mesa.inicio) : '';
               if (savedInicio !== currentInicio) {
-                localStorage.setItem(`yoy_mesa_session_inicio_${mesaId}`, currentInicio);
-                localStorage.removeItem('yoy_cliente_nombre');
+                localStorage.setItem(getMesaSessionInicioKey(mesaId), currentInicio);
+                localStorage.removeItem(KEY_CLIENTE_NOMBRE);
                 setClienteNombre('');
               }
             } catch (e) {}
@@ -452,13 +460,13 @@ export default function MesaClientePage({ params }) {
             const isGeneric = mesa.cliente.toLowerCase().startsWith('mesa ');
             if (!isGeneric) {
               try {
-                localStorage.setItem('yoy_cliente_nombre', obfuscateStatic(mesa.cliente));
+                localStorage.setItem(KEY_CLIENTE_NOMBRE, obfuscateStatic(mesa.cliente));
               } catch (e) {}
             }
           } else {
             setClienteNombre('');
             try {
-              localStorage.removeItem('yoy_cliente_nombre');
+              localStorage.removeItem(KEY_CLIENTE_NOMBRE);
             } catch (e) {}
           }
         } else {
