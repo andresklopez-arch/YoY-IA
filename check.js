@@ -26,11 +26,9 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 async function run() {
-  const snap = await getDocs(collection(db, 'mesa_pedidos'));
-  console.log("=== PEDIDOS ===");
-  snap.forEach(d => {
-    console.log(d.id, JSON.stringify(d.data(), null, 2));
-  });
+  const invSnap = await getDoc(doc(db, 'config', 'inventario'));
+  console.log("=== INVENTARIO ===");
+  console.log(JSON.stringify(invSnap.data(), null, 2));
   process.exit(0);
 }
 

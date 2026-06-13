@@ -1336,7 +1336,9 @@ export default function MesasPanel({ showToast }) {
         // Buscar o crear la cuenta activa en la transacción usando las cuentas filtradas
         const cuentaExistente = filteredCuentas.find(c => 
           c.mesaId === mesaId || 
-          (c.cliente && c.cliente.toLowerCase() === clienteName.toLowerCase())
+          (c.cliente && 
+           !['público', 'publico'].includes(clienteName.toLowerCase()) && 
+           c.cliente.toLowerCase() === clienteName.toLowerCase())
         );
         let nuevasCuentas = [...filteredCuentas];
         if (cuentaExistente) {
