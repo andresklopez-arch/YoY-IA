@@ -748,7 +748,14 @@ function ModalCerrarMesa({ mesa, cuentasActivas, onClose, onCerrar, onAgregarACu
               /* Panel de Agregar a Cuenta */
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <div className="form-group" style={{ gap: 2 }}>
-                  <label className="form-label" style={{ fontSize: 9 }}>Seleccionar Cuenta Activa</label>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <label className="form-label" style={{ fontSize: 9, marginBottom: 0 }}>Seleccionar Cuenta Activa</label>
+                    {cuentaAsociada && (
+                      <span style={{ fontSize: 8, color: 'var(--success)', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 2 }}>
+                        <i className="ri-checkbox-circle-fill" /> Cuenta detectada ✓
+                      </span>
+                    )}
+                  </div>
                   <select
                     className="form-select"
                     style={{ padding: '6px 10px', fontSize: 11, height: 'auto' }}
@@ -2078,8 +2085,21 @@ export default function MesasPanel({ showToast }) {
   };
 
   const agregarSesionACuenta = async ({ costo, cuentaId, nombreNuevo }) => {
-    if (cuentaId) {
-      await actualizarCuentasFirestore(prev => prev.map(c => String(c.id) === String(cuentaId)
+    let targetId = cuentaId;
+
+    // Fail-safe: si no viene cuentaId pero ya existe una cuenta activa para esta mesa o este cliente, asociarla
+    if (!targetId && nombreNuevo) {
+      const existente = cuentasActivas.find(c => 
+        (c.mesaId === modalCerrar.id) ||
+        (c.cliente && c.cliente.toLowerCase() === nombreNuevo.toLowerCase())
+      );
+      if (existente) {
+        targetId = existente.id;
+      }
+    }
+
+    if (targetId) {
+      await actualizarCuentasFirestore(prev => prev.map(c => String(c.id) === String(targetId)
         ? { 
             ...c, 
             tiempoJuego: c.tiempoJuego + costo,
@@ -2089,8 +2109,8 @@ export default function MesasPanel({ showToast }) {
           }
         : c
       ));
-      const targetCuenta = cuentasActivas.find(c => String(c.id) === String(cuentaId));
-      const clientName = targetCuenta ? targetCuenta.cliente : cuentaId;
+      const targetCuenta = cuentasActivas.find(c => String(c.id) === String(targetId));
+      const clientName = targetCuenta ? targetCuenta.cliente : targetId;
       showToast(`Mesa cerrada. Costo de $${costo} MXN agregado a la cuenta del cliente.`, 'success');
       registrarEvento('Mesa a Cuenta', `Mesa ${modalCerrar.nombre} agregada a la cuenta de ${clientName}`, costo);
     } else {

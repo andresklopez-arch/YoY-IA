@@ -988,7 +988,7 @@ function ModalCuentasMesero({ cuentas, mesas, alertasAsistencia, isOffline, onCl
   useEffect(() => {
     const interval = setInterval(() => {
       setTick(t => t + 1);
-    }, 1000);
+    }, 5000);
     return () => clearInterval(interval);
   }, []);
 
