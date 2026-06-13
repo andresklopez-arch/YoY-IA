@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams } from 'next/navigation';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { doc, onSnapshot, collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
 export default function FilaEsperaCliente() {
@@ -18,6 +18,56 @@ export default function FilaEsperaCliente() {
   const swRegistrationRef = useRef(null);
   const [isSupported, setIsSupported] = useState(true);
   const beepCountRef = useRef(0);
+
+  const [alertFrequency, setAlertFrequency] = useState(880);
+  const alertStartedAtRef = useRef(null);
+
+  const guardarLogAlerta = useCallback(async (tipo) => {
+    if (!alertStartedAtRef.current) return;
+    const duracion = Math.round((Date.now() - alertStartedAtRef.current) / 1000);
+    alertStartedAtRef.current = null; // reset
+    try {
+      await addDoc(collection(db, 'alertas_digitales_log'), {
+        tipo,
+        filaId: id || '',
+        mesaId: data?.mesaAsignada || '',
+        cliente: data?.cliente || 'Cliente',
+        duracionSegundos: duracion,
+        createdAt: serverTimestamp()
+      });
+      console.log("Log de alerta guardado con éxito. Duración:", duracion);
+    } catch (e) {
+      console.error("Error al guardar log de alerta:", e);
+    }
+  }, [id, data]);
+
+  const probarAlerta = () => {
+    if (typeof window !== 'undefined' && window.navigator && window.navigator.vibrate) {
+      window.navigator.vibrate(100);
+    }
+    try {
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      if (AudioContext) {
+        const ctx = new AudioContext();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(alertFrequency, ctx.currentTime);
+        gain.gain.setValueAtTime(0, ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.3, ctx.currentTime + 0.05);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
+        
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.2);
+        
+        setTimeout(() => ctx.close(), 500);
+      }
+    } catch (e) {
+      console.warn("Error al probar sonido:", e);
+    }
+  };
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -84,7 +134,9 @@ export default function FilaEsperaCliente() {
       const handleSWMessage = (event) => {
         if (event.data && event.data.type === 'SILENCE_ALERT') {
           console.log("Alarma silenciada desde la notificación de sistema.");
+          guardarLogAlerta('fila_espera_asignada');
           setAlerting(false);
+          beepCountRef.current = 0;
           if (typeof window !== 'undefined' && window.navigator && window.navigator.vibrate) {
             window.navigator.vibrate(0);
           }
@@ -96,7 +148,7 @@ export default function FilaEsperaCliente() {
         navigator.serviceWorker.removeEventListener('message', handleSWMessage);
       };
     }
-  }, []);
+  }, [guardarLogAlerta]);
 
   useEffect(() => {
     if (!id) return;
@@ -107,6 +159,9 @@ export default function FilaEsperaCliente() {
         const docData = docSnap.data();
         setData(docData);
         if (docData.estado === 'asignada') {
+          if (!alerting) {
+            alertStartedAtRef.current = Date.now();
+          }
           setAlerting(true);
         }
       } else {
@@ -149,7 +204,7 @@ export default function FilaEsperaCliente() {
             const osc = ctx.createOscillator();
             const gain = ctx.createGain();
             osc.type = 'sine';
-            osc.frequency.setValueAtTime(880, ctx.currentTime); // A5 note
+            osc.frequency.setValueAtTime(alertFrequency, ctx.currentTime);
             gain.gain.setValueAtTime(0, ctx.currentTime);
             gain.gain.linearRampToValueAtTime(targetVol, ctx.currentTime + 0.05);
             gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
@@ -181,9 +236,10 @@ export default function FilaEsperaCliente() {
       if (beepIntervalRef.current) clearInterval(beepIntervalRef.current);
       if (audioCtxRef.current) audioCtxRef.current.close();
     };
-  }, [alerting]);
+  }, [alerting, alertFrequency]);
 
   const handleStopAlert = () => {
+    guardarLogAlerta('fila_espera_asignada');
     setAlerting(false);
     beepCountRef.current = 0;
     if (typeof window !== 'undefined' && window.navigator && window.navigator.vibrate) {
@@ -308,6 +364,23 @@ export default function FilaEsperaCliente() {
             <div style={detailRowStyle}>
               <span style={detailLabelStyle}>Personas:</span>
               <span style={detailValueStyle}>{data.personas}</span>
+            </div>
+          </div>
+
+          <div style={controlsContainerStyle}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+              <button onClick={probarAlerta} style={testButtonStyle}>
+                🔊 Probar Alerta
+              </button>
+              <select 
+                value={alertFrequency} 
+                onChange={(e) => setAlertFrequency(parseInt(e.target.value))}
+                style={selectStyle}
+              >
+                <option value={440}>Tono Grave 🔉</option>
+                <option value={880}>Tono Normal 🔔</option>
+                <option value={1200}>Tono Agudo 🔊</option>
+              </select>
             </div>
           </div>
 
@@ -463,4 +536,37 @@ const permissionButtonStyle = {
   cursor: 'pointer',
   whiteSpace: 'nowrap',
   boxShadow: '0 2px 8px rgba(197, 168, 128, 0.2)'
+};
+
+const controlsContainerStyle = {
+  background: 'rgba(255, 255, 255, 0.02)',
+  border: '1px solid rgba(255, 255, 255, 0.05)',
+  borderRadius: 14,
+  padding: '10px 14px',
+  marginTop: 14,
+  width: '100%'
+};
+
+const testButtonStyle = {
+  background: 'rgba(197, 168, 128, 0.1)',
+  border: '1px solid rgba(197, 168, 128, 0.25)',
+  color: '#c5a880',
+  padding: '6px 12px',
+  borderRadius: 8,
+  fontWeight: 600,
+  fontSize: 12,
+  cursor: 'pointer',
+  flex: 1
+};
+
+const selectStyle = {
+  background: '#14141c',
+  border: '1px solid rgba(255, 255, 255, 0.08)',
+  color: '#fff',
+  padding: '6px 10px',
+  borderRadius: 8,
+  fontSize: 12,
+  cursor: 'pointer',
+  outline: 'none',
+  flex: 1
 };
