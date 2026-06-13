@@ -669,6 +669,7 @@ export default function MesaClientePage({ params }) {
       return;
     }
 
+    // Eliminado el mensaje de confirmación redundante por solicitud del cliente
     setEnviando(true);
     const items = Object.entries(carrito).map(([id, cant]) => {
       const prod = productos.find(p => p.id === parseInt(id));
