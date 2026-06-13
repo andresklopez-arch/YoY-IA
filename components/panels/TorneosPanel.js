@@ -26,7 +26,6 @@ export default function TorneosPanel({ showToast }) {
   const [nuevoPremio, setNuevoPremio] = useState('$1,500');
   const [nuevaInscripcion, setNuevaInscripcion] = useState('$100');
   const [nuevaFecha, setNuevaFecha] = useState('');
-  const [nuevosJugadoresText, setNuevosJugadoresText] = useState('Carlos R., Pedro M., Ana G., Luis H.');
 
   // Formulario Registrar Partida
   const [partidaJ1, setPartidaJ1] = useState('');
@@ -44,7 +43,6 @@ export default function TorneosPanel({ showToast }) {
   const [nombreTmpJugador, setNombreTmpJugador] = useState('');
   const [ptsTmpJugador, setPtsTmpJugador] = useState(0);
   const [categoriaTmpJugador, setCategoriaTmpJugador] = useState('3ra');
-  const [mesasSeleccionadas, setMesasSeleccionadas] = useState([]);
   const [partidaAEditar, setPartidaAEditar] = useState(null);
   const [nuevoJugadorPts, setNuevoJugadorPts] = useState(0);
 
@@ -887,7 +885,6 @@ export default function TorneosPanel({ showToast }) {
     setNuevaInscripcion('$100');
     setNuevaFecha('');
     setListaNuevosJugadores([]);
-    setMesasSeleccionadas([]);
   };
 
   const handleRegistrarJugador = (e) => {
