@@ -386,7 +386,11 @@ function ModalCerrarMesa({ mesa, cuentasActivas, unloadedConsumos, onClose, onCe
   const [metodo, setMetodo] = useState('efectivo');
   const [tipoCierre, setTipoCierre] = useState('liquidar'); // 'liquidar' o 'cuenta'
   const [cuentaSeleccionada, setCuentaSeleccionada] = useState('');
-  const [nuevoCliente, setNuevoCliente] = useState(mesa.cliente || '');
+  const [nuevoCliente, setNuevoCliente] = useState(() => {
+    const name = mesa.cliente || '';
+    const isGeneric = !name || ['publico', 'público', 'publico general', 'público general', 'cliente temporal', 'cliente'].includes(name.trim().toLowerCase()) || name.trim().toLowerCase().startsWith('mesa ');
+    return isGeneric ? '' : name;
+  });
 
   // Pre-seleccionar la cuenta asociada de la mesa si existe
   useEffect(() => {
@@ -973,12 +977,18 @@ function ModalCerrarMesa({ mesa, cuentasActivas, unloadedConsumos, onClose, onCe
                             autoFocus
                           />
                         </div>
+                        {(!nombrePagador.trim() || ['publico', 'público', 'publico general', 'público general', 'cliente temporal', 'cliente'].includes(nombrePagador.trim().toLowerCase()) || nombrePagador.trim().toLowerCase().startsWith('mesa ')) && (
+                          <div style={{ color: 'var(--danger)', fontSize: 9, marginTop: 4 }}>
+                            <i className="ri-error-warning-line" style={{ marginRight: 2 }} />
+                            Debe ingresar un nombre real y no genérico.
+                          </div>
+                        )}
                       </div>
                       <div className="modal-footer" style={{ display: 'flex', gap: 8 }}>
                         <button className="btn btn-secondary" onClick={() => setShowPromptMoverPendiente(false)} style={{ flex: 1, padding: '6px 12px', fontSize: 11 }}>Cancelar</button>
                         <button
                           className="btn btn-primary"
-                          disabled={!nombrePagador.trim()}
+                          disabled={!nombrePagador.trim() || ['publico', 'público', 'publico general', 'público general', 'cliente temporal', 'cliente'].includes(nombrePagador.trim().toLowerCase()) || nombrePagador.trim().toLowerCase().startsWith('mesa ')}
                           onClick={() => {
                             onAgregarACuenta({
                               costo: costoTiempo,
@@ -988,9 +998,9 @@ function ModalCerrarMesa({ mesa, cuentasActivas, unloadedConsumos, onClose, onCe
                             setShowPromptMoverPendiente(false);
                           }}
                           style={{
-                            background: !nombrePagador.trim() ? 'var(--bg-hover)' : 'linear-gradient(135deg, var(--bronze-light), var(--bronze))',
+                            background: (!nombrePagador.trim() || ['publico', 'público', 'publico general', 'público general', 'cliente temporal', 'cliente'].includes(nombrePagador.trim().toLowerCase()) || nombrePagador.trim().toLowerCase().startsWith('mesa ')) ? 'var(--bg-hover)' : 'linear-gradient(135deg, var(--bronze-light), var(--bronze))',
                             color: '#fff',
-                            cursor: !nombrePagador.trim() ? 'not-allowed' : 'pointer',
+                            cursor: (!nombrePagador.trim() || ['publico', 'público', 'publico general', 'público general', 'cliente temporal', 'cliente'].includes(nombrePagador.trim().toLowerCase()) || nombrePagador.trim().toLowerCase().startsWith('mesa ')) ? 'not-allowed' : 'pointer',
                             flex: 1,
                             padding: '6px 12px',
                             fontSize: 11
@@ -4918,22 +4928,27 @@ function ModalAbrirCuentaDirecta({ cuentas, setCuentas, onClose, showToast, regi
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [cliente, onClose]);
 
+  const isClienteGeneric = !cliente.trim() || 
+    ['publico', 'público', 'publico general', 'público general', 'cliente temporal', 'cliente'].includes(cliente.trim().toLowerCase()) || 
+    cliente.trim().toLowerCase().startsWith('mesa ');
+
   const handleCrear = () => {
-    if (!cliente) {
-      showToast('Por favor ingrese el nombre del cliente.', 'warning');
+    const cleanCliente = cliente.trim();
+    if (isClienteGeneric) {
+      showToast('Por favor ingrese un nombre de cliente real y no genérico.', 'warning');
       return;
     }
     const nueva = {
       id: Date.now(),
-      cliente,
+      cliente: cleanCliente,
       tiempoJuego: 0,
       consumos: [],
       inicio: Date.now()
     };
     setCuentas(prev => [...prev, nueva]);
-    showToast(`Cuenta creada para ${cliente} ✓`, 'success');
+    showToast(`Cuenta creada para ${cleanCliente} ✓`, 'success');
     if (registrarEvento) {
-      registrarEvento('Crear Cuenta', `Cuenta abierta manualmente para ${cliente}`);
+      registrarEvento('Crear Cuenta', `Cuenta abierta manualmente para ${cleanCliente}`);
     }
     onClose();
   };
@@ -4951,11 +4966,25 @@ function ModalAbrirCuentaDirecta({ cuentas, setCuentas, onClose, showToast, regi
           <div className="form-group">
             <label className="form-label">Nombre del Cliente</label>
             <input className="form-input" placeholder="Ej: Juan Pérez" value={cliente} onChange={e => setCliente(e.target.value)} />
+            {isClienteGeneric && (
+              <div style={{ color: 'var(--danger)', fontSize: 9, marginTop: 4 }}>
+                <i className="ri-error-warning-line" style={{ marginRight: 2 }} />
+                Debe ingresar un nombre real y no genérico.
+              </div>
+            )}
           </div>
         </div>
         <div className="modal-footer">
           <button className="btn btn-secondary" onClick={onClose}>Cancelar</button>
-          <button className="btn btn-primary" onClick={handleCrear}>
+          <button 
+            className="btn btn-primary" 
+            onClick={handleCrear}
+            disabled={isClienteGeneric}
+            style={{
+              background: isClienteGeneric ? 'var(--bg-hover)' : undefined,
+              cursor: isClienteGeneric ? 'not-allowed' : 'pointer'
+            }}
+          >
             Abrir Cuenta
           </button>
         </div>
