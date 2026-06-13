@@ -1340,19 +1340,27 @@ export default function TorneosPanel({ showToast }) {
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                   <div className="form-group">
-                    <label className="form-label">Modalidad</label>
+                    <label className="form-label">Formato</label>
                     <select className="form-select" value={nuevaModalidad} onChange={e => setNuevaModalidad(e.target.value)}>
-                      <option value="Round Robin">Round Robin</option>
                       <option value="Eliminación Directa">Eliminación Directa</option>
+                      <option value="Round Robin">Round Robin</option>
                       <option value="Liga">Liga</option>
                     </select>
                   </div>
                   <div className="form-group">
+                    <label className="form-label">Tipo de Juego (Modalidad ELO)</label>
+                    <select className="form-select" value={nuevoJuegoTipo} onChange={e => setNuevoJuegoTipo(e.target.value)}>
+                      <option value="Pool">Pool</option>
+                      <option value="Carambola">Carambola</option>
+                      <option value="Snooker">Snooker</option>
+                    </select>
+                  </div>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+                  <div className="form-group">
                     <label className="form-label">Cupo Máximo</label>
                     <input className="form-input" type="number" value={nuevoMax} onChange={e => setNuevoMax(e.target.value)} />
                   </div>
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                   <div className="form-group">
                     <label className="form-label">Premio Total</label>
                     <input className="form-input" placeholder="Ej: $1,500" value={nuevoPremio} onChange={e => setNuevoPremio(e.target.value)} />
@@ -1366,54 +1374,75 @@ export default function TorneosPanel({ showToast }) {
                   <label className="form-label">Fecha de Inicio *</label>
                   <input className="form-input" type="date" required value={nuevaFecha} onChange={e => setNuevaFecha(e.target.value)} />
                 </div>
-
+ 
                 <div className="form-group" style={{ borderTop: '1px solid var(--border)', paddingTop: 10 }}>
-                  <label className="form-label" style={{ color: 'var(--bronze-light)' }}>Captura de Jugadores y Hándicaps</label>
-                  <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-                    <input
-                      type="text"
-                      className="form-input"
-                      style={{ flex: 2 }}
-                      placeholder="Nombre del jugador"
-                      value={nombreTmpJugador}
-                      onChange={e => setNombreTmpJugador(e.target.value)}
-                    />
-                    <input
-                      type="number"
-                      className="form-input"
-                      style={{ flex: 1 }}
-                      placeholder="Pts"
-                      value={ptsTmpJugador}
-                      onChange={e => setPtsTmpJugador(parseInt(e.target.value) || 0)}
-                    />
-                    <button
-                      type="button"
-                      className="btn btn-secondary btn-sm"
-                      onClick={() => {
-                        if (!nombreTmpJugador.trim()) {
-                          showToast('Ingrese un nombre válido', 'warning');
-                          return;
-                        }
-                        if (listaNuevosJugadores.some(j => j.nombre.toLowerCase() === nombreTmpJugador.trim().toLowerCase())) {
-                          showToast('El jugador ya está en la lista', 'warning');
-                          return;
-                        }
-                        setListaNuevosJugadores([...listaNuevosJugadores, { nombre: nombreTmpJugador.trim(), puntosInicio: ptsTmpJugador }]);
-                        setNombreTmpJugador('');
-                        setPtsTmpJugador(0);
-                      }}
-                    >
-                      Añadir
-                    </button>
+                  <label className="form-label" style={{ color: 'var(--bronze-light)' }}>Captura de Jugadores, Hándicaps y Categoría</label>
+                  <div style={{ display: 'flex', gap: 6, marginBottom: 8, flexDirection: 'column' }}>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <input
+                        type="text"
+                        className="form-input"
+                        style={{ flex: 2 }}
+                        placeholder="Nombre del jugador"
+                        value={nombreTmpJugador}
+                        onChange={e => setNombreTmpJugador(e.target.value)}
+                      />
+                      <input
+                        type="number"
+                        className="form-input"
+                        style={{ width: 80 }}
+                        placeholder="Adv Pts"
+                        value={ptsTmpJugador || ''}
+                        onChange={e => setPtsTmpJugador(parseInt(e.target.value) || 0)}
+                      />
+                    </div>
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      <select
+                        className="form-select"
+                        style={{ flex: 1 }}
+                        value={categoriaTmpJugador}
+                        onChange={e => setCategoriaTmpJugador(e.target.value)}
+                      >
+                        <option value="Mtro">Mtro (Maestro)</option>
+                        <option value="1ra">1ra Categoría</option>
+                        <option value="2da">2da Categoría</option>
+                        <option value="3ra">3ra Categoría</option>
+                        <option value="4ta">4ta Categoría</option>
+                      </select>
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        style={{ height: 38, padding: '0 16px' }}
+                        onClick={() => {
+                          if (!nombreTmpJugador.trim()) {
+                            showToast('Ingrese un nombre válido', 'warning');
+                            return;
+                          }
+                          if (listaNuevosJugadores.some(j => j.nombre.toLowerCase() === nombreTmpJugador.trim().toLowerCase())) {
+                            showToast('El jugador ya está en la lista', 'warning');
+                            return;
+                          }
+                          setListaNuevosJugadores([...listaNuevosJugadores, { 
+                            nombre: nombreTmpJugador.trim(), 
+                            puntosInicio: ptsTmpJugador, 
+                            categoria: categoriaTmpJugador 
+                          }]);
+                          setNombreTmpJugador('');
+                          setPtsTmpJugador(0);
+                        }}
+                      >
+                        Añadir
+                      </button>
+                    </div>
                   </div>
-
-                  <div style={{ maxHeight: 100, overflowY: 'auto', background: 'var(--bg-elevated)', borderRadius: 8, padding: 8, border: '1px solid var(--border)' }}>
+ 
+                  <div style={{ maxHeight: 120, overflowY: 'auto', background: 'var(--bg-elevated)', borderRadius: 8, padding: 8, border: '1px solid var(--border)' }}>
                     {listaNuevosJugadores.length === 0 ? (
                       <div style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center' }}>No hay jugadores agregados.</div>
                     ) : (
                       listaNuevosJugadores.map((j, i) => (
                         <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0', borderBottom: '1px solid rgba(255,255,255,0.03)', fontSize: 12 }}>
-                          <span>{j.nombre} <span style={{ color: 'var(--bronze-light)' }}>({j.puntosInicio} pts inic.)</span></span>
+                          <span>{j.nombre} <span style={{ color: 'var(--text-muted)' }}>({j.categoria})</span> <span style={{ color: 'var(--bronze-light)' }}>({j.puntosInicio} pts inic.)</span></span>
                           <button
                             type="button"
                             style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', fontSize: 14 }}
@@ -1424,29 +1453,6 @@ export default function TorneosPanel({ showToast }) {
                         </div>
                       ))
                     )}
-                  </div>
-                </div>
-
-                <div className="form-group" style={{ borderTop: '1px solid var(--border)', paddingTop: 10 }}>
-                  <label className="form-label" style={{ color: 'var(--bronze-light)' }}>Seleccionar Mesas para el Torneo *</label>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, maxHeight: 100, overflowY: 'auto', background: 'var(--bg-elevated)', borderRadius: 8, padding: 8, border: '1px solid var(--border)' }}>
-                    {mesas.map(m => (
-                      <label key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, cursor: 'pointer' }}>
-                        <input
-                          type="checkbox"
-                          checked={mesasSeleccionadas.includes(m.id)}
-                          onChange={e => {
-                            if (e.target.checked) {
-                              setMesasSeleccionadas([...mesasSeleccionadas, m.id]);
-                            } else {
-                              setMesasSeleccionadas(mesasSeleccionadas.filter(id => id !== m.id));
-                            }
-                          }}
-                          style={{ accentColor: 'var(--bronze)' }}
-                        />
-                        <span>{m.nombre} ({m.tipo})</span>
-                      </label>
-                    ))}
                   </div>
                 </div>
               </div>
