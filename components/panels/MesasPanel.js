@@ -2814,6 +2814,13 @@ export default function MesasPanel({ showToast }) {
     )).catch(err => console.error("Error al limpiar cuenta vieja al abrir mesa:", err));
     
     if (modalAbrir && modalAbrir.filaId) {
+      const docId = String(modalAbrir.filaId);
+      updateDoc(doc(db, 'fila_espera', docId), {
+        estado: 'asignada',
+        mesaAsignada: `Mesa ${mesaId}`,
+        assignedAt: serverTimestamp()
+      }).catch(err => console.error("Error al actualizar estado en fila_espera:", err));
+
       setFila(prev => prev.filter(f => f.id !== modalAbrir.filaId));
     }
     
@@ -3224,6 +3231,190 @@ export default function MesasPanel({ showToast }) {
 
     w.document.write(htmlContent);
     w.document.close();
+  };
+
+  const imprimirComprobanteEspera = (filaEntry) => {
+    const host = typeof window !== 'undefined' ? window.location.origin : 'https://yoy-ia-billar.vercel.app';
+    const queueUrl = `${host}/fila/${filaEntry.id}`;
+
+    let htmlContent = `
+      <html><head><title>Comprobante de Fila - YoY IA Billar Club</title>
+      <style>
+        body { margin: 0; padding: 10px; font-family: 'Courier New', Courier, monospace; background: #fff; color: #000; font-size: 13px; line-height: 1.4; max-width: 280px; text-align: center; }
+        .text-center { text-align: center; }
+        .divider { border-top: 1px dashed #000; margin: 10px 0; }
+        .header h3 { margin: 0; font-size: 16px; font-weight: bold; }
+        .header p { margin: 2px 0; font-size: 11px; }
+        .qr-container { margin: 15px auto; width: 150px; height: 150px; display: flex; justify-content: center; align-items: center; }
+        .footer { margin-top: 15px; font-size: 10px; color: #555; }
+      </style>
+      </head>
+      <body>
+        <div class="header">
+          <h3>YoY IA Billar Club</h3>
+          <p>COMPROBANTE DE TURNO</p>
+          <p>Fecha: ${new Date().toLocaleString()}</p>
+        </div>
+        
+        <div class="divider"></div>
+        
+        <div style="text-align: left; font-size: 12px;">
+          <strong>Turno / ID:</strong> ${filaEntry.id}<br/>
+          <strong>Cliente:</strong> ${filaEntry.cliente}<br/>
+          <strong>Mesa Solicitada:</strong> ${filaEntry.tipo}<br/>
+          <strong>Personas:</strong> ${filaEntry.personas}<br/>
+        </div>
+        
+        <div class="divider"></div>
+        
+        <p style="font-size: 11px; font-weight: bold; margin-bottom: 5px;">Escanea este QR con tu celular:</p>
+        <div id="qrcode-container" class="qr-container" style="margin: 0 auto;"></div>
+        <p style="font-size: 10px; color: #666; margin-top: 6px; padding: 0 10px;">Para recibir alerta sonora y vibración en tu dispositivo cuando tu mesa esté lista.</p>
+        
+        <div class="divider"></div>
+        
+        <div class="footer">
+          <p>¡Gracias por su paciencia!</p>
+          <p>YoY IA Billar Club</p>
+        </div>
+        
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+        <script>
+          window.onload = () => {
+            new QRCode(document.getElementById('qrcode-container'), {
+              text: "${queueUrl}",
+              width: 150,
+              height: 150,
+              colorDark: "#000000",
+              colorLight: "#ffffff",
+              correctLevel: QRCode.CorrectLevel.H
+            });
+            setTimeout(() => {
+              window.print();
+            }, 600);
+          };
+        </script>
+      </body>
+      </html>
+    `;
+
+    try {
+      const iframe = document.createElement('iframe');
+      iframe.style.position = 'fixed';
+      iframe.style.right = '0';
+      iframe.style.bottom = '0';
+      iframe.style.width = '0';
+      iframe.style.height = '0';
+      iframe.style.border = '0';
+      document.body.appendChild(iframe);
+
+      const doc = iframe.contentWindow.document || iframe.contentDocument;
+      doc.open();
+      doc.write(htmlContent);
+      doc.close();
+
+      iframe.contentWindow.focus();
+      setTimeout(() => {
+        iframe.contentWindow.print();
+        setTimeout(() => {
+          document.body.removeChild(iframe);
+        }, 1500);
+      }, 300);
+    } catch (err) {
+      console.error("Error al inyectar iframe de fila:", err);
+    }
+  };
+
+  const imprimirComprobanteReserva = (mesa) => {
+    const host = typeof window !== 'undefined' ? window.location.origin : 'https://yoy-ia-billar.vercel.app';
+    const mesaUrl = `${host}/mesa/${mesa.id}`;
+
+    let htmlContent = `
+      <html><head><title>Comprobante de Reserva - YoY IA Billar Club</title>
+      <style>
+        body { margin: 0; padding: 10px; font-family: 'Courier New', Courier, monospace; background: #fff; color: #000; font-size: 13px; line-height: 1.4; max-width: 280px; text-align: center; }
+        .text-center { text-align: center; }
+        .divider { border-top: 1px dashed #000; margin: 10px 0; }
+        .header h3 { margin: 0; font-size: 16px; font-weight: bold; }
+        .header p { margin: 2px 0; font-size: 11px; }
+        .qr-container { margin: 15px auto; width: 150px; height: 150px; display: flex; justify-content: center; align-items: center; }
+        .footer { margin-top: 15px; font-size: 10px; color: #555; }
+      </style>
+      </head>
+      <body>
+        <div class="header">
+          <h3>YoY IA Billar Club</h3>
+          <p>TICKET DE RESERVACIÓN</p>
+          <p>Fecha: ${new Date().toLocaleString()}</p>
+        </div>
+        
+        <div class="divider"></div>
+        
+        <div style="text-align: left; font-size: 12px;">
+          <strong>Mesa:</strong> ${mesa.nombre || `Mesa ${mesa.id}`}<br/>
+          <strong>Cliente:</strong> ${mesa.cliente}<br/>
+          <strong>Teléfono:</strong> ${mesa.telefono || 'Sin registrar'}<br/>
+          <strong>Límite Tolerancia:</strong> ${mesa.limiteReservaMs ? Math.round(mesa.limiteReservaMs / 60000) : 30} minutos<br/>
+        </div>
+        
+        <div class="divider"></div>
+        
+        <p style="font-size: 11px; font-weight: bold; margin-bottom: 5px;">Escanea este QR con tu celular:</p>
+        <div id="qrcode-container" class="qr-container" style="margin: 0 auto;"></div>
+        <p style="font-size: 10px; color: #666; margin-top: 6px; padding: 0 10px;">Para recibir alerta sonora y vibración en tu dispositivo cuando tu mesa sea activada.</p>
+        
+        <div class="divider"></div>
+        
+        <div class="footer">
+          <p>¡Gracias por reservar con nosotros!</p>
+          <p>YoY IA Billar Club</p>
+        </div>
+        
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+        <script>
+          window.onload = () => {
+            new QRCode(document.getElementById('qrcode-container'), {
+              text: "${mesaUrl}",
+              width: 150,
+              height: 150,
+              colorDark: "#000000",
+              colorLight: "#ffffff",
+              correctLevel: QRCode.CorrectLevel.H
+            });
+            setTimeout(() => {
+              window.print();
+            }, 600);
+          };
+        </script>
+      </body>
+      </html>
+    `;
+
+    try {
+      const iframe = document.createElement('iframe');
+      iframe.style.position = 'fixed';
+      iframe.style.right = '0';
+      iframe.style.bottom = '0';
+      iframe.style.width = '0';
+      iframe.style.height = '0';
+      iframe.style.border = '0';
+      document.body.appendChild(iframe);
+
+      const doc = iframe.contentWindow.document || iframe.contentDocument;
+      doc.open();
+      doc.write(htmlContent);
+      doc.close();
+
+      iframe.contentWindow.focus();
+      setTimeout(() => {
+        iframe.contentWindow.print();
+        setTimeout(() => {
+          document.body.removeChild(iframe);
+        }, 1500);
+      }, 300);
+    } catch (err) {
+      console.error("Error al inyectar iframe de reserva:", err);
+    }
   };
 
   const imprimirTicketFinal = ({
@@ -4217,6 +4408,7 @@ export default function MesasPanel({ showToast }) {
           registrarEvento={registrarEvento}
           showToast={showToast}
           abrirMesa={abrirMesa}
+          imprimirComprobanteReserva={imprimirComprobanteReserva}
         />
       )}
 
@@ -4345,6 +4537,7 @@ export default function MesasPanel({ showToast }) {
           onAssign={asignarClienteDeFila}
           onClose={() => setModalFila(false)}
           showToast={showToast}
+          imprimirComprobanteEspera={imprimirComprobanteEspera}
         />
       )}
       {modalCuentas && (
@@ -4531,7 +4724,7 @@ function ModalNuevaMesa({ mesas, onClose, onConfirm }) {
 }
 
 // ── MODAL FILA VIRTUAL ───────────────────────────────────
-function ModalFilaVirtual({ fila, setFila, mesas, onAssign, onClose, showToast }) {
+function ModalFilaVirtual({ fila, setFila, mesas, onAssign, onClose, showToast, imprimirComprobanteEspera }) {
   const [cliente, setCliente] = useState('');
   const [contacto, setContacto] = useState('');
   const [tipo, setTipo] = useState('Carambola 3B');
@@ -4581,26 +4774,57 @@ function ModalFilaVirtual({ fila, setFila, mesas, onAssign, onClose, showToast }
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [cliente, contacto, onClose]);
 
-  const agregarFila = () => {
+  const agregarFila = async () => {
     if (!cliente) {
       showToast('Por favor ingrese el nombre del cliente.', 'warning');
       return;
     }
+    const entryId = Date.now();
     const nuevo = {
-      id: Date.now(),
+      id: entryId,
       cliente,
       contacto: contacto || 'N/A',
       tipo,
       personas: parseInt(personas),
       registro: Date.now(),
+      estado: 'espera',
+      mesaAsignada: ''
     };
+
+    // Registrar en Firestore
+    try {
+      await setDoc(doc(db, 'fila_espera', String(entryId)), {
+        ...nuevo,
+        createdAt: serverTimestamp()
+      });
+    } catch (err) {
+      console.error("Error al registrar en fila_espera Firestore:", err);
+    }
+
     setFila(prev => [...prev, nuevo]);
     setCliente('');
     setContacto('');
     showToast(`${cliente} agregado a la lista de espera.`, 'success');
+
+    // Imprimir el comprobante térmico con el código QR
+    try {
+      imprimirComprobanteEspera(nuevo);
+    } catch (printErr) {
+      console.error("Error al imprimir comprobante de espera:", printErr);
+    }
   };
 
-  const quitarFila = (id) => {
+  const quitarFila = async (id) => {
+    // Retirar de Firestore
+    try {
+      await updateDoc(doc(db, 'fila_espera', String(id)), {
+        estado: 'retirado',
+        removedAt: serverTimestamp()
+      });
+    } catch (err) {
+      console.error("Error al retirar de fila_espera en Firestore:", err);
+    }
+
     setFila(prev => prev.filter(f => f.id !== id));
     showToast('Cliente retirado de la lista.', 'info');
   };
@@ -6781,7 +7005,7 @@ function ModalHistorial({ mesa, onClose }) {
   );
 }
 
-function ModalReservasCentral({ mesas, setMesas, onClose, registrarEvento, showToast, abrirMesa }) {
+function ModalReservasCentral({ mesas, setMesas, onClose, registrarEvento, showToast, abrirMesa, imprimirComprobanteReserva }) {
   const [cliente, setCliente] = useState('');
   const [telefono, setTelefono] = useState('');
   const [limiteMinutos, setLimiteMinutos] = useState(30);
@@ -6814,6 +7038,22 @@ function ModalReservasCentral({ mesas, setMesas, onClose, registrarEvento, showT
 
     const limiteMs = (limiteMinutos || 30) * 60 * 1000;
     
+    // Generar e imprimir un comprobante para cada mesa reservada
+    mesasSeleccionadas.forEach(id => {
+      const mesaObj = mesas.find(m => m.id === id);
+      try {
+        imprimirComprobanteReserva({
+          id,
+          nombre: mesaObj ? (mesaObj.nombre || `Mesa ${id}`) : `Mesa ${id}`,
+          cliente: cliente.trim(),
+          telefono: telefono.trim(),
+          limiteReservaMs: limiteMs
+        });
+      } catch (printErr) {
+        console.error("Error al imprimir comprobante de reserva:", printErr);
+      }
+    });
+
     setMesas(prev => prev.map(m => {
       if (mesasSeleccionadas.includes(m.id)) {
         return {
@@ -7042,10 +7282,8 @@ function ModalReservasCentral({ mesas, setMesas, onClose, registrarEvento, showT
 }
 
 function ModalAvisarCliente({ mesa, fila, onClose, registrarEvento, showToast }) {
-  const [cliente, setCliente] = useState('');
-  const [telefono, setTelefono] = useState('');
-  const [mensaje, setMensaje] = useState(`¡Hola! La ${mesa.nombre} (${mesa.tipo}) ya está disponible para ti en YoY Billar. ¡Te esperamos!`);
   const [selectedFilaId, setSelectedFilaId] = useState('');
+  const [cliente, setCliente] = useState('');
   const [isClosing, setIsClosing] = useState(false);
 
   const handleClose = () => {
@@ -7053,48 +7291,27 @@ function ModalAvisarCliente({ mesa, fila, onClose, registrarEvento, showToast })
     setTimeout(onClose, 200);
   };
 
-  useEffect(() => {
-    if (cliente) {
-      setMensaje(`¡Hola ${cliente}! La ${mesa.nombre} (${mesa.tipo}) ya está disponible para ti en YoY Billar. ¡Te esperamos!`);
-    }
-  }, [cliente, mesa]);
-
-  const getCleanPhone = (num) => {
-    let p = num.replace(/\D/g, ''); // leave only digits
-    if (p.startsWith('52') && p.length > 10) return p;
-    if (p.length === 10) return '52' + p; // default Mexico prefix if 10 digits
-    return p;
-  };
-
-  const handleSend = (canal) => {
-    if (!telefono.trim()) {
-      showToast("Ingresa un número telefónico.", "warning");
+  const handleSendAlert = async () => {
+    if (!selectedFilaId) {
+      showToast("Seleccione un cliente en espera para avisar.", "warning");
       return;
     }
 
-    const cleanPhone = getCleanPhone(telefono.trim());
-    const encodedText = encodeURIComponent(mensaje);
-    let url = '';
+    try {
+      const docId = String(selectedFilaId);
+      await updateDoc(doc(db, 'fila_espera', docId), {
+        estado: 'asignada',
+        mesaAsignada: mesa.nombre || `Mesa ${mesa.id}`,
+        assignedAt: serverTimestamp()
+      });
 
-    switch (canal) {
-      case 'sms':
-        url = `sms:${telefono.trim()}${window.navigator.userAgent.match(/iPhone|iPad|iPod/i) ? '&' : '?'}body=${encodedText}`;
-        break;
-      case 'wa':
-      case 'wab':
-        url = `https://wa.me/${cleanPhone}?text=${encodedText}`;
-        break;
-      case 'tg':
-        url = `https://t.me/share/url?text=${encodedText}`;
-        break;
-      default:
-        return;
+      registrarEvento('Aviso Disponibilidad', `Alerta digital enviada a ${cliente || 'Cliente'} para ocupar ${mesa.nombre || `Mesa ${mesa.id}`}`);
+      showToast(`Alerta digital enviada al celular del cliente ✓`, "success");
+      handleClose();
+    } catch (err) {
+      console.error("Error al enviar alerta digital:", err);
+      showToast("Error al enviar la alerta digital. Verifique conexión.", "danger");
     }
-
-    window.open(url, '_blank');
-    registrarEvento('Aviso Disponibilidad', `Aviso de mesa ${mesa.id} disponible enviado a ${cliente || 'Cliente'} (${telefono}) vía ${canal.toUpperCase()}`);
-    showToast(`Enlace de ${canal.toUpperCase()} abierto para notificar al cliente.`, "success");
-    handleClose();
   };
 
   return (
@@ -7103,7 +7320,7 @@ function ModalAvisarCliente({ mesa, fila, onClose, registrarEvento, showToast })
         <div className="modal-header">
           <span className="modal-title">
             <i className="ri-notification-3-line" style={{ marginRight: 8, color: 'var(--bronze-light)' }} />
-            Avisar Disponibilidad — {mesa.nombre}
+            Avisar Disponibilidad — {mesa.nombre || `Mesa ${mesa.id}`}
           </span>
           <button onClick={handleClose} className="btn-icon btn btn-secondary" style={{ background: 'none', border: 'none' }}>
             <i className="ri-close-line" style={{ fontSize: 20 }} />
@@ -7112,10 +7329,14 @@ function ModalAvisarCliente({ mesa, fila, onClose, registrarEvento, showToast })
         <div className="modal-body">
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             
-            {fila && fila.length > 0 && (
+            <p style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+              Selecciona el cliente de la lista de espera al cual le asignarás esta mesa. Al enviar la alerta, sonará y vibrará su dispositivo móvil si escaneó su código QR.
+            </p>
+
+            {fila && fila.length > 0 ? (
               <div className="form-group">
                 <label className="form-label" style={{ fontSize: 10, color: 'var(--bronze-light)' }}>
-                  Auto-llenar desde Fila Virtual
+                  Clientes en Fila de Espera
                 </label>
                 <select 
                   className="form-select"
@@ -7126,89 +7347,45 @@ function ModalAvisarCliente({ mesa, fila, onClose, registrarEvento, showToast })
                     const item = fila.find(f => f.id === parseInt(id));
                     if (item) {
                       setCliente(item.cliente || '');
-                      setTelefono(item.contacto || '');
+                    } else {
+                      setCliente('');
                     }
                   }}
                 >
                   <option value="">-- Seleccionar cliente en espera --</option>
                   {fila.map(f => (
                     <option key={f.id} value={f.id}>
-                      {f.cliente} ({f.contacto}) - {f.tipo}
+                      {f.cliente} - {f.tipo} ({f.personas} personas)
                     </option>
                   ))}
                 </select>
               </div>
+            ) : (
+              <div style={{ padding: '20px 0', textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>
+                No hay clientes registrados en la fila de espera actualmente.
+              </div>
             )}
 
-            <div className="form-group">
-              <label className="form-label">Nombre del Cliente</label>
-              <input 
-                className="form-input" 
-                placeholder="Ej: Juan Pérez" 
-                value={cliente} 
-                onChange={e => setCliente(e.target.value)} 
-              />
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Número Telefónico (10 dígitos o con prefijo)</label>
-              <input 
-                className="form-input" 
-                placeholder="Ej: 5512345678" 
-                value={telefono} 
-                onChange={e => setTelefono(e.target.value)} 
-              />
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Mensaje a enviar</label>
-              <textarea 
-                className="form-input"
-                style={{ height: 80, resize: 'none', fontSize: 11, lineHeight: '1.4' }}
-                value={mensaje} 
-                onChange={e => setMensaje(e.target.value)} 
-              />
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 6 }}>
-              <label className="form-label" style={{ marginBottom: 2 }}>Seleccionar canal de envío:</label>
-              
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                <button 
-                  className="btn btn-secondary" 
-                  style={{ background: 'rgba(37, 211, 102, 0.08)', border: '1px solid rgba(37, 211, 102, 0.3)', color: '#25d366', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 11 }}
-                  onClick={() => handleSend('wa')}
-                >
-                  <i className="ri-whatsapp-line" style={{ fontSize: 14 }} /> WhatsApp
-                </button>
-                <button 
-                  className="btn btn-secondary" 
-                  style={{ background: 'rgba(18, 140, 126, 0.08)', border: '1px solid rgba(18, 140, 126, 0.3)', color: '#128c7e', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 11 }}
-                  onClick={() => handleSend('wab')}
-                >
-                  <i className="ri-whatsapp-line" style={{ fontSize: 14 }} /> WA Business
-                </button>
-                <button 
-                  className="btn btn-secondary" 
-                  style={{ background: 'rgba(0, 136, 204, 0.08)', border: '1px solid rgba(0, 136, 204, 0.3)', color: '#0088cc', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 11 }}
-                  onClick={() => handleSend('tg')}
-                >
-                  <i className="ri-telegram-line" style={{ fontSize: 14 }} /> Telegram
-                </button>
-                <button 
-                  className="btn btn-secondary" 
-                  style={{ background: 'rgba(100, 110, 120, 0.08)', border: '1px solid rgba(100, 110, 120, 0.3)', color: '#a0aec0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 11 }}
-                  onClick={() => handleSend('sms')}
-                >
-                  <i className="ri-message-3-line" style={{ fontSize: 14 }} /> SMS (Texto)
-                </button>
+            {selectedFilaId && (
+              <div style={{ background: 'rgba(197, 168, 128, 0.05)', border: '1px solid rgba(197, 168, 128, 0.15)', borderRadius: 10, padding: 12, fontSize: 12 }}>
+                <strong>Cliente a Notificar:</strong> {cliente}<br/>
+                <strong>Mesa Disponible:</strong> {mesa.nombre || `Mesa ${mesa.id}`}
               </div>
-            </div>
+            )}
+
+            <button 
+              className="btn btn-primary"
+              style={{ width: '100%', marginTop: 8 }}
+              onClick={handleSendAlert}
+              disabled={!selectedFilaId}
+            >
+              <i className="ri-send-plane-fill" style={{ marginRight: 6 }} /> Enviar Alerta Digital
+            </button>
 
           </div>
         </div>
         <div className="modal-footer">
-          <button className="btn btn-secondary" onClick={handleClose}>Cancelar</button>
+          <button className="btn btn-secondary" onClick={handleClose}>Cerrar</button>
         </div>
       </div>
     </div>

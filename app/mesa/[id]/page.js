@@ -172,6 +172,82 @@ export default function MesaClientePage({ params }) {
   const [comentarios, setComentarios] = useState('');
   const [mostrarQuejas, setMostrarQuejas] = useState(false);
 
+  const [alertingReservada, setAlertingReservada] = useState(false);
+  const prevEstadoRef = useRef(null);
+  const audioCtxRef = useRef(null);
+  const beepIntervalRef = useRef(null);
+
+  // Monitorear transición de reservada a ocupada
+  useEffect(() => {
+    if (!mesaInfo) return;
+    if (prevEstadoRef.current === 'reservada' && mesaInfo.estado === 'ocupada') {
+      setAlertingReservada(true);
+    }
+    prevEstadoRef.current = mesaInfo.estado;
+  }, [mesaInfo]);
+
+  // Alerta sonora y de vibración para reservación activada
+  useEffect(() => {
+    if (alertingReservada) {
+      if (typeof window !== 'undefined' && window.navigator && window.navigator.vibrate) {
+        window.navigator.vibrate([300, 200, 300, 200, 500]);
+        const vibrateInterval = setInterval(() => {
+          window.navigator.vibrate([300, 200, 300, 200, 500]);
+        }, 2000);
+        return () => clearInterval(vibrateInterval);
+      }
+    }
+  }, [alertingReservada]);
+
+  useEffect(() => {
+    if (alertingReservada) {
+      try {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (AudioContext) {
+          const ctx = new AudioContext();
+          audioCtxRef.current = ctx;
+
+          const playBeep = () => {
+            if (ctx.state === 'suspended') {
+              ctx.resume();
+            }
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(880, ctx.currentTime); // A5 note
+            gain.gain.setValueAtTime(0, ctx.currentTime);
+            gain.gain.linearRampToValueAtTime(0.5, ctx.currentTime + 0.05);
+            gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
+            
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start();
+            osc.stop(ctx.currentTime + 0.4);
+          };
+
+          playBeep();
+          beepIntervalRef.current = setInterval(playBeep, 1000);
+        }
+      } catch (err) {
+        console.error("Error al iniciar Web Audio API para reservación:", err);
+      }
+    } else {
+      if (beepIntervalRef.current) {
+        clearInterval(beepIntervalRef.current);
+        beepIntervalRef.current = null;
+      }
+      if (audioCtxRef.current) {
+        audioCtxRef.current.close();
+        audioCtxRef.current = null;
+      }
+    }
+
+    return () => {
+      if (beepIntervalRef.current) clearInterval(beepIntervalRef.current);
+      if (audioCtxRef.current) audioCtxRef.current.close();
+    };
+  }, [alertingReservada]);
+
   // ── Helper de escritura con Timeout para redes inestables ──
   const addDocWithTimeout = async (collRef, data, timeoutMs = 8000) => {
     const writePromise = addDoc(collRef, data);
@@ -910,7 +986,85 @@ export default function MesaClientePage({ params }) {
     );
   }
 
-  if (mesaInfo && mesaInfo.estado !== 'ocupada') {
+  if (mesaInfo && mesaInfo.estado === 'reservada') {
+    return (
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: '100dvh',
+        padding: 24,
+        textAlign: 'center',
+        background: '#0a0a0f',
+        color: '#fff',
+        fontFamily: "'Inter', sans-serif"
+      }}>
+        <style>{`
+          @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap');
+          @keyframes pulse {
+            0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(197, 168, 128, 0.4); }
+            70% { transform: scale(1.05); box-shadow: 0 0 0 15px rgba(197, 168, 128, 0); }
+            100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(197, 168, 128, 0); }
+          }
+        `}</style>
+        <div style={{
+          background: 'rgba(20, 20, 28, 0.65)',
+          border: '1px solid rgba(197, 168, 128, 0.15)',
+          borderRadius: 24,
+          padding: '32px 24px',
+          width: '100%',
+          maxWidth: 380,
+          textAlign: 'center',
+          backdropFilter: 'blur(10px)',
+          boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.37)'
+        }}>
+          <div style={{ fontSize: 64, marginBottom: 20, animation: 'pulse 2s infinite', borderRadius: '50%', background: 'rgba(197, 168, 128, 0.1)', padding: 12, display: 'inline-block' }}>📅</div>
+          <h2 style={{ fontSize: 22, fontWeight: 800, color: '#c5a880', marginBottom: 16, letterSpacing: '0.02em' }}>Mesa Reservada</h2>
+          <div style={{
+            display: 'inline-block',
+            background: 'linear-gradient(135deg, #c5a880, #967a57)',
+            color: '#0a0a0f',
+            padding: '6px 16px',
+            borderRadius: 20,
+            fontWeight: 800,
+            fontSize: 14,
+            marginBottom: 20,
+            letterSpacing: '0.05em'
+          }}>
+            Mesa {mesaId}
+          </div>
+          
+          <div style={{
+            background: 'rgba(255, 255, 255, 0.03)',
+            border: '1px solid rgba(255, 255, 255, 0.05)',
+            borderRadius: 16,
+            padding: '16px 20px',
+            width: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 8,
+            textAlign: 'left'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+              <span style={{ color: 'rgba(255, 255, 255, 0.4)' }}>Cliente:</span>
+              <span style={{ color: '#fff', fontWeight: 600 }}>{mesaInfo.cliente || 'Reservado'}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+              <span style={{ color: 'rgba(255, 255, 255, 0.4)' }}>Estado:</span>
+              <span style={{ color: '#c5a880', fontWeight: 600 }}>Esperando activación</span>
+            </div>
+          </div>
+
+          <p style={{ fontSize: 13, color: 'rgba(255, 255, 255, 0.6)', lineHeight: 1.6, marginTop: 16 }}>
+            Esta mesa se encuentra apartada para ti. Mantén esta página abierta. Tu dispositivo sonará y vibrará cuando el personal active la mesa desde la caja.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (mesaInfo && mesaInfo.estado !== 'ocupada' && mesaInfo.estado !== 'reservada') {
     return (
       <div style={{
         display: 'flex',
@@ -1061,7 +1215,14 @@ export default function MesaClientePage({ params }) {
   return (
     <>
       {/* LINK a Google Fonts Inter */}
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap');`}</style>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap');
+        @keyframes pulseAlert {
+          0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5); }
+          70% { transform: scale(1.08); box-shadow: 0 0 0 20px rgba(239, 68, 68, 0); }
+          100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+      `}</style>
 
       {/* HEADER */}
       <header className="mc-header">
@@ -1806,6 +1967,31 @@ export default function MesaClientePage({ params }) {
               {enviando ? 'Enviando...' : 'Enviar y Solicitar Cuenta'}
             </button>
             <button className="mc-btn-secondary" onClick={() => setShowSurvey(false)}>Cancelar</button>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL: ALERTA DE MESA ACTIVADA ─────────────────── */}
+      {alertingReservada && (
+        <div className="mc-overlay" style={{ zIndex: 1200 }}>
+          <div className="mc-sheet" style={{ textAlign: 'center', padding: '32px 24px' }}>
+            <div style={{ fontSize: 72, marginBottom: 16, animation: 'pulseAlert 1.5s infinite' }}>🔔</div>
+            <h2 style={{ fontSize: 24, fontWeight: 900, color: '#ef4444', marginBottom: 12 }}>¡MESA ACTIVADA!</h2>
+            <p style={{ fontSize: 15, color: '#fff', lineHeight: 1.6, marginBottom: 24 }}>
+              Tu mesa **Mesa {mesaId}** ha sido activada en caja. ¡Ya puedes comenzar a jugar y ordenar!
+            </p>
+            <button
+              className="mc-btn-primary"
+              onClick={() => {
+                setAlertingReservada(false);
+                if (typeof window !== 'undefined' && window.navigator && window.navigator.vibrate) {
+                  window.navigator.vibrate(0);
+                }
+              }}
+              style={{ background: '#22c55e', border: 'none', width: '100%' }}
+            >
+              Aceptar / Comenzar
+            </button>
           </div>
         </div>
       )}
