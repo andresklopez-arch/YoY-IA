@@ -436,6 +436,9 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
     return isRealName(name) ? name : '';
   });
 
+  const selectedCuentaObj = cuentasActivas.find(c => String(c.id) === String(cuentaSeleccionada));
+  const isSelectedGeneric = selectedCuentaObj ? !isRealName(selectedCuentaObj.cliente) : false;
+
   const getFilteredClientes = (queryText) => {
     const term = (queryText || '').trim().toLowerCase();
     if (!term) return clientesRegistrados.slice(0, 15);
@@ -448,10 +451,19 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
   useEffect(() => {
     if (cuentaAsociada) {
       setCuentaSeleccionada(cuentaAsociada.id);
+      const isGeneric = !isRealName(cuentaAsociada.cliente);
+      if (isGeneric) {
+        const name = mesa.cliente || '';
+        setNuevoCliente(isRealName(name) ? name : '');
+      } else {
+        setNuevoCliente('');
+      }
     } else {
       setCuentaSeleccionada('');
+      const name = mesa.cliente || '';
+      setNuevoCliente(isRealName(name) ? name : '');
     }
-  }, [cuentaAsociada]);
+  }, [cuentaAsociada, mesa.cliente]);
 
   // Nuevos estados para cálculo de cambio, QR y transferencia con foto
   const [pagaCon, setPagaCon] = useState('');
@@ -851,8 +863,21 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
                     style={{ padding: '6px 10px', fontSize: 11, height: 'auto' }}
                     value={cuentaSeleccionada}
                     onChange={e => {
-                      setCuentaSeleccionada(e.target.value);
-                      if (e.target.value !== '') setNuevoCliente('');
+                      const val = e.target.value;
+                      setCuentaSeleccionada(val);
+                      if (val !== '') {
+                        const targetObj = cuentasActivas.find(c => String(c.id) === String(val));
+                        const isGeneric = targetObj ? !isRealName(targetObj.cliente) : false;
+                        if (!isGeneric) {
+                          setNuevoCliente('');
+                        } else {
+                          const name = mesa.cliente || '';
+                          setNuevoCliente(isRealName(name) ? name : '');
+                        }
+                      } else {
+                        const name = mesa.cliente || '';
+                        setNuevoCliente(isRealName(name) ? name : '');
+                      }
                     }}
                   >
                     <option value="">-- Crear nueva cuenta temporal --</option>
@@ -862,10 +887,14 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
                   </select>
                 </div>
 
-                {cuentaSeleccionada === '' && (
+                {(cuentaSeleccionada === '' || isSelectedGeneric) && (
                   <>
                     <div className="form-group" style={{ gap: 2 }}>
-                      <label className="form-label" style={{ fontSize: 9 }}>Nombre del Nuevo Cliente Temporal</label>
+                      <label className="form-label" style={{ fontSize: 9 }}>
+                        {cuentaSeleccionada === '' 
+                          ? 'Nombre del Nuevo Cliente Temporal' 
+                          : 'Asignar Nombre Real al Cliente de la Cuenta'}
+                      </label>
                       <div style={{ display: 'flex', gap: 4 }}>
                         <input
                           className="form-input"
@@ -1134,9 +1163,9 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
           ) : (
             <button
               className="btn btn-primary"
-              disabled={cuentaSeleccionada === '' && !nuevoCliente.trim()}
+              disabled={(cuentaSeleccionada === '' || isSelectedGeneric) && !nuevoCliente.trim()}
               onClick={() => {
-                if (cuentaSeleccionada === '') {
+                if (cuentaSeleccionada === '' || isSelectedGeneric) {
                   const nameClean = capitalizeName(nuevoCliente);
                   if (!isRealName(nameClean)) {
                     showToast('Debe ingresar un nombre real y no genérico para la cuenta.', 'warning');
@@ -1158,13 +1187,13 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
                 }
               }}
               style={{
-                background: (cuentaSeleccionada === '' && !nuevoCliente.trim())
+                background: ((cuentaSeleccionada === '' || isSelectedGeneric) && !nuevoCliente.trim())
                   ? 'var(--bg-hover)'
                   : 'linear-gradient(135deg, var(--bronze), var(--bronze-light))',
                 padding: '6px 12px',
                 fontSize: 11,
                 flex: 1,
-                cursor: (cuentaSeleccionada === '' && !nuevoCliente.trim())
+                cursor: ((cuentaSeleccionada === '' || isSelectedGeneric) && !nuevoCliente.trim())
                   ? 'not-allowed'
                   : 'pointer'
               }}
