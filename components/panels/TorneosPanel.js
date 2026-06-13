@@ -190,6 +190,33 @@ export default function TorneosPanel({ showToast }) {
     }
   };
 
+  const handleEliminarTorneo = async (torneoId) => {
+    if (!window.confirm('¿Estás seguro de que deseas eliminar este torneo? Esta acción no se puede deshacer.')) {
+      return;
+    }
+
+    const updatedTorneos = torneos.filter(t => t.id !== torneoId);
+    await saveTorneos(updatedTorneos);
+
+    if (torneoActivo?.id === torneoId) {
+      setTorneoActivo(updatedTorneos.length > 0 ? updatedTorneos[0] : null);
+    }
+
+    showToast('Torneo eliminado correctamente.', 'success');
+
+    try {
+      await addDoc(collection(db, 'bitacora'), {
+        fecha: new Date().toISOString(),
+        accion: 'Torneo Eliminado',
+        detalle: `Se eliminó el torneo ID: ${torneoId}. El ranking global no fue afectado.`,
+        monto: 0,
+        operador: 'Operador YoY'
+      });
+    } catch (e) {
+      console.error("Error al registrar eliminación en bitácora:", e);
+    }
+  };
+
   const handleCambiarCategoriaGlobal = async (jugadorNombre, nuevaCategoria, juegoTipo) => {
     const key = (juegoTipo || 'Pool').toLowerCase();
     
