@@ -668,8 +668,6 @@ export default function MesaClientePage({ params }) {
       alert('Operación denegada: La mesa se encuentra en proceso de cobro (pre-ticket impreso). No se permiten pedidos adicionales.');
       return;
     }
-    const confirmarMesa = window.confirm(`⚠️ CONFIRMACIÓN DE SEGURIDAD: ¿Confirmas que te encuentras físicamente en la MESA ${mesaId} y deseas enviar este pedido?`);
-    if (!confirmarMesa) return;
 
     setEnviando(true);
     const items = Object.entries(carrito).map(([id, cant]) => {
