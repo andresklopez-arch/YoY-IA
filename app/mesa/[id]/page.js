@@ -122,7 +122,8 @@ export default function MesaClientePage({ params }) {
   // Nombre del cliente (pre-poblado si la mesa tiene cliente asignado)
   const [clienteNombre, setClienteNombre] = useState(() => {
     if (typeof window !== 'undefined') {
-      const cached = localStorage.getItem('yoy_cliente_nombre') || '';
+      const rawCached = localStorage.getItem('yoy_cliente_nombre') || '';
+      const cached = rawCached.startsWith('[RC4-STATIC]') ? (deobfuscateStatic(rawCached) || '') : rawCached;
       // Si el nombre guardado en caché es el nombre de otra mesa, lo ignoramos
       if (cached.toLowerCase().startsWith('mesa ') && cached.toLowerCase() !== `mesa ${mesaId}`) {
         return '';
@@ -138,7 +139,8 @@ export default function MesaClientePage({ params }) {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       try {
-        const cached = localStorage.getItem('yoy_cliente_nombre') || '';
+        const rawCached = localStorage.getItem('yoy_cliente_nombre') || '';
+        const cached = rawCached.startsWith('[RC4-STATIC]') ? (deobfuscateStatic(rawCached) || '') : rawCached;
         if (cached.toLowerCase().startsWith('mesa ') && cached.toLowerCase() !== `mesa ${mesaId}`) {
           localStorage.removeItem('yoy_cliente_nombre');
         }
@@ -210,7 +212,7 @@ export default function MesaClientePage({ params }) {
         // No guardamos nombres genéricos de mesa en caché
         const isGeneric = nombre.toLowerCase().startsWith('mesa ');
         if (!isGeneric) {
-          localStorage.setItem('yoy_cliente_nombre', nombre);
+          localStorage.setItem('yoy_cliente_nombre', obfuscateStatic(nombre));
         }
       } catch (e) {}
     }
@@ -450,7 +452,7 @@ export default function MesaClientePage({ params }) {
             const isGeneric = mesa.cliente.toLowerCase().startsWith('mesa ');
             if (!isGeneric) {
               try {
-                localStorage.setItem('yoy_cliente_nombre', mesa.cliente);
+                localStorage.setItem('yoy_cliente_nombre', obfuscateStatic(mesa.cliente));
               } catch (e) {}
             }
           } else {
