@@ -100,9 +100,12 @@ export default function TorneosPanel({ showToast }) {
           }
           
           setTorneoActivo(prev => {
-            if (!prev) return mergedTorneos[0];
+            if (!prev) return mergedTorneos.find(t => t.estado !== 'eliminado') || mergedTorneos[0];
             const act = mergedTorneos.find(t => t.id === prev.id);
-            return act || mergedTorneos[0];
+            if (act && act.estado === 'eliminado') {
+              return mergedTorneos.find(t => t.estado !== 'eliminado') || null;
+            }
+            return act || mergedTorneos.find(t => t.estado !== 'eliminado') || mergedTorneos[0];
           });
         }
       } else {
