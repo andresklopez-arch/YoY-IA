@@ -8,6 +8,13 @@ import { db } from '@/lib/firebase';
 import { hashNip } from '@/lib/crypto';
 
 
+const F = ({ label, children, col }) => (
+  <div className="form-group" style={col ? { gridColumn: col } : {}}>
+    <label className="form-label">{label}</label>
+    {children}
+  </div>
+);
+
 // ─────────────────────────────────────────────
 // CONSTANTES
 // ─────────────────────────────────────────────
@@ -292,12 +299,6 @@ function EmpleadosTab({ showToast }) {
   );
 
   const estadoColor = { activo: 'var(--success)', inactivo: 'var(--text-muted)', vacaciones: 'var(--info)', baja: 'var(--danger)' };
-  const F = ({ label, children, col }) => (
-    <div className="form-group" style={col ? { gridColumn: col } : {}}>
-      <label className="form-label">{label}</label>
-      {children}
-    </div>
-  );
 
   return (
     <div>
@@ -536,7 +537,7 @@ function AsistenciaTab({ showToast }) {
     cargarAsistencias();
   }, [fecha, turno]);
 
-  const cargarAsistencias = async () => {
+  async function cargarAsistencias() {
     try {
       const q = query(collection(db, 'nomina_asistencia'), where('fecha', '==', fecha), where('turno', '==', turno));
       const snap = await getDocs(q);
@@ -544,7 +545,7 @@ function AsistenciaTab({ showToast }) {
       snap.docs.forEach(d => { map[d.data().empleadoId] = { id: d.id, ...d.data() }; });
       setAsistencias(map);
     } catch (e) { console.error(e); }
-  };
+  }
 
   const toggleAsistencia = async (empleadoId, estadoActual) => {
     const estados = ['presente', 'ausente', 'tardanza', 'permiso'];
@@ -1029,7 +1030,7 @@ function GastosTab({ showToast }) {
       {gastosPorCategoria.length > 0 && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 12, marginBottom: 20 }}>
           {gastosPorCategoria.map(cat => (
-            <div key={cat.id} style={{ background: 'var(--bg-card)', border: `1px solid ${cat.color}30`, borderRadius: 12, padding: 14, cursor: 'pointer', transition: 'border-color 0.15s' }}
+            <div key={cat.id}
               onClick={() => setFiltroCategoria(filtroCategoria === cat.id ? '' : cat.id)}
               style={{ background: filtroCategoria === cat.id ? `${cat.color}10` : 'var(--bg-card)', border: `1px solid ${filtroCategoria === cat.id ? cat.color : cat.color + '30'}`, borderRadius: 12, padding: 14, cursor: 'pointer', transition: 'all 0.15s' }}
             >
@@ -1219,7 +1220,7 @@ function GastosTab({ showToast }) {
                   <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>
                     <i className="ri-calendar-line" style={{ fontSize: 40, display: 'block', marginBottom: 12 }} />
                     <p>No hay gastos recurrentes registrados.</p>
-                    <p style={{ fontSize: 12, marginTop: 8 }}>Al registrar un gasto, activa la opción "Gasto Recurrente" para verlo aquí.</p>
+                    <p style={{ fontSize: 12, marginTop: 8 }}>Al registrar un gasto, activa la opción {"\"Gasto Recurrente\""} para verlo aquí.</p>
                   </div>
                 );
 

@@ -1024,7 +1024,7 @@ export default function BarPanel({ showToast }) {
               <div style={{ padding: 12, background: 'var(--bg-elevated)', borderRadius: 10, border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <div style={{ fontSize: 10, color: 'var(--bronze-light)', fontWeight: 700 }}>ROTACIÓN BAJA (Nachos Gigantes)</div>
                 <div style={{ fontSize: 12, fontWeight: 600 }}>Nachos Gigantes registran nulo movimiento esta semana.</div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Sugerencia: Lanzar promoción "Nachos + Bebida por $80" para liquidar existencias.</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{"Sugerencia: Lanzar promoción \"Nachos + Bebida por $80\" para liquidar existencias."}</div>
                 <button
                   className="btn btn-secondary btn-sm"
                   style={{ alignSelf: 'flex-start', marginTop: 4, padding: '3px 8px', fontSize: 10 }}

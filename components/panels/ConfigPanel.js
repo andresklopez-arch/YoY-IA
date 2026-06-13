@@ -884,7 +884,7 @@ export default function ConfigPanel({ showToast }) {
                 {mesas.map(m => (
                   <div key={m.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 10 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <img src={`https://api.qrserver.com/v1/create-qr-code/?size=60x60&data=${encodeURIComponent('https://yoy-ia-billar.vercel.app/mesa/' + m.id)}`} width="36" height="36" style={{ borderRadius: 6, background: '#fff', padding: 2 }} />
+                      <img src={`https://api.qrserver.com/v1/create-qr-code/?size=60x60&data=${encodeURIComponent('https://yoy-ia-billar.vercel.app/mesa/' + m.id)}`} width="36" height="36" style={{ borderRadius: 6, background: '#fff', padding: 2 }} alt="QR Mesa" />
                       <div>
                         <span style={{ fontSize: 13, fontWeight: 700 }}>{m.nombre}</span>
                         <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Mesa ID: {m.id}</div>
@@ -1059,7 +1059,7 @@ export default function ConfigPanel({ showToast }) {
                 </div>
                 
                 <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 16 }}>
-                  Nota: El pie de página centralizado <strong>"YoY IA by Alfonso Iturbide"</strong> es un sello obligatorio de YoY IA y no puede ser alterado ni desactivado.
+                  Nota: El pie de página centralizado <strong>{"\"YoY IA by Alfonso Iturbide\""}</strong> es un sello obligatorio de YoY IA y no puede ser alterado ni desactivado.
                 </p>
               </div>
 

@@ -176,11 +176,11 @@ function CameraHandler({ mode, onCapture }) {
     };
   }, [mode]);
 
-  const simulateQRScan = () => {
+  function simulateQRScan() {
     playBeepSound();
     const randomRef = `QR_STP_${Math.floor(100000 + Math.random() * 900000)}`;
     onCapture({ reference: randomRef });
-  };
+  }
 
   const takePhoto = () => {
     if (videoRef.current && canvasRef.current) {
@@ -1618,6 +1618,25 @@ export default function MesasPanel({ showToast }) {
   const [modalVincular, setModalVincular] = useState(null);
   const [modalBitacora, setModalBitacora] = useState(false);
   const [bitacora, setBitacora] = useState([]);
+  async function registrarEvento(accion, detalle, monto = 0) {
+    const nombreOperador = user ? (user.name || user.alias || user.email) : 'Cajero Principal';
+    const rolOperador = user ? (user.role || 'staff') : 'staff';
+    const nuevoEvento = {
+      fecha: new Date().toISOString(),
+      accion,
+      detalle,
+      monto,
+      operador: nombreOperador,
+      rolOperador: rolOperador
+    };
+    try {
+      await addDoc(collection(db, 'bitacora'), nuevoEvento);
+    } catch (err) {
+      console.error("Error al registrar evento en Firestore:", err);
+      // Fallback local instantáneo si está offline
+      setBitacora(prev => [{ id: Date.now(), ...nuevoEvento }, ...prev].slice(0, 100));
+    }
+  }
   const [limiteBitacora, setLimiteBitacora] = useState(50);
   const [hasMoreBitacora, setHasMoreBitacora] = useState(true);
   const [modalComanda, setModalComanda] = useState(false);
@@ -2744,27 +2763,7 @@ export default function MesasPanel({ showToast }) {
     }
   }, [fila]);
 
-  // ── REGISTRO DE AUDITORÍA Y BITÁCORA OFUSCADA (SUGERENCIA 1 Y 2) ──────────
-  // ── REGISTRO DE AUDITORÍA Y BITÁCORA OFUSCADA (SUGERENCIA 1 Y 2) ──────────
-  const registrarEvento = async (accion, detalle, monto = 0) => {
-    const nombreOperador = user ? (user.name || user.alias || user.email) : 'Cajero Principal';
-    const rolOperador = user ? (user.role || 'staff') : 'staff';
-    const nuevoEvento = {
-      fecha: new Date().toISOString(),
-      accion,
-      detalle,
-      monto,
-      operador: nombreOperador,
-      rolOperador: rolOperador
-    };
-    try {
-      await addDoc(collection(db, 'bitacora'), nuevoEvento);
-    } catch (err) {
-      console.error("Error al registrar evento en Firestore:", err);
-      // Fallback local instantáneo si está offline
-      setBitacora(prev => [{ id: Date.now(), ...nuevoEvento }, ...prev].slice(0, 100));
-    }
-  };
+
 
   const limpiarBitacora = async () => {
     setBitacora([]);
