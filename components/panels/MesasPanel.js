@@ -3953,7 +3953,7 @@ function ModalCuentasActivas({
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" style={{ maxWidth: selectedEntity ? 760 : 500 }} onClick={e => e.stopPropagation()}>
+      <div className="modal" style={{ maxWidth: selectedEntity ? 760 : 500, maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }} onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <span className="modal-title">
             <i className="ri-folder-open-line" style={{ marginRight: 8, color: 'var(--bronze-light)' }} />
@@ -3963,7 +3963,7 @@ function ModalCuentasActivas({
             <i className="ri-close-line" style={{ fontSize: 20 }} />
           </button>
         </div>
-        <div className="modal-body" style={{ display: 'grid', gridTemplateColumns: selectedEntity ? '1.1fr 1.3fr' : '1fr', gap: 20 }}>
+        <div className="modal-body" style={{ display: 'grid', gridTemplateColumns: selectedEntity ? '1.1fr 1.3fr' : '1fr', gap: 20, overflowY: 'auto', flex: 1 }}>
           {/* Panel Izquierdo */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {/* Tabs */}
