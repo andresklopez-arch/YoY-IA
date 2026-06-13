@@ -2,6 +2,11 @@
 echo ================================
 echo  YoY IA BILLAR - Subir Cambios
 echo ================================
+
+echo  Desplegando reglas de seguridad de Firestore...
+call npx firebase deploy --only firestore:rules
+echo.
+
 git add .
 git commit -m "Actualizacion: %date% %time%"
 

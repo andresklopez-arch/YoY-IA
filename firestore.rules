@@ -12,8 +12,15 @@ service cloud.firestore {
     match /config/mesas_estado {
       allow read: if true;
       allow create, delete: if true;
-      // Permitir la actualización si el catálogo no supera 100 mesas
-      allow update: if request.resource.data.mesas.size() <= 100;
+      // Permitir la actualización si el catálogo no supera 100 mesas y tiene una estructura válida
+      allow update: if request.resource.data.mesas.size() <= 100 &&
+                      request.resource.data.mesas.all(m => 
+                        'id' in m && m.id is int && 
+                        'nombre' in m && m.nombre is string && 
+                        'tarifa' in m && (m.tarifa is int || m.tarifa is float) &&
+                        'tipo' in m && m.tipo is string &&
+                        'estado' in m && m.estado is string
+                      );
     }
 
     // Permitir acceso a la subcolección de respaldos cronológicos para el historial

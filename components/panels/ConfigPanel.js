@@ -389,7 +389,10 @@ export default function ConfigPanel({ showToast }) {
       setDoc(doc(db, 'config', 'mesas_estado'), {
         mesas: updatedMesas,
         updatedAt: serverTimestamp()
-      }).catch(err => console.error("Error al sincronizar catálogo tras modificar mesa:", err));
+      }).catch(err => {
+        console.error("Error al sincronizar catálogo tras modificar mesa:", err);
+        showToast('Error de permisos en la base de datos o límite de 100 mesas excedido', 'error');
+      });
       // Respaldar catálogo automáticamente
       setDoc(doc(db, 'config', 'mesas_estado_backup'), {
         mesas: updatedMesas,
@@ -421,7 +424,10 @@ export default function ConfigPanel({ showToast }) {
       setDoc(doc(db, 'config', 'mesas_estado'), {
         mesas: updated,
         updatedAt: serverTimestamp()
-      }).catch(err => console.error("Error al sincronizar catálogo tras agregar mesa:", err));
+      }).catch(err => {
+        console.error("Error al sincronizar catálogo tras agregar mesa:", err);
+        showToast('Error de permisos en la base de datos o límite de 100 mesas excedido', 'error');
+      });
       // Respaldar catálogo automáticamente
       setDoc(doc(db, 'config', 'mesas_estado_backup'), {
         mesas: updated,
@@ -453,7 +459,10 @@ export default function ConfigPanel({ showToast }) {
     setDoc(doc(db, 'config', 'mesas_estado'), {
       mesas: updated,
       updatedAt: serverTimestamp()
-    }).catch(err => console.error("Error al sincronizar catálogo tras eliminar mesa:", err));
+    }).catch(err => {
+      console.error("Error al sincronizar catálogo tras eliminar mesa:", err);
+      showToast('Error de permisos en la base de datos', 'error');
+    });
     // Respaldar catálogo automáticamente
     setDoc(doc(db, 'config', 'mesas_estado_backup'), {
       mesas: updated,
@@ -552,7 +561,7 @@ export default function ConfigPanel({ showToast }) {
       }
     } catch (err) {
       console.error("Error al restaurar respaldo:", err);
-      showToast('Error de red al intentar restaurar el respaldo', 'danger');
+      showToast('Error al restaurar el respaldo (verifica los permisos o el formato del catálogo)', 'danger');
     } finally {
       setRestoring(null);
     }
