@@ -453,7 +453,7 @@ export default function MesaClientePage({ params }) {
                 localStorage.setItem('yoy_cliente_nombre', mesa.cliente);
               } catch (e) {}
             }
-          } else if (mesa.cliente === 'Público') {
+          } else {
             setClienteNombre('');
             try {
               localStorage.removeItem('yoy_cliente_nombre');
@@ -900,6 +900,41 @@ export default function MesaClientePage({ params }) {
         <h2 style={{ fontSize: 22, fontWeight: 900, marginBottom: 12, color: 'var(--cl-bronze-light, #cd7f32)' }}>Mesa Inactiva</h2>
         <p style={{ color: 'rgba(255,255,255,0.6)', maxWidth: 340, fontSize: 14, lineHeight: 1.6, marginBottom: 24 }}>
           Esta mesa no se encuentra activa en el sistema de la caja. Por favor, solicita la apertura de la <strong>Mesa {mesaId}</strong> con el personal del establecimiento para poder realizar pedidos y solicitar asistencia.
+        </p>
+        <div style={{
+          padding: '12px 20px',
+          background: 'rgba(205,127,50,0.1)',
+          border: '1px solid rgba(205,127,50,0.25)',
+          borderRadius: 12,
+          fontSize: 12,
+          color: 'var(--cl-bronze-light, #cd7f32)',
+          fontWeight: 600
+        }}>
+          YoY IA Billar · Sistema de Gestión
+        </div>
+      </div>
+    );
+  }
+
+  if (!mesaInfo) {
+    return (
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: '100dvh',
+        padding: 24,
+        textAlign: 'center',
+        background: 'var(--cl-bg, #0b0f19)',
+        color: '#fff',
+        fontFamily: "'Inter', sans-serif"
+      }}>
+        <style>{`@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap');`}</style>
+        <div style={{ fontSize: 64, marginBottom: 20 }}>⚠️</div>
+        <h2 style={{ fontSize: 22, fontWeight: 900, marginBottom: 12, color: 'var(--cl-bronze-light, #cd7f32)' }}>Mesa no registrada</h2>
+        <p style={{ color: 'rgba(255,255,255,0.6)', maxWidth: 340, fontSize: 14, lineHeight: 1.6, marginBottom: 24 }}>
+          Esta mesa no existe en el sistema de la caja. Por favor, verifica el número de mesa o contacta al personal del establecimiento.
         </p>
         <div style={{
           padding: '12px 20px',
