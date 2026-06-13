@@ -2365,10 +2365,7 @@ export default function MesasPanel({ showToast }) {
     });
     return unsub;
   }, []);
-  const [fila, setFila] = useState([
-    { id: 1, cliente: 'Roberto G.', contacto: '55-1234-5678', tipo: 'Pool 9B', personas: 4, registro: Date.now() - 20*60000 },
-    { id: 2, cliente: 'Diana L.', contacto: '55-8765-4321', tipo: 'Snooker', personas: 2, registro: Date.now() - 5*60000 },
-  ]);
+  const [fila, setFila] = useState([]);
   const tick = useLiveTick();
 
   // Auto-liberador de reservaciones expiradas (tiempo configurable)
