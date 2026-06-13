@@ -2614,18 +2614,48 @@ export default function MesasPanel({ showToast }) {
     }
 
     if (targetId) {
-      await actualizarCuentasFirestore(prev => prev.map(c => String(c.id) === String(targetId)
-        ? { 
-            ...c, 
-            tiempoJuego: c.tiempoJuego + costo,
-            cliente: nombreNuevo && nombreNuevo.includes('Pendiente')
-              ? nombreNuevo
-              : (c.cliente.toLowerCase() === `mesa ${modalCerrar.id}`.toLowerCase()
-                  ? `Mesa ${modalCerrar.id} - Pendiente`
-                  : `${getCleanClientName(c.cliente)} (Mesa ${modalCerrar.id} - Pendiente)`)
+      await actualizarCuentasFirestore(prev => {
+        const cuentaMesaActual = prev.find(c => c.mesaId === modalCerrar.id);
+        let consumosAFusionar = [];
+        if (cuentaMesaActual && String(cuentaMesaActual.id) !== String(targetId)) {
+          consumosAFusionar = cuentaMesaActual.consumos || [];
+        }
+
+        let tempCuentas = prev.map(c => {
+          if (String(c.id) === String(targetId)) {
+            const nuevosConsumos = (c.consumos || []).map(i => ({ ...i }));
+            consumosAFusionar.forEach(itemItem => {
+              const existeItem = nuevosConsumos.find(i => 
+                (itemItem.productoId && i.productoId === itemItem.productoId) || 
+                i.producto.toLowerCase() === itemItem.producto.toLowerCase()
+              );
+              if (existeItem) {
+                existeItem.cantidad += itemItem.cantidad;
+              } else {
+                nuevosConsumos.push({ ...itemItem });
+              }
+            });
+
+            return { 
+              ...c, 
+              tiempoJuego: c.tiempoJuego + costo,
+              cliente: nombreNuevo && nombreNuevo.includes('Pendiente')
+                ? nombreNuevo
+                : (c.cliente.toLowerCase() === `mesa ${modalCerrar.id}`.toLowerCase()
+                    ? `Mesa ${modalCerrar.id} - Pendiente`
+                    : `${getCleanClientName(c.cliente)} (Mesa ${modalCerrar.id} - Pendiente)`),
+              consumos: nuevosConsumos
+            };
           }
-        : c
-      ));
+          return c;
+        });
+
+        if (cuentaMesaActual && String(cuentaMesaActual.id) !== String(targetId)) {
+          tempCuentas = tempCuentas.filter(c => String(c.id) !== String(cuentaMesaActual.id));
+        }
+
+        return tempCuentas;
+      });
       const targetCuenta = cuentasActivas.find(c => String(c.id) === String(targetId));
       const clientName = targetCuenta ? targetCuenta.cliente : targetId;
       showToast(`Mesa cerrada. Costo de $${costo} MXN agregado a la cuenta del cliente.`, 'success');
@@ -4216,6 +4246,9 @@ function ModalCuentasActivas({
 
   const isCuentaHuerfana = (c) => {
     if (!c) return false;
+    if (c.cliente && isRealName(getCleanClientName(c.cliente))) {
+      return false;
+    }
     const mId = getMesaIdOfCuenta(c);
     if (mId) {
       const m = mesas.find(tbl => tbl.id === mId);
