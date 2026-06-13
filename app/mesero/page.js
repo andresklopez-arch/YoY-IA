@@ -35,12 +35,33 @@ function MeseroContent() {
   const [mesas, setMesas] = useState([]);
   const [cuentas, setCuentas] = useState([]);
 
+  // Buscar mesa asociada a una cuenta
+  const findMesaAsociada = (c) => {
+    return mesas.find(m => 
+      (c.mesaId && String(m.id) === String(c.mesaId)) ||
+      (c.cliente && (
+        (m.cliente && !['público', 'publico'].includes(m.cliente.toLowerCase()) && c.cliente.toLowerCase().startsWith(m.cliente.toLowerCase())) ||
+        c.cliente.toLowerCase() === `mesa ${m.id}` ||
+        c.cliente.toLowerCase() === `mesa ${m.id} - pendiente` ||
+        c.cliente.toLowerCase().startsWith(`mesa ${m.id} `)
+      ))
+    );
+  };
+
   // Unificar cuentas reales con las mesas ocupadas que aún no tengan cuenta registrada
   const getCuentasActivasUnificadas = () => {
     const unificadas = [...cuentas];
     mesas.forEach(m => {
       if (m.estado === 'ocupada') {
-        const tieneCuenta = cuentas.some(c => c.mesaId === m.id);
+        const tieneCuenta = cuentas.some(c => 
+          (c.mesaId && String(c.mesaId) === String(m.id)) ||
+          (c.cliente && (
+            (m.cliente && !['público', 'publico'].includes(m.cliente.toLowerCase()) && c.cliente.toLowerCase().startsWith(m.cliente.toLowerCase())) ||
+            c.cliente.toLowerCase() === `mesa ${m.id}` ||
+            c.cliente.toLowerCase() === `mesa ${m.id} - pendiente` ||
+            c.cliente.toLowerCase().startsWith(`mesa ${m.id} `)
+          ))
+        );
         if (!tieneCuenta) {
           unificadas.push({
             id: `mesa_${m.id}`,
@@ -172,7 +193,8 @@ function MeseroContent() {
 
   // Estados para el panel de Cuentas Activas integrado
   const [expandedIds, setExpandedIds] = useState({});
-  const [filtroTexto, setFiltroTexto] = useState('');
+  const [filtroMesaTexto, setFiltroMesaTexto] = useState('');
+  const [filtroCuentaTexto, setFiltroCuentaTexto] = useState('');
   const [tick, setTick] = useState(0);
   const [loadingCuentaId, setLoadingCuentaId] = useState(null);
   const [localRequestedCuentas, setLocalRequestedCuentas] = useState(() => {
@@ -581,7 +603,7 @@ function MeseroContent() {
     if (typeof navigator !== 'undefined' && navigator.vibrate) {
       navigator.vibrate(50);
     }
-    const mesaAsociada = mesas.find(m => m.id === cuenta.mesaId || (m.cliente && m.cliente.toLowerCase() === cuenta.cliente.toLowerCase()));
+    const mesaAsociada = findMesaAsociada(cuenta);
     const mesaId = mesaAsociada ? mesaAsociada.id : 0;
     const consumosTotal = cuenta.consumos.reduce((sum, item) => sum + item.precio * item.cantidad, 0);
     const costoTiempo = (mesaAsociada && mesaAsociada.estado === 'ocupada')
@@ -649,20 +671,30 @@ function MeseroContent() {
     }
   };
 
-  const getCuentasFiltradas = () => {
-    const unificadas = getCuentasActivasUnificadas();
-    const term = filtroTexto.trim().toLowerCase();
-    if (!term) return unificadas;
-    return unificadas.filter(c => {
-      const mesaAsociada = mesas.find(m => m.id === c.mesaId || (m.cliente && m.cliente.toLowerCase() === c.cliente.toLowerCase()));
+  const getMesasFiltradas = () => {
+    const list = getCuentasActivasUnificadas().filter(c => c.mesaId || findMesaAsociada(c));
+    const term = filtroMesaTexto.trim().toLowerCase();
+    if (!term) return list;
+    return list.filter(c => {
+      const mesaAsociada = findMesaAsociada(c);
       const matchCliente = c.cliente.toLowerCase().includes(term);
       
       const numTerm = parseInt(term, 10);
-      const matchMesaId = !isNaN(numTerm) && (c.mesaId === numTerm || (mesaAsociada && mesaAsociada.id === numTerm));
+      const matchMesaId = !isNaN(numTerm) && (
+        (c.mesaId && String(c.mesaId) === String(numTerm)) || 
+        (mesaAsociada && String(mesaAsociada.id) === String(numTerm))
+      );
       
       const matchMesaText = mesaAsociada ? `mesa ${mesaAsociada.id}`.includes(term) : false;
       return matchCliente || matchMesaId || matchMesaText;
     });
+  };
+
+  const getCuentasDirectasFiltradas = () => {
+    const list = getCuentasActivasUnificadas().filter(c => !c.mesaId && !findMesaAsociada(c));
+    const term = filtroCuentaTexto.trim().toLowerCase();
+    if (!term) return list;
+    return list.filter(c => c.cliente.toLowerCase().includes(term));
   };
 
   // ── Filtrado ─────────────────────────────────────────────
@@ -831,11 +863,11 @@ function MeseroContent() {
         `}</style>
 
         <div className="waiter-dashboard-grid">
-          {/* ── COLUMNA 1: CUENTAS ACTIVAS / SALÓN ── */}
+          {/* ── COLUMNA 1: MESAS ACTIVAS ── */}
           <div className="section-card">
             <div className="section-header-title">
-              <i className="ri-secure-payment-line" style={{ color: 'var(--success)' }} />
-              Salón: Cuentas Activas ({getCuentasActivasUnificadas().length})
+              <i className="ri-golf-ball-line" style={{ color: 'var(--bronze-light)' }} />
+              Salón: Mesas Activas ({getMesasFiltradas().length})
             </div>
 
             {/* Buscador Interactivo Inline */}
@@ -844,9 +876,9 @@ function MeseroContent() {
                 <i className="ri-search-line" style={{ position: 'absolute', left: 10, color: 'var(--text-muted)' }} />
                 <input
                   type="text"
-                  placeholder="Buscar por cliente o mesa..."
-                  value={filtroTexto}
-                  onChange={e => setFiltroTexto(e.target.value)}
+                  placeholder="Buscar mesa..."
+                  value={filtroMesaTexto}
+                  onChange={e => setFiltroMesaTexto(e.target.value)}
                   style={{
                     width: '100%',
                     background: 'var(--bg-main)',
@@ -858,9 +890,9 @@ function MeseroContent() {
                     outline: 'none'
                   }}
                 />
-                {filtroTexto && (
+                {filtroMesaTexto && (
                   <button 
-                    onClick={() => setFiltroTexto('')}
+                    onClick={() => setFiltroMesaTexto('')}
                     style={{ position: 'absolute', right: 10, background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
                   >
                     <i className="ri-close-line" />
@@ -874,7 +906,7 @@ function MeseroContent() {
               <button
                 type="button"
                 onClick={() => {
-                  const filteredList = getCuentasFiltradas();
+                  const filteredList = getMesasFiltradas();
                   const allExpanded = filteredList.length > 0 && filteredList.every(c => !!expandedIds[c.id]);
                   if (allExpanded) {
                     setExpandedIds({});
@@ -894,19 +926,19 @@ function MeseroContent() {
                   padding: 0
                 }}
               >
-                {getCuentasFiltradas().length > 0 && getCuentasFiltradas().every(c => !!expandedIds[c.id]) ? 'Contraer todo ▲' : 'Expandir todo ▼'}
+                {getMesasFiltradas().length > 0 && getMesasFiltradas().every(c => !!expandedIds[c.id]) ? 'Contraer todo ▲' : 'Expandir todo ▼'}
               </button>
             </div>
 
-            {/* Listado de Cuentas */}
+            {/* Listado de Mesas */}
             <div className="scrollable-list">
-              {getCuentasFiltradas().length === 0 ? (
+              {getMesasFiltradas().length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-muted)', fontSize: 13 }}>
-                  {getCuentasActivasUnificadas().length === 0 ? 'No hay cuentas activas.' : 'No se encontraron resultados.'}
+                  {getCuentasActivasUnificadas().filter(c => c.mesaId || findMesaAsociada(c)).length === 0 ? 'No hay mesas activas.' : 'No se encontraron resultados.'}
                 </div>
               ) : (
-                getCuentasFiltradas().map(c => {
-                  const mesaAsociada = mesas.find(m => m.id === c.mesaId || (m.cliente && m.cliente.toLowerCase() === c.cliente.toLowerCase()));
+                getMesasFiltradas().map(c => {
+                  const mesaAsociada = findMesaAsociada(c);
                   const consumosTotal = c.consumos.reduce((sum, item) => sum + item.precio * item.cantidad, 0);
                   const costoTiempo = (mesaAsociada && mesaAsociada.estado === 'ocupada')
                     ? (mesaAsociada.socios ? 0 : calcCosto(mesaAsociada))
@@ -922,12 +954,12 @@ function MeseroContent() {
 
                   const displayClienteName = c.mesaId 
                     ? (c.cliente && c.cliente.toLowerCase().startsWith('mesa ') ? `Mesa ${c.mesaId}` : c.cliente)
-                    : c.cliente;
+                    : (mesaAsociada ? (c.cliente && c.cliente.toLowerCase().startsWith('mesa ') ? `Mesa ${mesaAsociada.id}` : c.cliente) : c.cliente);
 
                   const tieneAsistenciaPendiente = (alertasAsistencia || []).some(alerta => 
                     !alerta.atendidoMesero &&
                     (
-                      (c.mesaId && alerta.mesaId === c.mesaId) ||
+                      (c.mesaId && String(alerta.mesaId) === String(c.mesaId)) ||
                       (alerta.cliente && c.cliente && alerta.cliente.toLowerCase() === c.cliente.toLowerCase())
                     )
                   );
@@ -953,7 +985,7 @@ function MeseroContent() {
                             )}
                           </div>
                           <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 1 }}>
-                            {c.mesaId ? `📍 Mesa ${c.mesaId}` : (mesaAsociada ? `📍 Mesa ${mesaAsociada.id}` : '👤 Cuenta Directa')} · Tiempo: ${costoTiempo}
+                            📍 Mesa {c.mesaId || (mesaAsociada ? mesaAsociada.id : '—')} · Tiempo: ${costoTiempo}
                           </div>
                         </div>
                         
@@ -1039,137 +1071,197 @@ function MeseroContent() {
             </div>
           </div>
 
-          {/* ── COLUMNA 2: ALERTAS Y TAREAS PENDIENTES ── */}
+          {/* ── COLUMNA 2: CUENTAS DIRECTAS ── */}
           <div className="section-card">
             <div className="section-header-title">
-              <i className="ri-restaurant-line" style={{ color: 'var(--bronze-light)' }} />
-              Tareas y Pedidos Pendientes
+              <i className="ri-user-line" style={{ color: 'var(--success)' }} />
+              Cuentas Directas ({getCuentasDirectasFiltradas().length})
             </div>
 
-            {/* Tabs de Filtro de Alertas */}
-            <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
-              {[
-                { key: 'todos',      label: 'Todos',      count: counts.todos },
-                { key: 'pedido',     label: 'Pedidos',    count: counts.pedido },
-                { key: 'asistencia', label: 'Asistencia', count: counts.asistencia }
-              ].map(t => (
-                <button
-                  key={t.key}
-                  onClick={() => setFiltro(t.key)}
+            {/* Buscador Interactivo Inline */}
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                <i className="ri-search-line" style={{ position: 'absolute', left: 10, color: 'var(--text-muted)' }} />
+                <input
+                  type="text"
+                  placeholder="Buscar cliente..."
+                  value={filtroCuentaTexto}
+                  onChange={e => setFiltroCuentaTexto(e.target.value)}
                   style={{
-                    background: filtro === t.key ? 'var(--bronze)' : 'var(--bg-elevated)',
-                    color: filtro === t.key ? '#0d0d0f' : 'var(--text-secondary)',
-                    border: 'none',
-                    padding: '4px 10px',
-                    borderRadius: 12,
-                    fontSize: 11,
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    transition: 'all 0.15s'
+                    width: '100%',
+                    background: 'var(--bg-main)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 8,
+                    padding: '6px 12px 6px 32px',
+                    color: '#fff',
+                    fontSize: 12,
+                    outline: 'none'
                   }}
-                >
-                  {t.label} ({t.count})
-                </button>
-              ))}
+                />
+                {filtroCuentaTexto && (
+                  <button 
+                    onClick={() => setFiltroCuentaTexto('')}
+                    style={{ position: 'absolute', right: 10, background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                  >
+                    <i className="ri-close-line" />
+                  </button>
+                )}
+              </div>
             </div>
 
-            {/* Listado de Pedidos y Alertas */}
+            {/* Botón de Expansión Global */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+              <button
+                type="button"
+                onClick={() => {
+                  const filteredList = getCuentasDirectasFiltradas();
+                  const allExpanded = filteredList.length > 0 && filteredList.every(c => !!expandedIds[c.id]);
+                  if (allExpanded) {
+                    setExpandedIds({});
+                  } else {
+                    const next = {};
+                    filteredList.forEach(c => { next[c.id] = true; });
+                    setExpandedIds(next);
+                  }
+                }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--bronze-light)',
+                  fontSize: 11,
+                  cursor: 'pointer',
+                  textDecoration: 'underline',
+                  padding: 0
+                }}
+              >
+                {getCuentasDirectasFiltradas().length > 0 && getCuentasDirectasFiltradas().every(c => !!expandedIds[c.id]) ? 'Contraer todo ▲' : 'Expandir todo ▼'}
+              </button>
+            </div>
+
+            {/* Listado de Cuentas Directas */}
             <div className="scrollable-list">
-              {pedidosFiltrados.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-muted)' }}>
-                  <i className="ri-checkbox-circle-line" style={{ fontSize: 40, display: 'block', marginBottom: 10, color: 'var(--success)' }} />
-                  <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>¡Todo al día!</div>
-                  <div style={{ fontSize: 12 }}>No hay alertas ni pedidos pendientes.</div>
+              {getCuentasDirectasFiltradas().length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-muted)', fontSize: 13 }}>
+                  {getCuentasActivasUnificadas().filter(c => !c.mesaId && !findMesaAsociada(c)).length === 0 ? 'No hay cuentas directas.' : 'No se encontraron resultados.'}
                 </div>
               ) : (
-                pedidosFiltrados.map(pedido => {
-                  const cfg = tipoConfig[pedido.tipo] || tipoConfig.pedido;
-                  const urgente = pedido.createdAt?.toDate && (Date.now() - pedido.createdAt.toDate().getTime()) > 5 * 60 * 1000;
+                getCuentasDirectasFiltradas().map(c => {
+                  const consumosTotal = c.consumos.reduce((sum, item) => sum + item.precio * item.cantidad, 0);
+                  const costoTiempo = c.tiempoJuego || 0;
+                  const total = costoTiempo + consumosTotal;
+                  const isExpanded = !!expandedIds[c.id];
+
+                  const cuentaSolicitada = (alertasAsistencia || []).some(alerta => 
+                    alerta.tipo === 'cuenta' && 
+                    alerta.cliente && 
+                    alerta.cliente.toLowerCase() === c.cliente.toLowerCase()
+                  ) || !!localRequestedCuentas[c.cliente.toLowerCase()];
+
+                  const tieneAsistenciaPendiente = (alertasAsistencia || []).some(alerta => 
+                    !alerta.atendidoMesero &&
+                    alerta.cliente && c.cliente && alerta.cliente.toLowerCase() === c.cliente.toLowerCase()
+                  );
 
                   return (
-                    <div key={pedido.id} style={{
-                      background: pedido.estado === 'listo' ? 'rgba(34,197,94,0.06)' : cfg.bg,
-                      border: pedido.estado === 'listo' ? '1px solid var(--success)' : `1px solid ${cfg.color}30`,
-                      borderLeft: pedido.estado === 'listo' ? '4px solid var(--success)' : `4px solid ${cfg.color}`,
-                      borderRadius: 12,
-                      padding: 14,
-                      animation: pedido.estado === 'listo' ? 'pulseBorder 2s infinite, slideUp 0.25s ease' : 'slideUp 0.25s ease',
-                      boxShadow: pedido.estado === 'listo' ? '0 0 16px rgba(34,197,94,0.15)' : urgente ? `0 0 16px ${cfg.color}15` : 'none',
+                    <div key={c.id} style={{
+                      background: 'var(--bg-elevated)',
+                      border: '1px solid var(--border)',
+                      borderRadius: 10,
+                      padding: '8px 12px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 6,
+                      contentVisibility: 'auto',
+                      containIntrinsicSize: '0 44px'
                     }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: 800, fontSize: 13, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'flex', alignItems: 'center' }}>
+                            {c.cliente}
+                            {tieneAsistenciaPendiente && (
+                              <i className="ri-notification-3-fill wiggle-bell" style={{ color: 'var(--bronze-light)', marginLeft: 6, fontSize: 12, verticalAlign: 'middle' }} title="Llamada de asistencia o pedido pendiente" />
+                            )}
+                          </div>
+                          <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 1 }}>
+                            👤 Cuenta Directa · Consumo: ${consumosTotal}
+                          </div>
+                        </div>
+                        
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                          <div style={{ fontSize: 24 }}>{pedido.icono || (pedido.estado === 'listo' ? '🍳' : cfg.icon)}</div>
-                          <div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                              <span style={{ fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 800, color: pedido.estado === 'listo' ? 'var(--success)' : cfg.color }}>
-                                Mesa {pedido.mesaId}
-                              </span>
-                              {urgente && <span style={{ fontSize: 8, background: 'var(--danger)', color: '#fff', padding: '1px 5px', borderRadius: 999, fontWeight: 800 }}>URGENTE</span>}
-                            </div>
-                            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>
-                              {pedido.cliente} · {tiempoTranscurrido(pedido.createdAt)} · {cfg.label}
-                            </div>
+                          <div style={{ textAlign: 'right' }}>
+                            <div style={{ fontSize: 14, fontWeight: 900, color: 'var(--success)' }}>${total} MXN</div>
+                            <button
+                              onClick={() => setExpandedIds(prev => ({ ...prev, [c.id]: !prev[c.id] }))}
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                color: 'var(--bronze-light)',
+                                fontSize: 10,
+                                cursor: 'pointer',
+                                textDecoration: 'underline',
+                                padding: 0,
+                                lineHeight: 1
+                              }}
+                            >
+                              {isExpanded ? 'Ocultar ▲' : 'Detalle ▼'}
+                            </button>
                           </div>
-                        </div>
-                        <div style={{ textAlign: 'right' }}>
-                          {pedido.tipo === 'pedido' && (
-                            <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--bronze-light)' }}>${pedido.total}</div>
-                          )}
-                          <div style={{
-                            fontSize: 9, fontWeight: 800, marginTop: 3, padding: '2px 6px', borderRadius: 999,
-                            background: pedido.estado === 'listo' ? 'rgba(34,197,94,0.15)' : pedido.estado === 'en_camino' ? 'rgba(245,158,11,0.15)' : 'rgba(59,130,246,0.15)',
-                            color: pedido.estado === 'listo' ? 'var(--success)' : pedido.estado === 'en_camino' ? 'var(--warning)' : 'var(--info)',
-                            border: pedido.estado === 'listo' ? '1px solid var(--success)' : 'none',
-                          }}>
-                            {pedido.estado === 'listo' ? '🍳 ¡Listo en Cocina!' : pedido.estado === 'en_camino' ? '🚀 En camino' : '⏳ Pendiente'}
-                          </div>
-                        </div>
-                      </div>
 
-                      {/* Items del pedido */}
-                      {pedido.tipo === 'pedido' && pedido.items && (
-                        <div style={{ background: 'rgba(0,0,0,0.2)', borderRadius: 8, padding: '8px 10px', marginBottom: 10 }}>
-                          {pedido.items.map((item, i) => (
-                            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '2px 0', borderBottom: i < pedido.items.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
-                              <span>{item.cantidad}× {item.nombre}</span>
-                              <span style={{ color: 'var(--bronze-light)', fontWeight: 600 }}>${item.subtotal}</span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                      {/* Asistencia tipo */}
-                      {pedido.tipo === 'asistencia' && (
-                        <div style={{ background: 'rgba(0,0,0,0.2)', borderRadius: 8, padding: '8px 12px', marginBottom: 10, fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>
-                          {pedido.etiqueta}
-                        </div>
-                      )}
-
-                      {/* Cuenta solicitada */}
-                      {pedido.tipo === 'cuenta' && (
-                        <div style={{ background: 'rgba(0,0,0,0.2)', borderRadius: 8, padding: '8px 12px', marginBottom: 10 }}>
-                          <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Total a cobrar:</div>
-                          <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--success)' }}>${pedido.totalAcumulado || '—'}</div>
-                        </div>
-                      )}
-
-                      {/* Acciones */}
-                      <div style={{ display: 'flex', gap: 6 }}>
-                        {(pedido.estado === 'pendiente' || pedido.estado === 'listo') && (
                           <button
-                            onClick={() => marcarEnCamino(pedido.id)}
-                            style={{ flex: 1, padding: '8px 10px', background: pedido.estado === 'listo' ? 'rgba(245,158,11,0.12)' : `${cfg.color}15`, border: `1px solid ${pedido.estado === 'listo' ? 'var(--warning)' : `${cfg.color}40`}`, borderRadius: 8, color: pedido.estado === 'listo' ? 'var(--warning)' : cfg.color, fontWeight: 700, fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}
+                            className="btn btn-sm"
+                            onClick={() => !cuentaSolicitada && loadingCuentaId !== c.id && pedirCuenta(c)}
+                            disabled={cuentaSolicitada || loadingCuentaId === c.id}
+                            style={{
+                              background: (cuentaSolicitada || loadingCuentaId === c.id)
+                                ? 'var(--bg-hover)' 
+                                : 'linear-gradient(135deg, var(--bronze), var(--bronze-light))',
+                              color: (cuentaSolicitada || loadingCuentaId === c.id) ? 'var(--text-muted)' : '#0d0d0f',
+                              fontWeight: 700,
+                              fontSize: 10,
+                              padding: '4px 10px',
+                              borderRadius: 6,
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 3,
+                              border: 'none',
+                              cursor: (cuentaSolicitada || loadingCuentaId === c.id) ? 'not-allowed' : 'pointer',
+                              whiteSpace: 'nowrap',
+                              height: 28
+                            }}
                           >
-                            <i className="ri-run-line" /> En camino
+                            {loadingCuentaId === c.id ? (
+                              <i className="ri-loader-4-line ri-spin" style={{ fontSize: 12 }} />
+                            ) : (
+                              <i className="ri-secure-payment-line" style={{ fontSize: 12 }} />
+                            )}
+                            {loadingCuentaId === c.id ? 'Enviando...' : (cuentaSolicitada ? 'Pedido...' : 'Cobrar')}
                           </button>
-                        )}
-                        <button
-                          onClick={() => marcarEntregado(pedido.id)}
-                          style={{ flex: 1, padding: '8px 10px', background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 8, color: 'var(--success)', fontWeight: 700, fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}
-                        >
-                          <i className="ri-check-double-line" /> Entregado ✓
-                        </button>
+                        </div>
                       </div>
+
+                      {isExpanded && (
+                        <div style={{
+                          background: 'rgba(0, 0, 0, 0.15)',
+                          borderRadius: 6,
+                          padding: 8,
+                          fontSize: 11,
+                          marginTop: 2,
+                          border: '1px solid rgba(255, 255, 255, 0.05)'
+                        }}>
+                          <div style={{ fontWeight: 'bold', color: 'var(--bronze-light)', marginBottom: 2 }}>Productos consumidos:</div>
+                          {c.consumos.length === 0 ? (
+                            <div style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>Sin consumos registrados</div>
+                          ) : (
+                            <ul style={{ margin: 0, paddingLeft: 14, color: 'var(--text-secondary)' }}>
+                              {c.consumos.map((item, idx) => (
+                                <li key={idx} style={{ marginBottom: 1 }}>
+                                  {item.cantidad}x {item.producto} (${item.precio * item.cantidad})
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      )}
                     </div>
                   );
                 })

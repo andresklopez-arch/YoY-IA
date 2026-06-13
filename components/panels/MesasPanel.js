@@ -1224,7 +1224,7 @@ export default function MesasPanel({ showToast }) {
   // Cargar un pedido enviado por el cliente directamente a su cuenta de mesa y descontar inventario
   const cargarPedidoACuenta = async (mesaId, pedidoDoc, isAuto = false) => {
     if (pedidoDoc.cargadoACuenta) return;
-    const targetMesa = mesaId ? mesas.find(m => m.id === mesaId) : null;
+    const targetMesa = mesaId ? mesasRef.current.find(m => m.id === mesaId) : null;
     if (mesaId && !targetMesa) return;
 
     const orderItems = pedidoDoc.items || [];
@@ -1285,9 +1285,9 @@ export default function MesasPanel({ showToast }) {
       orderClient = `Mesa ${mesaId}`;
     }
     let clienteName = (targetMesa ? targetMesa.cliente : null) || orderClient || `Mesa ${mesaId}`;
-    let updatedMesas = mesas;
+    let updatedMesas = mesasRef.current;
     if (targetMesa && targetMesa.estado !== 'ocupada') {
-      updatedMesas = mesas.map(m => m.id === mesaId
+      updatedMesas = mesasRef.current.map(m => m.id === mesaId
         ? { ...m, estado: 'ocupada', cliente: clienteName, inicio: Date.now(), clienteUid: pedidoDoc.clienteUid || '' }
         : m
       );
