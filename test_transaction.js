@@ -25,7 +25,7 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 async function run() {
-  const orderId = 'xqHoyY7cpTRU605p6iaU';
+  const orderId = 'GKHJmcNqFh2nZKGPKnCG';
   const orderSnap = await getDoc(doc(db, 'mesa_pedidos', orderId));
   if (!orderSnap.exists()) {
     console.error("No existe el pedido");

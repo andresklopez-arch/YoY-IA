@@ -1,5 +1,5 @@
 const { initializeApp } = require('firebase/app');
-const { getFirestore, doc, getDoc, collection, getDocs } = require('firebase/firestore');
+const { getFirestore, doc, getDoc, collection, getDocs, query, where } = require('firebase/firestore');
 const fs = require('fs');
 
 // Leer .env.local manualmente
@@ -26,9 +26,9 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 async function run() {
-  const invSnap = await getDoc(doc(db, 'config', 'inventario'));
-  console.log("=== INVENTARIO ===");
-  console.log(JSON.stringify(invSnap.data(), null, 2));
+  const snap = await getDoc(doc(db, 'config', 'cuentas_estado'));
+  console.log("=== CUENTAS ===");
+  console.log(JSON.stringify(snap.data(), null, 2));
   process.exit(0);
 }
 
