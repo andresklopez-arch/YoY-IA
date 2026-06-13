@@ -26,9 +26,11 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 async function run() {
-  const snap = await getDoc(doc(db, 'config', 'cuentas_estado'));
-  console.log("=== CUENTAS ===");
-  console.log(JSON.stringify(snap.data(), null, 2));
+  const snap = await getDocs(query(collection(db, 'mesa_pedidos'), where('mesaId', '==', 9), where('total', '==', 240)));
+  console.log("=== PEDIDO ALITAS ===");
+  snap.forEach(d => {
+    console.log(d.id, JSON.stringify(d.data(), null, 2));
+  });
   process.exit(0);
 }
 

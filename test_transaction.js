@@ -25,7 +25,7 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 async function run() {
-  const orderId = 'GKHJmcNqFh2nZKGPKnCG';
+  const orderId = 'jWbeo8pZPGiASNwsf5iV';
   const orderSnap = await getDoc(doc(db, 'mesa_pedidos', orderId));
   if (!orderSnap.exists()) {
     console.error("No existe el pedido");
@@ -64,7 +64,9 @@ async function run() {
       // Buscar o crear la cuenta activa
       const cuentaExistente = currentCuentas.find(c => 
         c.mesaId === orderData.mesaId || 
-        (c.cliente && c.cliente.toLowerCase() === clienteName.toLowerCase())
+        (c.cliente && 
+         !['público', 'publico'].includes(clienteName.toLowerCase()) && 
+         c.cliente.toLowerCase() === clienteName.toLowerCase())
       );
 
       console.log("Cuenta existente encontrada:", cuentaExistente);
