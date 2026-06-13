@@ -94,7 +94,7 @@ export default function ConfigPanel({ showToast }) {
     return unsub;
   }, []);
 
-  const [restoring, setRestoring] = useState(false);
+  const [restoring, setRestoring] = useState(null); // null | 'descargando' | 'validando' | 'aplicando'
 
   // --- Estados de Ticket Config ---
   const [ticketConfig, setTicketConfig] = useState({
@@ -491,7 +491,7 @@ export default function ConfigPanel({ showToast }) {
 
   const handleRestoreBackup = async (customBackup = null) => {
     if (restoring) return;
-    setRestoring(true);
+    setRestoring('descargando');
     try {
       let data = null;
       if (customBackup) {
@@ -504,6 +504,7 @@ export default function ConfigPanel({ showToast }) {
       }
 
       if (data) {
+        setRestoring('validando');
         const backupMesas = data.mesas || [];
         const backupAt = data.backupAt?.toDate ? data.backupAt.toDate().toLocaleString() : (data.backupAt ? new Date(data.backupAt).toLocaleString() : 'fecha desconocida');
         const reason = data.reason || 'Desconocido';
@@ -535,6 +536,7 @@ export default function ConfigPanel({ showToast }) {
 
         if (!confirmar) return;
 
+        setRestoring('aplicando');
         // Restaurar estado de mesas
         setMesas(backupMesas);
         localStorage.setItem('yoy_billar_mesas', obfuscate(backupMesas));
@@ -552,7 +554,7 @@ export default function ConfigPanel({ showToast }) {
       console.error("Error al restaurar respaldo:", err);
       showToast('Error de red al intentar restaurar el respaldo', 'danger');
     } finally {
-      setRestoring(false);
+      setRestoring(null);
     }
   };
 
@@ -990,11 +992,15 @@ export default function ConfigPanel({ showToast }) {
                 className="btn btn-secondary" 
                 style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }} 
                 onClick={() => handleRestoreBackup()}
-                disabled={restoring}
+                disabled={!!restoring}
               >
                 {restoring ? (
                   <>
-                    <i className="ri-loader-4-line ri-spin" style={{ color: 'var(--bronze-light)' }} /> Restaurando...
+                    <i className="ri-loader-4-line ri-spin" style={{ color: 'var(--bronze-light)' }} /> {
+                      restoring === 'descargando' ? 'Descargando...' :
+                      restoring === 'validando' ? 'Validando...' :
+                      restoring === 'aplicando' ? 'Aplicando...' : 'Restaurando...'
+                    }
                   </>
                 ) : (
                   <>
@@ -1024,7 +1030,7 @@ export default function ConfigPanel({ showToast }) {
                             style={{ width: 24, height: 24, minWidth: 24, padding: 0 }} 
                             title="Restaurar esta versión"
                             onClick={() => handleRestoreBackup(h)}
-                            disabled={restoring}
+                            disabled={!!restoring}
                           >
                             {restoring ? (
                               <i className="ri-loader-4-line ri-spin" style={{ fontSize: 12, color: 'var(--bronze-light)' }} />
