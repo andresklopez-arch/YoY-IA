@@ -453,11 +453,26 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
   };
 
   const getMatchingActiveAccounts = (query) => {
-    const term = (query || '').trim().toLowerCase();
+    const term = normalizeText(query);
     if (!term || term.length < 2) return [];
     return cuentasActivas.filter(c => {
-      const cleanClient = getCleanClientName(c.cliente).toLowerCase();
-      return cleanClient.includes(term);
+      const cleanClient = getCleanClientName(c.cliente);
+      const normalizedClient = normalizeText(cleanClient);
+      
+      // Match 1: Coincidencia por nombre normalizado (acentos ignorados)
+      if (normalizedClient.includes(term)) return true;
+      
+      // Match 2: Coincidencia por teléfono del cliente registrado
+      const registeredClient = clientesRegistrados.find(
+        rc => normalizeText(rc.nombre) === normalizedClient
+      );
+      if (registeredClient && registeredClient.telefono) {
+        const cleanPhone = registeredClient.telefono.replace(/\D/g, '');
+        const cleanTerm = term.replace(/\D/g, '');
+        if (cleanTerm && cleanPhone.includes(cleanTerm)) return true;
+      }
+      
+      return false;
     });
   };
 
@@ -965,17 +980,29 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
                                 showToast(`Cuenta de ${getCleanClientName(c.cliente)} seleccionada ✓`, 'info');
                               }}
                               style={{
-                                background: 'var(--bg-elevated)',
-                                border: '1px solid var(--border)',
-                                borderRadius: 6,
-                                padding: '4px 8px',
+                                background: 'linear-gradient(135deg, rgba(205,127,50,0.12), rgba(15,13,12,0.95))',
+                                border: '1px solid var(--border-bronze, rgba(205,127,50,0.5))',
+                                borderRadius: 8,
+                                padding: '6px 10px',
                                 fontSize: 11,
                                 textAlign: 'left',
                                 cursor: 'pointer',
                                 color: '#fff',
                                 display: 'flex',
                                 justifyContent: 'space-between',
-                                alignItems: 'center'
+                                alignItems: 'center',
+                                transition: 'all 0.2s ease',
+                                boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
+                              }}
+                              onMouseEnter={e => {
+                                e.currentTarget.style.borderColor = 'var(--bronze-light)';
+                                e.currentTarget.style.transform = 'translateY(-1px)';
+                                e.currentTarget.style.boxShadow = '0 4px 12px rgba(205,127,50,0.2)';
+                              }}
+                              onMouseLeave={e => {
+                                e.currentTarget.style.borderColor = 'rgba(205,127,50,0.5)';
+                                e.currentTarget.style.transform = 'none';
+                                e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.2)';
                               }}
                             >
                               <span>👤 {c.cliente}</span>
@@ -1194,17 +1221,29 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
                                     showToast(`Vinculado a la cuenta existente de ${getCleanClientName(c.cliente)} ✓`, 'info');
                                   }}
                                   style={{
-                                    background: 'var(--bg-elevated)',
-                                    border: '1px solid var(--border)',
-                                    borderRadius: 6,
-                                    padding: '4px 8px',
+                                    background: 'linear-gradient(135deg, rgba(205,127,50,0.12), rgba(15,13,12,0.95))',
+                                    border: '1px solid var(--border-bronze, rgba(205,127,50,0.5))',
+                                    borderRadius: 8,
+                                    padding: '6px 10px',
                                     fontSize: 11,
                                     textAlign: 'left',
                                     cursor: 'pointer',
                                     color: '#fff',
                                     display: 'flex',
                                     justifyContent: 'space-between',
-                                    alignItems: 'center'
+                                    alignItems: 'center',
+                                    transition: 'all 0.2s ease',
+                                    boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
+                                  }}
+                                  onMouseEnter={e => {
+                                    e.currentTarget.style.borderColor = 'var(--bronze-light)';
+                                    e.currentTarget.style.transform = 'translateY(-1px)';
+                                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(205,127,50,0.2)';
+                                  }}
+                                  onMouseLeave={e => {
+                                    e.currentTarget.style.borderColor = 'rgba(205,127,50,0.5)';
+                                    e.currentTarget.style.transform = 'none';
+                                    e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.2)';
                                   }}
                                 >
                                   <span>👤 {c.cliente}</span>
