@@ -66,6 +66,18 @@ const isRealName = (name) => {
   return true;
 };
 
+const capitalizeName = (name) => {
+  if (!name) return '';
+  return name
+    .trim()
+    .split(/\s+/)
+    .map(word => {
+      if (!word) return '';
+      return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+    })
+    .join(' ');
+};
+
 // ── DATOS INICIALES DE MESAS ───────────────────────────────
 const INIT_MESAS = [
   { id: 1, nombre: 'Mesa 1', tipo: 'Carambola 3B', estado: 'libre',    cliente: null, inicio: null, tarifa: 80, socios: false, clienteUid: '' },
@@ -406,7 +418,7 @@ function ModalAbrirMesa({ mesa, onClose, onConfirm }) {
 }
 
 // ── MODAL CERRAR MESA ────────────────────────────────────
-function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], unloadedConsumos, onClose, onCerrar, onAgregarACuenta, imprimirPreTicket, onImprimirPreTicket }) {
+function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], registrarNuevoClienteDirectorio, unloadedConsumos, onClose, onCerrar, onAgregarACuenta, imprimirPreTicket, onImprimirPreTicket }) {
   const cuentaAsociada = cuentasActivas.find(c => 
     c.mesaId === mesa.id ||
     (c.cliente && (
@@ -423,6 +435,14 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], unloa
     const name = mesa.cliente || '';
     return isRealName(name) ? name : '';
   });
+
+  const getFilteredClientes = (queryText) => {
+    const term = (queryText || '').trim().toLowerCase();
+    if (!term) return clientesRegistrados.slice(0, 15);
+    return clientesRegistrados
+      .filter(c => c.nombre && c.nombre.toLowerCase().includes(term))
+      .slice(0, 15);
+  };
 
   // Pre-seleccionar la cuenta asociada de la mesa si existe
   useEffect(() => {
@@ -846,14 +866,42 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], unloa
                   <>
                     <div className="form-group" style={{ gap: 2 }}>
                       <label className="form-label" style={{ fontSize: 9 }}>Nombre del Nuevo Cliente Temporal</label>
-                      <input
-                        className="form-input"
-                        style={{ padding: '6px 10px', fontSize: 11 }}
-                        placeholder="Ej: Pedro Domínguez"
-                        value={nuevoCliente}
-                        onChange={e => setNuevoCliente(e.target.value)}
-                        list="clientes-registrados-list"
-                      />
+                      <div style={{ display: 'flex', gap: 4 }}>
+                        <input
+                          className="form-input"
+                          style={{ padding: '6px 10px', fontSize: 11, flex: 1 }}
+                          placeholder="Ej: Pedro Domínguez"
+                          value={nuevoCliente}
+                          onChange={e => setNuevoCliente(e.target.value)}
+                          list="clientes-nuevo-list"
+                        />
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          style={{ padding: '4px 8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                          title="Registrar en catálogo de clientes"
+                          onClick={() => {
+                            const nameClean = capitalizeName(nuevoCliente);
+                            if (!isRealName(nameClean)) {
+                              showToast('Debe ingresar un nombre real y no genérico.', 'warning');
+                              return;
+                            }
+                            const existe = clientesRegistrados.some(c => c.nombre.toLowerCase() === nameClean.toLowerCase());
+                            if (existe) {
+                              showToast(`"${nameClean}" ya está en el catálogo.`, 'info');
+                            } else {
+                              registrarNuevoClienteDirectorio(nameClean);
+                            }
+                          }}
+                        >
+                          <i className="ri-user-add-line" style={{ fontSize: 12 }} />
+                        </button>
+                      </div>
+                      <datalist id="clientes-nuevo-list">
+                        {getFilteredClientes(nuevoCliente).map((c, idx) => (
+                          <option key={idx} value={c.nombre} />
+                        ))}
+                      </datalist>
                     </div>
                     {!isRealName(nuevoCliente) && (
                       <div style={{ color: 'var(--danger)', fontSize: 9, marginTop: 2 }}>
@@ -1000,16 +1048,44 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], unloa
                         </p>
                         <div className="form-group" style={{ gap: 2 }}>
                           <label className="form-label" style={{ fontSize: 10 }}>Nombre del Pagador</label>
-                          <input
-                            type="text"
-                            className="form-input"
-                            style={{ padding: '8px 12px', fontSize: 13 }}
-                            placeholder="Ej: Carlos Rodríguez / Amigo de Juan"
-                            value={nombrePagador}
-                            onChange={e => setNombrePagador(e.target.value)}
-                            list="clientes-registrados-list"
-                            autoFocus
-                          />
+                          <div style={{ display: 'flex', gap: 4 }}>
+                            <input
+                              type="text"
+                              className="form-input"
+                              style={{ padding: '8px 12px', fontSize: 13, flex: 1 }}
+                              placeholder="Ej: Carlos Rodríguez / Amigo de Juan"
+                              value={nombrePagador}
+                              onChange={e => setNombrePagador(e.target.value)}
+                              list="clientes-pagador-list"
+                              autoFocus
+                            />
+                            <button
+                              type="button"
+                              className="btn btn-secondary"
+                              style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                              title="Registrar en catálogo de clientes"
+                              onClick={() => {
+                                const nameClean = capitalizeName(nombrePagador);
+                                if (!isRealName(nameClean)) {
+                                  showToast('Debe ingresar un nombre real y no genérico.', 'warning');
+                                  return;
+                                }
+                                const existe = clientesRegistrados.some(c => c.nombre.toLowerCase() === nameClean.toLowerCase());
+                                if (existe) {
+                                  showToast(`"${nameClean}" ya está en el catálogo.`, 'info');
+                                } else {
+                                  registrarNuevoClienteDirectorio(nameClean);
+                                }
+                              }}
+                            >
+                              <i className="ri-user-add-line" style={{ fontSize: 14 }} />
+                            </button>
+                          </div>
+                          <datalist id="clientes-pagador-list">
+                            {getFilteredClientes(nombrePagador).map((c, idx) => (
+                              <option key={idx} value={c.nombre} />
+                            ))}
+                          </datalist>
                         </div>
                         {!isRealName(nombrePagador) && (
                           <div style={{ color: 'var(--danger)', fontSize: 9, marginTop: 4 }}>
@@ -1024,12 +1100,13 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], unloa
                           className="btn btn-primary"
                           disabled={!nombrePagador.trim()}
                           onClick={() => {
-                            const pagadorClean = nombrePagador.trim();
+                            const pagadorClean = capitalizeName(nombrePagador);
                             if (!isRealName(pagadorClean)) {
                               showToast('Debe ingresar un nombre real y no genérico para la cuenta.', 'warning');
                               registrarEvento('Intento Cuenta Genérica', `Intento de mover mesa ${mesa.id} a pendientes con pagador inválido: "${pagadorClean}"`);
                               return;
                             }
+                            registrarNuevoClienteDirectorio(pagadorClean);
                             onAgregarACuenta({
                               costo: costoTiempo,
                               cuentaId: cuentaAsociada ? cuentaAsociada.id : null,
@@ -1060,18 +1137,25 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], unloa
               disabled={cuentaSeleccionada === '' && !nuevoCliente.trim()}
               onClick={() => {
                 if (cuentaSeleccionada === '') {
-                  const nameClean = nuevoCliente.trim();
+                  const nameClean = capitalizeName(nuevoCliente);
                   if (!isRealName(nameClean)) {
                     showToast('Debe ingresar un nombre real y no genérico para la cuenta.', 'warning');
                     registrarEvento('Intento Cuenta Genérica', `Intento de guardar mesa ${mesa.id} en cuenta con nombre inválido: "${nameClean}"`);
                     return;
                   }
+                  registrarNuevoClienteDirectorio(nameClean);
+                  onAgregarACuenta({
+                    costo: costoTiempo,
+                    cuentaId: cuentaSeleccionada,
+                    nombreNuevo: `${nameClean} (Mesa ${mesa.id} - Pendiente)`
+                  });
+                } else {
+                  onAgregarACuenta({
+                    costo: costoTiempo,
+                    cuentaId: cuentaSeleccionada,
+                    nombreNuevo: ''
+                  });
                 }
-                onAgregarACuenta({
-                  costo: costoTiempo,
-                  cuentaId: cuentaSeleccionada,
-                  nombreNuevo: cuentaSeleccionada === '' ? `${nuevoCliente.trim()} (Mesa ${mesa.id} - Pendiente)` : ''
-                });
               }}
               style={{
                 background: (cuentaSeleccionada === '' && !nuevoCliente.trim())
@@ -1090,11 +1174,6 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], unloa
           )}
         </div>
       </div>
-      <datalist id="clientes-registrados-list">
-        {(clientesRegistrados || []).map((c, idx) => (
-          <option key={idx} value={c.nombre} />
-        ))}
-      </datalist>
     </div>
   );
 }
@@ -1999,6 +2078,27 @@ export default function MesasPanel({ showToast }) {
       console.error("Error al actualizar cuentas de forma transaccional:", e);
       showToast("Error al guardar en base de datos. Intente de nuevo.", "danger");
       throw e;
+    }
+  };
+  const registrarNuevoClienteDirectorio = (nombre) => {
+    if (!nombre) return;
+    const clean = capitalizeName(nombre.trim());
+    if (!isRealName(clean)) return;
+    const existe = clientesRegistrados.some(c => c.nombre.toLowerCase() === clean.toLowerCase());
+    if (!existe) {
+      const nuevoClienteItem = {
+        id: Date.now(),
+        nombre: clean,
+        telefono: '',
+        tipo: 'Público',
+        fechaRegistro: new Date().toISOString().split('T')[0]
+      };
+      const updatedClientes = [...clientesRegistrados, nuevoClienteItem];
+      setClientesRegistrados(updatedClientes);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('yoy_billar_clientes', obfuscate(updatedClientes));
+      }
+      showToast(`Cliente "${clean}" registrado en el directorio ✓`, 'info');
     }
   };
 
@@ -3609,6 +3709,7 @@ export default function MesasPanel({ showToast }) {
           mesa={mesas.find(m => m.id === modalCerrar.id) || modalCerrar}
           cuentasActivas={cuentasActivas}
           clientesRegistrados={clientesRegistrados}
+          registrarNuevoClienteDirectorio={registrarNuevoClienteDirectorio}
           unloadedConsumos={unloadedConsumos}
           onClose={() => setModalCerrar(null)}
           onCerrar={(data) => confirmarCerrarMesa(modalCerrar.id, data)}
@@ -3654,6 +3755,7 @@ export default function MesasPanel({ showToast }) {
           cuentas={cuentasActivas}
           setCuentas={actualizarCuentasFirestore}
           clientesRegistrados={clientesRegistrados}
+          registrarNuevoClienteDirectorio={registrarNuevoClienteDirectorio}
           onClose={() => setModalAbrirCuenta(false)}
           showToast={showToast}
           registrarEvento={registrarEvento}
@@ -4947,8 +5049,16 @@ function ModalCuentasActivas({
 }
 
 // ── MODAL ABRIR CUENTA DIRECTA ───────────────────────────
-function ModalAbrirCuentaDirecta({ cuentas, setCuentas, clientesRegistrados = [], onClose, showToast, registrarEvento }) {
+function ModalAbrirCuentaDirecta({ cuentas, setCuentas, clientesRegistrados = [], registrarNuevoClienteDirectorio, onClose, showToast, registrarEvento }) {
   const [cliente, setCliente] = useState('');
+
+  const getFilteredClientes = (queryText) => {
+    const term = (queryText || '').trim().toLowerCase();
+    if (!term) return clientesRegistrados.slice(0, 15);
+    return clientesRegistrados
+      .filter(c => c.nombre && c.nombre.toLowerCase().includes(term))
+      .slice(0, 15);
+  };
 
   useEffect(() => {
     let lastBlurTime = 0;
@@ -4997,12 +5107,13 @@ function ModalAbrirCuentaDirecta({ cuentas, setCuentas, clientesRegistrados = []
   const isClienteGeneric = !cliente.trim() || !isRealName(cliente);
 
   const handleCrear = () => {
-    const cleanCliente = cliente.trim();
+    const cleanCliente = capitalizeName(cliente);
     if (!isRealName(cleanCliente)) {
       showToast('Debe ingresar un nombre real y no genérico para la cuenta.', 'warning');
       registrarEvento('Intento Cuenta Genérica', `Intento de abrir cuenta directa con nombre inválido: "${cleanCliente}"`);
       return;
     }
+    registrarNuevoClienteDirectorio(cleanCliente);
     const nueva = {
       id: Date.now(),
       cliente: cleanCliente,
@@ -5030,13 +5141,42 @@ function ModalAbrirCuentaDirecta({ cuentas, setCuentas, clientesRegistrados = []
         <div className="modal-body">
           <div className="form-group">
             <label className="form-label">Nombre del Cliente</label>
-            <input 
-              className="form-input" 
-              placeholder="Ej: Juan Pérez" 
-              value={cliente} 
-              onChange={e => setCliente(e.target.value)} 
-              list="clientes-registrados-list"
-            />
+            <div style={{ display: 'flex', gap: 4 }}>
+              <input 
+                className="form-input" 
+                placeholder="Ej: Juan Pérez" 
+                value={cliente} 
+                onChange={e => setCliente(e.target.value)} 
+                list="clientes-directo-list"
+                style={{ flex: 1 }}
+              />
+              <button
+                type="button"
+                className="btn btn-secondary"
+                style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                title="Registrar en catálogo de clientes"
+                onClick={() => {
+                  const nameClean = capitalizeName(cliente);
+                  if (!isRealName(nameClean)) {
+                    showToast('Debe ingresar un nombre real y no genérico.', 'warning');
+                    return;
+                  }
+                  const existe = clientesRegistrados.some(c => c.nombre.toLowerCase() === nameClean.toLowerCase());
+                  if (existe) {
+                    showToast(`"${nameClean}" ya está en el catálogo.`, 'info');
+                  } else {
+                    registrarNuevoClienteDirectorio(nameClean);
+                  }
+                }}
+              >
+                <i className="ri-user-add-line" style={{ fontSize: 14 }} />
+              </button>
+            </div>
+            <datalist id="clientes-directo-list">
+              {getFilteredClientes(cliente).map((c, idx) => (
+                <option key={idx} value={c.nombre} />
+              ))}
+            </datalist>
             {isClienteGeneric && (
               <div style={{ color: 'var(--danger)', fontSize: 9, marginTop: 4 }}>
                 <i className="ri-error-warning-line" style={{ marginRight: 2 }} />
