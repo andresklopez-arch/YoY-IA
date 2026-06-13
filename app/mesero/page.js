@@ -1004,6 +1004,7 @@ function ModalCuentasMesero({ cuentas, mesas, alertasAsistencia, isOffline, onCl
   const [expandedId, setExpandedId] = useState(null);
   const [filtroTexto, setFiltroTexto] = useState('');
   const [tick, setTick] = useState(0);
+  const [loadingCuentaId, setLoadingCuentaId] = useState(null);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -1013,6 +1014,7 @@ function ModalCuentasMesero({ cuentas, mesas, alertasAsistencia, isOffline, onCl
   }, []);
 
   const pedirCuenta = async (cuenta) => {
+    setLoadingCuentaId(cuenta.id);
     const mesaAsociada = mesas.find(m => m.id === cuenta.mesaId || (m.cliente && m.cliente.toLowerCase() === cuenta.cliente.toLowerCase()));
     const mesaId = mesaAsociada ? mesaAsociada.id : 0;
     const consumosTotal = cuenta.consumos.reduce((sum, item) => sum + item.precio * item.cantidad, 0);
@@ -1049,6 +1051,8 @@ function ModalCuentasMesero({ cuentas, mesas, alertasAsistencia, isOffline, onCl
         onClose();
       } catch (err) {
         console.error("Error al guardar en buffer offline:", err);
+      } finally {
+        setLoadingCuentaId(null);
       }
     } else {
       try {
@@ -1060,16 +1064,24 @@ function ModalCuentasMesero({ cuentas, mesas, alertasAsistencia, isOffline, onCl
       } catch (err) {
         console.error(err);
         alert('Error al solicitar la cuenta: ' + err.message);
+      } finally {
+        setLoadingCuentaId(null);
       }
     }
   };
 
   const cuentasFiltradas = cuentas.filter(c => {
-    const term = filtroTexto.toLowerCase();
+    const term = filtroTexto.trim().toLowerCase();
+    if (!term) return true;
     const mesaAsociada = mesas.find(m => m.id === c.mesaId || (m.cliente && m.cliente.toLowerCase() === c.cliente.toLowerCase()));
     const matchCliente = c.cliente.toLowerCase().includes(term);
-    const matchMesa = mesaAsociada ? `mesa ${mesaAsociada.id}`.includes(term) : false;
-    return matchCliente || matchMesa;
+    
+    // Si el término es un número entero, intentar coincidir exactamente con el ID de la mesa
+    const numTerm = parseInt(term, 10);
+    const matchMesaId = !isNaN(numTerm) && (c.mesaId === numTerm || (mesaAsociada && mesaAsociada.id === numTerm));
+    
+    const matchMesaText = mesaAsociada ? `mesa ${mesaAsociada.id}`.includes(term) : false;
+    return matchCliente || matchMesaId || matchMesaText;
   });
 
   return (
@@ -1142,6 +1154,14 @@ function ModalCuentasMesero({ cuentas, mesas, alertasAsistencia, isOffline, onCl
                   ? (c.cliente && c.cliente.toLowerCase().startsWith('mesa ') ? `Mesa ${c.mesaId}` : c.cliente)
                   : c.cliente;
 
+                const tieneAsistenciaPendiente = (alertasAsistencia || []).some(alerta => 
+                  !alerta.atendidoMesero &&
+                  (
+                    (c.mesaId && alerta.mesaId === c.mesaId) ||
+                    (alerta.cliente && c.cliente && alerta.cliente.toLowerCase() === c.cliente.toLowerCase())
+                  )
+                );
+
                 return (
                   <div key={c.id} style={{
                     background: 'var(--bg-elevated)',
@@ -1154,7 +1174,12 @@ function ModalCuentasMesero({ cuentas, mesas, alertasAsistencia, isOffline, onCl
                   }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontWeight: 800, fontSize: 13, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{displayClienteName}</div>
+                        <div style={{ fontWeight: 800, fontSize: 13, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'flex', alignItems: 'center' }}>
+                          {displayClienteName}
+                          {tieneAsistenciaPendiente && (
+                            <i className="ri-notification-3-fill" style={{ color: 'var(--bronze-light)', marginLeft: 6, fontSize: 12, verticalAlign: 'middle' }} title="Llamada de asistencia o pedido pendiente" />
+                          )}
+                        </div>
                         <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 1 }}>
                           {c.mesaId ? `📍 Mesa ${c.mesaId}` : (mesaAsociada ? `📍 Mesa ${mesaAsociada.id}` : '👤 Cuenta Directa')} · Tiempo: ${costoTiempo}
                         </div>
@@ -1182,13 +1207,13 @@ function ModalCuentasMesero({ cuentas, mesas, alertasAsistencia, isOffline, onCl
 
                         <button
                           className="btn btn-sm"
-                          onClick={() => !cuentaSolicitada && pedirCuenta(c)}
-                          disabled={cuentaSolicitada}
+                          onClick={() => !cuentaSolicitada && loadingCuentaId !== c.id && pedirCuenta(c)}
+                          disabled={cuentaSolicitada || loadingCuentaId === c.id}
                           style={{
-                            background: cuentaSolicitada 
+                            background: (cuentaSolicitada || loadingCuentaId === c.id)
                               ? 'var(--bg-hover)' 
                               : 'linear-gradient(135deg, var(--bronze), var(--bronze-light))',
-                            color: cuentaSolicitada ? 'var(--text-muted)' : '#0d0d0f',
+                            color: (cuentaSolicitada || loadingCuentaId === c.id) ? 'var(--text-muted)' : '#0d0d0f',
                             fontWeight: 700,
                             fontSize: 10,
                             padding: '4px 10px',
@@ -1197,13 +1222,17 @@ function ModalCuentasMesero({ cuentas, mesas, alertasAsistencia, isOffline, onCl
                             alignItems: 'center',
                             gap: 3,
                             border: 'none',
-                            cursor: cuentaSolicitada ? 'not-allowed' : 'pointer',
+                            cursor: (cuentaSolicitada || loadingCuentaId === c.id) ? 'not-allowed' : 'pointer',
                             whiteSpace: 'nowrap',
                             height: 28
                           }}
                         >
-                          <i className="ri-secure-payment-line" style={{ fontSize: 12 }} /> 
-                          {cuentaSolicitada ? 'Pedido...' : 'Cobrar'}
+                          {loadingCuentaId === c.id ? (
+                            <i className="ri-loader-4-line ri-spin" style={{ fontSize: 12 }} />
+                          ) : (
+                            <i className="ri-secure-payment-line" style={{ fontSize: 12 }} />
+                          )}
+                          {loadingCuentaId === c.id ? 'Enviando...' : (cuentaSolicitada ? 'Pedido...' : 'Cobrar')}
                         </button>
                       </div>
                     </div>
