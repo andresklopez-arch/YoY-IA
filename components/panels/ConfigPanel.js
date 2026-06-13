@@ -94,6 +94,9 @@ export default function ConfigPanel({ showToast }) {
   const [nuevoPin, setNuevoPin] = useState('');
   const [confirmarPin, setConfirmarPin] = useState('');
 
+  const [resetPin, setResetPin] = useState('');
+  const [isResetting, setIsResetting] = useState(false);
+
   // --- Límite de cortesías por turno (Sugerencia 3) ---
   const [maxCortesiasPorTurno, setMaxCortesiasPorTurno] = useState(3);
   const [savingLimiteCortesias, setSavingLimiteCortesias] = useState(false);
@@ -121,6 +124,97 @@ export default function ConfigPanel({ showToast }) {
       setUsuarios([]);
     } finally {
       setLoadingUsuarios(false);
+    }
+  };
+
+  const handleRestablecerTodo = async (e) => {
+    e.preventDefault();
+    if (!resetPin) return;
+
+    let savedHash = '170440'; // Default hash of '1111'
+    try {
+      const secDoc = await getDoc(doc(db, 'config', 'seguridad'));
+      if (secDoc.exists() && secDoc.data().adminPinHash) {
+        savedHash = secDoc.data().adminPinHash;
+      } else {
+        const localHash = localStorage.getItem('yoy_admin_pin_hash');
+        if (localHash) savedHash = deobfuscate(localHash);
+      }
+    } catch (err) {
+      console.warn("Error checking safety doc:", err);
+    }
+
+    if (hashPassword(resetPin) !== savedHash) {
+      showToast('PIN de administrador incorrecto', 'danger');
+      return;
+    }
+
+    if (!window.confirm('🚨 ADVERTENCIA CRÍTICA: Esto eliminará permanentemente todos los torneos, comandas, bitácora, ingresos, gastos y restablecerá todas las mesas a libre. ¿Estás absolutamente seguro de que deseas continuar?')) {
+      return;
+    }
+
+    setIsResetting(true);
+    showToast('Iniciando restablecimiento de base de datos...', 'info');
+
+    try {
+      // 1. Limpiar Firestore
+      // Restablecer mesas_estado
+      const cleanMesas = [
+        { id: 1, nombre: 'Mesa 1', tipo: 'Carambola 3B', estado: 'libre', cliente: null, inicio: null, tarifa: 80, socios: false, clienteUid: '' },
+        { id: 2, nombre: 'Mesa 2', tipo: 'Carambola 3B', estado: 'libre', cliente: null, inicio: null, tarifa: 80, socios: false, clienteUid: '' },
+        { id: 3, nombre: 'Mesa 3', tipo: 'Pool 9B',      estado: 'libre', cliente: null, inicio: null, tarifa: 60, socios: false, clienteUid: '' },
+        { id: 4, nombre: 'Mesa 4', tipo: 'Carambola 3B', estado: 'libre', cliente: null, inicio: null, tarifa: 80, socios: false, clienteUid: '' },
+        { id: 5, nombre: 'Mesa 5', tipo: 'Snooker',      estado: 'libre', cliente: null, inicio: null, tarifa: 100, socios: false, clienteUid: '' },
+        { id: 6, nombre: 'Mesa 6', tipo: 'Pool 9B',      estado: 'libre', cliente: null, inicio: null, tarifa: 60, socios: false, clienteUid: '' },
+        { id: 7, nombre: 'Mesa 7', tipo: 'Carambola 3B', estado: 'libre', cliente: null, inicio: null, tarifa: 80, socios: false, clienteUid: '' },
+        { id: 8, nombre: 'Mesa 8', tipo: 'Pool 9B',      estado: 'libre', cliente: null, inicio: null, tarifa: 60, socios: false, clienteUid: '' },
+      ];
+      await setDoc(doc(db, 'config', 'mesas_estado'), { mesas: cleanMesas, updatedAt: serverTimestamp() });
+
+      // Restablecer inventario
+      await setDoc(doc(db, 'config', 'inventario'), { productos: [], updatedAt: serverTimestamp() });
+
+      // Restablecer torneos
+      await setDoc(doc(db, 'config', 'torneos'), { torneos: [], updatedAt: serverTimestamp() });
+
+      // Restablecer ranking_historico
+      const cleanRankings = { pool: [], carambola: [], snooker: [] };
+      await setDoc(doc(db, 'config', 'ranking_historico'), { rankings: cleanRankings, updatedAt: serverTimestamp() });
+
+      // Eliminar colecciones asociadas (bitacora, gastos, nomina_pagos, encuestas_satisfaccion, mesa_pedidos, historial_stock)
+      const collectionsToClear = ['bitacora', 'gastos', 'nomina_pagos', 'encuestas_satisfaccion', 'mesa_pedidos', 'historial_stock'];
+      for (const collName of collectionsToClear) {
+        const q = query(collection(db, collName), limit(200));
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          const batch = writeBatch(db);
+          snap.docs.forEach(d => batch.delete(d.ref));
+          await batch.commit();
+        }
+      }
+
+      // 2. Limpiar LocalStorage
+      localStorage.removeItem('yoy_billar_clientes');
+      localStorage.removeItem('yoy_billar_stock');
+      localStorage.removeItem('yoy_billar_stock_logs');
+      localStorage.removeItem('yoy_billar_mesas');
+      localStorage.removeItem('yoy_billar_torneos');
+      localStorage.removeItem('yoy_billar_bitacora');
+      localStorage.removeItem('yoy_caja_cobros');
+      localStorage.removeItem('yoy_caja_corte_draft');
+      localStorage.removeItem('yoy_ranking_historico');
+
+      showToast('Base de datos restablecida correctamente. Recargando...', 'success');
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
+
+    } catch (err) {
+      console.error("Error al restablecer la base de datos:", err);
+      showToast('Error al restablecer base de datos: ' + err.message, 'danger');
+    } finally {
+      setIsResetting(false);
+      setResetPin('');
     }
   };
 
@@ -1007,6 +1101,35 @@ export default function ConfigPanel({ showToast }) {
                 Configuración actual: {maxCortesiasPorTurno === 0 ? 'Todas las cortesías requieren PIN del administrador' : `Hasta ${maxCortesiasPorTurno} cortesía${maxCortesiasPorTurno !== 1 ? 's' : ''} por turno sin PIN`}
               </div>
             </div>
+          </div>
+
+          {/* Mantenimiento y Depuración (Restablecer todo) */}
+          <div className="card" style={{ marginTop: 20, border: '1px solid rgba(239,68,68,0.2)' }}>
+            <div className="card-header" style={{ marginBottom: 16 }}>
+              <h3 className="card-title" style={{ color: 'var(--danger)' }}><i className="ri-error-warning-line" style={{ marginRight: 6 }} />Mantenimiento y Depuración</h3>
+              <span className="badge badge-danger">Zona Peligrosa</span>
+            </div>
+            <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 14, lineHeight: 1.5 }}>
+              Use esta herramienta para limpiar por completo todos los torneos, comandas, bitácora de caja, histórico y restablecer las mesas para pruebas manuales de flujo en limpio.
+            </p>
+            <form onSubmit={handleRestablecerTodo} style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+              <div className="form-group" style={{ flex: 1, margin: 0 }}>
+                <label className="form-label">PIN de Administrador para Confirmar</label>
+                <input
+                  type="password"
+                  className="form-input"
+                  placeholder="••••"
+                  value={resetPin}
+                  onChange={e => setResetPin(e.target.value)}
+                  maxLength={8}
+                  style={{ width: 120, letterSpacing: '0.3em', textAlign: 'center' }}
+                  required
+                />
+              </div>
+              <button type="submit" className="btn btn-danger" disabled={isResetting || !resetPin} style={{ alignSelf: 'flex-end', height: 38 }}>
+                <i className="ri-delete-bin-line" /> {isResetting ? 'Restableciendo...' : 'Restablecer Base de Datos a Limpio'}
+              </button>
+            </form>
           </div>
 
           {/* Diseño de Tickets Térmicos */}
