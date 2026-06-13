@@ -1479,9 +1479,28 @@ export default function TorneosPanel({ showToast }) {
                     {t.ranking.slice(0, 4).map((r, idx) => {
                       const medal = idx === 0 ? '⭐' : idx === 1 ? '🥇' : idx === 2 ? '🥈' : '🥉';
                       const textColor = idx === 0 ? 'var(--gold, #ffd700)' : idx === 1 ? 'var(--bronze-light)' : idx === 2 ? '#e0e0e0' : '#cd7f32';
-                      const fontWeight = idx === 0 ? 700 : 500;
+                      const fontWeight = idx === 0 ? 800 : 500;
                       return (
-                        <div key={r.nombre} style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: textColor, fontWeight }}>
+                        <div
+                          key={r.nombre}
+                          style={{
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            color: textColor,
+                            fontWeight,
+                            ...(idx === 0 ? {
+                              background: 'rgba(255, 215, 0, 0.04)',
+                              border: '1px solid rgba(255, 215, 0, 0.15)',
+                              borderRadius: 6,
+                              padding: '4px 8px',
+                              gridColumn: 'span 2',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 4
+                            } : {})
+                          }}
+                        >
                           {medal} {r.nombre}
                         </div>
                       );
