@@ -6,34 +6,7 @@ import { doc, setDoc, onSnapshot, serverTimestamp, collection, addDoc } from 'fi
 
 
 
-const INIT_TORNEOS = [
-  {
-    id: 1, nombre: 'Liga Mensual Mayo', modalidad: 'Round Robin', estado: 'activo',
-    jugadores: 4, max: 16, premio: '$3,000', inscripcion: '$150', fechaInicio: '2026-05-01',
-    partidas: [
-      { id: 1, j1: 'Carlos R.', j2: 'Pedro M.', resultado: '3-1', fecha: '2026-05-15', ganador: 'Carlos R.' },
-      { id: 2, j1: 'Ana G.',    j2: 'Luis H.',  resultado: '3-0', fecha: '2026-05-16', ganador: 'Ana G.' },
-      { id: 3, j1: 'Socio #12', j2: 'Carlos R.', resultado: '2-3', fecha: '2026-05-17', ganador: 'Carlos R.' },
-    ],
-    ranking: [
-      { pos: 1, nombre: 'Carlos R.', pj: 5, pg: 4, pp: 1, pts: 12, elo: 1650 },
-      { pos: 2, nombre: 'Ana G.',    pj: 5, pg: 4, pp: 1, pts: 12, elo: 1680 },
-      { pos: 3, nombre: 'Socio #12', pj: 4, pg: 2, pp: 2, pts: 6, elo: 1540 },
-      { pos: 4, nombre: 'Pedro M.',  pj: 4, pg: 1, pp: 3, pts: 3, elo: 1410 },
-    ],
-  },
-  {
-    id: 2, nombre: 'Torneo Rápido Sábado', modalidad: 'Eliminación Directa', estado: 'inscripcion',
-    jugadores: 4, max: 8, premio: '$800', inscripcion: '$80', fechaInicio: '2026-06-01',
-    partidas: [],
-    ranking: [
-      { pos: 1, nombre: 'Carlos R.', pj: 0, pg: 0, pp: 0, pts: 0, elo: 1500 },
-      { pos: 2, nombre: 'Ana G.',    pj: 0, pg: 0, pp: 0, pts: 0, elo: 1500 },
-      { pos: 3, nombre: 'Pedro M.',  pj: 0, pg: 0, pp: 0, pts: 0, elo: 1500 },
-      { pos: 4, nombre: 'Luis H.',   pj: 0, pg: 0, pp: 0, pts: 0, elo: 1500 },
-    ],
-  },
-];
+const INIT_TORNEOS = [];
 
 export default function TorneosPanel({ showToast }) {
   const [torneos, setTorneos] = useState([]);
