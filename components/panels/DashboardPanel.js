@@ -11,10 +11,7 @@ function MiniPulse({ value, max, color }) {
 }
 
 export default function DashboardPanel({ showToast, onNavigate }) {
-  const [mesasVivas] = useState([
-    { id: 2, cliente: 'Carlos R.', inicio: Date.now() - 52*60000, tarifa: 80 },
-    { id: 7, cliente: 'Socio #12', inicio: Date.now() - 95*60000, tarifa: 0 },
-  ]);
+  const [mesasVivas] = useState([]);
 
   function elapsedStr(inicio) {
     const ms = Date.now() - inicio;
