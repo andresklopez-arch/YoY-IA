@@ -476,9 +476,15 @@ export default function ConfigPanel({ showToast }) {
 
   const guardarHistorialRespaldo = async (updatedList, reason) => {
     try {
+      const compressedList = (updatedList || []).map(m => ({
+        id: m.id,
+        nombre: m.nombre,
+        tarifa: m.tarifa,
+        tipo: m.tipo || 'Pool'
+      }));
       const histCollection = collection(db, 'config', 'mesas_estado_backups', 'historial');
       await addDoc(histCollection, {
-        mesas: updatedList,
+        mesas: compressedList,
         backupAt: Date.now(), // Usar timestamp numérico para ordenar fácilmente
         reason: reason
       });
@@ -535,6 +541,14 @@ export default function ConfigPanel({ showToast }) {
           return;
         }
 
+        // Validación de IDs Únicos (Sugerencia 2)
+        const ids = backupMesas.map(m => m.id);
+        const tieneDuplicados = ids.some((val, i) => ids.indexOf(val) !== i);
+        if (tieneDuplicados) {
+          showToast('El respaldo contiene identificadores de mesa duplicados', 'danger');
+          return;
+        }
+
         const confirmar = window.confirm(
           `⚠️ RESTAURAR COPIA DE SEGURIDAD\n\n` +
           `Se detectó un respaldo del catálogo del: ${backupAt}\n` +
@@ -546,12 +560,26 @@ export default function ConfigPanel({ showToast }) {
         if (!confirmar) return;
 
         setRestoring('aplicando');
+
+        // Reconstruir mesas asegurando valores por defecto para campos omitidos (Sugerencia 1)
+        const reconstructedMesas = backupMesas.map(m => ({
+          id: m.id,
+          nombre: m.nombre,
+          tipo: m.tipo || 'Pool',
+          estado: m.estado || 'libre',
+          cliente: m.cliente || null,
+          inicio: m.inicio || null,
+          tarifa: m.tarifa,
+          socios: m.socios || false,
+          clienteUid: m.clienteUid || ''
+        }));
+
         // Restaurar estado de mesas
-        setMesas(backupMesas);
-        localStorage.setItem('yoy_billar_mesas', obfuscate(backupMesas));
+        setMesas(reconstructedMesas);
+        localStorage.setItem('yoy_billar_mesas', obfuscate(reconstructedMesas));
         
         await setDoc(doc(db, 'config', 'mesas_estado'), {
-          mesas: backupMesas,
+          mesas: reconstructedMesas,
           updatedAt: serverTimestamp()
         });
 
@@ -1030,7 +1058,12 @@ export default function ConfigPanel({ showToast }) {
                       return (
                         <div key={h.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px', background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 8 }}>
                           <div style={{ fontSize: 11, textAlign: 'left' }}>
-                            <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{h.reason || 'Respaldo automático'}</div>
+                            <div 
+                              style={{ fontWeight: 700, color: 'var(--text-primary)' }} 
+                              title={h.reason || 'Respaldo automático'}
+                            >
+                              {h.reason && h.reason.length > 40 ? `${h.reason.substring(0, 40)}...` : (h.reason || 'Respaldo automático')}
+                            </div>
                             <div style={{ color: 'var(--text-muted)', fontSize: 10 }}>{fecha} · {h.mesas?.length || 0} mesas</div>
                           </div>
                           <button 
