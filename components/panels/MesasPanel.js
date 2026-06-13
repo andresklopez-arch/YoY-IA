@@ -2873,6 +2873,32 @@ export default function MesasPanel({ showToast }) {
     }
   };
 
+  const verificarFilaYRecordar = (mesaId, mesaTipo, excluirFilaId = null) => {
+    let filaFiltrada = fila || [];
+    if (excluirFilaId) {
+      filaFiltrada = filaFiltrada.filter(f => f.id !== excluirFilaId);
+    }
+    
+    if (filaFiltrada.length > 0) {
+      const totalFila = filaFiltrada.length;
+      const clientesMismoTipo = filaFiltrada.filter(f => f.tipo === mesaTipo).length;
+      
+      let mensaje = `La Mesa ${mesaId} (${mesaTipo}) ahora está libre.\n\nHay ${totalFila} cliente(s) en la fila de espera`;
+      if (clientesMismoTipo > 0) {
+        mensaje += ` (${clientesMismoTipo} esperando una mesa de tipo "${mesaTipo}").`;
+      } else {
+        mensaje += `.`;
+      }
+      mensaje += `\n\n¿Deseas abrir la Fila Virtual para asignar esta mesa ahora?`;
+
+      setTimeout(() => {
+        if (window.confirm(mensaje)) {
+          setModalFila(true);
+        }
+      }, 600);
+    }
+  };
+
   const confirmarCambioMesa = (origenId, destinoId) => {
     const mesaOrigen = mesas.find(m => m.id === origenId);
     const mesaDestino = mesas.find(m => m.id === destinoId);
@@ -3017,7 +3043,12 @@ export default function MesasPanel({ showToast }) {
       setFila(prev => prev.filter(f => f.id !== modalCerrar.filaId));
     }
 
+    const mesaIdParaRecordar = modalCerrar.id;
+    const mesaTipoParaRecordar = modalCerrar.tipo;
+    const filaIdParaExcluir = modalCerrar.filaId;
+
     setModalCerrar(null);
+    verificarFilaYRecordar(mesaIdParaRecordar, mesaTipoParaRecordar, filaIdParaExcluir);
   };
 
   const imprimirTodosLosQRs = () => {
@@ -3733,6 +3764,7 @@ export default function MesasPanel({ showToast }) {
         showToast(`Cortesía registrada para ${clientName}${motivoTexto}`, 'warning');
         registrarEvento('Cortesía $0', `Mesa ${mesaId} cerrada en $0 por ${clientName}${motivoTexto}`);
       }
+      verificarFilaYRecordar(mesaId, mesa ? mesa.tipo : 'Carambola 3B', mesa ? mesa.filaId : null);
     } catch (err) {
       console.error("Error crítico al procesar el cierre/cobro de la mesa:", err);
       showToast("Error de base de datos al registrar el cobro. Verifique conexión.", "danger");
@@ -7097,6 +7129,7 @@ function ModalReservasCentral({ mesas, setMesas, onClose, registrarEvento, showT
     } : m));
     registrarEvento('Libera Reserva', `Reserva de Mesa ${mesa.id} (${mesa.cliente}) cancelada.`);
     showToast(`Mesa ${mesa.id} liberada.`, "info");
+    verificarFilaYRecordar(mesa.id, mesa.tipo, mesa.filaId);
   };
 
   const handleActivarMesa = (mesa) => {
