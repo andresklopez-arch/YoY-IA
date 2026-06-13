@@ -2,13 +2,7 @@
 import { useState, useEffect } from 'react';
 import { obfuscate, deobfuscate } from '@/lib/crypto';
 
-const INIT_CLIENTES = [
-  { id: 1, codigo: 'YOY-2026-1001', nombre: 'Carlos Rodríguez', tipo: 'Socio', puntos: 1240, partidas: 87, nivel: 'Oro', ultima: '2026-05-27', gasto: 8400, telefono: '55-1234-5678', saldo: 350, historialSaldo: [{ fecha: '2026-05-27', monto: 350, concepto: 'Recarga Inicial' }] },
-  { id: 2, codigo: 'YOY-2026-1002', nombre: 'Pedro Martínez',   tipo: 'Público', puntos: 320, partidas: 23, nivel: 'Plata', ultima: '2026-05-26', gasto: 2100, telefono: '55-9876-5432', saldo: 0, historialSaldo: [] },
-  { id: 3, codigo: 'YOY-2026-1003', nombre: 'Ana García',       tipo: 'Socio', puntos: 2100, partidas: 145, nivel: 'Diamante', ultima: '2026-05-28', gasto: 15200, telefono: '55-5555-1234', saldo: 1200, historialSaldo: [{ fecha: '2026-05-28', monto: 1200, concepto: 'Recarga Bono Premium' }] },
-  { id: 4, codigo: 'YOY-2026-1004', nombre: 'Luis Hernández',   tipo: 'Público', puntos: 80, partidas: 8, nivel: 'Bronce', ultima: '2026-05-20', gasto: 640, telefono: '55-3333-7777', saldo: 0, historialSaldo: [] },
-  { id: 5, codigo: 'YOY-2026-1005', nombre: 'Socio #12',        tipo: 'Socio', puntos: 890, partidas: 62, nivel: 'Oro', ultima: '2026-05-28', gasto: 4800, telefono: '55-1111-2222', saldo: 150, historialSaldo: [{ fecha: '2026-05-28', monto: 150, concepto: 'Cashback 5% Acreditado' }] },
-];
+const INIT_CLIENTES = [];
 
 const NIVEL_COLORS = {
   Bronce:   { bg: 'rgba(205,127,50,0.12)', text: 'var(--bronze-light)', border: 'var(--border-bronze)' },
