@@ -13,7 +13,7 @@ import { AuthProvider } from '@/lib/auth-context';
 // ═══════════════════════════════════════════════════════════
 function MeseroContent() {
   const [pedidos, setPedidos] = useState([]);
-  const [filtro, setFiltro] = useState('todos'); // todos | pedido | asistencia
+  const [rawPedidos, setRawPedidos] = useState([]);
   const [sonido, setSonido] = useState(true);
   const [ultimoCount, setUltimoCount] = useState(0);
   const { user } = useAuth();
@@ -75,6 +75,55 @@ function MeseroContent() {
     });
     return unificadas;
   };
+
+  const getUnloadedConsumosForCuenta = (c) => {
+    const mesaAsociada = findMesaAsociada(c);
+    const mId = c.mesaId || (mesaAsociada ? mesaAsociada.id : null);
+    
+    return rawPedidos.reduce((sum, p) => {
+      if (p.tipo === 'pedido' && !p.cargadoACuenta) {
+        const matchMesa = mId && String(p.mesaId) === String(mId);
+        const matchCliente = p.cliente && c.cliente && p.cliente.toLowerCase() === c.cliente.toLowerCase();
+        if (matchMesa || matchCliente) {
+          return sum + (p.total || 0);
+        }
+      }
+      return sum;
+    }, 0);
+  };
+
+  const getTodosConsumos = (c) => {
+    const todos = c.consumos ? c.consumos.map(item => ({ ...item })) : [];
+    const mesaAsociada = findMesaAsociada(c);
+    const mId = c.mesaId || (mesaAsociada ? mesaAsociada.id : null);
+
+    rawPedidos.forEach(p => {
+      if (p.tipo === 'pedido' && !p.cargadoACuenta) {
+        const matchMesa = mId && String(p.mesaId) === String(mId);
+        const matchCliente = p.cliente && c.cliente && p.cliente.toLowerCase() === c.cliente.toLowerCase();
+        if (matchMesa || matchCliente) {
+          (p.items || []).forEach(item => {
+            const existe = todos.find(i => 
+              (item.productoId && i.productoId === item.productoId) ||
+              i.producto.toLowerCase() === item.nombre.toLowerCase()
+            );
+            if (existe) {
+              existe.cantidad += item.cantidad;
+            } else {
+              todos.push({
+                producto: item.nombre,
+                precio: item.precio,
+                cantidad: item.cantidad,
+                unloaded: true
+              });
+            }
+          });
+        }
+      }
+    });
+    return todos;
+  };
+
   const [nuevoClienteNombre, setNuevoClienteNombre] = useState('');
 
   const [isOffline, setIsOffline] = useState(false);
@@ -291,7 +340,7 @@ function MeseroContent() {
   useEffect(() => {
     const q = query(
       collection(db, 'mesa_pedidos'),
-      where('estado', 'in', ['pendiente', 'listo', 'en_camino'])
+      where('estado', 'in', ['pendiente', 'listo', 'en_camino', 'entregado'])
     );
     const unsub = onSnapshot(q, snap => {
       const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -300,6 +349,7 @@ function MeseroContent() {
         const tB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : (b.createdAt || 0);
         return tB - tA;
       });
+      setRawPedidos(items);
       const filtered = items.filter(p => !p.atendidoMesero);
       setPedidos(filtered);
 
@@ -605,7 +655,7 @@ function MeseroContent() {
     }
     const mesaAsociada = findMesaAsociada(cuenta);
     const mesaId = mesaAsociada ? mesaAsociada.id : 0;
-    const consumosTotal = cuenta.consumos.reduce((sum, item) => sum + item.precio * item.cantidad, 0);
+    const consumosTotal = cuenta.consumos.reduce((sum, item) => sum + item.precio * item.cantidad, 0) + getUnloadedConsumosForCuenta(cuenta);
     const costoTiempo = (mesaAsociada && mesaAsociada.estado === 'ocupada')
       ? (mesaAsociada.socios ? 0 : calcCosto(mesaAsociada))
       : (cuenta.tiempoJuego || 0);
@@ -695,25 +745,6 @@ function MeseroContent() {
     const term = filtroCuentaTexto.trim().toLowerCase();
     if (!term) return list;
     return list.filter(c => c.cliente.toLowerCase().includes(term));
-  };
-
-  // ── Filtrado ─────────────────────────────────────────────
-  const pedidosFiltrados = pedidos.filter(p =>
-    filtro === 'todos' || p.tipo === filtro
-  );
-
-  const counts = {
-    todos:     pedidos.length,
-    pedido:    pedidos.filter(p => p.tipo === 'pedido').length,
-    asistencia:pedidos.filter(p => p.tipo === 'asistencia').length,
-    cuenta:    pedidos.filter(p => p.tipo === 'cuenta').length,
-  };
-
-  // ── Color/ícono según tipo ────────────────────────────────
-  const tipoConfig = {
-    pedido:     { label: 'Pedido',     icon: '🍺', color: '#cd7f32', bg: 'rgba(205,127,50,0.08)' },
-    asistencia: { label: 'Asistencia', icon: '🔔', color: '#3b82f6', bg: 'rgba(59,130,246,0.08)' },
-    cuenta:     { label: 'Cuenta',     icon: '💳', color: '#22c55e', bg: 'rgba(34,197,94,0.08)' },
   };
 
   return (
@@ -939,7 +970,7 @@ function MeseroContent() {
               ) : (
                 getMesasFiltradas().map(c => {
                   const mesaAsociada = findMesaAsociada(c);
-                  const consumosTotal = c.consumos.reduce((sum, item) => sum + item.precio * item.cantidad, 0);
+                  const consumosTotal = c.consumos.reduce((sum, item) => sum + item.precio * item.cantidad, 0) + getUnloadedConsumosForCuenta(c);
                   const costoTiempo = (mesaAsociada && mesaAsociada.estado === 'ocupada')
                     ? (mesaAsociada.socios ? 0 : calcCosto(mesaAsociada))
                     : (c.tiempoJuego || 0);
@@ -1051,13 +1082,13 @@ function MeseroContent() {
                           border: '1px solid rgba(255, 255, 255, 0.05)'
                         }}>
                           <div style={{ fontWeight: 'bold', color: 'var(--bronze-light)', marginBottom: 2 }}>Productos consumidos:</div>
-                          {c.consumos.length === 0 ? (
+                          {getTodosConsumos(c).length === 0 ? (
                             <div style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>Sin consumos registrados</div>
                           ) : (
                             <ul style={{ margin: 0, paddingLeft: 14, color: 'var(--text-secondary)' }}>
-                              {c.consumos.map((item, idx) => (
+                              {getTodosConsumos(c).map((item, idx) => (
                                 <li key={idx} style={{ marginBottom: 1 }}>
-                                  {item.cantidad}x {item.producto} (${item.precio * item.cantidad})
+                                  {item.cantidad}x {item.producto} (${item.precio * item.cantidad}){item.unloaded && <span style={{ color: 'var(--bronze-light)', fontSize: 9, marginLeft: 6 }}>(por cargar)</span>}
                                 </li>
                               ))}
                             </ul>
@@ -1146,7 +1177,7 @@ function MeseroContent() {
                 </div>
               ) : (
                 getCuentasDirectasFiltradas().map(c => {
-                  const consumosTotal = c.consumos.reduce((sum, item) => sum + item.precio * item.cantidad, 0);
+                  const consumosTotal = c.consumos.reduce((sum, item) => sum + item.precio * item.cantidad, 0) + getUnloadedConsumosForCuenta(c);
                   const costoTiempo = c.tiempoJuego || 0;
                   const total = costoTiempo + consumosTotal;
                   const isExpanded = !!expandedIds[c.id];
@@ -1249,13 +1280,13 @@ function MeseroContent() {
                           border: '1px solid rgba(255, 255, 255, 0.05)'
                         }}>
                           <div style={{ fontWeight: 'bold', color: 'var(--bronze-light)', marginBottom: 2 }}>Productos consumidos:</div>
-                          {c.consumos.length === 0 ? (
+                          {getTodosConsumos(c).length === 0 ? (
                             <div style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>Sin consumos registrados</div>
                           ) : (
                             <ul style={{ margin: 0, paddingLeft: 14, color: 'var(--text-secondary)' }}>
-                              {c.consumos.map((item, idx) => (
+                              {getTodosConsumos(c).map((item, idx) => (
                                 <li key={idx} style={{ marginBottom: 1 }}>
-                                  {item.cantidad}x {item.producto} (${item.precio * item.cantidad})
+                                  {item.cantidad}x {item.producto} (${item.precio * item.cantidad}){item.unloaded && <span style={{ color: 'var(--bronze-light)', fontSize: 9, marginLeft: 6 }}>(por cargar)</span>}
                                 </li>
                               ))}
                             </ul>

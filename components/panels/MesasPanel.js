@@ -368,7 +368,7 @@ function ModalAbrirMesa({ mesa, onClose, onConfirm }) {
 }
 
 // ── MODAL CERRAR MESA ────────────────────────────────────
-function ModalCerrarMesa({ mesa, cuentasActivas, onClose, onCerrar, onAgregarACuenta, imprimirPreTicket, onImprimirPreTicket }) {
+function ModalCerrarMesa({ mesa, cuentasActivas, unloadedConsumos, onClose, onCerrar, onAgregarACuenta, imprimirPreTicket, onImprimirPreTicket }) {
   const cuentaAsociada = cuentasActivas.find(c => 
     c.mesaId === mesa.id ||
     (c.cliente && (
@@ -476,9 +476,9 @@ function ModalCerrarMesa({ mesa, cuentasActivas, onClose, onCerrar, onAgregarACu
     setCamaraActiva(false);
   }, [metodo]);
 
-  const consumosTotal = cuentaAsociada 
+  const consumosTotal = (cuentaAsociada 
     ? cuentaAsociada.consumos.reduce((sum, item) => sum + item.precio * item.cantidad, 0)
-    : 0;
+    : 0) + (unloadedConsumos ? (unloadedConsumos[mesa.id] || 0) : 0);
 
   const costoTiempo = calcCosto({ ...mesa, inicio: mesa.inicio });
   const costo = mesa.socios ? consumosTotal : (costoTiempo + consumosTotal);
@@ -964,6 +964,7 @@ export default function MesasPanel({ showToast }) {
   const isIncomingUpdateRef = useRef(false);
   const hasLoadedFromFirestoreRef = useRef(false);
   const mesasRef = useRef(mesas);
+  const pendingLoadsRef = useRef([]);
   useEffect(() => {
     mesasRef.current = mesas;
   }, [mesas]);
@@ -1008,6 +1009,7 @@ export default function MesasPanel({ showToast }) {
   const [pinAutorizacion, setPinAutorizacion] = useState('');
   const [adminPinHash, setAdminPinHash] = useState('170440'); // Hash of '1111'
   const [alertasMesas, setAlertasMesas] = useState({});
+  const [unloadedConsumos, setUnloadedConsumos] = useState({});
   const knownAlertsRef = useRef(new Set());
   const isInitialLoadRef = useRef(true);
   const prevMesasStateRef = useRef([]);
@@ -1225,7 +1227,15 @@ export default function MesasPanel({ showToast }) {
   const cargarPedidoACuenta = async (mesaId, pedidoDoc, isAuto = false) => {
     if (pedidoDoc.cargadoACuenta) return;
     const targetMesa = mesaId ? mesasRef.current.find(m => m.id === mesaId) : null;
-    if (mesaId && !targetMesa) return;
+    if (mesaId && !targetMesa) {
+      if (mesasRef.current.length === 0) {
+        // Si las mesas aún están cargando de Firestore, encolar el pedido para procesarlo después
+        if (!pendingLoadsRef.current.some(item => item.pedidoDoc.id === pedidoDoc.id)) {
+          pendingLoadsRef.current.push({ mesaId, pedidoDoc, isAuto });
+        }
+      }
+      return;
+    }
 
     const orderItems = pedidoDoc.items || [];
     const totalPedido = pedidoDoc.total || 0;
@@ -1431,6 +1441,7 @@ export default function MesasPanel({ showToast }) {
     );
     const unsub = onSnapshot(q, snap => {
       const alertsMap = {};
+      const unloadedMap = {};
       let hasNewAlert = false;
       let newAlertType = null;
       const currentAlerts = new Set();
@@ -1445,6 +1456,15 @@ export default function MesasPanel({ showToast }) {
         const debCargar = data.tipo === 'pedido' || data.atendidoMesero || data.atendidoAdmin || ['listo', 'en_camino', 'entregado'].includes(data.estado);
         if (data.tipo === 'pedido' && !data.cargadoACuenta && debCargar) {
           cargarPedidoACuenta(mesaId || 0, { id, ...data }, true);
+        }
+
+        // Calcular consumos de pedidos no cargados a la cuenta para mostrarlos en tiempo real
+        if (mesaId && data.tipo === 'pedido' && !data.cargadoACuenta) {
+          const mIdNum = parseInt(mesaId);
+          if (!unloadedMap[mIdNum]) {
+            unloadedMap[mIdNum] = 0;
+          }
+          unloadedMap[mIdNum] += data.total || 0;
         }
 
         // Solo incluir alertas que no hayan sido atendidas por el admin
@@ -1464,6 +1484,7 @@ export default function MesasPanel({ showToast }) {
         }
       });
 
+      setUnloadedConsumos(unloadedMap);
       knownAlertsRef.current = currentAlerts;
       isInitialLoadRef.current = false;
       setAlertasMesas(alertsMap);
@@ -1750,6 +1771,17 @@ export default function MesasPanel({ showToast }) {
     }
   }, [tick]);
 
+  // Procesar pedidos encolados una vez que las mesas se hayan cargado de Firestore
+  useEffect(() => {
+    if (mesas.length > 0 && pendingLoadsRef.current.length > 0) {
+      const queue = [...pendingLoadsRef.current];
+      pendingLoadsRef.current = [];
+      queue.forEach(item => {
+        cargarPedidoACuenta(item.mesaId, item.pedidoDoc, item.isAuto);
+      });
+    }
+  }, [mesas]);
+
   // ── Memorización de Consumos por Mesa (Sugerencia 1) ──
   const consumosPorMesa = useMemo(() => {
     const map = {};
@@ -1761,12 +1793,14 @@ export default function MesasPanel({ showToast }) {
           c.cliente.toLowerCase() === `mesa ${m.id}`
         ))
       );
-      map[m.id] = cuentaAsociada 
+      const loaded = cuentaAsociada 
         ? cuentaAsociada.consumos.reduce((s, item) => s + item.precio * item.cantidad, 0)
         : 0;
+      const unloaded = unloadedConsumos[m.id] || 0;
+      map[m.id] = loaded + unloaded;
     });
     return map;
-  }, [mesas, cuentasActivas]);
+  }, [mesas, cuentasActivas, unloadedConsumos]);
 
   // ── Helper para setDoc con reintentos y exponencial backoff ──
   const setDocWithRetry = async (docRef, data, retries = 5, delay = 500) => {
@@ -3349,6 +3383,7 @@ export default function MesasPanel({ showToast }) {
         <ModalCerrarMesa
           mesa={mesas.find(m => m.id === modalCerrar.id) || modalCerrar}
           cuentasActivas={cuentasActivas}
+          unloadedConsumos={unloadedConsumos}
           onClose={() => setModalCerrar(null)}
           onCerrar={(data) => confirmarCerrarMesa(modalCerrar.id, data)}
           onAgregarACuenta={agregarSesionACuenta}
