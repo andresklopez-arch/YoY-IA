@@ -78,6 +78,11 @@ const capitalizeName = (name) => {
     .join(' ');
 };
 
+const getCleanClientName = (name) => {
+  if (!name) return '';
+  return name.replace(/\s*\(Mesa[s]?\s+\d+.*?\)/gi, '').trim();
+};
+
 // ── DATOS INICIALES DE MESAS ───────────────────────────────
 const INIT_MESAS = [
   { id: 1, nombre: 'Mesa 1', tipo: 'Carambola 3B', estado: 'libre',    cliente: null, inicio: null, tarifa: 80, socios: false, clienteUid: '' },
@@ -2584,7 +2589,7 @@ export default function MesasPanel({ showToast }) {
               ? nombreNuevo
               : (c.cliente.toLowerCase() === `mesa ${modalCerrar.id}`.toLowerCase()
                   ? `Mesa ${modalCerrar.id} - Pendiente`
-                  : `${c.cliente} (Mesa ${modalCerrar.id} - Pendiente)`)
+                  : `${getCleanClientName(c.cliente)} (Mesa ${modalCerrar.id} - Pendiente)`)
           }
         : c
       ));
