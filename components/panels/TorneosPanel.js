@@ -795,6 +795,26 @@ export default function TorneosPanel({ showToast }) {
     return updatedPartidas;
   };
 
+  const handleReplicarTorneo = (torneo) => {
+    setNuevoNombre(`${torneo.nombre} - Cíclico`);
+    setNuevaModalidad(torneo.modalidad || 'Round Robin');
+    setNuevoJuegoTipo(torneo.juegoTipo || 'Pool');
+    setNuevoMax(String(torneo.max || 16));
+    setNuevoPremio(torneo.premio || '$1,500');
+    setNuevaInscripcion(torneo.inscripcion || '$100');
+    setNuevaFecha(new Date().toISOString().split('T')[0]);
+    
+    const jugadoresAnteriores = (torneo.ranking || []).map(r => ({
+      nombre: r.nombre,
+      puntosInicio: r.puntosInicio !== undefined ? r.puntosInicio : 0,
+      categoria: r.categoria || '3ra'
+    }));
+    setListaNuevosJugadores(jugadoresAnteriores);
+    
+    setShowCrearTorneo(true);
+    showToast(`Datos del torneo "${torneo.nombre}" cargados en el formulario de creación.`, 'info');
+  };
+
   const handleCrearTorneo = (e) => {
     e.preventDefault();
     if (!nuevoNombre || !nuevaFecha) {
@@ -1476,6 +1496,15 @@ export default function TorneosPanel({ showToast }) {
                 {torneoActivo.estado === 'activo' && (
                   <button className="btn btn-warning btn-xs" onClick={handleCompletarTorneo}>
                     <i className="ri-check-double-line" /> Finalizar Torneo
+                  </button>
+                )}
+                {torneoActivo.estado === 'completado' && (
+                  <button 
+                    className="btn btn-primary btn-xs" 
+                    onClick={() => handleReplicarTorneo(torneoActivo)}
+                    style={{ display: 'flex', alignItems: 'center', gap: 4 }}
+                  >
+                    <i className="ri-repeat-line" /> Iniciar Torneo Nuevo (Cíclico)
                   </button>
                 )}
               </div>
