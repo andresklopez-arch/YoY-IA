@@ -807,16 +807,24 @@ function ModalCerrarMesa({ mesa, cuentasActivas, unloadedConsumos, onClose, onCe
                 </div>
 
                 {cuentaSeleccionada === '' && (
-                  <div className="form-group" style={{ gap: 2 }}>
-                    <label className="form-label" style={{ fontSize: 9 }}>Nombre del Nuevo Cliente Temporal</label>
-                    <input
-                      className="form-input"
-                      style={{ padding: '6px 10px', fontSize: 11 }}
-                      placeholder="Ej: Pedro Domínguez"
-                      value={nuevoCliente}
-                      onChange={e => setNuevoCliente(e.target.value)}
-                    />
-                  </div>
+                  <>
+                    <div className="form-group" style={{ gap: 2 }}>
+                      <label className="form-label" style={{ fontSize: 9 }}>Nombre del Nuevo Cliente Temporal</label>
+                      <input
+                        className="form-input"
+                        style={{ padding: '6px 10px', fontSize: 11 }}
+                        placeholder="Ej: Pedro Domínguez"
+                        value={nuevoCliente}
+                        onChange={e => setNuevoCliente(e.target.value)}
+                      />
+                    </div>
+                    {(!nuevoCliente.trim() || ['publico', 'público', 'publico general', 'público general', 'cliente temporal', 'cliente'].includes(nuevoCliente.trim().toLowerCase()) || nuevoCliente.trim().toLowerCase().startsWith('mesa ')) && (
+                      <div style={{ color: 'var(--danger)', fontSize: 9, marginTop: 2 }}>
+                        <i className="ri-error-warning-line" style={{ marginRight: 2 }} />
+                        Debe ingresar un nombre real y no genérico para evitar cuentas huérfanas.
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             )}
@@ -999,12 +1007,23 @@ function ModalCerrarMesa({ mesa, cuentasActivas, unloadedConsumos, onClose, onCe
           ) : (
             <button
               className="btn btn-primary"
+              disabled={cuentaSeleccionada === '' && (!nuevoCliente.trim() || ['publico', 'público', 'publico general', 'público general', 'cliente temporal', 'cliente'].includes(nuevoCliente.trim().toLowerCase()) || nuevoCliente.trim().toLowerCase().startsWith('mesa '))}
               onClick={() => onAgregarACuenta({
                 costo: costoTiempo,
                 cuentaId: cuentaSeleccionada,
-                nombreNuevo: nuevoCliente || 'Cliente Temporal'
+                nombreNuevo: cuentaSeleccionada === '' ? `${nuevoCliente.trim()} (Mesa ${mesa.id} - Pendiente)` : ''
               })}
-              style={{ background: 'linear-gradient(135deg, var(--bronze), var(--bronze-light))', padding: '6px 12px', fontSize: 11, flex: 1 }}
+              style={{
+                background: (cuentaSeleccionada === '' && (!nuevoCliente.trim() || ['publico', 'público', 'publico general', 'público general', 'cliente temporal', 'cliente'].includes(nuevoCliente.trim().toLowerCase()) || nuevoCliente.trim().toLowerCase().startsWith('mesa ')))
+                  ? 'var(--bg-hover)'
+                  : 'linear-gradient(135deg, var(--bronze), var(--bronze-light))',
+                padding: '6px 12px',
+                fontSize: 11,
+                flex: 1,
+                cursor: (cuentaSeleccionada === '' && (!nuevoCliente.trim() || ['publico', 'público', 'publico general', 'público general', 'cliente temporal', 'cliente'].includes(nuevoCliente.trim().toLowerCase()) || nuevoCliente.trim().toLowerCase().startsWith('mesa ')))
+                  ? 'not-allowed'
+                  : 'pointer'
+              }}
             >
               <i className="ri-folder-add-line" /> Guardar en Cuenta
             </button>
