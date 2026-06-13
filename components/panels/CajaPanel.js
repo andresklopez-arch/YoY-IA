@@ -5,13 +5,7 @@ import { doc, onSnapshot, query, collection, orderBy, limit, getDocs, startAfter
 import { deobfuscate, obfuscate } from '@/lib/crypto';
 import { useAuth } from '@/lib/auth-context';
 
-const TRANSACCIONES = [
-  { id: 1, tipo: 'mesa', descripcion: 'Mesa 2 - 1.5h', cliente: 'Carlos R.', monto: 120, metodo: 'efectivo', hora: '14:30', color: 'var(--success)' },
-  { id: 2, tipo: 'bar',  descripcion: 'Comanda - 4 Coronas + Botana', cliente: 'Mesa 7', monto: 280, metodo: 'efectivo', hora: '13:15', color: 'var(--success)' },
-  { id: 3, tipo: 'mesa', descripcion: 'Mesa 3 - 2h', cliente: 'Pedro M.', monto: 160, metodo: 'spei', hora: '12:00', color: 'var(--success)' },
-  { id: 4, tipo: 'gasto',descripcion: 'Compra de bebidas', cliente: 'Proveedor ABC', monto: -650, metodo: 'efectivo', hora: '11:00', color: 'var(--danger)' },
-  { id: 5, tipo: 'mesa', descripcion: 'Mesa 1 - 3h', cliente: 'Torneo Local', monto: 240, metodo: 'efectivo', hora: '09:30', color: 'var(--success)' },
-];
+const TRANSACCIONES = [];
 
 const METODO_ICONS = {
   efectivo: 'ri-money-dollar-circle-line',
@@ -49,11 +43,7 @@ export default function CajaPanel({ showToast }) {
   const [loadingMoreBitacora, setLoadingMoreBitacora] = useState(false);
 
   // Cola de impresión térmica
-  const [colaImpresion, setColaImpresion] = useState([
-    { id: 1, hora: '14:31', tipo: 'caja', detalle: 'Ticket de Venta #1024 (Mesa 2) - $120', estado: 'Impreso ✓' },
-    { id: 2, hora: '13:16', tipo: 'cocina', detalle: 'Comanda Cocina #882 (Nachos + Alitas) - Mesa 7', estado: 'Impreso ✓' },
-    { id: 3, hora: '13:15', tipo: 'barra', detalle: 'Comanda Barra #881 (4 Coronas) - Mesa 7', estado: 'Impreso ✓' }
-  ]);
+  const [colaImpresion, setColaImpresion] = useState([]);
 
   // Escuchar PIN de Administrador desde Firestore
   useEffect(() => {
