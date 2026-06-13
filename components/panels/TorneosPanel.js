@@ -291,6 +291,7 @@ export default function TorneosPanel({ showToast }) {
 
     const idx = rankingData[key].findIndex(r => r.nombre.toLowerCase() === jugadorNombre.toLowerCase());
     if (idx !== -1) {
+      const categoriaAnterior = rankingData[key][idx].categoria || '3ra';
       rankingData[key][idx] = {
         ...rankingData[key][idx],
         categoria: nuevaCategoria,
@@ -310,7 +311,7 @@ export default function TorneosPanel({ showToast }) {
         await addDoc(collection(db, 'bitacora'), {
           fecha: new Date().toISOString(),
           accion: 'Manual Category Update',
-          detalle: `Categoría de ${jugadorNombre} cambiada a ${nuevaCategoria} por operador.`,
+          detalle: `Fuerza de ${jugadorNombre} cambiada de ${categoriaAnterior} a ${nuevaCategoria} por operador.`,
           monto: 0,
           operador: 'Operador YoY'
         });
@@ -1267,6 +1268,36 @@ export default function TorneosPanel({ showToast }) {
     showToast(`Partida registrada. ELOs actualizados.`, 'success');
   };
 
+  const handleExportarRankingCSV = (modality) => {
+    const players = rankingHistorico[modality] || [];
+    if (players.length === 0) {
+      showToast(`No hay jugadores registrados en el ranking de ${modality}.`, 'error');
+      return;
+    }
+
+    const headers = ['Posición', 'Jugador', 'Fuerza', 'PJ', 'PG', 'PP', 'ELO'];
+    const rows = players.map((r, idx) => [
+      idx + 1,
+      `"${r.nombre.replace(/"/g, '""')}"`,
+      `"${r.categoria || '3ra'}"`,
+      r.pj || 0,
+      r.pg || 0,
+      r.pp || 0,
+      r.elo || 1500
+    ]);
+
+    const csvContent = [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+    const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `ranking_historico_${modality}_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast(`Ranking histórico de ${modality} exportado como CSV.`, 'success');
+  };
+
   const renderRankingHistorico = () => {
     const players = rankingHistorico[modalityTab] || [];
     return (
@@ -1276,7 +1307,7 @@ export default function TorneosPanel({ showToast }) {
             <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 700, margin: 0 }}>Ranking Histórico</h2>
             <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '2px 0 0 0' }}>Historial acumulado de todos los torneos jugados</p>
           </div>
-          <div style={{ display: 'flex', gap: 6 }}>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
             {[
               { id: 'pool', label: 'Pool' },
               { id: 'carambola', label: 'Carambola' },
@@ -1292,6 +1323,24 @@ export default function TorneosPanel({ showToast }) {
                 {tab.label.toUpperCase()}
               </button>
             ))}
+            <button
+              type="button"
+              className="btn btn-secondary btn-xs"
+              style={{
+                padding: '4px 10px',
+                fontSize: 11,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                background: 'rgba(34, 197, 94, 0.1)',
+                border: '1px solid rgba(34, 197, 94, 0.2)',
+                color: 'var(--success)'
+              }}
+              onClick={() => handleExportarRankingCSV(modalityTab)}
+              title="Exportar CSV para Excel"
+            >
+              <i className="ri-file-download-line" /> Exportar CSV
+            </button>
           </div>
         </div>
 
