@@ -66,17 +66,19 @@ export default function TorneosPanel({ showToast }) {
 
   // Captura avanzada de torneos
   const [mesas, setMesas] = useState([]);
-  const [listaNuevosJugadores, setListaNuevosJugadores] = useState([
-    { nombre: 'Carlos R.', puntosInicio: 0 },
-    { nombre: 'Pedro M.', puntosInicio: 5 },
-    { nombre: 'Ana G.', puntosInicio: 0 },
-    { nombre: 'Luis H.', puntosInicio: 5 },
-  ]);
+  const [listaNuevosJugadores, setListaNuevosJugadores] = useState([]);
   const [nombreTmpJugador, setNombreTmpJugador] = useState('');
   const [ptsTmpJugador, setPtsTmpJugador] = useState(0);
+  const [categoriaTmpJugador, setCategoriaTmpJugador] = useState('3ra');
   const [mesasSeleccionadas, setMesasSeleccionadas] = useState([]);
   const [partidaAEditar, setPartidaAEditar] = useState(null);
   const [nuevoJugadorPts, setNuevoJugadorPts] = useState(0);
+
+  // Estados del Ranking Global y Modos
+  const [vistaPrincipal, setVistaPrincipal] = useState('torneos');
+  const [modalityTab, setModalityTab] = useState('pool');
+  const [rankingHistorico, setRankingHistorico] = useState({ pool: [], carambola: [], snooker: [] });
+  const [nuevoJuegoTipo, setNuevoJuegoTipo] = useState('Pool');
 
   useEffect(() => {
     // Escucha en tiempo real de Firestore para los torneos con reconciliación offline LWW
