@@ -1267,17 +1267,14 @@ export default function TorneosPanel({ showToast }) {
     showToast(`Partida registrada. ELOs actualizados.`, 'success');
   };
 
-
-
-  const renderRankingGlobal = () => {
+  const renderRankingHistorico = () => {
     const players = rankingHistorico[modalityTab] || [];
-    const top20Players = players.slice(0, 20);
     return (
       <div className="card" style={{ padding: 20 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 10 }}>
           <div>
-            <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 700, margin: 0 }}>Ranking Global ELO - Top 20</h2>
-            <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '2px 0 0 0' }}>Los 20 mejores jugadores de pool, carambola o snooker</p>
+            <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 700, margin: 0 }}>Ranking Histórico</h2>
+            <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '2px 0 0 0' }}>Historial acumulado de todos los torneos jugados</p>
           </div>
           <div style={{ display: 'flex', gap: 6 }}>
             {[
@@ -1298,7 +1295,7 @@ export default function TorneosPanel({ showToast }) {
           </div>
         </div>
 
-        {top20Players.length === 0 ? (
+        {players.length === 0 ? (
           <div className="card" style={{ textAlign: 'center', padding: 40, borderStyle: 'dashed' }}>
             <i className="ri-medal-line" style={{ fontSize: 32, color: 'var(--text-muted)', display: 'block', marginBottom: 8 }} />
             <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: 0 }}>No hay jugadores registrados en el ranking de {modalityTab} aún.</p>
@@ -1310,7 +1307,7 @@ export default function TorneosPanel({ showToast }) {
                 <tr>
                   <th>#</th>
                   <th>Jugador</th>
-                  <th>Categoría</th>
+                  <th>Fuerza</th>
                   <th>PJ</th>
                   <th>PG</th>
                   <th>PP</th>
@@ -1319,7 +1316,7 @@ export default function TorneosPanel({ showToast }) {
                 </tr>
               </thead>
               <tbody>
-                {top20Players.map((r, idx) => (
+                {players.map((r, idx) => (
                   <tr key={r.nombre}>
                     <td>
                       <span style={{ fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 900, color: idx === 0 ? '#ffd700' : idx === 1 ? 'var(--silver)' : idx === 2 ? 'var(--bronze)' : 'var(--text-muted)' }}>
@@ -1330,15 +1327,15 @@ export default function TorneosPanel({ showToast }) {
                     <td>
                       <select
                         className="form-select"
-                        style={{ width: '110px', padding: '2px 8px', fontSize: '12px', height: '28px', background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}
+                        style={{ width: '130px', padding: '2px 8px', fontSize: '12px', height: '28px', background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}
                         value={r.categoria || '3ra'}
                         onChange={(e) => handleCambiarCategoriaGlobal(r.nombre, e.target.value, modalityTab)}
                       >
-                        <option value="Mtro">Mtro</option>
-                        <option value="1ra">1ra</option>
-                        <option value="2da">2da</option>
-                        <option value="3ra">3ra</option>
-                        <option value="4ta">4ta</option>
+                        <option value="Mtro">Maestro</option>
+                        <option value="1ra">1ra Fuerza</option>
+                        <option value="2da">2da Fuerza</option>
+                        <option value="3ra">3ra Fuerza</option>
+                        <option value="4ta">4ta Fuerza</option>
                       </select>
                     </td>
                     <td>{r.pj || 0}</td>
@@ -1387,12 +1384,12 @@ export default function TorneosPanel({ showToast }) {
           <i className="ri-trophy-line" /> Torneos Activos
         </button>
         <button 
-          className={`btn ${vistaPrincipal === 'ranking_global' ? 'btn-primary' : 'btn-secondary'}`}
+          className={`btn ${vistaPrincipal === 'ranking_historico' ? 'btn-primary' : 'btn-secondary'}`}
           type="button"
-          onClick={() => setVistaPrincipal('ranking_global')}
+          onClick={() => setVistaPrincipal('ranking_historico')}
           style={{ display: 'flex', alignItems: 'center', gap: 6 }}
         >
-          <i className="ri-bar-chart-box-line" /> Ranking ELO Global (Top 20)
+          <i className="ri-bar-chart-box-line" /> Ranking Histórico
         </button>
       </div>
 
@@ -1635,230 +1632,167 @@ export default function TorneosPanel({ showToast }) {
               </div>
             </div>
 
-            {/* Tabs */}
-            <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-              {[
-                { id: 'ranking', label: 'Ranking ELO', icon: 'ri-bar-chart-line' },
-                { id: 'partidas', label: 'Partidas y Resultados', icon: 'ri-sword-line' },
-              ].map(tab => (
-                <button key={tab.id} onClick={() => setVista(tab.id)} className={`btn btn-sm ${vista === tab.id ? 'btn-primary' : 'btn-secondary'}`}>
-                  <i className={tab.icon} /> {tab.label}
-                </button>
-              ))}
-            </div>
-
-            {/* Ranking */}
-            {vista === 'ranking' && (
-              torneoActivo.ranking.length === 0 ? (
-                <div className="card" style={{ textAlign: 'center', padding: 32 }}>
-                  <i className="ri-group-line" style={{ fontSize: 36, color: 'var(--text-muted)', display: 'block', marginBottom: 8 }} />
-                  <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>No hay jugadores registrados en este torneo.</p>
-                </div>
-              ) : (
-                <div className="card" style={{ padding: 0 }}>
-                  <div className="table-wrapper" style={{ border: 'none' }}>
-                    <table>
-                      <thead>
-                        <tr>
-                          <th>#</th>
-                          <th>Jugador</th>
-                          <th>PJ</th>
-                          <th>PG</th>
-                          <th>PP</th>
-                          <th>Pts</th>
-                          <th>ELO</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {torneoActivo.ranking.map(r => (
-                          <tr key={r.nombre}>
-                            <td>
-                              <span style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 900, color: r.pos === 1 ? '#ffd700' : r.pos === 2 ? 'var(--silver)' : r.pos === 3 ? 'var(--bronze)' : 'var(--text-muted)' }}>
-                                {r.pos === 1 ? '🥇' : r.pos === 2 ? '🥈' : r.pos === 3 ? '🥉' : r.pos}
-                              </span>
-                            </td>
-                            <td style={{ fontWeight: 700 }}>{r.nombre}</td>
-                            <td>{r.pj}</td>
-                            <td style={{ color: 'var(--success)', fontWeight: 700 }}>{r.pg}</td>
-                            <td style={{ color: 'var(--danger)' }}>{r.pp}</td>
-                            <td style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 700, color: 'var(--bronze-light)' }}>{r.pts}</td>
-                            <td>
-                              <span style={{ background: 'var(--blue-glow)', color: 'var(--blue-light)', padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 700, border: '1px solid rgba(37,99,235,0.3)' }}>
-                                {r.elo}
-                              </span>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )
-            )}
-
-            {/* Partidas */}
-            {vista === 'partidas' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                  <h3 style={{ fontSize: 14, fontWeight: 700, margin: 0 }}>
-                    Partidas - Ronda {rondaSeleccionadaFiltro}
-                  </h3>
-                  {torneoActivo.estado === 'activo' && (
-                    <button 
-                      type="button"
-                      className="btn btn-secondary btn-xs"
-                      onClick={() => imprimirTicketTorneo(torneoActivo)}
-                      style={{ display: 'flex', alignItems: 'center', gap: 4 }}
-                    >
-                      <i className="ri-printer-line" /> Imprimir Bracket
-                    </button>
-                  )}
-                </div>
-
-                {/* Selector de Rondas */}
-                {torneoActivo.partidas.length > 0 && (() => {
-                  const rondasDisponibles = Array.from(new Set(torneoActivo.partidas.map(p => p.ronda))).sort((a, b) => a - b);
-                  if (rondasDisponibles.length <= 1) return null;
-                  return (
-                    <div style={{ display: 'flex', gap: 6, marginBottom: 8, overflowX: 'auto', paddingBottom: 4 }}>
-                      {rondasDisponibles.map(rNum => (
-                        <button
-                          key={rNum}
-                          type="button"
-                          className={`btn btn-xs ${rondaSeleccionadaFiltro === rNum ? 'btn-primary' : 'btn-secondary'}`}
-                          onClick={() => setRondaSeleccionadaFiltro(rNum)}
-                          style={{ minWidth: 60 }}
-                        >
-                          Ronda {rNum}
-                        </button>
-                      ))}
-                    </div>
-                  );
-                })()}
-
-                {torneoActivo.partidas.length === 0 ? (
-                  <div className="card" style={{ textAlign: 'center', padding: 32 }}>
-                    <i className="ri-sword-line" style={{ fontSize: 36, color: 'var(--text-muted)', display: 'block', marginBottom: 8 }} />
-                    <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>No hay partidas registradas aún</p>
-                  </div>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {torneoActivo.partidas
-                      .filter(p => p.ronda === rondaSeleccionadaFiltro)
-                      .map(p => {
-                        const esActivo = p.estado === 'activo';
-                        return (
-                          <div key={p.id} className="card" style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: 16, border: esActivo ? '1px solid var(--border-bronze)' : '1px solid var(--border)' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                              <div style={{ flex: 1, textAlign: 'right' }}>
-                                <span style={{ fontWeight: p.ganador === p.j1 ? 800 : 500, color: p.ganador === p.j1 ? 'var(--success)' : 'var(--text-secondary)', fontSize: 14 }}>{p.j1}</span>
-                              </div>
-                              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 100 }}>
-                                {p.resultado ? (
-                                  <div style={{ background: 'var(--bg-elevated)', borderRadius: 10, padding: '8px 16px', fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 700, letterSpacing: '0.1em', textAlign: 'center', border: '1px solid var(--border)' }}>
-                                    {p.resultado}
-                                  </div>
-                                ) : esActivo ? (
-                                  <button
-                                    className="btn btn-primary btn-sm"
-                                    style={{ padding: '6px 12px', fontSize: 11 }}
-                                    onClick={() => {
-                                      setPartidaAEditar(p);
-                                      setPartidaJ1(p.j1);
-                                      setPartidaJ2(p.j2);
-                                      setScoreJ1('0');
-                                      setScoreJ2('0');
-                                      setShowRegistrarPartida(true);
-                                    }}
-                                  >
-                                    Cargar Marcador
-                                  </button>
-                                ) : (
-                                  <span className="badge badge-warning" style={{ fontSize: 10 }}>Esperando Mesa</span>
-                                )}
-                              </div>
-                              <div style={{ flex: 1 }}>
-                                <span style={{ fontWeight: p.ganador === p.j2 ? 800 : 500, color: p.ganador === p.j2 ? 'var(--success)' : 'var(--text-secondary)', fontSize: 14 }}>{p.j2}</span>
-                              </div>
-                            </div>
-
-                            {/* Acciones adicionales y estado de mesa si no se ha completado la partida */}
-                            {!p.resultado && p.j2 !== 'BYE' && (
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, borderTop: '1px dashed var(--border)', paddingTop: 10, marginTop: 4 }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
-                                  {/* Estado / Asignación de Mesa */}
-                                  <div>
-                                    {p.mesaId ? (
-                                      <span style={{ fontSize: 11, color: 'var(--bronze-light)', fontWeight: 600 }}>
-                                        📍 Jugando en Mesa {p.mesaId}
-                                      </span>
-                                    ) : (
-                                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Asignar Mesa:</span>
-                                        <select
-                                          className="form-select"
-                                          style={{ width: '120px', padding: '2px 6px', fontSize: 11, height: '26px', background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}
-                                          defaultValue=""
-                                          onChange={(e) => {
-                                            if (e.target.value) {
-                                              handleAsignarMesaManual(p.id, parseInt(e.target.value));
-                                            }
-                                          }}
-                                        >
-                                          <option value="">-- Seleccionar --</option>
-                                          {mesas.filter(m => m.estado === 'libre').map(m => (
-                                            <option key={m.id} value={m.id}>{m.nombre} ({m.tipo})</option>
-                                          ))}
-                                        </select>
-                                      </div>
-                                    )}
-                                  </div>
-
-                                  {/* Botón rápido de definir ganador directo */}
-                                  <div style={{ display: 'flex', gap: 6 }}>
-                                    <button
-                                      type="button"
-                                      className="btn btn-success btn-xs"
-                                      style={{ padding: '4px 8px', fontSize: 10 }}
-                                      onClick={() => handleDefinirGanadorDirecto(p.id, p.j1)}
-                                    >
-                                      🏆 Ganó {p.j1}
-                                    </button>
-                                    <button
-                                      type="button"
-                                      className="btn btn-success btn-xs"
-                                      style={{ padding: '4px 8px', fontSize: 10 }}
-                                      onClick={() => handleDefinirGanadorDirecto(p.id, p.j2)}
-                                    >
-                                      🏆 Ganó {p.j2}
-                                    </button>
-                                  </div>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-
-                    {torneoActivo.estado === 'activo' && torneoActivo.partidas.some(p => p.ronda < torneoActivo.rondaActual) && (
-                      <div style={{ marginTop: 20 }}>
-                        <h4 style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase' }}>Partidas de Rondas Anteriores</h4>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                          {torneoActivo.partidas
-                            .filter(p => p.ronda < torneoActivo.rondaActual)
-                            .map(p => (
-                              <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--bg-elevated)', borderRadius: 8, fontSize: 12, border: '1px solid var(--border)' }}>
-                                <span>Ronda {p.ronda} · <strong>{p.j1}</strong> vs <strong>{p.j2}</strong></span>
-                                <span style={{ color: 'var(--bronze-light)', fontWeight: 700 }}>Ganador: {p.ganador} ({p.resultado})</span>
-                              </div>
-                            ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
+            {/* Partidas y Resultados (renderizado directo) */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                <h3 style={{ fontSize: 14, fontWeight: 700, margin: 0 }}>
+                  Partidas - Ronda {rondaSeleccionadaFiltro}
+                </h3>
+                {torneoActivo.estado === 'activo' && (
+                  <button 
+                    type="button"
+                    className="btn btn-secondary btn-xs"
+                    onClick={() => imprimirTicketTorneo(torneoActivo)}
+                    style={{ display: 'flex', alignItems: 'center', gap: 4 }}
+                  >
+                    <i className="ri-printer-line" /> Imprimir Bracket
+                  </button>
                 )}
               </div>
-            )}
+
+              {/* Selector de Rondas */}
+              {torneoActivo.partidas.length > 0 && (() => {
+                const rondasDisponibles = Array.from(new Set(torneoActivo.partidas.map(p => p.ronda))).sort((a, b) => a - b);
+                if (rondasDisponibles.length <= 1) return null;
+                return (
+                  <div style={{ display: 'flex', gap: 6, marginBottom: 8, overflowX: 'auto', paddingBottom: 4 }}>
+                    {rondasDisponibles.map(rNum => (
+                      <button
+                        key={rNum}
+                        type="button"
+                        className={`btn btn-xs ${rondaSeleccionadaFiltro === rNum ? 'btn-primary' : 'btn-secondary'}`}
+                        onClick={() => setRondaSeleccionadaFiltro(rNum)}
+                        style={{ minWidth: 60 }}
+                      >
+                        Ronda {rNum}
+                      </button>
+                    ))}
+                  </div>
+                );
+              })()}
+
+              {torneoActivo.partidas.length === 0 ? (
+                <div className="card" style={{ textAlign: 'center', padding: 32 }}>
+                  <i className="ri-sword-line" style={{ fontSize: 36, color: 'var(--text-muted)', display: 'block', marginBottom: 8 }} />
+                  <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>No hay partidas registradas aún</p>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {torneoActivo.partidas
+                    .filter(p => p.ronda === rondaSeleccionadaFiltro)
+                    .map(p => {
+                      const esActivo = p.estado === 'activo';
+                      return (
+                        <div key={p.id} className="card" style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: 16, border: esActivo ? '1px solid var(--border-bronze)' : '1px solid var(--border)' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                            <div style={{ flex: 1, textAlign: 'right' }}>
+                              <span style={{ fontWeight: p.ganador === p.j1 ? 800 : 500, color: p.ganador === p.j1 ? 'var(--success)' : 'var(--text-secondary)', fontSize: 14 }}>{p.j1}</span>
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 100 }}>
+                              {p.resultado ? (
+                                <div style={{ background: 'var(--bg-elevated)', borderRadius: 10, padding: '8px 16px', fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 700, letterSpacing: '0.1em', textAlign: 'center', border: '1px solid var(--border)' }}>
+                                  {p.resultado}
+                                </div>
+                              ) : esActivo ? (
+                                <button
+                                  className="btn btn-primary btn-sm"
+                                  style={{ padding: '6px 12px', fontSize: 11 }}
+                                  onClick={() => {
+                                    setPartidaAEditar(p);
+                                    setPartidaJ1(p.j1);
+                                    setPartidaJ2(p.j2);
+                                    setScoreJ1('0');
+                                    setScoreJ2('0');
+                                    setShowRegistrarPartida(true);
+                                  }}
+                                >
+                                  Cargar Marcador
+                                </button>
+                              ) : (
+                                <span className="badge badge-warning" style={{ fontSize: 10 }}>Esperando Mesa</span>
+                              )}
+                            </div>
+                            <div style={{ flex: 1 }}>
+                              <span style={{ fontWeight: p.ganador === p.j2 ? 800 : 500, color: p.ganador === p.j2 ? 'var(--success)' : 'var(--text-secondary)', fontSize: 14 }}>{p.j2}</span>
+                            </div>
+                          </div>
+
+                          {/* Acciones adicionales y estado de mesa si no se ha completado la partida */}
+                          {!p.resultado && p.j2 !== 'BYE' && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, borderTop: '1px dashed var(--border)', paddingTop: 10, marginTop: 4 }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+                                {/* Estado / Asignación de Mesa */}
+                                <div>
+                                  {p.mesaId ? (
+                                    <span style={{ fontSize: 11, color: 'var(--bronze-light)', fontWeight: 600 }}>
+                                      📍 Jugando en Mesa {p.mesaId}
+                                    </span>
+                                  ) : (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Asignar Mesa:</span>
+                                      <select
+                                        className="form-select"
+                                        style={{ width: '120px', padding: '2px 6px', fontSize: 11, height: '26px', background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}
+                                        defaultValue=""
+                                        onChange={(e) => {
+                                          if (e.target.value) {
+                                            handleAsignarMesaManual(p.id, parseInt(e.target.value));
+                                          }
+                                        }}
+                                      >
+                                        <option value="">-- Seleccionar --</option>
+                                        {mesas.filter(m => m.estado === 'libre').map(m => (
+                                          <option key={m.id} value={m.id}>{m.nombre} ({m.tipo})</option>
+                                        ))}
+                                      </select>
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Botón rápido de definir ganador directo */}
+                                <div style={{ display: 'flex', gap: 6 }}>
+                                  <button
+                                    type="button"
+                                    className="btn btn-success btn-xs"
+                                    style={{ padding: '4px 8px', fontSize: 10 }}
+                                    onClick={() => handleDefinirGanadorDirecto(p.id, p.j1)}
+                                  >
+                                    🏆 Ganó {p.j1}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="btn btn-success btn-xs"
+                                    style={{ padding: '4px 8px', fontSize: 10 }}
+                                    onClick={() => handleDefinirGanadorDirecto(p.id, p.j2)}
+                                  >
+                                    🏆 Ganó {p.j2}
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+
+                  {torneoActivo.estado === 'activo' && torneoActivo.partidas.some(p => p.ronda < torneoActivo.rondaActual) && (
+                    <div style={{ marginTop: 20 }}>
+                      <h4 style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase' }}>Partidas de Rondas Anteriores</h4>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {torneoActivo.partidas
+                          .filter(p => p.ronda < torneoActivo.rondaActual)
+                          .map(p => (
+                            <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--bg-elevated)', borderRadius: 8, fontSize: 12, border: '1px solid var(--border)' }}>
+                              <span>Ronda {p.ronda} · <strong>{p.j1}</strong> vs <strong>{p.j2}</strong></span>
+                              <span style={{ color: 'var(--bronze-light)', fontWeight: 700 }}>Ganador: {p.ganador} ({p.resultado})</span>
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         ) : (
           <div className="card" style={{ textAlign: 'center', padding: '60px 20px', border: '1px dashed var(--border)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
@@ -1872,7 +1806,7 @@ export default function TorneosPanel({ showToast }) {
       </>
       )}
 
-      {vistaPrincipal === 'ranking_global' && renderRankingGlobal()}
+      {vistaPrincipal === 'ranking_historico' && renderRankingHistorico()}
 
       {/* Modal Crear Torneo */}
       {showCrearTorneo && (
