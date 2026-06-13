@@ -1448,10 +1448,20 @@ export default function TorneosPanel({ showToast }) {
             {/* Partidas */}
             {vista === 'partidas' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <h3 style={{ fontSize: 14, fontWeight: 700 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                  <h3 style={{ fontSize: 14, fontWeight: 700, margin: 0 }}>
                     {torneoActivo.estado === 'activo' ? `Partidas - Ronda ${torneoActivo.rondaActual || 1}` : 'Historial de Partidas'}
                   </h3>
+                  {torneoActivo.estado === 'activo' && (
+                    <button 
+                      type="button"
+                      className="btn btn-secondary btn-xs"
+                      onClick={() => imprimirTicketTorneo(torneoActivo)}
+                      style={{ display: 'flex', alignItems: 'center', gap: 4 }}
+                    >
+                      <i className="ri-printer-line" /> Imprimir Bracket
+                    </button>
+                  )}
                 </div>
 
                 {torneoActivo.partidas.length === 0 ? (
@@ -1466,42 +1476,94 @@ export default function TorneosPanel({ showToast }) {
                       .map(p => {
                         const esActivo = p.estado === 'activo';
                         return (
-                          <div key={p.id} className="card" style={{ display: 'flex', alignItems: 'center', gap: 16, padding: 16, border: esActivo ? '1px solid var(--border-bronze)' : '1px solid var(--border)' }}>
-                            <div style={{ flex: 1, textAlign: 'right' }}>
-                              <span style={{ fontWeight: p.ganador === p.j1 ? 800 : 500, color: p.ganador === p.j1 ? 'var(--success)' : 'var(--text-secondary)', fontSize: 14 }}>{p.j1}</span>
+                          <div key={p.id} className="card" style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: 16, border: esActivo ? '1px solid var(--border-bronze)' : '1px solid var(--border)' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                              <div style={{ flex: 1, textAlign: 'right' }}>
+                                <span style={{ fontWeight: p.ganador === p.j1 ? 800 : 500, color: p.ganador === p.j1 ? 'var(--success)' : 'var(--text-secondary)', fontSize: 14 }}>{p.j1}</span>
+                              </div>
+                              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 100 }}>
+                                {p.resultado ? (
+                                  <div style={{ background: 'var(--bg-elevated)', borderRadius: 10, padding: '8px 16px', fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 700, letterSpacing: '0.1em', textAlign: 'center', border: '1px solid var(--border)' }}>
+                                    {p.resultado}
+                                  </div>
+                                ) : esActivo ? (
+                                  <button
+                                    className="btn btn-primary btn-sm"
+                                    style={{ padding: '6px 12px', fontSize: 11 }}
+                                    onClick={() => {
+                                      setPartidaAEditar(p);
+                                      setPartidaJ1(p.j1);
+                                      setPartidaJ2(p.j2);
+                                      setScoreJ1('0');
+                                      setScoreJ2('0');
+                                      setShowRegistrarPartida(true);
+                                    }}
+                                  >
+                                    Cargar Marcador
+                                  </button>
+                                ) : (
+                                  <span className="badge badge-warning" style={{ fontSize: 10 }}>Esperando Mesa</span>
+                                )}
+                              </div>
+                              <div style={{ flex: 1 }}>
+                                <span style={{ fontWeight: p.ganador === p.j2 ? 800 : 500, color: p.ganador === p.j2 ? 'var(--success)' : 'var(--text-secondary)', fontSize: 14 }}>{p.j2}</span>
+                              </div>
                             </div>
-                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 100 }}>
-                              {p.resultado ? (
-                                <div style={{ background: 'var(--bg-elevated)', borderRadius: 10, padding: '8px 16px', fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 700, letterSpacing: '0.1em', textAlign: 'center', border: '1px solid var(--border)' }}>
-                                  {p.resultado}
+
+                            {/* Acciones adicionales y estado de mesa si no se ha completado la partida */}
+                            {!p.resultado && p.j2 !== 'BYE' && (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, borderTop: '1px dashed var(--border)', paddingTop: 10, marginTop: 4 }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+                                  {/* Estado / Asignación de Mesa */}
+                                  <div>
+                                    {p.mesaId ? (
+                                      <span style={{ fontSize: 11, color: 'var(--bronze-light)', fontWeight: 600 }}>
+                                        📍 Jugando en Mesa {p.mesaId}
+                                      </span>
+                                    ) : (
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Asignar Mesa:</span>
+                                        <select
+                                          className="form-select"
+                                          style={{ width: '120px', padding: '2px 6px', fontSize: 11, height: '26px', background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}
+                                          defaultValue=""
+                                          onChange={(e) => {
+                                            if (e.target.value) {
+                                              handleAsignarMesaManual(p.id, parseInt(e.target.value));
+                                            }
+                                          }}
+                                        >
+                                          <option value="">-- Seleccionar --</option>
+                                          {mesas.filter(m => m.estado === 'libre').map(m => (
+                                            <option key={m.id} value={m.id}>{m.nombre} ({m.tipo})</option>
+                                          ))}
+                                        </select>
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {/* Botón rápido de definir ganador directo */}
+                                  <div style={{ display: 'flex', gap: 6 }}>
+                                    <button
+                                      type="button"
+                                      className="btn btn-success btn-xs"
+                                      style={{ padding: '4px 8px', fontSize: 10 }}
+                                      onClick={() => handleDefinirGanadorDirecto(p.id, p.j1)}
+                                    >
+                                      🏆 Ganó {p.j1}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="btn btn-success btn-xs"
+                                      style={{ padding: '4px 8px', fontSize: 10 }}
+                                      onClick={() => handleDefinirGanadorDirecto(p.id, p.j2)}
+                                    >
+                                      🏆 Ganó {p.j2}
+                                    </button>
+                                  </div>
                                 </div>
-                              ) : esActivo ? (
-                                <button
-                                  className="btn btn-primary btn-sm"
-                                  style={{ padding: '6px 12px', fontSize: 11 }}
-                                  onClick={() => {
-                                    setPartidaAEditar(p);
-                                    setPartidaJ1(p.j1);
-                                    setPartidaJ2(p.j2);
-                                    setScoreJ1('0');
-                                    setScoreJ2('0');
-                                    setShowRegistrarPartida(true);
-                                  }}
-                                >
-                                  Cargar Marcador
-                                </button>
-                              ) : (
-                                <span className="badge badge-warning" style={{ fontSize: 10 }}>Esperando Mesa</span>
-                              )}
-                              {p.mesaId && (
-                                <span style={{ fontSize: 9, color: 'var(--bronze-light)', marginTop: 4 }}>
-                                  Mesa {p.mesaId}
-                                </span>
-                              )}
-                            </div>
-                            <div style={{ flex: 1 }}>
-                              <span style={{ fontWeight: p.ganador === p.j2 ? 800 : 500, color: p.ganador === p.j2 ? 'var(--success)' : 'var(--text-secondary)', fontSize: 14 }}>{p.j2}</span>
-                            </div>
+                              </div>
+                            )}
                           </div>
                         );
                       })}
