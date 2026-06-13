@@ -397,6 +397,232 @@ export default function TorneosPanel({ showToast }) {
     printWindow.document.close();
   };
 
+  const handleAsignarMesaManual = (partidaId, mesaId) => {
+    if (!torneoActivo) return;
+
+    // Load current tables from localStorage
+    const savedMesas = localStorage.getItem('yoy_billar_mesas');
+    let currentMesas = savedMesas ? (deobfuscate(savedMesas) || []) : [];
+
+    const mesaIndex = currentMesas.findIndex(m => m.id === mesaId);
+    if (mesaIndex === -1) {
+      showToast('Mesa no encontrada', 'error');
+      return;
+    }
+
+    const mesa = currentMesas[mesaIndex];
+    if (mesa.estado !== 'libre') {
+      showToast('La mesa seleccionada no está libre', 'warning');
+      return;
+    }
+
+    const partidaIndex = torneoActivo.partidas.findIndex(p => p.id === partidaId);
+    if (partidaIndex === -1) return;
+    
+    const partida = torneoActivo.partidas[partidaIndex];
+
+    // Mark mesa as occupied
+    currentMesas[mesaIndex] = {
+      ...mesa,
+      estado: 'ocupada',
+      cliente: `Torneo: ${partida.j1} vs ${partida.j2}`,
+      inicio: Date.now()
+    };
+
+    localStorage.setItem('yoy_billar_mesas', obfuscate(currentMesas));
+    setMesas(currentMesas);
+
+    // Update matches in torneo
+    const updatedPartidas = torneoActivo.partidas.map(p => {
+      if (p.id === partidaId) {
+        return {
+          ...p,
+          mesaId: mesa.id,
+          estado: 'activo'
+        };
+      }
+      return p;
+    });
+
+    const updatedTorneos = torneos.map(t => {
+      if (t.id === torneoActivo.id) {
+        return {
+          ...t,
+          partidas: updatedPartidas
+        };
+      }
+      return t;
+    });
+
+    saveTorneos(updatedTorneos);
+    showToast(`Mesa ${mesa.nombre} asignada al partido.`, 'success');
+  };
+
+  const handleDefinirGanadorDirecto = (partidaId, ganadorName) => {
+    if (!torneoActivo) return;
+
+    const partidaIndex = torneoActivo.partidas.findIndex(p => p.id === partidaId);
+    if (partidaIndex === -1) return;
+
+    const partida = torneoActivo.partidas[partidaIndex];
+    const score1 = ganadorName === partida.j1 ? 1 : 0;
+    const score2 = ganadorName === partida.j2 ? 1 : 0;
+
+    // Free table if one was assigned
+    if (partida.mesaId) {
+      const savedMesas = localStorage.getItem('yoy_billar_mesas');
+      let currentMesas = savedMesas ? (deobfuscate(savedMesas) || []) : [];
+      const mesaIdx = currentMesas.findIndex(m => m.id === partida.mesaId);
+      if (mesaIdx !== -1) {
+        currentMesas[mesaIdx] = {
+          ...currentMesas[mesaIdx],
+          estado: 'libre',
+          cliente: null,
+          inicio: null
+        };
+        localStorage.setItem('yoy_billar_mesas', obfuscate(currentMesas));
+        setMesas(currentMesas);
+      }
+    }
+
+    // Update matches list
+    let updatedPartidas = torneoActivo.partidas.map(p => {
+      if (p.id === partidaId) {
+        return {
+          ...p,
+          resultado: `${score1}-${score2}`,
+          ganador: ganadorName,
+          estado: 'completado'
+        };
+      }
+      return p;
+    });
+
+    // Update player ranking/stats in the tournament
+    const p1 = torneoActivo.ranking.find(r => r.nombre === partida.j1);
+    const p2 = torneoActivo.ranking.find(r => r.nombre === partida.j2);
+
+    const elo1 = p1 ? p1.elo : 1500;
+    const elo2 = p2 ? p2.elo : 1500;
+
+    const expected1 = 1 / (1 + Math.pow(10, (elo2 - elo1) / 400));
+    const expected2 = 1 / (1 + Math.pow(10, (elo1 - elo2) / 400));
+
+    const valOutcome1 = ganadorName === partida.j1 ? 1 : 0;
+    const valOutcome2 = ganadorName === partida.j2 ? 1 : 0;
+
+    const K = 32;
+    const newElo1 = Math.round(elo1 + K * (valOutcome1 - expected1));
+    const newElo2 = Math.round(elo2 + K * (valOutcome2 - expected2));
+
+    const updatedRanking = torneoActivo.ranking.map(r => {
+      if (r.nombre === partida.j1) {
+        return {
+          ...r,
+          pj: r.pj + 1,
+          pg: ganadorName === partida.j1 ? r.pg + 1 : r.pg,
+          pp: ganadorName === partida.j2 ? r.pp + 1 : r.pp,
+          pts: ganadorName === partida.j1 ? r.pts + 3 : r.pts,
+          elo: newElo1
+        };
+      }
+      if (r.nombre === partida.j2) {
+        return {
+          ...r,
+          pj: r.pj + 1,
+          pg: ganadorName === partida.j2 ? r.pg + 1 : r.pg,
+          pp: ganadorName === partida.j1 ? r.pp + 1 : r.pp,
+          pts: ganadorName === partida.j2 ? r.pts + 3 : r.pts,
+          elo: newElo2
+        };
+      }
+      return r;
+    });
+
+    updatedRanking.sort((a, b) => b.pts - a.pts || b.elo - a.elo);
+    updatedRanking.forEach((r, idx) => { r.pos = idx + 1; });
+
+    // Check if all games in current round are complete
+    const partidasRondaActual = updatedPartidas.filter(p => p.ronda === torneoActivo.rondaActual);
+    const todasCompletas = partidasRondaActual.every(p => p.estado === 'completado');
+
+    let nextRondaNum = torneoActivo.rondaActual;
+    let finalizado = false;
+    let campeon = torneoActivo.campeon || null;
+
+    if (todasCompletas) {
+      const ganadores = partidasRondaActual.map(p => p.ganador).filter(g => g && g !== 'BYE');
+      if (ganadores.length === 1) {
+        finalizado = true;
+        campeon = ganadores[0];
+      } else if (ganadores.length > 1) {
+        // Shuffle and pair winners randomly for the next round
+        const ganadoresShuffled = [...ganadores].sort(() => 0.5 - Math.random());
+        nextRondaNum = torneoActivo.rondaActual + 1;
+        const nuevasPartidasSiguienteRonda = [];
+        let nextMatchId = updatedPartidas.length + 1;
+        for (let i = 0; i < ganadoresShuffled.length; i += 2) {
+          if (i + 1 < ganadoresShuffled.length) {
+            nuevasPartidasSiguienteRonda.push({
+              id: nextMatchId++,
+              j1: ganadoresShuffled[i],
+              j2: ganadoresShuffled[i + 1],
+              ronda: nextRondaNum,
+              resultado: null,
+              ganador: null,
+              mesaId: null,
+              estado: 'esperando_mesa'
+            });
+          } else {
+            nuevasPartidasSiguienteRonda.push({
+              id: nextMatchId++,
+              j1: ganadoresShuffled[i],
+              j2: 'BYE',
+              resultado: 'BYE',
+              ganador: ganadoresShuffled[i],
+              ronda: nextRondaNum,
+              mesaId: null,
+              estado: 'completado'
+            });
+          }
+        }
+        updatedPartidas = [...updatedPartidas, ...nuevasPartidasSiguienteRonda];
+      }
+    }
+
+    const updatedTorneos = torneos.map(t => {
+      if (t.id === torneoActivo.id) {
+        return {
+          ...t,
+          partidas: updatedPartidas,
+          ranking: updatedRanking,
+          rondaActual: nextRondaNum,
+          estado: finalizado ? 'completado' : t.estado,
+          campeon: campeon
+        };
+      }
+      return t;
+    });
+
+    saveTorneos(updatedTorneos);
+
+    // Save ELO to global historical ELO rankings
+    saveRankingHistorico(ganadorName, ganadorName === partida.j1 ? partida.j2 : partida.j1, torneoActivo.juegoTipo || 'Pool');
+
+    if (finalizado) {
+      showToast(`🏆 ¡El torneo ha finalizado! Campeón: ${campeon}`, 'success');
+    } else if (nextRondaNum > torneoActivo.rondaActual) {
+      showToast(`¡Ronda ${torneoActivo.rondaActual} concluida! Iniciando Ronda ${nextRondaNum}.`, 'success');
+      // Auto print ticket for new round pairings!
+      setTimeout(() => {
+        const updatedTorneo = updatedTorneos.find(t => t.id === torneoActivo.id);
+        if (updatedTorneo) imprimirTicketTorneo(updatedTorneo);
+      }, 500);
+    } else {
+      showToast(`Ganador registrado: ${ganadorName}`, 'success');
+    }
+  };
+
   const asignarMesasAPartidas = (partidasList, mesasAsignadasIds) => {
     const savedMesas = localStorage.getItem('yoy_billar_mesas');
     let currentMesas = savedMesas ? (deobfuscate(savedMesas) || []) : [];
