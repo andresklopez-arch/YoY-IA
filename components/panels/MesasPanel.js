@@ -452,6 +452,15 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
       .slice(0, 15);
   };
 
+  const getMatchingActiveAccounts = (query) => {
+    const term = (query || '').trim().toLowerCase();
+    if (!term || term.length < 2) return [];
+    return cuentasActivas.filter(c => {
+      const cleanClient = getCleanClientName(c.cliente).toLowerCase();
+      return cleanClient.includes(term);
+    });
+  };
+
   // Pre-seleccionar la cuenta asociada de la mesa si existe
   useEffect(() => {
     if (cuentaAsociada) {
@@ -491,6 +500,7 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
   // Estado para la confirmación de nombre al mover a pendientes
   const [showPromptMoverPendiente, setShowPromptMoverPendiente] = useState(false);
   const [nombrePagador, setNombrePagador] = useState('');
+  const [cuentaMoverId, setCuentaMoverId] = useState(null);
 
   const handleImprimirPreTicket = () => {
     imprimirPreTicket(mesa);
@@ -931,6 +941,51 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
                           <i className="ri-user-add-line" style={{ fontSize: 12 }} />
                         </button>
                       </div>
+                      {getMatchingActiveAccounts(nuevoCliente).length > 0 && (
+                        <div style={{
+                          background: 'rgba(205,127,50,0.08)',
+                          border: '1px solid rgba(205,127,50,0.3)',
+                          borderRadius: 8,
+                          padding: '8px 10px',
+                          marginTop: 6,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 4
+                        }}>
+                          <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--bronze-light)', marginBottom: 2 }}>
+                            📌 ANEXAR A CUENTA ACTIVA EXISTENTE:
+                          </div>
+                          {getMatchingActiveAccounts(nuevoCliente).map(c => (
+                            <button
+                              key={c.id}
+                              type="button"
+                              onClick={() => {
+                                setCuentaSeleccionada(c.id);
+                                setNuevoCliente('');
+                                showToast(`Cuenta de ${getCleanClientName(c.cliente)} seleccionada ✓`, 'info');
+                              }}
+                              style={{
+                                background: 'var(--bg-elevated)',
+                                border: '1px solid var(--border)',
+                                borderRadius: 6,
+                                padding: '4px 8px',
+                                fontSize: 11,
+                                textAlign: 'left',
+                                cursor: 'pointer',
+                                color: '#fff',
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center'
+                              }}
+                            >
+                              <span>👤 {c.cliente}</span>
+                              <span style={{ fontSize: 9, color: 'var(--bronze-light)', fontWeight: 'bold' }}>
+                                ${c.tiempoJuego + c.consumos.reduce((sumItem, i) => sumItem + i.precio * i.cantidad, 0)} MXN
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
                       <datalist id="clientes-nuevo-list">
                         {getFilteredClientes(nuevoCliente).map((c, idx) => (
                           <option key={idx} value={c.nombre} />
@@ -1066,13 +1121,13 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
 
                 {/* Modal/Prompt para Nombre de Pago al Mover a Pendiente */}
                 {showPromptMoverPendiente && (
-                  <div className="modal-overlay" style={{ zIndex: 2100 }} onClick={() => setShowPromptMoverPendiente(false)}>
+                  <div className="modal-overlay" style={{ zIndex: 2100 }} onClick={() => { setShowPromptMoverPendiente(false); setCuentaMoverId(null); }}>
                     <div className="modal" style={{ maxWidth: 380, animation: 'scaleUpAlert 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)' }} onClick={e => e.stopPropagation()}>
                       <div className="modal-header">
                         <span className="modal-title" style={{ color: 'var(--bronze-light)', display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 900 }}>
                           <i className="ri-user-shared-line" /> Mover a Pendientes
                         </span>
-                        <button onClick={() => setShowPromptMoverPendiente(false)} className="btn btn-secondary" style={{ background: 'none', border: 'none', padding: 2 }}>
+                        <button onClick={() => { setShowPromptMoverPendiente(false); setCuentaMoverId(null); }} className="btn btn-secondary" style={{ background: 'none', border: 'none', padding: 2 }}>
                           <i className="ri-close-line" style={{ fontSize: 18 }} />
                         </button>
                       </div>
@@ -1089,7 +1144,7 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
                               style={{ padding: '8px 12px', fontSize: 13, flex: 1 }}
                               placeholder="Ej: Carlos Rodríguez / Amigo de Juan"
                               value={nombrePagador}
-                              onChange={e => setNombrePagador(e.target.value)}
+                              onChange={e => { setNombrePagador(e.target.value); setCuentaMoverId(null); }}
                               list="clientes-pagador-list"
                               autoFocus
                             />
@@ -1115,6 +1170,51 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
                               <i className="ri-user-add-line" style={{ fontSize: 14 }} />
                             </button>
                           </div>
+                          {getMatchingActiveAccounts(nombrePagador).length > 0 && (
+                            <div style={{
+                              background: 'rgba(205,127,50,0.08)',
+                              border: '1px solid rgba(205,127,50,0.3)',
+                              borderRadius: 8,
+                              padding: '8px 10px',
+                              marginTop: 6,
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: 4
+                            }}>
+                              <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--bronze-light)', marginBottom: 2 }}>
+                                📌 ANEXAR A CUENTA ACTIVA EXISTENTE (Click para anexar):
+                              </div>
+                              {getMatchingActiveAccounts(nombrePagador).map(c => (
+                                <button
+                                  key={c.id}
+                                  type="button"
+                                  onClick={() => {
+                                    setNombrePagador(getCleanClientName(c.cliente));
+                                    setCuentaMoverId(c.id);
+                                    showToast(`Vinculado a la cuenta existente de ${getCleanClientName(c.cliente)} ✓`, 'info');
+                                  }}
+                                  style={{
+                                    background: 'var(--bg-elevated)',
+                                    border: '1px solid var(--border)',
+                                    borderRadius: 6,
+                                    padding: '4px 8px',
+                                    fontSize: 11,
+                                    textAlign: 'left',
+                                    cursor: 'pointer',
+                                    color: '#fff',
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    alignItems: 'center'
+                                  }}
+                                >
+                                  <span>👤 {c.cliente}</span>
+                                  <span style={{ fontSize: 9, color: 'var(--bronze-light)', fontWeight: 'bold' }}>
+                                    ${c.tiempoJuego + c.consumos.reduce((sumItem, i) => sumItem + i.precio * i.cantidad, 0)} MXN
+                                  </span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
                           <datalist id="clientes-pagador-list">
                             {getFilteredClientes(nombrePagador).map((c, idx) => (
                               <option key={idx} value={c.nombre} />
@@ -1129,7 +1229,7 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
                         )}
                       </div>
                       <div className="modal-footer" style={{ display: 'flex', gap: 8 }}>
-                        <button className="btn btn-secondary" onClick={() => setShowPromptMoverPendiente(false)} style={{ flex: 1, padding: '6px 12px', fontSize: 11 }}>Cancelar</button>
+                        <button className="btn btn-secondary" onClick={() => { setShowPromptMoverPendiente(false); setCuentaMoverId(null); }} style={{ flex: 1, padding: '6px 12px', fontSize: 11 }}>Cancelar</button>
                         <button
                           className="btn btn-primary"
                           disabled={!nombrePagador.trim()}
@@ -1154,7 +1254,7 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
                             registrarNuevoClienteDirectorio(pagadorClean);
                             onAgregarACuenta({
                               costo: costoTiempo,
-                              cuentaId: existente ? existente.id : (cuentaAsociada ? cuentaAsociada.id : null),
+                              cuentaId: cuentaMoverId || (existente ? existente.id : (cuentaAsociada ? cuentaAsociada.id : null)),
                               nombreNuevo: `${pagadorClean} (Mesa ${mesa.id} - Pendiente)`
                             });
                             setShowPromptMoverPendiente(false);
