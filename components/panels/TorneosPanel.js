@@ -23,6 +23,7 @@ export default function TorneosPanel({ showToast }) {
   const [showCrearTorneo, setShowCrearTorneo] = useState(false);
   const [showRegistrarPartida, setShowRegistrarPartida] = useState(false);
   const [showRegistrarJugador, setShowRegistrarJugador] = useState(false);
+  const [showDefinirGanadoresModal, setShowDefinirGanadoresModal] = useState(false);
 
   // Formulario Crear Torneo
   const [nuevoNombre, setNuevoNombre] = useState('');
@@ -707,6 +708,12 @@ export default function TorneosPanel({ showToast }) {
     saveRankingHistorico(ganadorName, ganadorName === partida.j1 ? partida.j2 : partida.j1, torneoActivo.juegoTipo || 'Pool');
 
     showToast(`Ganador registrado: ${ganadorName}`, 'success');
+
+    // Auto-cerrar modal si no hay más partidas pendientes en la ronda
+    const remainingPending = updatedPartidas.filter(p => p.ronda === torneoActivo.rondaActual && p.estado !== 'completado').length;
+    if (remainingPending === 0) {
+      setShowDefinirGanadoresModal(false);
+    }
   };
 
   const asignarMesasAPartidas = (partidasList, mesasAsignadasIds) => {
@@ -1260,6 +1267,8 @@ export default function TorneosPanel({ showToast }) {
     showToast(`Partida registrada. ELOs actualizados.`, 'success');
   };
 
+
+
   const renderRankingGlobal = () => {
     const players = rankingHistorico[modalityTab] || [];
     const top20Players = players.slice(0, 20);
@@ -1602,10 +1611,15 @@ export default function TorneosPanel({ showToast }) {
                     }
                   } else {
                     return (
-                      <div className="alert alert-info" style={{ fontSize: 11, padding: '6px 12px', borderRadius: 6, background: 'rgba(205,127,50,0.08)', border: '1px solid rgba(205,127,50,0.2)', color: 'var(--bronze-light)', display: 'flex', alignItems: 'center', gap: 6, width: '100%' }}>
-                        <i className="ri-information-line" style={{ fontSize: 14 }} />
-                        <span>Partidas de la Ronda {torneoActivo.rondaActual} en curso. Defina todos los ganadores para avanzar.</span>
-                      </div>
+                      <button
+                        type="button"
+                        className="btn btn-warning btn-xs"
+                        onClick={() => setShowDefinirGanadoresModal(true)}
+                        style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', justifyContent: 'center' }}
+                      >
+                        <i className="ri-award-line" />
+                        Definir Ganadores ({partidasRondaActual.filter(p => p.estado !== 'completado').length} pendientes)
+                      </button>
                     );
                   }
                 })()}
@@ -2097,6 +2111,98 @@ export default function TorneosPanel({ showToast }) {
                 <button type="submit" className="btn btn-primary">Guardar Partida</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Definir Ganadores */}
+      {showDefinirGanadoresModal && torneoActivo && (
+        <div className="modal-overlay" onClick={() => setShowDefinirGanadoresModal(false)}>
+          <div className="modal" style={{ maxWidth: 500 }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <span className="modal-title">Definir Ganadores - Ronda {torneoActivo.rondaActual}</span>
+              <button
+                type="button"
+                onClick={() => setShowDefinirGanadoresModal(false)}
+                style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 20 }}
+              >
+                ✕
+              </button>
+            </div>
+            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 12, maxHeight: '60vh', overflowY: 'auto' }}>
+              {(() => {
+                const partidasPendientes = torneoActivo.partidas.filter(p => p.ronda === torneoActivo.rondaActual && p.estado !== 'completado');
+                if (partidasPendientes.length === 0) {
+                  return (
+                    <div style={{ textAlign: 'center', padding: 20, color: 'var(--text-muted)' }}>
+                      No hay partidas pendientes en la ronda actual.
+                    </div>
+                  );
+                }
+                return partidasPendientes.map(p => (
+                  <div
+                    key={p.id}
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 8,
+                      padding: 12,
+                      background: 'rgba(255, 255, 255, 0.02)',
+                      border: '1px solid var(--border)',
+                      borderRadius: 10
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: 11, color: 'var(--bronze-light)', fontWeight: 600 }}>
+                        {p.mesaId ? `📍 Mesa ${p.mesaId}` : '⏳ Esperando Mesa'}
+                      </span>
+                      {p.j2 === 'BYE' && <span className="badge badge-success">BYE</span>}
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: 8, alignItems: 'center' }}>
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        style={{
+                          padding: '8px 12px',
+                          whiteSpace: 'normal',
+                          wordBreak: 'break-word',
+                          textAlign: 'center',
+                          height: '100%',
+                          fontSize: 12,
+                          fontWeight: 700
+                        }}
+                        onClick={() => handleDefinirGanadorDirecto(p.id, p.j1)}
+                      >
+                        👑 {p.j1}
+                      </button>
+                      <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-muted)', padding: '0 8px', textAlign: 'center' }}>VS</span>
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        style={{
+                          padding: '8px 12px',
+                          whiteSpace: 'normal',
+                          wordBreak: 'break-word',
+                          textAlign: 'center',
+                          height: '100%',
+                          fontSize: 12,
+                          fontWeight: 700
+                        }}
+                        disabled={p.j2 === 'BYE'}
+                        onClick={() => handleDefinirGanadorDirecto(p.id, p.j2)}
+                      >
+                        {p.j2 === 'BYE' ? 'BYE' : `👑 ${p.j2}`}
+                      </button>
+                    </div>
+                  </div>
+                ));
+              })()}
+            </div>
+            <div className="modal-footer">
+              <button type="button" className="btn btn-secondary" onClick={() => setShowDefinirGanadoresModal(false)}>
+                Cerrar
+              </button>
+            </div>
           </div>
         </div>
       )}
