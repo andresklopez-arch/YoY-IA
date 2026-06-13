@@ -3226,6 +3226,152 @@ export default function MesasPanel({ showToast }) {
     w.document.close();
   };
 
+  const imprimirTicketFinal = ({
+    cliente,
+    isMesa,
+    mesaNombre,
+    inicio,
+    tiempoJuegoCosto,
+    durationStr,
+    consumos,
+    total,
+    metodoPago,
+    pagaCon,
+    cambio,
+    referenciaPago,
+    operador
+  }) => {
+    const w = window.open('', '_blank');
+    if (!w) {
+      showToast("El navegador bloqueó la ventana emergente. Por favor, habilite los pop-ups para imprimir.", "danger");
+      return;
+    }
+
+    let htmlContent = `
+      <html><head><title>Comprobante de Pago - YoY IA Billar Club</title>
+      <style>
+        body { margin: 0; padding: 20px; font-family: 'Courier New', Courier, monospace; background: #fff; color: #000; font-size: 13px; line-height: 1.4; max-width: 280px; }
+        .text-center { text-align: center; }
+        .text-right { text-align: right; }
+        .divider { border-top: 1px dashed #000; margin: 10px 0; }
+        .header { margin-bottom: 12px; }
+        .header h3 { margin: 0; font-size: 16px; font-weight: bold; }
+        .header p { margin: 2px 0; font-size: 11px; }
+        .details-table { width: 100%; border-collapse: collapse; }
+        .details-table td { padding: 3px 0; vertical-align: top; font-size: 12px; }
+        .footer { margin-top: 20px; font-size: 10px; text-align: center; color: #555; }
+      </style>
+      </head>
+      <body>
+        <div class="header text-center">
+          <h3>YoY IA Billar Club</h3>
+          <p>Comprobante de Pago (VENTA)</p>
+          <p>Fecha: ${new Date().toLocaleString()}</p>
+        </div>
+        
+        <div class="divider"></div>
+        
+        <div>
+          ${isMesa ? `<strong>Mesa:</strong> ${mesaNombre}<br/>` : ''}
+          <strong>Cliente:</strong> ${cliente || 'Público General'}<br/>
+          ${isMesa && inicio ? `<strong>Inicio:</strong> ${new Date(inicio).toLocaleTimeString()}<br/>` : ''}
+          ${isMesa && durationStr ? `<strong>Tiempo Jugado:</strong> ${durationStr}<br/>` : ''}
+          <strong>Cajero:</strong> ${operador || 'Cajero Principal'}<br/>
+        </div>
+        
+        <div class="divider"></div>
+        
+        <table class="details-table">
+          <thead>
+            <tr style="border-bottom: 1px solid #000;">
+              <th align="left" style="font-size: 11px;">Prod / Concepto</th>
+              <th align="right" style="font-size: 11px;">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+    `;
+
+    if (tiempoJuegoCosto > 0) {
+      htmlContent += `
+        <tr>
+          <td>Tiempo de Juego</td>
+          <td align="right">$${tiempoJuegoCosto} MXN</td>
+        </tr>
+      `;
+    }
+
+    consumos.forEach(item => {
+      htmlContent += `
+        <tr>
+          <td>${item.cantidad}x ${item.producto}</td>
+          <td align="right">$${item.precio * item.cantidad} MXN</td>
+        </tr>
+      `;
+    });
+
+    htmlContent += `
+          </tbody>
+        </table>
+        
+        <div class="divider"></div>
+        
+        <table style="width: 100%; font-size: 13px;">
+          <tr>
+            <td><strong>TOTAL:</strong></td>
+            <td align="right"><strong>$${total} MXN</strong></td>
+          </tr>
+          <tr>
+            <td>Método Pago:</td>
+            <td align="right">${metodoPago}</td>
+          </tr>
+    `;
+
+    if (metodoPago.toLowerCase().includes('efectivo')) {
+      htmlContent += `
+        <tr>
+          <td>Recibido:</td>
+          <td align="right">$${pagaCon} MXN</td>
+        </tr>
+        <tr>
+          <td>Cambio:</td>
+          <td align="right">$${cambio} MXN</td>
+        </tr>
+      `;
+    }
+
+    if (referenciaPago) {
+      htmlContent += `
+        <tr>
+          <td>Ref/Trans:</td>
+          <td align="right">${referenciaPago}</td>
+        </tr>
+      `;
+    }
+
+    htmlContent += `
+        </table>
+        
+        <div class="divider"></div>
+        
+        <div class="footer">
+          <p>¡Gracias por su visita y preferencia!</p>
+          <p>YoY IA Billar Club</p>
+        </div>
+        
+        <script>
+          window.onload = () => {
+            window.print();
+            setTimeout(() => { window.close(); }, 500);
+          };
+        </script>
+      </body>
+      </html>
+    `;
+
+    w.document.write(htmlContent);
+    w.document.close();
+  };
+
   const confirmarCerrarMesa = async (mesaId, { costo, metodo, tiempo, referencia, pagaCon, cambio, fotoAdjunta, motivo }) => {
     try {
       const mesa = mesas.find(m => m.id === mesaId);
@@ -3295,6 +3441,35 @@ export default function MesasPanel({ showToast }) {
           rolOperador: user ? (user.role || 'staff') : 'staff',
         });
       });
+
+      // Mandar a imprimir el ticket final de cobro
+      try {
+        const consumosFinal = cuentaAsociada ? (cuentaAsociada.consumos || []) : [];
+        let metodoPagoImprimir = metodo || 'efectivo';
+        if (metodoPagoImprimir === 'efectivo') metodoPagoImprimir = 'Efectivo';
+        else if (metodoPagoImprimir === 'transferencia') metodoPagoImprimir = 'Transferencia';
+        else if (metodoPagoImprimir === 'qr') metodoPagoImprimir = 'Código QR';
+        else if (metodoPagoImprimir === 'tarjeta') metodoPagoImprimir = 'Tarjeta';
+        else if (metodoPagoImprimir === 'cortesia') metodoPagoImprimir = 'Cortesía';
+
+        imprimirTicketFinal({
+          cliente: clientName || 'Público General',
+          isMesa: true,
+          mesaNombre: mesa ? (mesa.nombre || `Mesa ${mesaId}`) : `Mesa ${mesaId}`,
+          inicio: mesa ? mesa.inicio : null,
+          tiempoJuegoCosto: mesa ? (mesa.socios ? 0 : calcCosto(mesa)) : 0,
+          durationStr: tiempo ? formatTime(tiempo) : (mesa && mesa.inicio ? formatTime(Date.now() - mesa.inicio) : '00:00:00'),
+          consumos: consumosFinal,
+          total: costo,
+          metodoPago: metodoPagoImprimir,
+          pagaCon: parseFloat(pagaCon) || 0,
+          cambio: parseFloat(cambio) || 0,
+          referenciaPago: referencia || '',
+          operador: user ? (user.displayName || user.email || 'Cajero Principal') : 'Cajero Principal'
+        });
+      } catch (printErr) {
+        console.error("Error al imprimir ticket de cobro:", printErr);
+      }
 
       // Actualizar caché local y estado
       if (typeof window !== 'undefined') {
@@ -4921,6 +5096,27 @@ function ModalCuentasActivas({
       });
       setMesaSel(null);
     } else {
+      // Mandar a imprimir el ticket final de cobro de cuenta de cliente
+      try {
+        imprimirTicketFinal({
+          cliente: clientName || 'Público General',
+          isMesa: false,
+          mesaNombre: '',
+          inicio: null,
+          tiempoJuegoCosto: tiempoJuegoCosto,
+          durationStr: '',
+          consumos: consumosList,
+          total: grandTotal,
+          metodoPago: metodoLabel,
+          pagaCon: totalPagaCon,
+          cambio: cambio,
+          referenciaPago: referencia || '',
+          operador: user ? (user.displayName || user.email || 'Cajero Principal') : 'Cajero Principal'
+        });
+      } catch (printErr) {
+        console.error("Error al imprimir ticket de cuenta:", printErr);
+      }
+
       setCuentas(prev => prev.filter(c => c.id !== cuentaSel.id));
       showToast(`Cuenta de ${cuentaSel.cliente} liquidada con éxito por $${grandTotal} MXN ✓`, 'success');
       if (registrarEvento) {
