@@ -61,12 +61,35 @@ export default function FilaEsperaCliente() {
             icon: "/icon.png",
             vibrate: [300, 200, 300, 200, 500],
             tag: "mesa-lista",
-            requireInteraction: true
+            requireInteraction: true,
+            actions: [
+              { action: 'silenciar', title: '🔇 Silenciar Alarma' }
+            ]
           });
         }
       }
     }
   }, [alerting, data]);
+
+  // Escuchar mensajes del Service Worker para silenciar la alarma
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+      const handleSWMessage = (event) => {
+        if (event.data && event.data.type === 'SILENCE_ALERT') {
+          console.log("Alarma silenciada desde la notificación de sistema.");
+          setAlerting(false);
+          if (typeof window !== 'undefined' && window.navigator && window.navigator.vibrate) {
+            window.navigator.vibrate(0);
+          }
+        }
+      };
+
+      navigator.serviceWorker.addEventListener('message', handleSWMessage);
+      return () => {
+        navigator.serviceWorker.removeEventListener('message', handleSWMessage);
+      };
+    }
+  }, []);
 
   useEffect(() => {
     if (!id) return;
