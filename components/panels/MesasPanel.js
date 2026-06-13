@@ -3241,16 +3241,10 @@ export default function MesasPanel({ showToast }) {
     referenciaPago,
     operador
   }) => {
-    const w = window.open('', '_blank');
-    if (!w) {
-      showToast("El navegador bloqueó la ventana emergente. Por favor, habilite los pop-ups para imprimir.", "danger");
-      return;
-    }
-
     let htmlContent = `
       <html><head><title>Comprobante de Pago - YoY IA Billar Club</title>
       <style>
-        body { margin: 0; padding: 20px; font-family: 'Courier New', Courier, monospace; background: #fff; color: #000; font-size: 13px; line-height: 1.4; max-width: 280px; }
+        body { margin: 0; padding: 10px; font-family: 'Courier New', Courier, monospace; background: #fff; color: #000; font-size: 13px; line-height: 1.4; max-width: 280px; }
         .text-center { text-align: center; }
         .text-right { text-align: right; }
         .divider { border-top: 1px dashed #000; margin: 10px 0; }
@@ -3357,19 +3351,36 @@ export default function MesasPanel({ showToast }) {
           <p>¡Gracias por su visita y preferencia!</p>
           <p>YoY IA Billar Club</p>
         </div>
-        
-        <script>
-          window.onload = () => {
-            window.print();
-            setTimeout(() => { window.close(); }, 500);
-          };
-        </script>
       </body>
       </html>
     `;
 
-    w.document.write(htmlContent);
-    w.document.close();
+    try {
+      const iframe = document.createElement('iframe');
+      iframe.style.position = 'fixed';
+      iframe.style.right = '0';
+      iframe.style.bottom = '0';
+      iframe.style.width = '0';
+      iframe.style.height = '0';
+      iframe.style.border = '0';
+      document.body.appendChild(iframe);
+
+      const doc = iframe.contentWindow.document || iframe.contentDocument;
+      doc.open();
+      doc.write(htmlContent);
+      doc.close();
+
+      iframe.contentWindow.focus();
+      setTimeout(() => {
+        iframe.contentWindow.print();
+        setTimeout(() => {
+          document.body.removeChild(iframe);
+        }, 1500);
+      }, 300);
+    } catch (err) {
+      console.error("Error al inyectar iframe e imprimir:", err);
+      showToast("Error de impresión local. Intente de nuevo.", "danger");
+    }
   };
 
   const confirmarCerrarMesa = async (mesaId, { costo, metodo, tiempo, referencia, pagaCon, cambio, fotoAdjunta, motivo }) => {
