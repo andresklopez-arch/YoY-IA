@@ -33,6 +33,39 @@ const normalizeText = (str) => {
   return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
 };
 
+const isRealName = (name) => {
+  const normalized = (name || '').trim().toLowerCase();
+  
+  // 1. Debe tener al menos 3 caracteres
+  if (normalized.length < 3) return false;
+  
+  // 2. Nombres genéricos prohibidos
+  const genericList = [
+    'publico', 'público', 'publico general', 'público general', 
+    'cliente temporal', 'cliente', 'sin nombre', 'anonimo', 
+    'anónimo', 'desconocido', 'nadie', 'ninguno', 'x', 'xx', 'xxx'
+  ];
+  if (genericList.includes(normalized)) return false;
+  
+  // 3. No debe empezar con términos de sesión genérica
+  if (normalized.startsWith('mesa ') || 
+      normalized.startsWith('cuenta ') || 
+      normalized.startsWith('pedido ') || 
+      normalized === 'mesa' || 
+      normalized === 'cuenta') {
+    return false;
+  }
+  
+  // 4. Debe contener al menos una letra (no ser solo números o símbolos especiales)
+  if (!/[a-zA-ZáéíóúÁÉÍÓÚñÑ]/.test(normalized)) return false;
+  
+  // 5. Detectar repeticiones de caracteres y mocks de teclado comunes
+  if (/^(.)\1+$/.test(normalized)) return false; // p. ej. "aaa", "---", "..."
+  if (['asd', 'asdf', 'qwer', 'zxcv', '1234', '12345'].includes(normalized)) return false;
+  
+  return true;
+};
+
 // ── DATOS INICIALES DE MESAS ───────────────────────────────
 const INIT_MESAS = [
   { id: 1, nombre: 'Mesa 1', tipo: 'Carambola 3B', estado: 'libre',    cliente: null, inicio: null, tarifa: 80, socios: false, clienteUid: '' },
@@ -373,7 +406,7 @@ function ModalAbrirMesa({ mesa, onClose, onConfirm }) {
 }
 
 // ── MODAL CERRAR MESA ────────────────────────────────────
-function ModalCerrarMesa({ mesa, cuentasActivas, unloadedConsumos, onClose, onCerrar, onAgregarACuenta, imprimirPreTicket, onImprimirPreTicket }) {
+function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], unloadedConsumos, onClose, onCerrar, onAgregarACuenta, imprimirPreTicket, onImprimirPreTicket }) {
   const cuentaAsociada = cuentasActivas.find(c => 
     c.mesaId === mesa.id ||
     (c.cliente && (
@@ -388,8 +421,7 @@ function ModalCerrarMesa({ mesa, cuentasActivas, unloadedConsumos, onClose, onCe
   const [cuentaSeleccionada, setCuentaSeleccionada] = useState('');
   const [nuevoCliente, setNuevoCliente] = useState(() => {
     const name = mesa.cliente || '';
-    const isGeneric = !name || ['publico', 'público', 'publico general', 'público general', 'cliente temporal', 'cliente'].includes(name.trim().toLowerCase()) || name.trim().toLowerCase().startsWith('mesa ');
-    return isGeneric ? '' : name;
+    return isRealName(name) ? name : '';
   });
 
   // Pre-seleccionar la cuenta asociada de la mesa si existe
@@ -820,9 +852,10 @@ function ModalCerrarMesa({ mesa, cuentasActivas, unloadedConsumos, onClose, onCe
                         placeholder="Ej: Pedro Domínguez"
                         value={nuevoCliente}
                         onChange={e => setNuevoCliente(e.target.value)}
+                        list="clientes-registrados-list"
                       />
                     </div>
-                    {(!nuevoCliente.trim() || ['publico', 'público', 'publico general', 'público general', 'cliente temporal', 'cliente'].includes(nuevoCliente.trim().toLowerCase()) || nuevoCliente.trim().toLowerCase().startsWith('mesa ')) && (
+                    {!isRealName(nuevoCliente) && (
                       <div style={{ color: 'var(--danger)', fontSize: 9, marginTop: 2 }}>
                         <i className="ri-error-warning-line" style={{ marginRight: 2 }} />
                         Debe ingresar un nombre real y no genérico para evitar cuentas huérfanas.
@@ -974,10 +1007,11 @@ function ModalCerrarMesa({ mesa, cuentasActivas, unloadedConsumos, onClose, onCe
                             placeholder="Ej: Carlos Rodríguez / Amigo de Juan"
                             value={nombrePagador}
                             onChange={e => setNombrePagador(e.target.value)}
+                            list="clientes-registrados-list"
                             autoFocus
                           />
                         </div>
-                        {(!nombrePagador.trim() || ['publico', 'público', 'publico general', 'público general', 'cliente temporal', 'cliente'].includes(nombrePagador.trim().toLowerCase()) || nombrePagador.trim().toLowerCase().startsWith('mesa ')) && (
+                        {!isRealName(nombrePagador) && (
                           <div style={{ color: 'var(--danger)', fontSize: 9, marginTop: 4 }}>
                             <i className="ri-error-warning-line" style={{ marginRight: 2 }} />
                             Debe ingresar un nombre real y no genérico.
@@ -988,19 +1022,25 @@ function ModalCerrarMesa({ mesa, cuentasActivas, unloadedConsumos, onClose, onCe
                         <button className="btn btn-secondary" onClick={() => setShowPromptMoverPendiente(false)} style={{ flex: 1, padding: '6px 12px', fontSize: 11 }}>Cancelar</button>
                         <button
                           className="btn btn-primary"
-                          disabled={!nombrePagador.trim() || ['publico', 'público', 'publico general', 'público general', 'cliente temporal', 'cliente'].includes(nombrePagador.trim().toLowerCase()) || nombrePagador.trim().toLowerCase().startsWith('mesa ')}
+                          disabled={!nombrePagador.trim()}
                           onClick={() => {
+                            const pagadorClean = nombrePagador.trim();
+                            if (!isRealName(pagadorClean)) {
+                              showToast('Debe ingresar un nombre real y no genérico para la cuenta.', 'warning');
+                              registrarEvento('Intento Cuenta Genérica', `Intento de mover mesa ${mesa.id} a pendientes con pagador inválido: "${pagadorClean}"`);
+                              return;
+                            }
                             onAgregarACuenta({
                               costo: costoTiempo,
                               cuentaId: cuentaAsociada ? cuentaAsociada.id : null,
-                              nombreNuevo: `${nombrePagador.trim()} (Mesa ${mesa.id} - Pendiente)`
+                              nombreNuevo: `${pagadorClean} (Mesa ${mesa.id} - Pendiente)`
                             });
                             setShowPromptMoverPendiente(false);
                           }}
                           style={{
-                            background: (!nombrePagador.trim() || ['publico', 'público', 'publico general', 'público general', 'cliente temporal', 'cliente'].includes(nombrePagador.trim().toLowerCase()) || nombrePagador.trim().toLowerCase().startsWith('mesa ')) ? 'var(--bg-hover)' : 'linear-gradient(135deg, var(--bronze-light), var(--bronze))',
+                            background: !nombrePagador.trim() ? 'var(--bg-hover)' : 'linear-gradient(135deg, var(--bronze-light), var(--bronze))',
                             color: '#fff',
-                            cursor: (!nombrePagador.trim() || ['publico', 'público', 'publico general', 'público general', 'cliente temporal', 'cliente'].includes(nombrePagador.trim().toLowerCase()) || nombrePagador.trim().toLowerCase().startsWith('mesa ')) ? 'not-allowed' : 'pointer',
+                            cursor: !nombrePagador.trim() ? 'not-allowed' : 'pointer',
                             flex: 1,
                             padding: '6px 12px',
                             fontSize: 11
@@ -1017,20 +1057,30 @@ function ModalCerrarMesa({ mesa, cuentasActivas, unloadedConsumos, onClose, onCe
           ) : (
             <button
               className="btn btn-primary"
-              disabled={cuentaSeleccionada === '' && (!nuevoCliente.trim() || ['publico', 'público', 'publico general', 'público general', 'cliente temporal', 'cliente'].includes(nuevoCliente.trim().toLowerCase()) || nuevoCliente.trim().toLowerCase().startsWith('mesa '))}
-              onClick={() => onAgregarACuenta({
-                costo: costoTiempo,
-                cuentaId: cuentaSeleccionada,
-                nombreNuevo: cuentaSeleccionada === '' ? `${nuevoCliente.trim()} (Mesa ${mesa.id} - Pendiente)` : ''
-              })}
+              disabled={cuentaSeleccionada === '' && !nuevoCliente.trim()}
+              onClick={() => {
+                if (cuentaSeleccionada === '') {
+                  const nameClean = nuevoCliente.trim();
+                  if (!isRealName(nameClean)) {
+                    showToast('Debe ingresar un nombre real y no genérico para la cuenta.', 'warning');
+                    registrarEvento('Intento Cuenta Genérica', `Intento de guardar mesa ${mesa.id} en cuenta con nombre inválido: "${nameClean}"`);
+                    return;
+                  }
+                }
+                onAgregarACuenta({
+                  costo: costoTiempo,
+                  cuentaId: cuentaSeleccionada,
+                  nombreNuevo: cuentaSeleccionada === '' ? `${nuevoCliente.trim()} (Mesa ${mesa.id} - Pendiente)` : ''
+                });
+              }}
               style={{
-                background: (cuentaSeleccionada === '' && (!nuevoCliente.trim() || ['publico', 'público', 'publico general', 'público general', 'cliente temporal', 'cliente'].includes(nuevoCliente.trim().toLowerCase()) || nuevoCliente.trim().toLowerCase().startsWith('mesa ')))
+                background: (cuentaSeleccionada === '' && !nuevoCliente.trim())
                   ? 'var(--bg-hover)'
                   : 'linear-gradient(135deg, var(--bronze), var(--bronze-light))',
                 padding: '6px 12px',
                 fontSize: 11,
                 flex: 1,
-                cursor: (cuentaSeleccionada === '' && (!nuevoCliente.trim() || ['publico', 'público', 'publico general', 'público general', 'cliente temporal', 'cliente'].includes(nuevoCliente.trim().toLowerCase()) || nuevoCliente.trim().toLowerCase().startsWith('mesa ')))
+                cursor: (cuentaSeleccionada === '' && !nuevoCliente.trim())
                   ? 'not-allowed'
                   : 'pointer'
               }}
@@ -1040,6 +1090,11 @@ function ModalCerrarMesa({ mesa, cuentasActivas, unloadedConsumos, onClose, onCe
           )}
         </div>
       </div>
+      <datalist id="clientes-registrados-list">
+        {(clientesRegistrados || []).map((c, idx) => (
+          <option key={idx} value={c.nombre} />
+        ))}
+      </datalist>
     </div>
   );
 }
@@ -1084,6 +1139,7 @@ export default function MesasPanel({ showToast }) {
   const [modalFila, setModalFila] = useState(false);
   const [modalCuentas, setModalCuentas] = useState(false);
   const [modalAbrirCuenta, setModalAbrirCuenta] = useState(false);
+  const [clientesRegistrados, setClientesRegistrados] = useState([]);
   const [modalCambiarMesa, setModalCambiarMesa] = useState(null);
   const [modalVincular, setModalVincular] = useState(null);
   const [modalBitacora, setModalBitacora] = useState(false);
@@ -1958,6 +2014,14 @@ export default function MesasPanel({ showToast }) {
 
         const savedBitacora = localStorage.getItem('yoy_billar_bitacora');
         if (savedBitacora) setBitacora(deobfuscate(savedBitacora) || []);
+
+        const savedClientes = localStorage.getItem('yoy_billar_clientes');
+        if (savedClientes) {
+          const cData = deobfuscate(savedClientes);
+          if (cData && Array.isArray(cData)) {
+            setClientesRegistrados(cData);
+          }
+        }
       } catch (err) {
         console.error("Error al cargar datos desde localStorage:", err);
       }
@@ -3544,6 +3608,7 @@ export default function MesasPanel({ showToast }) {
         <ModalCerrarMesa
           mesa={mesas.find(m => m.id === modalCerrar.id) || modalCerrar}
           cuentasActivas={cuentasActivas}
+          clientesRegistrados={clientesRegistrados}
           unloadedConsumos={unloadedConsumos}
           onClose={() => setModalCerrar(null)}
           onCerrar={(data) => confirmarCerrarMesa(modalCerrar.id, data)}
@@ -3588,6 +3653,7 @@ export default function MesasPanel({ showToast }) {
         <ModalAbrirCuentaDirecta
           cuentas={cuentasActivas}
           setCuentas={actualizarCuentasFirestore}
+          clientesRegistrados={clientesRegistrados}
           onClose={() => setModalAbrirCuenta(false)}
           showToast={showToast}
           registrarEvento={registrarEvento}
@@ -4881,7 +4947,7 @@ function ModalCuentasActivas({
 }
 
 // ── MODAL ABRIR CUENTA DIRECTA ───────────────────────────
-function ModalAbrirCuentaDirecta({ cuentas, setCuentas, onClose, showToast, registrarEvento }) {
+function ModalAbrirCuentaDirecta({ cuentas, setCuentas, clientesRegistrados = [], onClose, showToast, registrarEvento }) {
   const [cliente, setCliente] = useState('');
 
   useEffect(() => {
@@ -4928,14 +4994,13 @@ function ModalAbrirCuentaDirecta({ cuentas, setCuentas, onClose, showToast, regi
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [cliente, onClose]);
 
-  const isClienteGeneric = !cliente.trim() || 
-    ['publico', 'público', 'publico general', 'público general', 'cliente temporal', 'cliente'].includes(cliente.trim().toLowerCase()) || 
-    cliente.trim().toLowerCase().startsWith('mesa ');
+  const isClienteGeneric = !cliente.trim() || !isRealName(cliente);
 
   const handleCrear = () => {
     const cleanCliente = cliente.trim();
-    if (isClienteGeneric) {
-      showToast('Por favor ingrese un nombre de cliente real y no genérico.', 'warning');
+    if (!isRealName(cleanCliente)) {
+      showToast('Debe ingresar un nombre real y no genérico para la cuenta.', 'warning');
+      registrarEvento('Intento Cuenta Genérica', `Intento de abrir cuenta directa con nombre inválido: "${cleanCliente}"`);
       return;
     }
     const nueva = {
@@ -4965,7 +5030,13 @@ function ModalAbrirCuentaDirecta({ cuentas, setCuentas, onClose, showToast, regi
         <div className="modal-body">
           <div className="form-group">
             <label className="form-label">Nombre del Cliente</label>
-            <input className="form-input" placeholder="Ej: Juan Pérez" value={cliente} onChange={e => setCliente(e.target.value)} />
+            <input 
+              className="form-input" 
+              placeholder="Ej: Juan Pérez" 
+              value={cliente} 
+              onChange={e => setCliente(e.target.value)} 
+              list="clientes-registrados-list"
+            />
             {isClienteGeneric && (
               <div style={{ color: 'var(--danger)', fontSize: 9, marginTop: 4 }}>
                 <i className="ri-error-warning-line" style={{ marginRight: 2 }} />
@@ -4979,16 +5050,21 @@ function ModalAbrirCuentaDirecta({ cuentas, setCuentas, onClose, showToast, regi
           <button 
             className="btn btn-primary" 
             onClick={handleCrear}
-            disabled={isClienteGeneric}
+            disabled={!cliente.trim()}
             style={{
-              background: isClienteGeneric ? 'var(--bg-hover)' : undefined,
-              cursor: isClienteGeneric ? 'not-allowed' : 'pointer'
+              background: !cliente.trim() ? 'var(--bg-hover)' : undefined,
+              cursor: !cliente.trim() ? 'not-allowed' : 'pointer'
             }}
           >
             Abrir Cuenta
           </button>
         </div>
       </div>
+      <datalist id="clientes-registrados-list">
+        {(clientesRegistrados || []).map((c, idx) => (
+          <option key={idx} value={c.nombre} />
+        ))}
+      </datalist>
     </div>
   );
 }
