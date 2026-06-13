@@ -479,7 +479,7 @@ function ModalCerrarMesa({ mesa, cuentasActivas, onClose, onCerrar, onAgregarACu
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 400, maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
+      <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 400, maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <div className="modal-header" style={{ padding: '8px 14px' }}>
           <span className="modal-title" style={{ fontSize: 12 }}><i className="ri-stop-circle-line" style={{ marginRight: 6, color: 'var(--danger)' }} />Cerrar {mesa.nombre}</span>
           <button onClick={onClose} className="btn btn-secondary" style={{ background: 'none', border: 'none', padding: 2 }}>
@@ -788,7 +788,7 @@ function ModalCerrarMesa({ mesa, cuentasActivas, onClose, onCerrar, onAgregarACu
             )}
           </div>
         </div>
-        <div className="modal-footer" style={{ padding: '8px 14px' }}>
+        <div className="modal-footer" style={{ padding: '12px 16px' }}>
           <button className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: 11 }} onClick={onClose}>Cancelar</button>
           {tipoCierre === 'liquidar' ? (
             !mesa.preTicketImpreso ? (
@@ -807,7 +807,7 @@ function ModalCerrarMesa({ mesa, cuentasActivas, onClose, onCerrar, onAgregarACu
                 <i className="ri-printer-line" /> Imprimir Pre-Ticket
               </button>
             ) : (
-              <div style={{ display: 'flex', gap: 8, width: '100%' }}>
+              <div style={{ display: 'flex', gap: 8, flex: 1 }}>
                 <button
                   className="btn btn-secondary"
                   onClick={() => {
@@ -914,7 +914,7 @@ function ModalCerrarMesa({ mesa, cuentasActivas, onClose, onCerrar, onAgregarACu
                 cuentaId: cuentaSeleccionada,
                 nombreNuevo: nuevoCliente || 'Cliente Temporal'
               })}
-              style={{ background: 'linear-gradient(135deg, var(--bronze), var(--bronze-light))', padding: '6px 12px', fontSize: 11 }}
+              style={{ background: 'linear-gradient(135deg, var(--bronze), var(--bronze-light))', padding: '6px 12px', fontSize: 11, flex: 1 }}
             >
               <i className="ri-folder-add-line" /> Guardar en Cuenta
             </button>
