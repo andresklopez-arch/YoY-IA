@@ -4807,14 +4807,15 @@ function ModalFilaVirtual({ fila, setFila, mesas, onAssign, onClose, showToast, 
   }, [cliente, contacto, onClose]);
 
   const agregarFila = async () => {
-    if (!cliente) {
-      showToast('Por favor ingrese el nombre del cliente.', 'warning');
+    const cleanCliente = capitalizeName(cliente);
+    if (!isRealName(cleanCliente)) {
+      showToast('Por favor ingrese un nombre real y no genérico.', 'warning');
       return;
     }
     const entryId = Date.now();
     const nuevo = {
       id: entryId,
-      cliente,
+      cliente: cleanCliente,
       contacto: contacto || 'N/A',
       tipo,
       personas: parseInt(personas),
