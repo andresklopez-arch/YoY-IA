@@ -153,21 +153,29 @@ export default function FilaEsperaCliente() {
   useEffect(() => {
     if (!id) return;
 
-    const unsub = onSnapshot(doc(db, 'fila_espera', String(id)), (docSnap) => {
-      setLoading(false);
-      if (docSnap.exists()) {
-        const docData = docSnap.data();
-        setData(docData);
-        if (docData.estado === 'asignada') {
-          if (!alerting) {
-            alertStartedAtRef.current = Date.now();
+    const unsub = onSnapshot(
+      doc(db, 'fila_espera', String(id)),
+      (docSnap) => {
+        setLoading(false);
+        if (docSnap.exists()) {
+          const docData = docSnap.data();
+          setData(docData);
+          if (docData.estado === 'asignada') {
+            if (!alerting) {
+              alertStartedAtRef.current = Date.now();
+            }
+            setAlerting(true);
           }
-          setAlerting(true);
+        } else {
+          setData(null);
         }
-      } else {
+      },
+      (error) => {
+        console.error("Error al escuchar fila_espera:", error);
+        setLoading(false);
         setData(null);
       }
-    });
+    );
 
     return () => unsub();
   }, [id]);

@@ -62,5 +62,51 @@ service cloud.firestore {
     match /nomina_empleados/{document} {
       allow read, write: if true;
     }
+
+    // 7. Fila Virtual de Espera y Log de Alertas
+    match /fila_espera/{document} {
+      allow read, write: if true;
+    }
+    match /alertas_digitales_log/{document} {
+      allow read, write: if true;
+    }
+
+    // 8. Catálogos y Operación general del Billar
+    match /gastos/{document} {
+      allow read, write: if true;
+    }
+    match /historial_ocupacion/{document} {
+      allow read, write: if true;
+    }
+    match /cocina_insumos/{document} {
+      allow read, write: if true;
+    }
+    match /mesas/{document} {
+      allow read, write: if true;
+    }
+    match /productos/{document} {
+      allow read, write: if true;
+    }
+    match /torneos/{document} {
+      allow read, write: if true;
+    }
+    match /tickets/{document} {
+      allow read, write: if true;
+    }
+    match /nomina_asistencia/{document} {
+      allow read, write: if true;
+    }
+    match /presupuestos/{document} {
+      allow read, write: if true;
+    }
+    match /nomina_pagos/{document} {
+      allow read, write: if true;
+    }
+    match /encuestas_satisfaccion/{document} {
+      allow read, write: if true;
+    }
+    match /auditoria_accesos/{document} {
+      allow read, write: if true;
+    }
   }
 }
