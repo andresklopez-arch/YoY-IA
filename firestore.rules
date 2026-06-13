@@ -14,7 +14,7 @@ service cloud.firestore {
       allow create, delete: if true;
       // Permitir la actualización si el catálogo no supera 100 mesas y tiene una estructura válida
       allow update: if request.resource.data.mesas.size() <= 100 &&
-                      request.resource.data.mesas.all(m => 
+                      request.resource.data.mesas.all(m, 
                         'id' in m && m.id is int && 
                         'nombre' in m && m.nombre is string && 
                         'tarifa' in m && (m.tarifa is int || m.tarifa is float) &&
