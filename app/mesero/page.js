@@ -35,6 +35,26 @@ function MeseroContent() {
   // Sincronización y estados de mesas/cuentas
   const [mesas, setMesas] = useState([]);
   const [cuentas, setCuentas] = useState([]);
+
+  // Unificar cuentas reales con las mesas ocupadas que aún no tengan cuenta registrada
+  const getCuentasActivasUnificadas = () => {
+    const unificadas = [...cuentas];
+    mesas.forEach(m => {
+      if (m.estado === 'ocupada') {
+        const tieneCuenta = cuentas.some(c => c.mesaId === m.id);
+        if (!tieneCuenta) {
+          unificadas.push({
+            id: `mesa_${m.id}`,
+            mesaId: m.id,
+            cliente: m.cliente || `Mesa ${m.id}`,
+            consumos: [],
+            tiempoJuego: 0
+          });
+        }
+      }
+    });
+    return unificadas;
+  };
   const [nuevoClienteNombre, setNuevoClienteNombre] = useState('');
 
   const [isOffline, setIsOffline] = useState(false);
@@ -616,7 +636,7 @@ function MeseroContent() {
             { key: 'todos',      label: 'Total',      icon: 'ri-list-check-2',            color: 'var(--text-primary)', count: counts.todos },
             { key: 'pedido',     label: 'Pedidos',    icon: 'ri-restaurant-line',          color: 'var(--bronze-light)', count: counts.pedido },
             { key: 'asistencia', label: 'Asistencia', icon: 'ri-customer-service-2-line',  color: 'var(--info)', count: counts.asistencia },
-            { key: 'cuenta',     label: 'Cuentas',    icon: 'ri-secure-payment-line',      color: 'var(--success)', count: cuentas.length },
+            { key: 'cuenta',     label: 'Cuentas',    icon: 'ri-secure-payment-line',      color: 'var(--success)', count: getCuentasActivasUnificadas().length },
           ].map(s => (
             <div 
               key={s.key} 
@@ -939,7 +959,7 @@ function MeseroContent() {
       )}
       {showCuentasModal && (
         <ModalCuentasMesero
-          cuentas={cuentas}
+          cuentas={getCuentasActivasUnificadas()}
           mesas={mesas}
           alertasAsistencia={alertasAsistencia}
           isOffline={isOffline}
@@ -1102,7 +1122,7 @@ function ModalCuentasMesero({ cuentas, mesas, alertasAsistencia, isOffline, onCl
               {cuentas.length === 0 ? 'No hay cuentas activas en este momento.' : 'No se encontraron cuentas que coincidan.'}
             </div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {cuentasFiltradas.map(c => {
                 const mesaAsociada = mesas.find(m => m.id === c.mesaId || (m.cliente && m.cliente.toLowerCase() === c.cliente.toLowerCase()));
                 const consumosTotal = c.consumos.reduce((sum, item) => sum + item.precio * item.cantidad, 0);
@@ -1126,34 +1146,64 @@ function ModalCuentasMesero({ cuentas, mesas, alertasAsistencia, isOffline, onCl
                   <div key={c.id} style={{
                     background: 'var(--bg-elevated)',
                     border: '1px solid var(--border)',
-                    borderRadius: 12,
-                    padding: 12,
+                    borderRadius: 10,
+                    padding: '8px 12px',
                     display: 'flex',
                     flexDirection: 'column',
-                    gap: 8
+                    gap: 6
                   }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div>
-                        <div style={{ fontWeight: 800, fontSize: 14, color: '#fff' }}>{displayClienteName}</div>
-                        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 800, fontSize: 13, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{displayClienteName}</div>
+                        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 1 }}>
                           {c.mesaId ? `📍 Mesa ${c.mesaId}` : (mesaAsociada ? `📍 Mesa ${mesaAsociada.id}` : '👤 Cuenta Directa')} · Tiempo: ${costoTiempo}
                         </div>
                       </div>
-                      <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontSize: 16, fontWeight: 900, color: 'var(--success)' }}>${total} MXN</div>
+                      
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <div style={{ textAlign: 'right' }}>
+                          <div style={{ fontSize: 14, fontWeight: 900, color: 'var(--success)' }}>${total} MXN</div>
+                          <button
+                            onClick={() => setExpandedId(isExpanded ? null : c.id)}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              color: 'var(--bronze-light)',
+                              fontSize: 10,
+                              cursor: 'pointer',
+                              textDecoration: 'underline',
+                              padding: 0,
+                              lineHeight: 1
+                            }}
+                          >
+                            {isExpanded ? 'Ocultar ▲' : 'Detalle ▼'}
+                          </button>
+                        </div>
+
                         <button
-                          onClick={() => setExpandedId(isExpanded ? null : c.id)}
+                          className="btn btn-sm"
+                          onClick={() => !cuentaSolicitada && pedirCuenta(c)}
+                          disabled={cuentaSolicitada}
                           style={{
-                            background: 'none',
+                            background: cuentaSolicitada 
+                              ? 'var(--bg-hover)' 
+                              : 'linear-gradient(135deg, var(--bronze), var(--bronze-light))',
+                            color: cuentaSolicitada ? 'var(--text-muted)' : '#0d0d0f',
+                            fontWeight: 700,
+                            fontSize: 10,
+                            padding: '4px 10px',
+                            borderRadius: 6,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 3,
                             border: 'none',
-                            color: 'var(--bronze-light)',
-                            fontSize: 11,
-                            cursor: 'pointer',
-                            textDecoration: 'underline',
-                            padding: '4px 0 0'
+                            cursor: cuentaSolicitada ? 'not-allowed' : 'pointer',
+                            whiteSpace: 'nowrap',
+                            height: 28
                           }}
                         >
-                          {isExpanded ? 'Ocultar detalle ▲' : 'Ver detalle ▼'}
+                          <i className="ri-secure-payment-line" style={{ fontSize: 12 }} /> 
+                          {cuentaSolicitada ? 'Pedido...' : 'Cobrar'}
                         </button>
                       </div>
                     </div>
@@ -1161,19 +1211,19 @@ function ModalCuentasMesero({ cuentas, mesas, alertasAsistencia, isOffline, onCl
                     {isExpanded && (
                       <div style={{
                         background: 'rgba(0, 0, 0, 0.15)',
-                        borderRadius: 8,
+                        borderRadius: 6,
                         padding: 8,
-                        fontSize: 12,
-                        marginTop: 4,
+                        fontSize: 11,
+                        marginTop: 2,
                         border: '1px solid rgba(255, 255, 255, 0.05)'
                       }}>
-                        <div style={{ fontWeight: 'bold', color: 'var(--bronze-light)', marginBottom: 4 }}>Productos consumidos:</div>
+                        <div style={{ fontWeight: 'bold', color: 'var(--bronze-light)', marginBottom: 2 }}>Productos consumidos:</div>
                         {c.consumos.length === 0 ? (
                           <div style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>Sin consumos registrados</div>
                         ) : (
-                          <ul style={{ margin: 0, paddingLeft: 16, color: 'var(--text-secondary)' }}>
+                          <ul style={{ margin: 0, paddingLeft: 14, color: 'var(--text-secondary)' }}>
                             {c.consumos.map((item, idx) => (
-                              <li key={idx} style={{ marginBottom: 2 }}>
+                              <li key={idx} style={{ marginBottom: 1 }}>
                                 {item.cantidad}x {item.producto} (${item.precio * item.cantidad})
                               </li>
                             ))}
@@ -1181,31 +1231,6 @@ function ModalCuentasMesero({ cuentas, mesas, alertasAsistencia, isOffline, onCl
                         )}
                       </div>
                     )}
-
-                    <div style={{ borderTop: '1px solid rgba(255, 255, 255, 0.05)', paddingTop: 8, marginTop: 4, display: 'flex', justifyContent: 'flex-end' }}>
-                      <button
-                        className="btn btn-sm"
-                        onClick={() => !cuentaSolicitada && pedirCuenta(c)}
-                        disabled={cuentaSolicitada}
-                        style={{
-                          background: cuentaSolicitada 
-                            ? 'var(--bg-hover)' 
-                            : 'linear-gradient(135deg, var(--bronze), var(--bronze-light))',
-                          color: cuentaSolicitada ? 'var(--text-muted)' : '#0d0d0f',
-                          fontWeight: 700,
-                          fontSize: 11,
-                          padding: '6px 12px',
-                          borderRadius: 8,
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 4,
-                          border: 'none',
-                          cursor: cuentaSolicitada ? 'not-allowed' : 'pointer'
-                        }}
-                      >
-                        <i className="ri-secure-payment-line" /> {cuentaSolicitada ? 'Solicitado a Caja...' : 'Pedir Cuenta (Caja)'}
-                      </button>
-                    </div>
                   </div>
                 );
               })}
