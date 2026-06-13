@@ -14,6 +14,60 @@ export default function FilaEsperaCliente() {
   const audioCtxRef = useRef(null);
   const beepIntervalRef = useRef(null);
 
+  const [notificationPermission, setNotificationPermission] = useState('default');
+  const swRegistrationRef = useRef(null);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js')
+        .then((reg) => {
+          swRegistrationRef.current = reg;
+          console.log("Service Worker registrado con éxito:", reg.scope);
+        })
+        .catch((err) => {
+          console.error("Error al registrar el Service Worker:", err);
+        });
+    }
+
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      setNotificationPermission(Notification.permission);
+    }
+  }, []);
+
+  const requestNotificationPermission = () => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      Notification.requestPermission().then((permission) => {
+        setNotificationPermission(permission);
+        if (permission === 'granted') {
+          if (swRegistrationRef.current) {
+            swRegistrationRef.current.showNotification("Notificaciones Activas 🔔", {
+              body: "Recibirás una alerta en este dispositivo cuando tu mesa esté lista.",
+              icon: "/icon.png",
+              tag: "test-notification"
+            });
+          }
+        }
+      });
+    }
+  };
+
+  // Disparar notificación del sistema cuando se activa la alerta
+  useEffect(() => {
+    if (alerting) {
+      if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+        if (swRegistrationRef.current) {
+          swRegistrationRef.current.showNotification("¡TU MESA ESTÁ LISTA! 🔔", {
+            body: `Hola, ${data?.cliente || 'Cliente'}. Tu mesa asignada es la ${data?.mesaAsignada || ''}. Dirígete al personal.`,
+            icon: "/icon.png",
+            vibrate: [300, 200, 300, 200, 500],
+            tag: "mesa-lista",
+            requireInteraction: true
+          });
+        }
+      }
+    }
+  }, [alerting, data]);
+
   useEffect(() => {
     if (!id) return;
 
@@ -170,6 +224,18 @@ export default function FilaEsperaCliente() {
         </div>
       ) : (
         <div style={cardStyle}>
+          {notificationPermission === 'default' && (
+            <div style={permissionBannerStyle}>
+              <span style={{ fontSize: 22 }}>🔔</span>
+              <div style={{ flex: 1, textAlign: 'left', display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <div style={{ fontWeight: 800, fontSize: 13, color: '#fff' }}>Notificaciones Activas</div>
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', lineHeight: 1.3 }}>Permite recibir alertas cuando tu mesa esté lista, incluso si bloqueas tu celular.</div>
+              </div>
+              <button onClick={requestNotificationPermission} style={permissionButtonStyle}>
+                Activar
+              </button>
+            </div>
+          )}
           <div style={{ fontSize: 64, marginBottom: 20, animation: 'pulse 2s infinite', borderRadius: '50%', background: 'rgba(197, 168, 128, 0.1)', padding: 12, display: 'inline-block' }}>⏳</div>
           <h2 style={titleStyle}>Estás en Fila de Espera</h2>
           <div style={positionBadgeStyle}>
@@ -318,4 +384,29 @@ const alertButtonStyle = {
   width: '100%',
   transition: 'all 0.2s ease',
   boxShadow: '0 4px 12px rgba(239, 68, 68, 0.2)'
+};
+
+const permissionBannerStyle = {
+  background: 'rgba(197, 168, 128, 0.12)',
+  border: '1px solid rgba(197, 168, 128, 0.3)',
+  borderRadius: 16,
+  padding: '12px 14px',
+  marginBottom: 20,
+  display: 'flex',
+  alignItems: 'center',
+  gap: 12,
+  textAlign: 'left'
+};
+
+const permissionButtonStyle = {
+  background: '#c5a880',
+  color: '#0a0a0f',
+  border: 'none',
+  padding: '8px 16px',
+  borderRadius: 10,
+  fontWeight: 800,
+  fontSize: 12,
+  cursor: 'pointer',
+  whiteSpace: 'nowrap',
+  boxShadow: '0 2px 8px rgba(197, 168, 128, 0.2)'
 };

@@ -177,6 +177,60 @@ export default function MesaClientePage({ params }) {
   const audioCtxRef = useRef(null);
   const beepIntervalRef = useRef(null);
 
+  const [notificationPermission, setNotificationPermission] = useState('default');
+  const swRegistrationRef = useRef(null);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js')
+        .then((reg) => {
+          swRegistrationRef.current = reg;
+          console.log("Service Worker registrado con éxito para mesa:", reg.scope);
+        })
+        .catch((err) => {
+          console.error("Error al registrar el Service Worker para mesa:", err);
+        });
+    }
+
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      setNotificationPermission(Notification.permission);
+    }
+  }, []);
+
+  const requestNotificationPermission = () => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      Notification.requestPermission().then((permission) => {
+        setNotificationPermission(permission);
+        if (permission === 'granted') {
+          if (swRegistrationRef.current) {
+            swRegistrationRef.current.showNotification("Notificaciones Activas 🔔", {
+              body: "Recibirás una alerta en este dispositivo cuando tu mesa sea activada.",
+              icon: "/icon.png",
+              tag: "test-notification-mesa"
+            });
+          }
+        }
+      });
+    }
+  };
+
+  // Disparar notificación del sistema cuando se activa la mesa
+  useEffect(() => {
+    if (alertingReservada) {
+      if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+        if (swRegistrationRef.current) {
+          swRegistrationRef.current.showNotification("¡MESA ACTIVADA! 🔔", {
+            body: `Tu Mesa ${mesaId} ha sido activada en caja. ¡Ya puedes comenzar a jugar y ordenar!`,
+            icon: "/icon.png",
+            vibrate: [300, 200, 300, 200, 500],
+            tag: "mesa-activada",
+            requireInteraction: true
+          });
+        }
+      }
+    }
+  }, [alertingReservada, mesaId]);
+
   // Monitorear transición de reservada a ocupada
   useEffect(() => {
     if (!mesaInfo) return;
@@ -987,6 +1041,31 @@ export default function MesaClientePage({ params }) {
   }
 
   if (mesaInfo && mesaInfo.estado === 'reservada') {
+    const permissionBannerStyle = {
+      background: 'rgba(197, 168, 128, 0.12)',
+      border: '1px solid rgba(197, 168, 128, 0.3)',
+      borderRadius: 16,
+      padding: '12px 14px',
+      marginBottom: 20,
+      display: 'flex',
+      alignItems: 'center',
+      gap: 12,
+      textAlign: 'left'
+    };
+
+    const permissionButtonStyle = {
+      background: '#c5a880',
+      color: '#0a0a0f',
+      border: 'none',
+      padding: '8px 16px',
+      borderRadius: 10,
+      fontWeight: 800,
+      fontSize: 12,
+      cursor: 'pointer',
+      whiteSpace: 'nowrap',
+      boxShadow: '0 2px 8px rgba(197, 168, 128, 0.2)'
+    };
+
     return (
       <div style={{
         display: 'flex',
@@ -1019,6 +1098,18 @@ export default function MesaClientePage({ params }) {
           backdropFilter: 'blur(10px)',
           boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.37)'
         }}>
+          {notificationPermission === 'default' && (
+            <div style={permissionBannerStyle}>
+              <span style={{ fontSize: 22 }}>🔔</span>
+              <div style={{ flex: 1, textAlign: 'left', display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <div style={{ fontWeight: 800, fontSize: 13, color: '#fff' }}>Notificaciones Activas</div>
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', lineHeight: 1.3 }}>Permite recibir alertas cuando tu mesa esté lista, incluso si bloqueas tu celular.</div>
+              </div>
+              <button onClick={requestNotificationPermission} style={permissionButtonStyle}>
+                Activar
+              </button>
+            </div>
+          )}
           <div style={{ fontSize: 64, marginBottom: 20, animation: 'pulse 2s infinite', borderRadius: '50%', background: 'rgba(197, 168, 128, 0.1)', padding: 12, display: 'inline-block' }}>📅</div>
           <h2 style={{ fontSize: 22, fontWeight: 800, color: '#c5a880', marginBottom: 16, letterSpacing: '0.02em' }}>Mesa Reservada</h2>
           <div style={{
