@@ -476,6 +476,13 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
     });
   };
 
+  const getRecientesActiveAccounts = () => {
+    return cuentasActivas
+      .filter(c => c.cliente && isRealName(getCleanClientName(c.cliente)))
+      .sort((a, b) => b.id - a.id)
+      .slice(0, 2);
+  };
+
   // Pre-seleccionar la cuenta asociada de la mesa si existe
   useEffect(() => {
     if (cuentaAsociada) {
@@ -516,6 +523,8 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
   const [showPromptMoverPendiente, setShowPromptMoverPendiente] = useState(false);
   const [nombrePagador, setNombrePagador] = useState('');
   const [cuentaMoverId, setCuentaMoverId] = useState(null);
+  const [limiteCoincidencias, setLimiteCoincidencias] = useState(3);
+  const [limiteCoincidenciasMover, setLimiteCoincidenciasMover] = useState(3);
 
   const handleImprimirPreTicket = () => {
     imprimirPreTicket(mesa);
@@ -931,7 +940,7 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
                           style={{ padding: '6px 10px', fontSize: 11, flex: 1 }}
                           placeholder="Ej: Pedro Domínguez"
                           value={nuevoCliente}
-                          onChange={e => setNuevoCliente(e.target.value)}
+                          onChange={e => { setNuevoCliente(e.target.value); setLimiteCoincidencias(3); }}
                           list="clientes-nuevo-list"
                         />
                         <button
@@ -956,62 +965,152 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
                           <i className="ri-user-add-line" style={{ fontSize: 12 }} />
                         </button>
                       </div>
-                      {getMatchingActiveAccounts(nuevoCliente).length > 0 && (
-                        <div style={{
-                          background: 'rgba(205,127,50,0.08)',
-                          border: '1px solid rgba(205,127,50,0.3)',
-                          borderRadius: 8,
-                          padding: '8px 10px',
-                          marginTop: 6,
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: 4
-                        }}>
-                          <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--bronze-light)', marginBottom: 2 }}>
-                            📌 ANEXAR A CUENTA ACTIVA EXISTENTE:
+                      {nuevoCliente.trim().length >= 2 ? (
+                        getMatchingActiveAccounts(nuevoCliente).length > 0 && (
+                          <div style={{
+                            background: 'rgba(205,127,50,0.08)',
+                            border: '1px solid rgba(205,127,50,0.3)',
+                            borderRadius: 8,
+                            padding: '8px 10px',
+                            marginTop: 6,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 4
+                          }}>
+                            <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--bronze-light)', marginBottom: 2 }}>
+                              📌 ANEXAR A CUENTA ACTIVA EXISTENTE:
+                            </div>
+                            {getMatchingActiveAccounts(nuevoCliente).slice(0, limiteCoincidencias).map(c => {
+                              const totalConsumos = c.consumos.reduce((sumItem, i) => sumItem + i.precio * i.cantidad, 0);
+                              return (
+                                <button
+                                  key={c.id}
+                                  type="button"
+                                  onClick={() => {
+                                    setCuentaSeleccionada(c.id);
+                                    setNuevoCliente('');
+                                    showToast(`Cuenta de ${getCleanClientName(c.cliente)} seleccionada ✓`, 'info');
+                                  }}
+                                  style={{
+                                    background: 'linear-gradient(135deg, rgba(205,127,50,0.12), rgba(15,13,12,0.95))',
+                                    border: '1px solid var(--border-bronze, rgba(205,127,50,0.5))',
+                                    borderRadius: 8,
+                                    padding: '6px 10px',
+                                    fontSize: 11,
+                                    textAlign: 'left',
+                                    cursor: 'pointer',
+                                    color: '#fff',
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    alignItems: 'center',
+                                    transition: 'all 0.2s ease',
+                                    boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
+                                  }}
+                                  onMouseEnter={e => {
+                                    e.currentTarget.style.borderColor = 'var(--bronze-light)';
+                                    e.currentTarget.style.transform = 'translateY(-1px)';
+                                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(205,127,50,0.2)';
+                                  }}
+                                  onMouseLeave={e => {
+                                    e.currentTarget.style.borderColor = 'rgba(205,127,50,0.5)';
+                                    e.currentTarget.style.transform = 'none';
+                                    e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.2)';
+                                  }}
+                                >
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                                    <span style={{ fontWeight: 700 }}>👤 {c.cliente}</span>
+                                    <span style={{ fontSize: 8, color: 'var(--text-muted)' }}>
+                                      Juego: ${c.tiempoJuego} | Consumo: ${totalConsumos}
+                                    </span>
+                                  </div>
+                                  <span style={{ fontSize: 9, color: 'var(--bronze-light)', fontWeight: 'bold' }}>
+                                    ${c.tiempoJuego + totalConsumos} MXN
+                                  </span>
+                                </button>
+                              );
+                            })}
+                            {getMatchingActiveAccounts(nuevoCliente).length > limiteCoincidencias && (
+                              <button
+                                type="button"
+                                onClick={() => setLimiteCoincidencias(999)}
+                                style={{
+                                  background: 'none',
+                                  border: 'none',
+                                  color: 'var(--bronze-light)',
+                                  fontSize: 10,
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                  padding: '4px 0',
+                                  textAlign: 'center',
+                                  textDecoration: 'underline'
+                                }}
+                              >
+                                Ver más (+{getMatchingActiveAccounts(nuevoCliente).length - limiteCoincidencias})
+                              </button>
+                            )}
                           </div>
-                          {getMatchingActiveAccounts(nuevoCliente).map(c => (
-                            <button
-                              key={c.id}
-                              type="button"
-                              onClick={() => {
-                                setCuentaSeleccionada(c.id);
-                                setNuevoCliente('');
-                                showToast(`Cuenta de ${getCleanClientName(c.cliente)} seleccionada ✓`, 'info');
-                              }}
-                              style={{
-                                background: 'linear-gradient(135deg, rgba(205,127,50,0.12), rgba(15,13,12,0.95))',
-                                border: '1px solid var(--border-bronze, rgba(205,127,50,0.5))',
-                                borderRadius: 8,
-                                padding: '6px 10px',
-                                fontSize: 11,
-                                textAlign: 'left',
-                                cursor: 'pointer',
-                                color: '#fff',
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                alignItems: 'center',
-                                transition: 'all 0.2s ease',
-                                boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
-                              }}
-                              onMouseEnter={e => {
-                                e.currentTarget.style.borderColor = 'var(--bronze-light)';
-                                e.currentTarget.style.transform = 'translateY(-1px)';
-                                e.currentTarget.style.boxShadow = '0 4px 12px rgba(205,127,50,0.2)';
-                              }}
-                              onMouseLeave={e => {
-                                e.currentTarget.style.borderColor = 'rgba(205,127,50,0.5)';
-                                e.currentTarget.style.transform = 'none';
-                                e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.2)';
-                              }}
-                            >
-                              <span>👤 {c.cliente}</span>
-                              <span style={{ fontSize: 9, color: 'var(--bronze-light)', fontWeight: 'bold' }}>
-                                ${c.tiempoJuego + c.consumos.reduce((sumItem, i) => sumItem + i.precio * i.cantidad, 0)} MXN
-                              </span>
-                            </button>
-                          ))}
-                        </div>
+                        )
+                      ) : (
+                        getRecientesActiveAccounts().length > 0 && (
+                          <div style={{
+                            background: 'rgba(255,255,255,0.02)',
+                            border: '1px dashed var(--border)',
+                            borderRadius: 8,
+                            padding: '8px 10px',
+                            marginTop: 6,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 4
+                          }}>
+                            <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 2 }}>
+                              🕒 CUENTAS CERRADAS RECIENTEMENTE:
+                            </div>
+                            {getRecientesActiveAccounts().map(c => {
+                              const totalConsumos = c.consumos.reduce((sumItem, i) => sumItem + i.precio * i.cantidad, 0);
+                              return (
+                                <button
+                                  key={c.id}
+                                  type="button"
+                                  onClick={() => {
+                                    setCuentaSeleccionada(c.id);
+                                    setNuevoCliente('');
+                                    showToast(`Cuenta de ${getCleanClientName(c.cliente)} seleccionada ✓`, 'info');
+                                  }}
+                                  style={{
+                                    background: 'var(--bg-elevated)',
+                                    border: '1px solid var(--border)',
+                                    borderRadius: 6,
+                                    padding: '6px 10px',
+                                    fontSize: 11,
+                                    textAlign: 'left',
+                                    cursor: 'pointer',
+                                    color: '#fff',
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    alignItems: 'center',
+                                    transition: 'all 0.15s ease'
+                                  }}
+                                  onMouseEnter={e => {
+                                    e.currentTarget.style.borderColor = 'var(--bronze-light)';
+                                  }}
+                                  onMouseLeave={e => {
+                                    e.currentTarget.style.borderColor = 'var(--border)';
+                                  }}
+                                >
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                                    <span style={{ fontWeight: 700 }}>👤 {c.cliente}</span>
+                                    <span style={{ fontSize: 8, color: 'var(--text-muted)' }}>
+                                      Juego: ${c.tiempoJuego} | Consumo: ${totalConsumos}
+                                    </span>
+                                  </div>
+                                  <span style={{ fontSize: 9, color: 'var(--bronze-light)', fontWeight: 'bold' }}>
+                                    ${c.tiempoJuego + totalConsumos} MXN
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )
                       )}
                       <datalist id="clientes-nuevo-list">
                         {getFilteredClientes(nuevoCliente).map((c, idx) => (
@@ -1165,13 +1264,13 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
                         <div className="form-group" style={{ gap: 2 }}>
                           <label className="form-label" style={{ fontSize: 10 }}>Nombre del Pagador</label>
                           <div style={{ display: 'flex', gap: 4 }}>
-                            <input
+                             <input
                               type="text"
                               className="form-input"
                               style={{ padding: '8px 12px', fontSize: 13, flex: 1 }}
                               placeholder="Ej: Carlos Rodríguez / Amigo de Juan"
                               value={nombrePagador}
-                              onChange={e => { setNombrePagador(e.target.value); setCuentaMoverId(null); }}
+                              onChange={e => { setNombrePagador(e.target.value); setCuentaMoverId(null); setLimiteCoincidenciasMover(3); }}
                               list="clientes-pagador-list"
                               autoFocus
                             />
@@ -1197,62 +1296,152 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
                               <i className="ri-user-add-line" style={{ fontSize: 14 }} />
                             </button>
                           </div>
-                          {getMatchingActiveAccounts(nombrePagador).length > 0 && (
-                            <div style={{
-                              background: 'rgba(205,127,50,0.08)',
-                              border: '1px solid rgba(205,127,50,0.3)',
-                              borderRadius: 8,
-                              padding: '8px 10px',
-                              marginTop: 6,
-                              display: 'flex',
-                              flexDirection: 'column',
-                              gap: 4
-                            }}>
-                              <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--bronze-light)', marginBottom: 2 }}>
-                                📌 ANEXAR A CUENTA ACTIVA EXISTENTE (Click para anexar):
+                          {nombrePagador.trim().length >= 2 ? (
+                            getMatchingActiveAccounts(nombrePagador).length > 0 && (
+                              <div style={{
+                                background: 'rgba(205,127,50,0.08)',
+                                border: '1px solid rgba(205,127,50,0.3)',
+                                borderRadius: 8,
+                                padding: '8px 10px',
+                                marginTop: 6,
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: 4
+                              }}>
+                                <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--bronze-light)', marginBottom: 2 }}>
+                                  📌 ANEXAR A CUENTA ACTIVA EXISTENTE (Click para anexar):
+                                </div>
+                                {getMatchingActiveAccounts(nombrePagador).slice(0, limiteCoincidenciasMover).map(c => {
+                                  const totalConsumos = c.consumos.reduce((sumItem, i) => sumItem + i.precio * i.cantidad, 0);
+                                  return (
+                                    <button
+                                      key={c.id}
+                                      type="button"
+                                      onClick={() => {
+                                        setNombrePagador(getCleanClientName(c.cliente));
+                                        setCuentaMoverId(c.id);
+                                        showToast(`Vinculado a la cuenta existente de ${getCleanClientName(c.cliente)} ✓`, 'info');
+                                      }}
+                                      style={{
+                                        background: 'linear-gradient(135deg, rgba(205,127,50,0.12), rgba(15,13,12,0.95))',
+                                        border: '1px solid var(--border-bronze, rgba(205,127,50,0.5))',
+                                        borderRadius: 8,
+                                        padding: '6px 10px',
+                                        fontSize: 11,
+                                        textAlign: 'left',
+                                        cursor: 'pointer',
+                                        color: '#fff',
+                                        display: 'flex',
+                                        justifyContent: 'space-between',
+                                        alignItems: 'center',
+                                        transition: 'all 0.2s ease',
+                                        boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
+                                      }}
+                                      onMouseEnter={e => {
+                                        e.currentTarget.style.borderColor = 'var(--bronze-light)';
+                                        e.currentTarget.style.transform = 'translateY(-1px)';
+                                        e.currentTarget.style.boxShadow = '0 4px 12px rgba(205,127,50,0.2)';
+                                      }}
+                                      onMouseLeave={e => {
+                                        e.currentTarget.style.borderColor = 'rgba(205,127,50,0.5)';
+                                        e.currentTarget.style.transform = 'none';
+                                        e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.2)';
+                                      }}
+                                    >
+                                      <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                                        <span style={{ fontWeight: 700 }}>👤 {c.cliente}</span>
+                                        <span style={{ fontSize: 8, color: 'var(--text-muted)' }}>
+                                          Juego: ${c.tiempoJuego} | Consumo: ${totalConsumos}
+                                        </span>
+                                      </div>
+                                      <span style={{ fontSize: 9, color: 'var(--bronze-light)', fontWeight: 'bold' }}>
+                                        ${c.tiempoJuego + totalConsumos} MXN
+                                      </span>
+                                    </button>
+                                  );
+                                })}
+                                {getMatchingActiveAccounts(nombrePagador).length > limiteCoincidenciasMover && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setLimiteCoincidenciasMover(999)}
+                                    style={{
+                                      background: 'none',
+                                      border: 'none',
+                                      color: 'var(--bronze-light)',
+                                      fontSize: 10,
+                                      fontWeight: 700,
+                                      cursor: 'pointer',
+                                      padding: '4px 0',
+                                      textAlign: 'center',
+                                      textDecoration: 'underline'
+                                    }}
+                                  >
+                                    Ver más (+{getMatchingActiveAccounts(nombrePagador).length - limiteCoincidenciasMover})
+                                  </button>
+                                )}
                               </div>
-                              {getMatchingActiveAccounts(nombrePagador).map(c => (
-                                <button
-                                  key={c.id}
-                                  type="button"
-                                  onClick={() => {
-                                    setNombrePagador(getCleanClientName(c.cliente));
-                                    setCuentaMoverId(c.id);
-                                    showToast(`Vinculado a la cuenta existente de ${getCleanClientName(c.cliente)} ✓`, 'info');
-                                  }}
-                                  style={{
-                                    background: 'linear-gradient(135deg, rgba(205,127,50,0.12), rgba(15,13,12,0.95))',
-                                    border: '1px solid var(--border-bronze, rgba(205,127,50,0.5))',
-                                    borderRadius: 8,
-                                    padding: '6px 10px',
-                                    fontSize: 11,
-                                    textAlign: 'left',
-                                    cursor: 'pointer',
-                                    color: '#fff',
-                                    display: 'flex',
-                                    justifyContent: 'space-between',
-                                    alignItems: 'center',
-                                    transition: 'all 0.2s ease',
-                                    boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
-                                  }}
-                                  onMouseEnter={e => {
-                                    e.currentTarget.style.borderColor = 'var(--bronze-light)';
-                                    e.currentTarget.style.transform = 'translateY(-1px)';
-                                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(205,127,50,0.2)';
-                                  }}
-                                  onMouseLeave={e => {
-                                    e.currentTarget.style.borderColor = 'rgba(205,127,50,0.5)';
-                                    e.currentTarget.style.transform = 'none';
-                                    e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.2)';
-                                  }}
-                                >
-                                  <span>👤 {c.cliente}</span>
-                                  <span style={{ fontSize: 9, color: 'var(--bronze-light)', fontWeight: 'bold' }}>
-                                    ${c.tiempoJuego + c.consumos.reduce((sumItem, i) => sumItem + i.precio * i.cantidad, 0)} MXN
-                                  </span>
-                                </button>
-                              ))}
-                            </div>
+                            )
+                          ) : (
+                            getRecientesActiveAccounts().length > 0 && (
+                              <div style={{
+                                background: 'rgba(255,255,255,0.02)',
+                                border: '1px dashed var(--border)',
+                                borderRadius: 8,
+                                padding: '8px 10px',
+                                marginTop: 6,
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: 4
+                              }}>
+                                <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 2 }}>
+                                  🕒 CUENTAS CERRADAS RECIENTEMENTE:
+                                </div>
+                                {getRecientesActiveAccounts().map(c => {
+                                  const totalConsumos = c.consumos.reduce((sumItem, i) => sumItem + i.precio * i.cantidad, 0);
+                                  return (
+                                    <button
+                                      key={c.id}
+                                      type="button"
+                                      onClick={() => {
+                                        setNombrePagador(getCleanClientName(c.cliente));
+                                        setCuentaMoverId(c.id);
+                                        showToast(`Vinculado a la cuenta existente de ${getCleanClientName(c.cliente)} ✓`, 'info');
+                                      }}
+                                      style={{
+                                        background: 'var(--bg-elevated)',
+                                        border: '1px solid var(--border)',
+                                        borderRadius: 6,
+                                        padding: '6px 10px',
+                                        fontSize: 11,
+                                        textAlign: 'left',
+                                        cursor: 'pointer',
+                                        color: '#fff',
+                                        display: 'flex',
+                                        justifyContent: 'space-between',
+                                        alignItems: 'center',
+                                        transition: 'all 0.15s ease'
+                                      }}
+                                      onMouseEnter={e => {
+                                        e.currentTarget.style.borderColor = 'var(--bronze-light)';
+                                      }}
+                                      onMouseLeave={e => {
+                                        e.currentTarget.style.borderColor = 'var(--border)';
+                                      }}
+                                    >
+                                      <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                                        <span style={{ fontWeight: 700 }}>👤 {c.cliente}</span>
+                                        <span style={{ fontSize: 8, color: 'var(--text-muted)' }}>
+                                          Juego: ${c.tiempoJuego} | Consumo: ${totalConsumos}
+                                        </span>
+                                      </div>
+                                      <span style={{ fontSize: 9, color: 'var(--bronze-light)', fontWeight: 'bold' }}>
+                                        ${c.tiempoJuego + totalConsumos} MXN
+                                      </span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )
                           )}
                           <datalist id="clientes-pagador-list">
                             {getFilteredClientes(nombrePagador).map((c, idx) => (
