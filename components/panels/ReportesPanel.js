@@ -56,70 +56,65 @@ function BarChart({ data, height = 120, color = 'var(--bronze)' }) {
 // Data sets for dynamic filtering
 const DATA_INGRESOS = {
   semana: [
-    { label: 'Lun', value: 2400 },
-    { label: 'Mar', value: 1800 },
-    { label: 'Mié', value: 3100 },
-    { label: 'Jue', value: 2800 },
-    { label: 'Vie', value: 4500 },
-    { label: 'Sáb', value: 6200 },
-    { label: 'Dom', value: 1200 },
+    { label: 'Lun', value: 0 },
+    { label: 'Mar', value: 0 },
+    { label: 'Mié', value: 0 },
+    { label: 'Jue', value: 0 },
+    { label: 'Vie', value: 0 },
+    { label: 'Sáb', value: 0 },
+    { label: 'Dom', value: 0 },
   ],
   mes: [
-    { label: 'Sem 1', value: 15400 },
-    { label: 'Sem 2', value: 18900 },
-    { label: 'Sem 3', value: 22000 },
-    { label: 'Sem 4', value: 26500 },
+    { label: 'Sem 1', value: 0 },
+    { label: 'Sem 2', value: 0 },
+    { label: 'Sem 3', value: 0 },
+    { label: 'Sem 4', value: 0 },
   ],
   anio: [
-    { label: 'Ene', value: 62000 },
-    { label: 'Feb', value: 58000 },
-    { label: 'Mar', value: 71000 },
-    { label: 'Abr', value: 68000 },
-    { label: 'May', value: 82000 },
-    { label: 'Jun', value: 95000 },
+    { label: 'Ene', value: 0 },
+    { label: 'Feb', value: 0 },
+    { label: 'Mar', value: 0 },
+    { label: 'Abr', value: 0 },
+    { label: 'May', value: 0 },
+    { label: 'Jun', value: 0 },
     { label: 'Jul', value: 0 },
   ]
 };
 
 const DATA_MESAS = {
   semana: [
-    { label: 'M-1', value: 950 },
-    { label: 'M-2', value: 1800 },
-    { label: 'M-3', value: 1200 },
-    { label: 'M-4', value: 800 },
-    { label: 'M-5', value: 400 },
-    { label: 'M-6', value: 1400 },
-    { label: 'M-7', value: 900 },
-    { label: 'M-8', value: 600 },
+    { label: 'M-1', value: 0 },
+    { label: 'M-2', value: 0 },
+    { label: 'M-3', value: 0 },
+    { label: 'M-4', value: 0 },
+    { label: 'M-5', value: 0 },
+    { label: 'M-6', value: 0 },
+    { label: 'M-7', value: 0 },
+    { label: 'M-8', value: 0 },
   ],
   mes: [
-    { label: 'M-1', value: 4200 },
-    { label: 'M-2', value: 6800 },
-    { label: 'M-3', value: 3100 },
-    { label: 'M-4', value: 2800 },
-    { label: 'M-5', value: 1200 },
-    { label: 'M-6', value: 5400 },
-    { label: 'M-7', value: 3900 },
-    { label: 'M-8', value: 2100 },
+    { label: 'M-1', value: 0 },
+    { label: 'M-2', value: 0 },
+    { label: 'M-3', value: 0 },
+    { label: 'M-4', value: 0 },
+    { label: 'M-5', value: 0 },
+    { label: 'M-6', value: 0 },
+    { label: 'M-7', value: 0 },
+    { label: 'M-8', value: 0 },
   ],
   anio: [
-    { label: 'M-1', value: 48000 },
-    { label: 'M-2', value: 76000 },
-    { label: 'M-3', value: 38000 },
-    { label: 'M-4', value: 32000 },
-    { label: 'M-5', value: 15000 },
-    { label: 'M-6', value: 62000 },
-    { label: 'M-7', value: 45000 },
-    { label: 'M-8', value: 28000 },
+    { label: 'M-1', value: 0 },
+    { label: 'M-2', value: 0 },
+    { label: 'M-3', value: 0 },
+    { label: 'M-4', value: 0 },
+    { label: 'M-5', value: 0 },
+    { label: 'M-6', value: 0 },
+    { label: 'M-7', value: 0 },
+    { label: 'M-8', value: 0 },
   ]
 };
 
-const TOP_MESAS = [
-  { mesa: 'Mesa 2', tipo: 'Carambola 3B', horas: 48, ingresos: 6800, ocupacion: 92 },
-  { mesa: 'Mesa 6', tipo: 'Pool 9B',      horas: 41, ingresos: 5400, ocupacion: 76 },
-  { mesa: 'Mesa 7', tipo: 'Carambola 3B', horas: 38, ingresos: 3900, ocupacion: 70 },
-  { mesa: 'Mesa 1', tipo: 'Carambola 3B', horas: 35, ingresos: 4200, ocupacion: 65 },
-];
+const TOP_MESAS = [];
 
 const formatFecha = (ts) => {
   if (!ts) return '';
@@ -284,19 +279,9 @@ export default function ReportesPanel({ showToast }) {
       })
       .reduce((sum, p) => sum + (Number(p.totalNeto) || 0), 0);
 
-    let rentasMesas = 17200;
-    let ventasBar = 18400;
-    let inscripcionesTorneo = 3500;
-
-    if (filtroGrafico === 'mes') {
-      rentasMesas = 64400;
-      ventasBar = 72000;
-      inscripcionesTorneo = 12000;
-    } else if (filtroGrafico === 'anio') {
-      rentasMesas = 345000;
-      ventasBar = 398000;
-      inscripcionesTorneo = 68000;
-    }
+    let rentasMesas = 0;
+    let ventasBar = 0;
+    let inscripcionesTorneo = 0;
 
     const sumMesas = eventosPeriodo
       .filter(e => e.accion === 'Cierre Directo' || e.accion === 'Mesa a Cuenta')
@@ -355,13 +340,7 @@ export default function ReportesPanel({ showToast }) {
   const finanzas = getFinanzasPL();
 
   const getStaffRendimiento = () => {
-    const defaultStaff = [
-      { id: '1', nombre: 'Carlos', apellido: 'Ramírez', rol: 'Mesero', comisiones: 1240, comandas: 48, asistencia: 96, calificacion: 4.8, eficiencia: 95 },
-      { id: '2', nombre: 'Ana', apellido: 'Gómez', rol: 'Mesero', comisiones: 1050, comandas: 38, asistencia: 92, calificacion: 4.5, eficiencia: 90 },
-      { id: '3', nombre: 'Luis', apellido: 'Hernández', rol: 'Mesero', comisiones: 890, comandas: 30, asistencia: 88, calificacion: 4.2, eficiencia: 85 },
-      { id: '4', nombre: 'Pedro', apellido: 'Martínez', rol: 'Bartender', comisiones: 1850, comandas: 74, asistencia: 100, calificacion: 4.9, eficiencia: 98 },
-      { id: '5', nombre: 'Sofía', apellido: 'López', rol: 'Cajero', comisiones: 600, comandas: 20, asistencia: 95, calificacion: 4.6, eficiencia: 92 },
-    ];
+    const defaultStaff = [];
 
     if (empleadosList.length === 0) return defaultStaff;
 
