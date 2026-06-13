@@ -1294,9 +1294,10 @@ export default function MesasPanel({ showToast }) {
     }
 
     // 2. Si la mesa está libre, la abrimos automáticamente (si aplica mesaId)
-    let orderClient = pedidoDoc.cliente || '';
-    // Si la orden viene con un nombre genérico de otra mesa (por cache), lo forzamos a la mesa correcta
-    if (orderClient.toLowerCase().startsWith('mesa ') && orderClient.toLowerCase() !== `mesa ${mesaId}`) {
+    let orderClient = (pedidoDoc.cliente || '').trim();
+    if (!orderClient || ['público', 'publico', 'público general', 'publico general'].includes(orderClient.toLowerCase())) {
+      orderClient = `Mesa ${mesaId}`;
+    } else if (orderClient.toLowerCase().startsWith('mesa ') && orderClient.toLowerCase() !== `mesa ${mesaId}`) {
       orderClient = `Mesa ${mesaId}`;
     }
     let clienteName = (targetMesa ? targetMesa.cliente : null) || orderClient || `Mesa ${mesaId}`;
@@ -1897,6 +1898,54 @@ export default function MesasPanel({ showToast }) {
     limpiarClientesAnonimosViejos();
   }, []);
 
+  // Limpieza automática de pedidos huérfanos de mesas libres (Sugerencia 2)
+  useEffect(() => {
+    const limpiarPedidosHuerfanosViejos = async () => {
+      if (typeof window !== 'undefined' && !navigator.onLine) return;
+      try {
+        const q = query(
+          collection(db, 'mesa_pedidos'),
+          where('estado', 'in', ['pendiente', 'listo', 'en_camino', 'entregado']),
+          limit(200)
+        );
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          const currentMesas = mesasRef.current;
+          const batch = writeBatch(db);
+          let count = 0;
+          snap.docs.forEach(d => {
+            const data = d.data();
+            const mesaId = data.mesaId;
+            const createdTime = data.createdAt?.toDate ? data.createdAt.toDate().getTime() : 0;
+            const targetMesa = currentMesas.find(m => m.id === mesaId);
+            // Si la mesa está libre y el pedido lleva más de 2 horas (para evitar colisiones), lo archivamos
+            if (targetMesa && targetMesa.estado === 'libre' && Date.now() - createdTime > 2 * 60 * 60 * 1000) {
+              const nuevoEstado = data.estado === 'entregado' ? 'finalizado' : 'atendido';
+              batch.update(d.ref, {
+                estado: nuevoEstado,
+                atendidoAt: serverTimestamp(),
+                updatedAt: serverTimestamp(),
+                atendidoAdmin: true
+              });
+              count++;
+            }
+          });
+          if (count > 0) {
+            await batch.commit();
+            console.log(`[Limpieza] Se archivaron ${count} pedidos huérfanos de mesas libres.`);
+          }
+        }
+      } catch (err) {
+        console.warn("Error al limpiar pedidos huérfanos obsoletos:", err);
+      }
+    };
+    // Esperar 10 segundos tras el montaje para asegurar que las mesas ya cargaron
+    const timer = setTimeout(() => {
+      limpiarPedidosHuerfanosViejos();
+    }, 10000);
+    return () => clearTimeout(timer);
+  }, [mesas]);
+
   // Escuchar mesas de Firestore en tiempo real como fuente única de verdad
   useEffect(() => {
     const docRef = doc(db, 'config', 'mesas_estado');
@@ -2098,8 +2147,12 @@ export default function MesasPanel({ showToast }) {
   };
 
   const confirmarAbrirMesa = (mesaId, { cliente, esSocio, rentarTaco, rentarBolas, rentarTiza }) => {
+    let finalCliente = (cliente || '').trim();
+    if (!finalCliente || ['público', 'publico', 'público general', 'publico general'].includes(finalCliente.toLowerCase())) {
+      finalCliente = `Mesa ${mesaId}`;
+    }
     setMesas(prev => prev.map(m => m.id === mesaId
-      ? { ...m, estado: 'ocupada', cliente, inicio: Date.now(), socios: esSocio, rentarTaco, rentarBolas, rentarTiza, clienteUid: '', preTicketImpreso: false, reservadaAt: null, limiteReservaMs: null, telefono: '' }
+      ? { ...m, estado: 'ocupada', cliente: finalCliente, inicio: Date.now(), socios: esSocio, rentarTaco, rentarBolas, rentarTiza, clienteUid: '', preTicketImpreso: false, reservadaAt: null, limiteReservaMs: null, telefono: '' }
       : m
     ));
 
@@ -2113,8 +2166,8 @@ export default function MesasPanel({ showToast }) {
     }
     
     setModalAbrir(null);
-    showToast(`Mesa ${mesaId} iniciada para ${cliente}`, 'success');
-    registrarEvento('Apertura', `Mesa ${mesaId} abierta para ${cliente}${esSocio ? ' (Socio)' : ''} ${rentarTaco ? '[Taco Premium] ' : ''}${rentarBolas ? '[Bolas Aramith] ' : ''}${rentarTiza ? '[Tiza Kamui]' : ''}`);
+    showToast(`Mesa ${mesaId} iniciada para ${finalCliente}`, 'success');
+    registrarEvento('Apertura', `Mesa ${mesaId} abierta para ${finalCliente}${esSocio ? ' (Socio)' : ''} ${rentarTaco ? '[Taco Premium] ' : ''}${rentarBolas ? '[Bolas Aramith] ' : ''}${rentarTiza ? '[Tiza Kamui]' : ''}`);
   };
 
   const registrarNuevaMesa = (nueva) => {
@@ -2205,15 +2258,19 @@ export default function MesasPanel({ showToast }) {
   };
 
   const confirmarVincularCliente = (mesaId, nuevoNombre) => {
+    let cleanNombre = (nuevoNombre || '').trim();
+    if (!cleanNombre || ['público', 'publico', 'público general', 'publico general'].includes(cleanNombre.toLowerCase())) {
+      cleanNombre = `Mesa ${mesaId}`;
+    }
     const mesa = mesas.find(m => m.id === mesaId);
     const ant = mesa ? mesa.cliente : 'Ninguno';
     setMesas(prev => prev.map(m => m.id === mesaId
-      ? { ...m, cliente: nuevoNombre }
+      ? { ...m, cliente: cleanNombre }
       : m
     ));
     setModalVincular(null);
-    showToast(`Cliente de Mesa ${mesaId} actualizado a ${nuevoNombre} ✓`, 'success');
-    registrarEvento('Vincular Cliente', `Cliente en Mesa ${mesaId} cambiado de "${ant}" a "${nuevoNombre}"`);
+    showToast(`Cliente de Mesa ${mesaId} actualizado a ${cleanNombre} ✓`, 'success');
+    registrarEvento('Vincular Cliente', `Cliente en Mesa ${mesaId} cambiado de "${ant}" a "${cleanNombre}"`);
   };
 
   const agregarSesionACuenta = async ({ costo, cuentaId, nombreNuevo }) => {
