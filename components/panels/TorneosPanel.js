@@ -1318,10 +1318,23 @@ export default function TorneosPanel({ showToast }) {
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
-                <h3 style={{ fontSize: 13, fontWeight: 700 }}>{t.nombre}</h3>
-                <span className={`badge ${t.estado === 'activo' ? 'badge-success' : t.estado === 'completado' ? 'badge-info' : 'badge-warning'}`}>
-                  {t.estado === 'activo' ? 'Activo' : t.estado === 'completado' ? 'Completado' : 'Inscripción'}
-                </span>
+                <h3 style={{ fontSize: 13, fontWeight: 700, margin: 0, flex: 1, marginRight: 8 }}>{t.nombre}</h3>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span className={`badge ${t.estado === 'activo' ? 'badge-success' : t.estado === 'completado' ? 'badge-info' : 'badge-warning'}`}>
+                    {t.estado === 'activo' ? 'Activo' : t.estado === 'completado' ? 'Completado' : 'Inscripción'}
+                  </span>
+                  <button
+                    type="button"
+                    style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: 2, display: 'flex', alignItems: 'center' }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleEliminarTorneo(t.id);
+                    }}
+                    title="Eliminar Torneo"
+                  >
+                    <i className="ri-delete-bin-line" style={{ fontSize: 14 }} />
+                  </button>
+                </div>
               </div>
               <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8 }}>{t.modalidad}</div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
