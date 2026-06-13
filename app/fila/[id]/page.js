@@ -16,8 +16,15 @@ export default function FilaEsperaCliente() {
 
   const [notificationPermission, setNotificationPermission] = useState('default');
   const swRegistrationRef = useRef(null);
+  const [isSupported, setIsSupported] = useState(true);
+  const beepCountRef = useRef(0);
 
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const supported = ('Notification' in window) && ('serviceWorker' in navigator);
+      setIsSupported(supported);
+    }
+
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js')
         .then((reg) => {
@@ -130,17 +137,21 @@ export default function FilaEsperaCliente() {
         if (AudioContext) {
           const ctx = new AudioContext();
           audioCtxRef.current = ctx;
+          beepCountRef.current = 0;
 
           const playBeep = () => {
             if (ctx.state === 'suspended') {
               ctx.resume();
             }
+            beepCountRef.current += 1;
+            const targetVol = Math.min(0.5, 0.1 + (beepCountRef.current - 1) * 0.1);
+
             const osc = ctx.createOscillator();
             const gain = ctx.createGain();
             osc.type = 'sine';
             osc.frequency.setValueAtTime(880, ctx.currentTime); // A5 note
             gain.gain.setValueAtTime(0, ctx.currentTime);
-            gain.gain.linearRampToValueAtTime(0.5, ctx.currentTime + 0.05);
+            gain.gain.linearRampToValueAtTime(targetVol, ctx.currentTime + 0.05);
             gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
             
             osc.connect(gain);
@@ -174,8 +185,14 @@ export default function FilaEsperaCliente() {
 
   const handleStopAlert = () => {
     setAlerting(false);
+    beepCountRef.current = 0;
     if (typeof window !== 'undefined' && window.navigator && window.navigator.vibrate) {
       window.navigator.vibrate(0);
+    }
+    if (swRegistrationRef.current && swRegistrationRef.current.getNotifications) {
+      swRegistrationRef.current.getNotifications().then((notifications) => {
+        notifications.forEach((n) => n.close());
+      }).catch((err) => console.warn(err));
     }
   };
 
@@ -247,7 +264,7 @@ export default function FilaEsperaCliente() {
         </div>
       ) : (
         <div style={cardStyle}>
-          {notificationPermission === 'default' && (
+          {isSupported && notificationPermission === 'default' && (
             <div style={permissionBannerStyle}>
               <span style={{ fontSize: 22 }}>🔔</span>
               <div style={{ flex: 1, textAlign: 'left', display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -257,6 +274,20 @@ export default function FilaEsperaCliente() {
               <button onClick={requestNotificationPermission} style={permissionButtonStyle}>
                 Activar
               </button>
+            </div>
+          )}
+          {!isSupported && (
+            <div style={{
+              background: 'rgba(255, 255, 255, 0.02)',
+              border: '1px solid rgba(255, 255, 255, 0.05)',
+              borderRadius: 14,
+              padding: '10px 14px',
+              fontSize: 11,
+              color: 'rgba(255, 255, 255, 0.4)',
+              marginBottom: 20,
+              textAlign: 'left'
+            }}>
+              ℹ️ Abre este enlace directamente en <strong>Safari</strong> o <strong>Chrome</strong> si deseas recibir notificaciones en segundo plano y pantalla bloqueada.
             </div>
           )}
           <div style={{ fontSize: 64, marginBottom: 20, animation: 'pulse 2s infinite', borderRadius: '50%', background: 'rgba(197, 168, 128, 0.1)', padding: 12, display: 'inline-block' }}>⏳</div>
