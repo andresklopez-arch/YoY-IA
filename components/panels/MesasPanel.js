@@ -620,34 +620,34 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 400, maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <div className="modal-header" style={{ padding: '8px 14px' }}>
-          <span className="modal-title" style={{ fontSize: 12 }}><i className="ri-stop-circle-line" style={{ marginRight: 6, color: 'var(--danger)' }} />Cerrar {mesa.nombre}</span>
+      <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 400, maxHeight: '96vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div className="modal-header" style={{ padding: '6px 12px' }}>
+          <span className="modal-title" style={{ fontSize: 11 }}><i className="ri-stop-circle-line" style={{ marginRight: 6, color: 'var(--danger)' }} />Cerrar {mesa.nombre}</span>
           <button onClick={onClose} className="btn btn-secondary" style={{ background: 'none', border: 'none', padding: 2 }}>
             <i className="ri-close-line" style={{ fontSize: 18 }} />
           </button>
         </div>
-        <div className="modal-body" style={{ padding: '8px 14px', overflowY: 'auto', flex: 1 }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div className="modal-body" style={{ padding: '6px 12px', overflowY: 'auto', flex: 1 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {/* Resumen */}
-            <div style={{ background: 'var(--bg-elevated)', borderRadius: 10, padding: '8px 12px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+            <div style={{ background: 'var(--bg-elevated)', borderRadius: 10, padding: '6px 10px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
               <div>
                 <div style={{ fontSize: 8, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 1 }}>Tiempo</div>
-                <div style={{ fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 700, letterSpacing: '0.08em', color: 'var(--bronze-light)' }}>{formatTime(elapsed)}</div>
-                <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>{hrs} hrs · ${mesa.tarifa}/hr</div>
+                <div style={{ fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 700, letterSpacing: '0.08em', color: 'var(--bronze-light)' }}>{formatTime(elapsed)}</div>
+                <div style={{ fontSize: 8, color: 'var(--text-muted)' }}>{hrs} hrs · ${mesa.tarifa}/hr</div>
               </div>
               <div>
                 <div style={{ fontSize: 8, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 1 }}>Total de Mesa</div>
-                <div style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 900, color: mesa.socios && costo === 0 ? 'var(--success)' : 'var(--text-primary)', lineHeight: 1.2 }}>
-                  {mesa.socios && costo === 0 ? 'SOCIO' : `$${costo}`}
+                <div style={{ fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 900, color: mesa.socios && costo === 0 ? 'var(--success)' : 'var(--text-primary)', lineHeight: 1.2 }}>
+                  {mesa.socios && costo === 0 ? 'SOCIO' : `${costo}`}
                 </div>
-                {(!mesa.socios || costo > 0) && <div style={{ fontSize: 9, color: 'var(--text-muted)', lineHeight: 1 }}>MXN</div>}
+                {(!mesa.socios || costo > 0) && <div style={{ fontSize: 8, color: 'var(--text-muted)', lineHeight: 1 }}>MXN</div>}
               </div>
             </div>
 
             {/* Breakdown de consumos if any */}
             {consumosTotal > 0 && (
-              <div style={{ background: 'var(--bg-elevated)', borderRadius: 10, padding: '8px 12px', fontSize: 10, border: '1px solid var(--border)' }}>
+              <div style={{ background: 'var(--bg-elevated)', borderRadius: 10, padding: '6px 10px', fontSize: 9.5, border: '1px solid var(--border)' }}>
                 <div style={{ fontWeight: 'bold', color: 'var(--bronze-light)', marginBottom: 4 }}>Detalle de Consumos:</div>
                 <ul style={{ margin: 0, paddingLeft: 14, color: 'var(--text-muted)' }}>
                   {!mesa.socios && <li>Tiempo de juego: ${costoTiempo}</li>}
@@ -659,9 +659,9 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
             )}
 
             {(mesa.rentarTaco || mesa.rentarBolas || mesa.rentarTiza) && (
-              <div style={{ fontSize: 10, color: 'var(--bronze-light)', padding: '6px 10px', background: 'var(--bg-elevated)', borderRadius: 8, border: '1px solid var(--border)' }}>
+              <div style={{ fontSize: 9, color: 'var(--bronze-light)', padding: '4px 8px', background: 'var(--bg-elevated)', borderRadius: 8, border: '1px solid var(--border)' }}>
                 <strong>Equipamiento Rentado:</strong>
-                <ul style={{ margin: '4px 0 0 14px', padding: 0, fontSize: 9, color: 'var(--text-muted)' }}>
+                <ul style={{ margin: '4px 0 0 14px', padding: 0, fontSize: 8, color: 'var(--text-muted)' }}>
                   {mesa.rentarTaco && <li>Taco de Carbono (+$25/hr)</li>}
                   {mesa.rentarBolas && <li>Bolas Aramith (+$35/hr)</li>}
                   {mesa.rentarTiza && <li>Tiza Kamui (+$10 única)</li>}
@@ -670,18 +670,18 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
             )}
 
             {/* Opciones de Cierre */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
               <button
                 className={`btn btn-sm ${tipoCierre === 'liquidar' ? 'btn-primary' : 'btn-secondary'}`}
                 onClick={() => setTipoCierre('liquidar')}
-                style={{ flex: 1, padding: '4px 8px', fontSize: 10 }}
+                style={{ flex: 1, padding: '3px 6px', fontSize: 9.5 }}
               >
                 Liquidar Ahora
               </button>
               <button
                 className={`btn btn-sm ${tipoCierre === 'cuenta' ? 'btn-primary' : 'btn-secondary'}`}
                 onClick={() => setTipoCierre('cuenta')}
-                style={{ flex: 1, padding: '4px 8px', fontSize: 10 }}
+                style={{ flex: 1, padding: '3px 6px', fontSize: 9.5 }}
               >
                 Agregar a Cuenta
               </button>
@@ -690,68 +690,68 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
             {/* Panel de Liquidación */}
             {tipoCierre === 'liquidar' ? (
               <>
-                <div style={{ fontSize: 11, color: 'var(--text-secondary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ fontSize: 10, color: 'var(--text-secondary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '2px 0' }}>
                   <span>
                     <i className="ri-user-line" style={{ marginRight: 4 }} />
                     {mesa.cliente || 'Público General'}
                   </span>
-                  {mesa.preTicketImpreso && (
-                    <span style={{ fontSize: 9, color: 'var(--success)', fontWeight: 'bold' }}>
-                      <i className="ri-checkbox-circle-line" style={{ marginRight: 2 }} /> Pre-Ticket Impreso
-                    </span>
-                  )}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {mesa.preTicketImpreso && (
+                      <span style={{ fontSize: 8.5, color: 'var(--success)', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <i className="ri-checkbox-circle-line" /> Impreso
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={handleImprimirPreTicket}
+                      className="btn btn-secondary btn-sm"
+                      style={{
+                        padding: '3px 6px',
+                        fontSize: 8.5,
+                        background: 'var(--bg-hover)',
+                        border: '1px solid var(--border)',
+                        color: 'var(--text-secondary)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 2
+                      }}
+                      title="Imprimir Pre-Ticket"
+                    >
+                      <i className="ri-printer-line" style={{ fontSize: 9.5 }} /> {mesa.preTicketImpreso ? 'Reimprimir' : 'Pre-Ticket'}
+                    </button>
+                  </div>
                 </div>
 
-                {!mesa.preTicketImpreso ? (
-                  <div style={{
-                    padding: '16px 12px',
-                    background: 'var(--bronze-subtle, rgba(205,127,50,0.08))',
-                    border: '1px dashed var(--border-bronze, rgba(205,127,50,0.3))',
-                    borderRadius: 10,
-                    textAlign: 'center',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 10,
-                    marginTop: 4
-                  }}>
-                    <i className="ri-printer-line" style={{ fontSize: 28, color: 'var(--bronze-light)' }} />
-                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-primary)' }}>Paso obligatorio: Imprimir Pre-Ticket</div>
-                    <div style={{ fontSize: 9, color: 'var(--text-muted)', lineHeight: 1.3 }}>
-                      Se debe entregar la cuenta física al cliente antes de registrar el cobro en caja.
+                {!mesa.socios && (
+                  <div className="form-group" style={{ gap: 2 }}>
+                    <label className="form-label" style={{ fontSize: 8.5, marginBottom: 1 }}>Método de Pago</label>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 3 }}>
+                      {[
+                        { id: 'efectivo', label: 'Efectivo', icon: 'ri-money-dollar-circle-line' },
+                        { id: 'transferencia', label: 'Transf.', icon: 'ri-bank-line' },
+                        { id: 'qr', label: 'Pago QR', icon: 'ri-qr-code-line' },
+                        { id: 'tarjeta', label: 'Tarjeta', icon: 'ri-bank-card-line' },
+                      ].map(m => (
+                        <button
+                          key={m.id}
+                          type="button"
+                          onClick={() => setMetodo(m.id)}
+                          style={{
+                            background: metodo === m.id ? 'var(--bronze-subtle)' : 'var(--bg-elevated)',
+                            border: `1px solid ${metodo === m.id ? 'var(--border-bronze)' : 'var(--border)'}`,
+                            borderRadius: 6, padding: '4px 2px', cursor: 'pointer',
+                            color: metodo === m.id ? 'var(--bronze-light)' : 'var(--text-secondary)',
+                            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1,
+                            fontSize: 7.5, fontWeight: 600, transition: 'all 0.15s',
+                          }}
+                        >
+                          <i className={m.icon} style={{ fontSize: 11 }} />
+                          {m.label}
+                        </button>
+                      ))}
                     </div>
                   </div>
-                ) : (
-                  <>
-                    {!mesa.socios && (
-                      <div className="form-group" style={{ gap: 2 }}>
-                        <label className="form-label" style={{ fontSize: 9, marginBottom: 2 }}>Método de Pago</label>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 4 }}>
-                          {[
-                            { id: 'efectivo', label: 'Efectivo', icon: 'ri-money-dollar-circle-line' },
-                            { id: 'transferencia', label: 'Transf.', icon: 'ri-bank-line' },
-                            { id: 'qr', label: 'Pago QR', icon: 'ri-qr-code-line' },
-                            { id: 'tarjeta', label: 'Tarjeta', icon: 'ri-bank-card-line' },
-                          ].map(m => (
-                            <button
-                              key={m.id}
-                              type="button"
-                              onClick={() => setMetodo(m.id)}
-                              style={{
-                                background: metodo === m.id ? 'var(--bronze-subtle)' : 'var(--bg-elevated)',
-                                border: `1px solid ${metodo === m.id ? 'var(--border-bronze)' : 'var(--border)'}`,
-                                borderRadius: 8, padding: '6px 2px', cursor: 'pointer',
-                                color: metodo === m.id ? 'var(--bronze-light)' : 'var(--text-secondary)',
-                                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
-                                fontSize: 8, fontWeight: 600, transition: 'all 0.15s',
-                              }}
-                            >
-                              <i className={m.icon} style={{ fontSize: 12 }} />
-                              {m.label}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
+                )}
 
                     {/* Sub-Paneles Condicionales de Liquidación */}
                     {!mesa.socios && metodo === 'efectivo' && costo > 0 && (
@@ -883,8 +883,6 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
                       </div>
                     )}
                   </>
-                )}
-              </>
             ) : (
               /* Panel de Agregar a Cuenta */
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -1130,26 +1128,10 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
             )}
           </div>
         </div>
-        <div className="modal-footer" style={{ padding: '12px 16px' }}>
-          <button className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: 11 }} onClick={onClose}>Cancelar</button>
+        <div className="modal-footer" style={{ padding: '8px 12px' }}>
+          <button className="btn btn-secondary" style={{ padding: '4px 8px', fontSize: 9.5 }} onClick={onClose}>Cancelar</button>
           {tipoCierre === 'liquidar' ? (
-            !mesa.preTicketImpreso ? (
-              <button
-                className="btn btn-primary"
-                onClick={handleImprimirPreTicket}
-                style={{
-                  background: 'linear-gradient(135deg, var(--bronze), var(--bronze-light))',
-                  padding: '6px 12px',
-                  fontSize: 11,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 4
-                }}
-              >
-                <i className="ri-printer-line" /> Imprimir Pre-Ticket
-              </button>
-            ) : (
-              <div style={{ display: 'flex', gap: 8, flex: 1 }}>
+            <div style={{ display: 'flex', gap: 6, flex: 1 }}>
                 <button
                   className="btn btn-secondary"
                   onClick={() => {
@@ -1160,8 +1142,8 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
                   style={{
                     background: 'linear-gradient(135deg, var(--bronze-light), var(--bronze))',
                     color: '#fff',
-                    padding: '6px 12px',
-                    fontSize: 11,
+                    padding: '4px 8px',
+                    fontSize: 9.5,
                     flex: 1
                   }}
                 >
@@ -1180,8 +1162,8 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
                   disabled={isCerrarDisabled}
                   style={{ 
                     background: isCerrarDisabled ? 'var(--bg-hover)' : costo === 0 ? 'linear-gradient(135deg, #f97316, #fb923c)' : 'linear-gradient(135deg, var(--danger), #ff6b6b)', 
-                    padding: '6px 12px', 
-                    fontSize: 11,
+                    padding: '4px 8px', 
+                    fontSize: 9.5,
                     cursor: isCerrarDisabled ? 'not-allowed' : 'pointer',
                     flex: 1
                   }}
@@ -1208,7 +1190,7 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
                               key={m}
                               className="btn btn-secondary"
                               style={{
-                                textAlign: 'left', fontSize: 11, padding: '7px 12px',
+                                textAlign: 'left', fontSize: 9.5, padding: '5px 10px',
                                 background: motivoCortesia === m ? 'rgba(249,115,22,0.15)' : undefined,
                                 border: motivoCortesia === m ? '1px solid rgba(249,115,22,0.5)' : undefined,
                                 color: motivoCortesia === m ? '#f97316' : undefined,
@@ -1227,11 +1209,11 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
                           onChange={e => setMotivoCortesia(e.target.value)}
                         />
                       </div>
-                      <div className="modal-footer">
-                        <button className="btn btn-secondary" onClick={() => setShowMotivoCortesia(false)}>Cancelar</button>
+                      <div className="modal-footer" style={{ padding: '8px 12px' }}>
+                        <button className="btn btn-secondary" style={{ padding: '4px 8px', fontSize: 9.5 }} onClick={() => setShowMotivoCortesia(false)}>Cancelar</button>
                         <button
                           className="btn btn-primary"
-                          style={{ background: 'linear-gradient(135deg, #f97316, #fb923c)' }}
+                          style={{ background: 'linear-gradient(135deg, #f97316, #fb923c)', padding: '4px 8px', fontSize: 9.5 }}
                           disabled={!motivoCortesia.trim()}
                           onClick={() => {
                             setShowMotivoCortesia(false);
@@ -1456,8 +1438,8 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
                           </div>
                         )}
                       </div>
-                      <div className="modal-footer" style={{ display: 'flex', gap: 8 }}>
-                        <button className="btn btn-secondary" onClick={() => { setShowPromptMoverPendiente(false); setCuentaMoverId(null); }} style={{ flex: 1, padding: '6px 12px', fontSize: 11 }}>Cancelar</button>
+                      <div className="modal-footer" style={{ display: 'flex', gap: 6, padding: '8px 12px' }}>
+                        <button className="btn btn-secondary" onClick={() => { setShowPromptMoverPendiente(false); setCuentaMoverId(null); }} style={{ flex: 1, padding: '4px 8px', fontSize: 9.5 }}>Cancelar</button>
                         <button
                           className="btn btn-primary"
                           disabled={!nombrePagador.trim()}
@@ -1492,8 +1474,8 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
                             color: '#fff',
                             cursor: !nombrePagador.trim() ? 'not-allowed' : 'pointer',
                             flex: 1,
-                            padding: '6px 12px',
-                            fontSize: 11
+                            padding: '4px 8px',
+                            fontSize: 9.5
                           }}
                         >
                           <i className="ri-check-line" /> Confirmar y Mover
@@ -1503,7 +1485,6 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
                   </div>
                 )}
               </div>
-            )
           ) : (
             <button
               className="btn btn-primary"
@@ -1556,8 +1537,8 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
                 background: ((cuentaSeleccionada === '' || isSelectedGeneric) && !nuevoCliente.trim())
                   ? 'var(--bg-hover)'
                   : 'linear-gradient(135deg, var(--bronze), var(--bronze-light))',
-                padding: '6px 12px',
-                fontSize: 11,
+                padding: '4px 8px',
+                fontSize: 9.5,
                 flex: 1,
                 cursor: ((cuentaSeleccionada === '' || isSelectedGeneric) && !nuevoCliente.trim())
                   ? 'not-allowed'
