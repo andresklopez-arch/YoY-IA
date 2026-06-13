@@ -64,45 +64,8 @@ export default function SeedPage() {
         createdAt: new Date().toISOString()
       });
 
-      // 3. Crear documentos de ejemplo en colecciones base
-      setStatus('Inicializando colecciones (mesas, productos, torneos, tickets)...');
-      
-      // Colección 'mesas' - Creando mesa de ejemplo
-      await setDoc(doc(db, 'mesas', 'mesa-01'), {
-        id: 'mesa-01',
-        numero: '1',
-        tipo: 'pool',
-        estado: 'libre',
-        tiempoInicio: null,
-        tiempoTranscurrido: 0,
-        consumoTotal: 0
-      });
-
-      // Colección 'productos' - Creando producto de ejemplo
-      await setDoc(doc(db, 'productos', 'prod-01'), {
-        id: 'prod-01',
-        nombre: 'Cerveza Modelo',
-        categoria: 'bebidas',
-        precio: 45,
-        stock: 100
-      });
-
-      // Colección 'torneos' - Creando torneo de ejemplo
-      await setDoc(doc(db, 'torneos', 'torneo-01'), {
-        id: 'torneo-01',
-        nombre: 'Torneo Relámpago',
-        estado: 'inscripcion',
-        participantes: []
-      });
-
-      // Colección 'tickets' - Creando ticket de ejemplo
-      await setDoc(doc(db, 'tickets', 'ticket-01'), {
-        id: 'ticket-01',
-        mesaId: 'mesa-01',
-        estado: 'abierto',
-        items: [],
-        total: 0
-      });
+      // 3. Inicializando base de datos en limpio
+      setStatus('Inicializando base de datos en limpio...');
 
       setIsAlreadySeeded(true);
       setStatus(`¡Sembrado completado exitosamente! Ya puedes iniciar sesión con admin1111@${clientDomain} y la contraseña que ingresaste.`);
