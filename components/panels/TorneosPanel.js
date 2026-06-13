@@ -1370,7 +1370,21 @@ export default function TorneosPanel({ showToast }) {
             </div>
           )}
 
-          <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: 20, alignItems: 'start' }}>
+          {torneos.filter(t => t.estado !== 'eliminado').length === 0 ? (
+            <div className="card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '60px 20px', textAlign: 'center', border: '1px dashed var(--border-bronze, rgba(205,127,50,0.2))' }}>
+              <div style={{ background: 'rgba(205, 127, 50, 0.1)', border: '2px dashed var(--bronze-light)', borderRadius: '50%', width: 70, height: 70, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+                <i className="ri-trophy-line" style={{ fontSize: 32, color: 'var(--bronze-light)' }} />
+              </div>
+              <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8, color: 'var(--text-primary)' }}>No hay torneos activos</h3>
+              <p style={{ color: 'var(--text-muted)', fontSize: 13, maxWidth: 400, marginBottom: 20, lineHeight: 1.5 }}>
+                El sistema está limpio para iniciar pruebas de flujo. Registra un nuevo torneo para emparejar jugadores de forma aleatoria y realizar el seguimiento.
+              </p>
+              <button className="btn btn-primary" onClick={() => setShowCrearTorneo(true)}>
+                <i className="ri-add-line" style={{ marginRight: 6 }} /> Crear Primer Torneo
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: 20, alignItems: 'start' }}>
             {/* Lista de torneos */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {torneos.filter(t => t.estado !== 'eliminado').map(t => (
@@ -1672,11 +1686,14 @@ export default function TorneosPanel({ showToast }) {
             )}
           </div>
         ) : (
-          <div className="card" style={{ textAlign: 'center', padding: 40 }}>
-            <p style={{ color: 'var(--text-muted)' }}>Cargando torneos...</p>
+          <div className="card" style={{ textAlign: 'center', padding: '60px 20px', border: '1px dashed var(--border)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+            <i className="ri-arrow-left-line" style={{ fontSize: 32, color: 'var(--text-muted)', display: 'block', marginBottom: 12 }} />
+            <h4 style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 6 }}>Selecciona un Torneo</h4>
+            <p style={{ color: 'var(--text-muted)', fontSize: 12, margin: 0 }}>Elige un torneo de la lista de la izquierda para ver su bracket, ranking ELO y partidas.</p>
           </div>
         )}
       </div>
+      )}
       </>
       )}
 

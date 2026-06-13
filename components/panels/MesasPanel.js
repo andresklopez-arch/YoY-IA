@@ -4789,6 +4789,21 @@ function ModalFilaVirtual({ fila, setFila, mesas, onAssign, onClose, showToast, 
       showToast('Por favor ingrese un nombre real y no genérico.', 'warning');
       return;
     }
+
+    // Validar duplicados en la fila
+    const yaEnFila = fila.some(f => f.cliente.toLowerCase() === cleanCliente.toLowerCase());
+    if (yaEnFila) {
+      showToast(`El cliente "${cleanCliente}" ya se encuentra en la lista de espera.`, 'warning');
+      return;
+    }
+
+    // Validar duplicados en mesas activas
+    const yaEnMesa = mesas.some(m => m.estado === 'ocupada' && m.cliente && m.cliente.toLowerCase() === cleanCliente.toLowerCase());
+    if (yaEnMesa) {
+      showToast(`El cliente "${cleanCliente}" ya tiene una mesa asignada y activa.`, 'warning');
+      return;
+    }
+
     const entryId = Date.now();
     const nuevo = {
       id: entryId,
@@ -4858,7 +4873,23 @@ function ModalFilaVirtual({ fila, setFila, mesas, onAssign, onClose, showToast, 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <h4 style={{ fontSize: 12, textTransform: 'uppercase', color: 'var(--text-secondary)', letterSpacing: '0.05em' }}>Clientes en Espera ({fila.length})</h4>
             {fila.length === 0 ? (
-              <p style={{ color: 'var(--text-muted)', fontSize: 13, textAlign: 'center', padding: '40px 0' }}>No hay clientes en espera.</p>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 10px', textAlign: 'center', border: '1px dashed var(--border)', borderRadius: 10, background: 'rgba(255,255,255,0.01)', margin: '10px 0' }}>
+                <i className="ri-group-line" style={{ fontSize: 32, color: 'var(--text-muted)', marginBottom: 10 }} />
+                <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-secondary)' }}>Fila Virtual Vacía</span>
+                <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '4px 0 12px 0', maxWidth: 220, lineHeight: 1.4 }}>
+                  No hay ningún cliente esperando mesa en este momento.
+                </p>
+                <button 
+                  className="btn btn-secondary btn-xs" 
+                  onClick={() => {
+                    const inp = document.getElementById('waitlist-client-input');
+                    if (inp) inp.focus();
+                  }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 4 }}
+                >
+                  <i className="ri-user-add-line" /> Registrar Cliente
+                </button>
+              </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 320, overflowY: 'auto', paddingRight: 4 }}>
                 {fila.map(f => {
@@ -4911,7 +4942,7 @@ function ModalFilaVirtual({ fila, setFila, mesas, onAssign, onClose, showToast, 
             <h4 style={{ fontSize: 12, textTransform: 'uppercase', color: 'var(--text-secondary)', letterSpacing: '0.05em' }}>Registrar en Espera</h4>
             <div className="form-group">
               <label className="form-label">Nombre del Cliente</label>
-              <input className="form-input" placeholder="Nombre completo" value={cliente} onChange={e => setCliente(e.target.value)} />
+              <input id="waitlist-client-input" className="form-input" placeholder="Nombre completo" value={cliente} onChange={e => setCliente(e.target.value)} />
             </div>
             <div className="form-group">
               <label className="form-label">Teléfono (opcional)</label>

@@ -95,6 +95,7 @@ export default function ConfigPanel({ showToast }) {
   const [confirmarPin, setConfirmarPin] = useState('');
 
   const [resetPin, setResetPin] = useState('');
+  const [confirmWipeText, setConfirmWipeText] = useState('');
   const [isResetting, setIsResetting] = useState(false);
 
   // --- Límite de cortesías por turno (Sugerencia 3) ---
@@ -130,6 +131,11 @@ export default function ConfigPanel({ showToast }) {
   const handleRestablecerTodo = async (e) => {
     e.preventDefault();
     if (!resetPin) return;
+
+    if (confirmWipeText.trim().toUpperCase() !== 'RESTABLECER') {
+      showToast('Debe escribir exactamente "RESTABLECER" para confirmar la operación', 'danger');
+      return;
+    }
 
     let savedHash = '170440'; // Default hash of '1111'
     try {
@@ -215,6 +221,7 @@ export default function ConfigPanel({ showToast }) {
     } finally {
       setIsResetting(false);
       setResetPin('');
+      setConfirmWipeText('');
     }
   };
 
@@ -1112,9 +1119,9 @@ export default function ConfigPanel({ showToast }) {
             <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 14, lineHeight: 1.5 }}>
               Use esta herramienta para limpiar por completo todos los torneos, comandas, bitácora de caja, histórico y restablecer las mesas para pruebas manuales de flujo en limpio.
             </p>
-            <form onSubmit={handleRestablecerTodo} style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-              <div className="form-group" style={{ flex: 1, margin: 0 }}>
-                <label className="form-label">PIN de Administrador para Confirmar</label>
+            <form onSubmit={handleRestablecerTodo} style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label">PIN de Administrador</label>
                 <input
                   type="password"
                   className="form-input"
@@ -1126,7 +1133,24 @@ export default function ConfigPanel({ showToast }) {
                   required
                 />
               </div>
-              <button type="submit" className="btn btn-danger" disabled={isResetting || !resetPin} style={{ alignSelf: 'flex-end', height: 38 }}>
+              <div className="form-group" style={{ flex: 1, minWidth: 200, margin: 0 }}>
+                <label className="form-label">Escriba "RESTABLECER" para confirmar</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="RESTABLECER"
+                  value={confirmWipeText}
+                  onChange={e => setConfirmWipeText(e.target.value)}
+                  style={{ textTransform: 'uppercase' }}
+                  required
+                />
+              </div>
+              <button 
+                type="submit" 
+                className="btn btn-danger" 
+                disabled={isResetting || !resetPin || confirmWipeText.trim().toUpperCase() !== 'RESTABLECER'} 
+                style={{ alignSelf: 'flex-end', height: 38 }}
+              >
                 <i className="ri-delete-bin-line" /> {isResetting ? 'Restableciendo...' : 'Restablecer Base de Datos a Limpio'}
               </button>
             </form>
