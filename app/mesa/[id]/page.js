@@ -252,6 +252,26 @@ export default function MesaClientePage({ params }) {
     };
   }, []);
 
+  // ── Limpiar claves obsoletas de versiones anteriores en localStorage ──
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const legacyKeys = [
+          'yoy_cliente_nombre',
+          'yoy_pending_orders',
+          'yoy_pending_surveys',
+          'yoy_client_cached_stock',
+          `yoy_mesa_info_${mesaId}`,
+          `yoy_mesa_session_inicio_${mesaId}`
+        ];
+        legacyKeys.forEach(k => {
+          localStorage.removeItem(k);
+        });
+        console.log("[Mantenimiento] Claves de caché heredadas eliminadas del localStorage.");
+      } catch (e) {}
+    }
+  }, [mesaId]);
+
   // ── Sincronizar encuestas guardadas localmente al estar online ──
   useEffect(() => {
     const sincronizarEncuestasPendientes = async () => {

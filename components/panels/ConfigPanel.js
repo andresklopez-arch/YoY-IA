@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import { db } from '@/lib/firebase';
-import { collection, getDocs, addDoc, query, orderBy, deleteDoc, doc, where, setDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
+import { collection, getDocs, getDoc, addDoc, query, orderBy, deleteDoc, doc, where, setDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { obfuscate, deobfuscate, hashPasswordSecure } from '@/lib/crypto';
 
 function areMesasEqual(arr1, arr2) {
@@ -377,6 +377,12 @@ export default function ConfigPanel({ showToast }) {
         backupAt: serverTimestamp(),
         reason: 'Modificación de mesa'
       }).catch(err => console.error("Error al guardar respaldo:", err));
+      // Guardar en historial cronológico
+      addDoc(collection(db, 'config', 'mesas_estado_backups', 'historial'), {
+        mesas: updatedMesas,
+        backupAt: serverTimestamp(),
+        reason: 'Modificación de mesa'
+      }).catch(err => console.error("Error al guardar en historial de respaldos:", err));
       setEditingMesaId(null);
       setNuevaMesa({ id: '', nombre: '', tarifa: '', tipo: 'Pool' });
       showToast('Mesa modificada correctamente', 'success');
@@ -407,6 +413,12 @@ export default function ConfigPanel({ showToast }) {
         backupAt: serverTimestamp(),
         reason: 'Adición de mesa'
       }).catch(err => console.error("Error al guardar respaldo:", err));
+      // Guardar en historial cronológico
+      addDoc(collection(db, 'config', 'mesas_estado_backups', 'historial'), {
+        mesas: updated,
+        backupAt: serverTimestamp(),
+        reason: 'Adición de mesa'
+      }).catch(err => console.error("Error al guardar en historial de respaldos:", err));
       setNuevaMesa({ id: '', nombre: '', tarifa: '', tipo: 'Pool' });
       showToast('Nueva mesa agregada', 'success');
     }
@@ -437,7 +449,56 @@ export default function ConfigPanel({ showToast }) {
       backupAt: serverTimestamp(),
       reason: 'Eliminación de mesa'
     }).catch(err => console.error("Error al guardar respaldo:", err));
+    // Guardar en historial cronológico
+    addDoc(collection(db, 'config', 'mesas_estado_backups', 'historial'), {
+      mesas: updated,
+      backupAt: serverTimestamp(),
+      reason: 'Eliminación de mesa'
+    }).catch(err => console.error("Error al guardar en historial de respaldos:", err));
     showToast('Mesa eliminada', 'success');
+  };
+
+  const handleRestoreBackup = async () => {
+    try {
+      const snap = await getDoc(doc(db, 'config', 'mesas_estado_backup'));
+      if (snap.exists()) {
+        const data = snap.data();
+        const backupMesas = data.mesas || [];
+        const backupAt = data.backupAt?.toDate ? data.backupAt.toDate().toLocaleString() : 'fecha desconocida';
+        const reason = data.reason || 'Desconocido';
+        
+        if (backupMesas.length === 0) {
+          showToast('El respaldo se encuentra vacío o no es válido', 'warning');
+          return;
+        }
+
+        const confirmar = window.confirm(
+          `⚠️ RESTAURAR COPIA DE SEGURIDAD\n\n` +
+          `Se detectó un respaldo del catálogo del: ${backupAt}\n` +
+          `Motivo del respaldo: "${reason}"\n` +
+          `Número de mesas a restaurar: ${backupMesas.length}\n\n` +
+          `¿Deseas restaurar la estructura de mesas? Se reemplazará el catálogo de mesas actual.`
+        );
+
+        if (!confirmar) return;
+
+        // Restaurar estado de mesas
+        setMesas(backupMesas);
+        localStorage.setItem('yoy_billar_mesas', obfuscate(backupMesas));
+        
+        await setDoc(doc(db, 'config', 'mesas_estado'), {
+          mesas: backupMesas,
+          updatedAt: serverTimestamp()
+        });
+
+        showToast('Catálogo de mesas restaurado correctamente', 'success');
+      } else {
+        showToast('No se encontró ninguna copia de seguridad en el servidor', 'warning');
+      }
+    } catch (err) {
+      console.error("Error al restaurar respaldo:", err);
+      showToast('Error de red al intentar restaurar el respaldo', 'danger');
+    }
   };
 
   const handleTicketToggle = (campo) => {
@@ -851,7 +912,7 @@ export default function ConfigPanel({ showToast }) {
               </form>
 
               {/* Listado de Mesas */}
-              <div style={{ maxHeight: 220, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ maxHeight: 220, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
                 {mesas.map(m => (
                   <div key={m.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)', borderRadius: 10 }}>
                     <div>
@@ -869,6 +930,14 @@ export default function ConfigPanel({ showToast }) {
                   </div>
                 ))}
               </div>
+              <button 
+                type="button" 
+                className="btn btn-secondary" 
+                style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }} 
+                onClick={handleRestoreBackup}
+              >
+                <i className="ri-history-line" style={{ color: 'var(--bronze-light)' }} /> Restaurar Catálogo desde Respaldo
+              </button>
             </div>
 
             {/* Impresión de QRs por Mesa */}
