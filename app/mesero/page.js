@@ -1001,10 +1001,37 @@ const calcCosto = (m) => {
 };
 
 function ModalCuentasMesero({ cuentas, mesas, alertasAsistencia, isOffline, onClose, showToast }) {
-  const [expandedId, setExpandedId] = useState(null);
+  const [expandedIds, setExpandedIds] = useState({});
   const [filtroTexto, setFiltroTexto] = useState('');
   const [tick, setTick] = useState(0);
   const [loadingCuentaId, setLoadingCuentaId] = useState(null);
+  const [localRequestedCuentas, setLocalRequestedCuentas] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('yoy_local_requested_cuentas');
+      return saved ? JSON.parse(saved) : {};
+    }
+    return {};
+  });
+
+  // Limpiar caché local de cobros solicitados si la cuenta ya no está activa
+  useEffect(() => {
+    setLocalRequestedCuentas(prev => {
+      let changed = false;
+      const next = { ...prev };
+      Object.keys(next).forEach(clienteKey => {
+        const existeEnActivas = cuentas.some(c => c.cliente.toLowerCase() === clienteKey);
+        if (!existeEnActivas) {
+          delete next[clienteKey];
+          changed = true;
+        }
+      });
+      if (changed) {
+        localStorage.setItem('yoy_local_requested_cuentas', JSON.stringify(next));
+        return next;
+      }
+      return prev;
+    });
+  }, [cuentas]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -1047,6 +1074,14 @@ function ModalCuentasMesero({ cuentas, mesas, alertasAsistencia, isOffline, onCl
           pending.push(dataAlerta);
           localStorage.setItem('yoy_pending_waiter_alerts', JSON.stringify(pending));
         }
+
+        // Registrar localmente para persistencia de la UI
+        setLocalRequestedCuentas(prev => {
+          const next = { ...prev, [cuenta.cliente.toLowerCase()]: true };
+          localStorage.setItem('yoy_local_requested_cuentas', JSON.stringify(next));
+          return next;
+        });
+
         showToast('Modo offline: Solicitud guardada localmente. Se enviará al reconectar.', 'warning');
         onClose();
       } catch (err) {
@@ -1060,6 +1095,14 @@ function ModalCuentasMesero({ cuentas, mesas, alertasAsistencia, isOffline, onCl
           ...dataAlerta,
           createdAt: serverTimestamp()
         });
+
+        // Registrar localmente para persistencia de la UI
+        setLocalRequestedCuentas(prev => {
+          const next = { ...prev, [cuenta.cliente.toLowerCase()]: true };
+          localStorage.setItem('yoy_local_requested_cuentas', JSON.stringify(next));
+          return next;
+        });
+
         showToast(`Solicitud de cuenta enviada a caja para ${cuenta.cliente} ✓`, 'success');
       } catch (err) {
         console.error(err);
@@ -1128,6 +1171,24 @@ function ModalCuentasMesero({ cuentas, mesas, alertasAsistencia, isOffline, onCl
           </div>
         </div>
 
+        {/* Inyección CSS para animación de campana */}
+        <style>{`
+          @keyframes wiggle {
+            0%, 100% { transform: rotate(0deg); }
+            15% { transform: rotate(-15deg); }
+            30% { transform: rotate(12deg); }
+            45% { transform: rotate(-10deg); }
+            60% { transform: rotate(8deg); }
+            75% { transform: rotate(-4deg); }
+            90% { transform: rotate(2deg); }
+          }
+          .wiggle-bell {
+            animation: wiggle 2s infinite ease-in-out;
+            transform-origin: top center;
+            display: inline-block;
+          }
+        `}</style>
+
         <div className="modal-body" style={{ overflowY: 'auto', flex: 1, padding: '12px 16px', textAlign: 'left' }}>
           {cuentasFiltradas.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-muted)' }}>
@@ -1135,6 +1196,34 @@ function ModalCuentasMesero({ cuentas, mesas, alertasAsistencia, isOffline, onCl
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {/* Botón de Expansión Global (Sugerencia 3) */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 4 }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const allExpanded = cuentasFiltradas.length > 0 && cuentasFiltradas.every(c => !!expandedIds[c.id]);
+                    if (allExpanded) {
+                      setExpandedIds({});
+                    } else {
+                      const next = {};
+                      cuentasFiltradas.forEach(c => { next[c.id] = true; });
+                      setExpandedIds(next);
+                    }
+                  }}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--bronze-light)',
+                    fontSize: 11,
+                    cursor: 'pointer',
+                    textDecoration: 'underline',
+                    padding: 0
+                  }}
+                >
+                  {cuentasFiltradas.length > 0 && cuentasFiltradas.every(c => !!expandedIds[c.id]) ? 'Contraer todo ▲' : 'Expandir todo ▼'}
+                </button>
+              </div>
+
               {cuentasFiltradas.map(c => {
                 const mesaAsociada = mesas.find(m => m.id === c.mesaId || (m.cliente && m.cliente.toLowerCase() === c.cliente.toLowerCase()));
                 const consumosTotal = c.consumos.reduce((sum, item) => sum + item.precio * item.cantidad, 0);
@@ -1142,13 +1231,13 @@ function ModalCuentasMesero({ cuentas, mesas, alertasAsistencia, isOffline, onCl
                   ? (mesaAsociada.socios ? 0 : calcCosto(mesaAsociada))
                   : (c.tiempoJuego || 0);
                 const total = costoTiempo + consumosTotal;
-                const isExpanded = expandedId === c.id;
+                const isExpanded = !!expandedIds[c.id];
 
                 const cuentaSolicitada = (alertasAsistencia || []).some(alerta => 
                   alerta.tipo === 'cuenta' && 
                   alerta.cliente && 
                   alerta.cliente.toLowerCase() === c.cliente.toLowerCase()
-                );
+                ) || !!localRequestedCuentas[c.cliente.toLowerCase()];
 
                 const displayClienteName = c.mesaId 
                   ? (c.cliente && c.cliente.toLowerCase().startsWith('mesa ') ? `Mesa ${c.mesaId}` : c.cliente)
@@ -1177,7 +1266,7 @@ function ModalCuentasMesero({ cuentas, mesas, alertasAsistencia, isOffline, onCl
                         <div style={{ fontWeight: 800, fontSize: 13, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'flex', alignItems: 'center' }}>
                           {displayClienteName}
                           {tieneAsistenciaPendiente && (
-                            <i className="ri-notification-3-fill" style={{ color: 'var(--bronze-light)', marginLeft: 6, fontSize: 12, verticalAlign: 'middle' }} title="Llamada de asistencia o pedido pendiente" />
+                            <i className="ri-notification-3-fill wiggle-bell" style={{ color: 'var(--bronze-light)', marginLeft: 6, fontSize: 12, verticalAlign: 'middle' }} title="Llamada de asistencia o pedido pendiente" />
                           )}
                         </div>
                         <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 1 }}>
@@ -1189,7 +1278,7 @@ function ModalCuentasMesero({ cuentas, mesas, alertasAsistencia, isOffline, onCl
                         <div style={{ textAlign: 'right' }}>
                           <div style={{ fontSize: 14, fontWeight: 900, color: 'var(--success)' }}>${total} MXN</div>
                           <button
-                            onClick={() => setExpandedId(isExpanded ? null : c.id)}
+                            onClick={() => setExpandedIds(prev => ({ ...prev, [c.id]: !prev[c.id] }))}
                             style={{
                               background: 'none',
                               border: 'none',
