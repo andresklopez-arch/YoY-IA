@@ -13,12 +13,11 @@ import { AuthProvider } from '@/lib/auth-context';
 // ═══════════════════════════════════════════════════════════
 function MeseroContent() {
   const [pedidos, setPedidos] = useState([]);
-  const [filtro, setFiltro] = useState('todos'); // todos | pedido | asistencia | cuenta
+  const [filtro, setFiltro] = useState('todos'); // todos | pedido | asistencia
   const [sonido, setSonido] = useState(true);
   const [ultimoCount, setUltimoCount] = useState(0);
   const { user } = useAuth();
   
-  const [showCuentasModal, setShowCuentasModal] = useState(false);
   const [toast, setToast] = useState(null);
   const showToast = (message, type = 'success') => {
     setToast({ message, type });
@@ -170,6 +169,58 @@ function MeseroContent() {
   
   // Alertas de asistencia activa para ventana emergente
   const [alertasAsistencia, setAlertasAsistencia] = useState([]);
+
+  // Estados para el panel de Cuentas Activas integrado
+  const [expandedIds, setExpandedIds] = useState({});
+  const [filtroTexto, setFiltroTexto] = useState('');
+  const [tick, setTick] = useState(0);
+  const [loadingCuentaId, setLoadingCuentaId] = useState(null);
+  const [localRequestedCuentas, setLocalRequestedCuentas] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('yoy_local_requested_cuentas');
+      return saved ? JSON.parse(saved) : {};
+    }
+    return {};
+  });
+
+  // Limpiar caché local de cobros solicitados si la cuenta ya no está activa
+  useEffect(() => {
+    setLocalRequestedCuentas(prev => {
+      let changed = false;
+      const next = { ...prev };
+      Object.keys(next).forEach(clienteKey => {
+        const existeEnActivas = getCuentasActivasUnificadas().some(c => c.cliente.toLowerCase() === clienteKey);
+        if (!existeEnActivas) {
+          delete next[clienteKey];
+          changed = true;
+        }
+      });
+      if (changed) {
+        localStorage.setItem('yoy_local_requested_cuentas', JSON.stringify(next));
+        return next;
+      }
+      return prev;
+    });
+  }, [cuentas, mesas]);
+
+  // Alerta háptica sutil al detectar alertas pendientes
+  useEffect(() => {
+    if (typeof navigator !== 'undefined' && navigator.vibrate) {
+      const tieneAlertasAsistenciaPantalla = (alertasAsistencia || []).some(alerta => 
+        !alerta.atendidoMesero
+      );
+      if (tieneAlertasAsistenciaPantalla) {
+        navigator.vibrate([100, 50, 100]);
+      }
+    }
+  }, [alertasAsistencia]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTick(t => t + 1);
+    }, 5000);
+    return () => clearInterval(interval);
+  }, []);
 
   // ── Tiempo transcurrido desde creación ──────────────────
   const tiempoTranscurrido = (fecha) => {
@@ -525,6 +576,95 @@ function MeseroContent() {
     }
   };
 
+  const pedirCuenta = async (cuenta) => {
+    setLoadingCuentaId(cuenta.id);
+    if (typeof navigator !== 'undefined' && navigator.vibrate) {
+      navigator.vibrate(50);
+    }
+    const mesaAsociada = mesas.find(m => m.id === cuenta.mesaId || (m.cliente && m.cliente.toLowerCase() === cuenta.cliente.toLowerCase()));
+    const mesaId = mesaAsociada ? mesaAsociada.id : 0;
+    const consumosTotal = cuenta.consumos.reduce((sum, item) => sum + item.precio * item.cantidad, 0);
+    const costoTiempo = (mesaAsociada && mesaAsociada.estado === 'ocupada')
+      ? (mesaAsociada.socios ? 0 : calcCosto(mesaAsociada))
+      : (cuenta.tiempoJuego || 0);
+    const totalAcumulado = costoTiempo + consumosTotal;
+
+    const dataAlerta = {
+      mesaId: mesaId,
+      cliente: cuenta.cliente,
+      tipo: 'cuenta',
+      etiqueta: 'Solicita Cuenta (Caja)',
+      estado: 'pendiente',
+      totalAcumulado: totalAcumulado,
+      atendidoAdmin: false,
+      atendidoMesero: false
+    };
+
+    if (isOffline) {
+      try {
+        const stored = localStorage.getItem('yoy_pending_waiter_alerts');
+        const pending = stored ? JSON.parse(stored) : [];
+        const yaExiste = pending.some(alerta => 
+          alerta.tipo === 'cuenta' && 
+          alerta.cliente && 
+          alerta.cliente.toLowerCase() === cuenta.cliente.toLowerCase()
+        );
+        if (!yaExiste) {
+          pending.push(dataAlerta);
+          localStorage.setItem('yoy_pending_waiter_alerts', JSON.stringify(pending));
+        }
+
+        setLocalRequestedCuentas(prev => {
+          const next = { ...prev, [cuenta.cliente.toLowerCase()]: true };
+          localStorage.setItem('yoy_local_requested_cuentas', JSON.stringify(next));
+          return next;
+        });
+
+        showToast('Modo offline: Solicitud guardada localmente. Se enviará al reconectar.', 'warning');
+      } catch (err) {
+        console.error("Error al guardar en buffer offline:", err);
+      } finally {
+        setLoadingCuentaId(null);
+      }
+    } else {
+      try {
+        await addDoc(collection(db, 'mesa_pedidos'), {
+          ...dataAlerta,
+          createdAt: serverTimestamp()
+        });
+
+        setLocalRequestedCuentas(prev => {
+          const next = { ...prev, [cuenta.cliente.toLowerCase()]: true };
+          localStorage.setItem('yoy_local_requested_cuentas', JSON.stringify(next));
+          return next;
+        });
+
+        showToast(`Solicitud de cuenta enviada a caja para ${cuenta.cliente} ✓`, 'success');
+      } catch (err) {
+        console.error(err);
+        alert('Error al solicitar la cuenta: ' + err.message);
+      } finally {
+        setLoadingCuentaId(null);
+      }
+    }
+  };
+
+  const getCuentasFiltradas = () => {
+    const unificadas = getCuentasActivasUnificadas();
+    const term = filtroTexto.trim().toLowerCase();
+    if (!term) return unificadas;
+    return unificadas.filter(c => {
+      const mesaAsociada = mesas.find(m => m.id === c.mesaId || (m.cliente && m.cliente.toLowerCase() === c.cliente.toLowerCase()));
+      const matchCliente = c.cliente.toLowerCase().includes(term);
+      
+      const numTerm = parseInt(term, 10);
+      const matchMesaId = !isNaN(numTerm) && (c.mesaId === numTerm || (mesaAsociada && mesaAsociada.id === numTerm));
+      
+      const matchMesaText = mesaAsociada ? `mesa ${mesaAsociada.id}`.includes(term) : false;
+      return matchCliente || matchMesaId || matchMesaText;
+    });
+  };
+
   // ── Filtrado ─────────────────────────────────────────────
   const pedidosFiltrados = pedidos.filter(p =>
     filtro === 'todos' || p.tipo === filtro
@@ -630,134 +770,413 @@ function MeseroContent() {
 
       <div style={{ maxWidth: 900, margin: '0 auto', padding: '20px 16px' }}>
 
-        {/* ── STATS ───────────────────────────────────── */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, marginBottom: 24 }}>
-          {[
-            { key: 'todos',      label: 'Total',      icon: 'ri-list-check-2',            color: 'var(--text-primary)', count: counts.todos },
-            { key: 'pedido',     label: 'Pedidos',    icon: 'ri-restaurant-line',          color: 'var(--bronze-light)', count: counts.pedido },
-            { key: 'asistencia', label: 'Asistencia', icon: 'ri-customer-service-2-line',  color: 'var(--info)', count: counts.asistencia },
-            { key: 'cuenta',     label: 'Cuentas',    icon: 'ri-secure-payment-line',      color: 'var(--success)', count: getCuentasActivasUnificadas().length },
-          ].map(s => (
-            <div 
-              key={s.key} 
-              className="stat-card" 
-              style={{ cursor: 'pointer', border: (s.key === 'cuenta' && showCuentasModal) || (s.key !== 'cuenta' && filtro === s.key) ? '1px solid var(--border-bronze)' : '1px solid var(--border)' }} 
-              onClick={() => {
-                if (s.key === 'cuenta') {
-                  setShowCuentasModal(true);
-                } else {
-                  setFiltro(s.key);
-                }
-              }}
-            >
-              <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 4 }}>{s.label}</div>
-              <div style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 800, color: s.color }}>{s.count}</div>
+        {/* CSS para animaciones, grilla responsiva y scroll */}
+        <style>{`
+          @keyframes wiggle {
+            0%, 100% { transform: rotate(0deg); }
+            15% { transform: rotate(-15deg); }
+            30% { transform: rotate(12deg); }
+            45% { transform: rotate(-10deg); }
+            60% { transform: rotate(8deg); }
+            75% { transform: rotate(-4deg); }
+            90% { transform: rotate(2deg); }
+          }
+          .wiggle-bell {
+            animation: wiggle 2s infinite ease-in-out;
+            transform-origin: top center;
+            display: inline-block;
+          }
+          .waiter-dashboard-grid {
+            display: grid;
+            grid-template-columns: 1.2fr 1.1fr;
+            gap: 20px;
+            margin-top: 10px;
+            text-align: left;
+          }
+          @media (max-width: 768px) {
+            .waiter-dashboard-grid {
+              grid-template-columns: 1fr;
+              gap: 20px;
+            }
+          }
+          .section-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            max-height: 80vh;
+            overflow: hidden;
+          }
+          .section-header-title {
+            font-size: 15px;
+            font-weight: 800;
+            color: var(--bronze-light);
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 8px;
+          }
+          .scrollable-list {
+            overflow-y: auto;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            padding-right: 4px;
+          }
+        `}</style>
+
+        <div className="waiter-dashboard-grid">
+          {/* ── COLUMNA 1: CUENTAS ACTIVAS / SALÓN ── */}
+          <div className="section-card">
+            <div className="section-header-title">
+              <i className="ri-secure-payment-line" style={{ color: 'var(--success)' }} />
+              Salón: Cuentas Activas ({getCuentasActivasUnificadas().length})
             </div>
-          ))}
-        </div>
 
-        {/* ── LISTA DE PEDIDOS ─────────────────────────── */}
-        {pedidosFiltrados.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted)' }}>
-            <i className="ri-checkbox-circle-line" style={{ fontSize: 56, display: 'block', marginBottom: 16, color: 'var(--success)' }} />
-            <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>¡Todo al día!</div>
-            <div style={{ fontSize: 14 }}>No hay pedidos pendientes en este momento.</div>
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            {pedidosFiltrados.map(pedido => {
-              const cfg = tipoConfig[pedido.tipo] || tipoConfig.pedido;
-              const urgente = pedido.createdAt?.toDate && (Date.now() - pedido.createdAt.toDate().getTime()) > 5 * 60 * 1000;
+            {/* Buscador Interactivo Inline */}
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                <i className="ri-search-line" style={{ position: 'absolute', left: 10, color: 'var(--text-muted)' }} />
+                <input
+                  type="text"
+                  placeholder="Buscar por cliente o mesa..."
+                  value={filtroTexto}
+                  onChange={e => setFiltroTexto(e.target.value)}
+                  style={{
+                    width: '100%',
+                    background: 'var(--bg-main)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 8,
+                    padding: '6px 12px 6px 32px',
+                    color: '#fff',
+                    fontSize: 12,
+                    outline: 'none'
+                  }}
+                />
+                {filtroTexto && (
+                  <button 
+                    onClick={() => setFiltroTexto('')}
+                    style={{ position: 'absolute', right: 10, background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                  >
+                    <i className="ri-close-line" />
+                  </button>
+                )}
+              </div>
+            </div>
 
-              return (
-                <div key={pedido.id} style={{
-                  background: pedido.estado === 'listo' ? 'rgba(34,197,94,0.06)' : cfg.bg,
-                  border: pedido.estado === 'listo' ? '1px solid var(--success)' : `1px solid ${cfg.color}30`,
-                  borderLeft: pedido.estado === 'listo' ? '4px solid var(--success)' : `4px solid ${cfg.color}`,
-                  borderRadius: 16,
-                  padding: 18,
-                  animation: pedido.estado === 'listo' ? 'pulseBorder 2s infinite, slideUp 0.25s ease' : 'slideUp 0.25s ease',
-                  boxShadow: pedido.estado === 'listo' ? '0 0 20px rgba(34,197,94,0.18)' : urgente ? `0 0 20px ${cfg.color}20` : 'none',
-                }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                      <div style={{ fontSize: 28 }}>{pedido.icono || (pedido.estado === 'listo' ? '🍳' : cfg.icon)}</div>
-                      <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 800, color: pedido.estado === 'listo' ? 'var(--success)' : cfg.color }}>
-                            Mesa {pedido.mesaId}
-                          </span>
-                          {urgente && <span style={{ fontSize: 9, background: 'var(--danger)', color: '#fff', padding: '2px 6px', borderRadius: 999, fontWeight: 800 }}>URGENTE</span>}
-                        </div>
-                        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
-                          {pedido.cliente} · {tiempoTranscurrido(pedido.createdAt)} · {cfg.label}
-                        </div>
-                      </div>
-                    </div>
-                    <div style={{ textAlign: 'right' }}>
-                      {pedido.tipo === 'pedido' && (
-                        <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--bronze-light)' }}>${pedido.total}</div>
-                      )}
-                      <div style={{
-                        fontSize: 10, fontWeight: 800, marginTop: 4, padding: '3px 8px', borderRadius: 999,
-                        background: pedido.estado === 'listo' ? 'rgba(34,197,94,0.15)' : pedido.estado === 'en_camino' ? 'rgba(245,158,11,0.15)' : 'rgba(59,130,246,0.15)',
-                        color: pedido.estado === 'listo' ? 'var(--success)' : pedido.estado === 'en_camino' ? 'var(--warning)' : 'var(--info)',
-                        border: pedido.estado === 'listo' ? '1px solid var(--success)' : 'none',
-                      }}>
-                        {pedido.estado === 'listo' ? '🍳 ¡Listo en Cocina!' : pedido.estado === 'en_camino' ? '🚀 En camino' : '⏳ Pendiente'}
-                      </div>
-                    </div>
-                  </div>
+            {/* Botón de Expansión Global */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+              <button
+                type="button"
+                onClick={() => {
+                  const filteredList = getCuentasFiltradas();
+                  const allExpanded = filteredList.length > 0 && filteredList.every(c => !!expandedIds[c.id]);
+                  if (allExpanded) {
+                    setExpandedIds({});
+                  } else {
+                    const next = {};
+                    filteredList.forEach(c => { next[c.id] = true; });
+                    setExpandedIds(next);
+                  }
+                }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--bronze-light)',
+                  fontSize: 11,
+                  cursor: 'pointer',
+                  textDecoration: 'underline',
+                  padding: 0
+                }}
+              >
+                {getCuentasFiltradas().length > 0 && getCuentasFiltradas().every(c => !!expandedIds[c.id]) ? 'Contraer todo ▲' : 'Expandir todo ▼'}
+              </button>
+            </div>
 
-                  {/* Items del pedido */}
-                  {pedido.tipo === 'pedido' && pedido.items && (
-                    <div style={{ background: 'rgba(0,0,0,0.2)', borderRadius: 10, padding: '10px 12px', marginBottom: 14 }}>
-                      {pedido.items.map((item, i) => (
-                        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '3px 0', borderBottom: i < pedido.items.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
-                          <span>{item.cantidad}× {item.nombre}</span>
-                          <span style={{ color: 'var(--bronze-light)', fontWeight: 600 }}>${item.subtotal}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Asistencia tipo */}
-                  {pedido.tipo === 'asistencia' && (
-                    <div style={{ background: 'rgba(0,0,0,0.2)', borderRadius: 10, padding: '10px 14px', marginBottom: 14, fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>
-                      {pedido.etiqueta}
-                    </div>
-                  )}
-
-                  {/* Cuenta solicitada */}
-                  {pedido.tipo === 'cuenta' && (
-                    <div style={{ background: 'rgba(0,0,0,0.2)', borderRadius: 10, padding: '10px 14px', marginBottom: 14 }}>
-                      <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Total a cobrar:</div>
-                      <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--success)' }}>${pedido.totalAcumulado || '—'}</div>
-                    </div>
-                  )}
-
-                  {/* Acciones */}
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    {(pedido.estado === 'pendiente' || pedido.estado === 'listo') && (
-                      <button
-                        onClick={() => marcarEnCamino(pedido.id)}
-                        style={{ flex: 1, padding: '10px 14px', background: pedido.estado === 'listo' ? 'rgba(245,158,11,0.12)' : `${cfg.color}15`, border: `1px solid ${pedido.estado === 'listo' ? 'var(--warning)' : `${cfg.color}40`}`, borderRadius: 10, color: pedido.estado === 'listo' ? 'var(--warning)' : cfg.color, fontWeight: 700, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
-                      >
-                        <i className="ri-run-line" /> En camino
-                      </button>
-                    )}
-                    <button
-                      onClick={() => marcarEntregado(pedido.id)}
-                      style={{ flex: 1, padding: '10px 14px', background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 10, color: 'var(--success)', fontWeight: 700, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
-                    >
-                      <i className="ri-check-double-line" /> Completado ✓
-                    </button>
-                  </div>
+            {/* Listado de Cuentas */}
+            <div className="scrollable-list">
+              {getCuentasFiltradas().length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-muted)', fontSize: 13 }}>
+                  {getCuentasActivasUnificadas().length === 0 ? 'No hay cuentas activas.' : 'No se encontraron resultados.'}
                 </div>
-              );
-            })}
+              ) : (
+                getCuentasFiltradas().map(c => {
+                  const mesaAsociada = mesas.find(m => m.id === c.mesaId || (m.cliente && m.cliente.toLowerCase() === c.cliente.toLowerCase()));
+                  const consumosTotal = c.consumos.reduce((sum, item) => sum + item.precio * item.cantidad, 0);
+                  const costoTiempo = (mesaAsociada && mesaAsociada.estado === 'ocupada')
+                    ? (mesaAsociada.socios ? 0 : calcCosto(mesaAsociada))
+                    : (c.tiempoJuego || 0);
+                  const total = costoTiempo + consumosTotal;
+                  const isExpanded = !!expandedIds[c.id];
+
+                  const cuentaSolicitada = (alertasAsistencia || []).some(alerta => 
+                    alerta.tipo === 'cuenta' && 
+                    alerta.cliente && 
+                    alerta.cliente.toLowerCase() === c.cliente.toLowerCase()
+                  ) || !!localRequestedCuentas[c.cliente.toLowerCase()];
+
+                  const displayClienteName = c.mesaId 
+                    ? (c.cliente && c.cliente.toLowerCase().startsWith('mesa ') ? `Mesa ${c.mesaId}` : c.cliente)
+                    : c.cliente;
+
+                  const tieneAsistenciaPendiente = (alertasAsistencia || []).some(alerta => 
+                    !alerta.atendidoMesero &&
+                    (
+                      (c.mesaId && alerta.mesaId === c.mesaId) ||
+                      (alerta.cliente && c.cliente && alerta.cliente.toLowerCase() === c.cliente.toLowerCase())
+                    )
+                  );
+
+                  return (
+                    <div key={c.id} style={{
+                      background: 'var(--bg-elevated)',
+                      border: '1px solid var(--border)',
+                      borderRadius: 10,
+                      padding: '8px 12px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 6,
+                      contentVisibility: 'auto',
+                      containIntrinsicSize: '0 44px'
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: 800, fontSize: 13, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'flex', alignItems: 'center' }}>
+                            {displayClienteName}
+                            {tieneAsistenciaPendiente && (
+                              <i className="ri-notification-3-fill wiggle-bell" style={{ color: 'var(--bronze-light)', marginLeft: 6, fontSize: 12, verticalAlign: 'middle' }} title="Llamada de asistencia o pedido pendiente" />
+                            )}
+                          </div>
+                          <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 1 }}>
+                            {c.mesaId ? `📍 Mesa ${c.mesaId}` : (mesaAsociada ? `📍 Mesa ${mesaAsociada.id}` : '👤 Cuenta Directa')} · Tiempo: ${costoTiempo}
+                          </div>
+                        </div>
+                        
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <div style={{ textAlign: 'right' }}>
+                            <div style={{ fontSize: 14, fontWeight: 900, color: 'var(--success)' }}>${total} MXN</div>
+                            <button
+                              onClick={() => setExpandedIds(prev => ({ ...prev, [c.id]: !prev[c.id] }))}
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                color: 'var(--bronze-light)',
+                                fontSize: 10,
+                                cursor: 'pointer',
+                                textDecoration: 'underline',
+                                padding: 0,
+                                lineHeight: 1
+                              }}
+                            >
+                              {isExpanded ? 'Ocultar ▲' : 'Detalle ▼'}
+                            </button>
+                          </div>
+
+                          <button
+                            className="btn btn-sm"
+                            onClick={() => !cuentaSolicitada && loadingCuentaId !== c.id && pedirCuenta(c)}
+                            disabled={cuentaSolicitada || loadingCuentaId === c.id}
+                            style={{
+                              background: (cuentaSolicitada || loadingCuentaId === c.id)
+                                ? 'var(--bg-hover)' 
+                                : 'linear-gradient(135deg, var(--bronze), var(--bronze-light))',
+                              color: (cuentaSolicitada || loadingCuentaId === c.id) ? 'var(--text-muted)' : '#0d0d0f',
+                              fontWeight: 700,
+                              fontSize: 10,
+                              padding: '4px 10px',
+                              borderRadius: 6,
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 3,
+                              border: 'none',
+                              cursor: (cuentaSolicitada || loadingCuentaId === c.id) ? 'not-allowed' : 'pointer',
+                              whiteSpace: 'nowrap',
+                              height: 28
+                            }}
+                          >
+                            {loadingCuentaId === c.id ? (
+                              <i className="ri-loader-4-line ri-spin" style={{ fontSize: 12 }} />
+                            ) : (
+                              <i className="ri-secure-payment-line" style={{ fontSize: 12 }} />
+                            )}
+                            {loadingCuentaId === c.id ? 'Enviando...' : (cuentaSolicitada ? 'Pedido...' : 'Cobrar')}
+                          </button>
+                        </div>
+                      </div>
+
+                      {isExpanded && (
+                        <div style={{
+                          background: 'rgba(0, 0, 0, 0.15)',
+                          borderRadius: 6,
+                          padding: 8,
+                          fontSize: 11,
+                          marginTop: 2,
+                          border: '1px solid rgba(255, 255, 255, 0.05)'
+                        }}>
+                          <div style={{ fontWeight: 'bold', color: 'var(--bronze-light)', marginBottom: 2 }}>Productos consumidos:</div>
+                          {c.consumos.length === 0 ? (
+                            <div style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>Sin consumos registrados</div>
+                          ) : (
+                            <ul style={{ margin: 0, paddingLeft: 14, color: 'var(--text-secondary)' }}>
+                              {c.consumos.map((item, idx) => (
+                                <li key={idx} style={{ marginBottom: 1 }}>
+                                  {item.cantidad}x {item.producto} (${item.precio * item.cantidad})
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
           </div>
-        )}
+
+          {/* ── COLUMNA 2: ALERTAS Y TAREAS PENDIENTES ── */}
+          <div className="section-card">
+            <div className="section-header-title">
+              <i className="ri-restaurant-line" style={{ color: 'var(--bronze-light)' }} />
+              Tareas y Pedidos Pendientes
+            </div>
+
+            {/* Tabs de Filtro de Alertas */}
+            <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
+              {[
+                { key: 'todos',      label: 'Todos',      count: counts.todos },
+                { key: 'pedido',     label: 'Pedidos',    count: counts.pedido },
+                { key: 'asistencia', label: 'Asistencia', count: counts.asistencia }
+              ].map(t => (
+                <button
+                  key={t.key}
+                  onClick={() => setFiltro(t.key)}
+                  style={{
+                    background: filtro === t.key ? 'var(--bronze)' : 'var(--bg-elevated)',
+                    color: filtro === t.key ? '#0d0d0f' : 'var(--text-secondary)',
+                    border: 'none',
+                    padding: '4px 10px',
+                    borderRadius: 12,
+                    fontSize: 11,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    transition: 'all 0.15s'
+                  }}
+                >
+                  {t.label} ({t.count})
+                </button>
+              ))}
+            </div>
+
+            {/* Listado de Pedidos y Alertas */}
+            <div className="scrollable-list">
+              {pedidosFiltrados.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-muted)' }}>
+                  <i className="ri-checkbox-circle-line" style={{ fontSize: 40, display: 'block', marginBottom: 10, color: 'var(--success)' }} />
+                  <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>¡Todo al día!</div>
+                  <div style={{ fontSize: 12 }}>No hay alertas ni pedidos pendientes.</div>
+                </div>
+              ) : (
+                pedidosFiltrados.map(pedido => {
+                  const cfg = tipoConfig[pedido.tipo] || tipoConfig.pedido;
+                  const urgente = pedido.createdAt?.toDate && (Date.now() - pedido.createdAt.toDate().getTime()) > 5 * 60 * 1000;
+
+                  return (
+                    <div key={pedido.id} style={{
+                      background: pedido.estado === 'listo' ? 'rgba(34,197,94,0.06)' : cfg.bg,
+                      border: pedido.estado === 'listo' ? '1px solid var(--success)' : `1px solid ${cfg.color}30`,
+                      borderLeft: pedido.estado === 'listo' ? '4px solid var(--success)' : `4px solid ${cfg.color}`,
+                      borderRadius: 12,
+                      padding: 14,
+                      animation: pedido.estado === 'listo' ? 'pulseBorder 2s infinite, slideUp 0.25s ease' : 'slideUp 0.25s ease',
+                      boxShadow: pedido.estado === 'listo' ? '0 0 16px rgba(34,197,94,0.15)' : urgente ? `0 0 16px ${cfg.color}15` : 'none',
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <div style={{ fontSize: 24 }}>{pedido.icono || (pedido.estado === 'listo' ? '🍳' : cfg.icon)}</div>
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <span style={{ fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 800, color: pedido.estado === 'listo' ? 'var(--success)' : cfg.color }}>
+                                Mesa {pedido.mesaId}
+                              </span>
+                              {urgente && <span style={{ fontSize: 8, background: 'var(--danger)', color: '#fff', padding: '1px 5px', borderRadius: 999, fontWeight: 800 }}>URGENTE</span>}
+                            </div>
+                            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>
+                              {pedido.cliente} · {tiempoTranscurrido(pedido.createdAt)} · {cfg.label}
+                            </div>
+                          </div>
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                          {pedido.tipo === 'pedido' && (
+                            <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--bronze-light)' }}>${pedido.total}</div>
+                          )}
+                          <div style={{
+                            fontSize: 9, fontWeight: 800, marginTop: 3, padding: '2px 6px', borderRadius: 999,
+                            background: pedido.estado === 'listo' ? 'rgba(34,197,94,0.15)' : pedido.estado === 'en_camino' ? 'rgba(245,158,11,0.15)' : 'rgba(59,130,246,0.15)',
+                            color: pedido.estado === 'listo' ? 'var(--success)' : pedido.estado === 'en_camino' ? 'var(--warning)' : 'var(--info)',
+                            border: pedido.estado === 'listo' ? '1px solid var(--success)' : 'none',
+                          }}>
+                            {pedido.estado === 'listo' ? '🍳 ¡Listo en Cocina!' : pedido.estado === 'en_camino' ? '🚀 En camino' : '⏳ Pendiente'}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Items del pedido */}
+                      {pedido.tipo === 'pedido' && pedido.items && (
+                        <div style={{ background: 'rgba(0,0,0,0.2)', borderRadius: 8, padding: '8px 10px', marginBottom: 10 }}>
+                          {pedido.items.map((item, i) => (
+                            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '2px 0', borderBottom: i < pedido.items.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
+                              <span>{item.cantidad}× {item.nombre}</span>
+                              <span style={{ color: 'var(--bronze-light)', fontWeight: 600 }}>${item.subtotal}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Asistencia tipo */}
+                      {pedido.tipo === 'asistencia' && (
+                        <div style={{ background: 'rgba(0,0,0,0.2)', borderRadius: 8, padding: '8px 12px', marginBottom: 10, fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>
+                          {pedido.etiqueta}
+                        </div>
+                      )}
+
+                      {/* Cuenta solicitada */}
+                      {pedido.tipo === 'cuenta' && (
+                        <div style={{ background: 'rgba(0,0,0,0.2)', borderRadius: 8, padding: '8px 12px', marginBottom: 10 }}>
+                          <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Total a cobrar:</div>
+                          <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--success)' }}>${pedido.totalAcumulado || '—'}</div>
+                        </div>
+                      )}
+
+                      {/* Acciones */}
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        {(pedido.estado === 'pendiente' || pedido.estado === 'listo') && (
+                          <button
+                            onClick={() => marcarEnCamino(pedido.id)}
+                            style={{ flex: 1, padding: '8px 10px', background: pedido.estado === 'listo' ? 'rgba(245,158,11,0.12)' : `${cfg.color}15`, border: `1px solid ${pedido.estado === 'listo' ? 'var(--warning)' : `${cfg.color}40`}`, borderRadius: 8, color: pedido.estado === 'listo' ? 'var(--warning)' : cfg.color, fontWeight: 700, fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}
+                          >
+                            <i className="ri-run-line" /> En camino
+                          </button>
+                        )}
+                        <button
+                          onClick={() => marcarEntregado(pedido.id)}
+                          style={{ flex: 1, padding: '8px 10px', background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 8, color: 'var(--success)', fontWeight: 700, fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}
+                        >
+                          <i className="ri-check-double-line" /> Entregado ✓
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* ── VENTANA EMERGENTE: ALERTA DE ASISTENCIA / SERVICIOS ── */}
@@ -957,16 +1376,6 @@ function MeseroContent() {
           </div>
         </div>
       )}
-      {showCuentasModal && (
-        <ModalCuentasMesero
-          cuentas={getCuentasActivasUnificadas()}
-          mesas={mesas}
-          alertasAsistencia={alertasAsistencia}
-          isOffline={isOffline}
-          onClose={() => setShowCuentasModal(false)}
-          showToast={showToast}
-        />
-      )}
       {toast && (
         <div style={{
           position: 'fixed',
@@ -1000,390 +1409,7 @@ const calcCosto = (m) => {
   return baseCosto + premiumCosto;
 };
 
-function ModalCuentasMesero({ cuentas, mesas, alertasAsistencia, isOffline, onClose, showToast }) {
-  const [expandedIds, setExpandedIds] = useState({});
-  const [filtroTexto, setFiltroTexto] = useState('');
-  const [tick, setTick] = useState(0);
-  const [loadingCuentaId, setLoadingCuentaId] = useState(null);
-  const [localRequestedCuentas, setLocalRequestedCuentas] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('yoy_local_requested_cuentas');
-      return saved ? JSON.parse(saved) : {};
-    }
-    return {};
-  });
 
-  // Limpiar caché local de cobros solicitados si la cuenta ya no está activa
-  useEffect(() => {
-    setLocalRequestedCuentas(prev => {
-      let changed = false;
-      const next = { ...prev };
-      Object.keys(next).forEach(clienteKey => {
-        const existeEnActivas = cuentas.some(c => c.cliente.toLowerCase() === clienteKey);
-        if (!existeEnActivas) {
-          delete next[clienteKey];
-          changed = true;
-        }
-      });
-      if (changed) {
-        localStorage.setItem('yoy_local_requested_cuentas', JSON.stringify(next));
-        return next;
-      }
-      return prev;
-    });
-  }, [cuentas]);
-
-  // Alerta háptica sutil al abrir el modal si hay solicitudes de asistencia pendientes
-  useEffect(() => {
-    if (typeof navigator !== 'undefined' && navigator.vibrate) {
-      const tieneAlertasAsistenciaModal = (alertasAsistencia || []).some(alerta => 
-        !alerta.atendidoMesero &&
-        cuentas.some(c => 
-          (c.mesaId && alerta.mesaId === c.mesaId) ||
-          (alerta.cliente && c.cliente && alerta.cliente.toLowerCase() === c.cliente.toLowerCase())
-        )
-      );
-      if (tieneAlertasAsistenciaModal) {
-        navigator.vibrate([100, 50, 100]);
-      }
-    }
-  }, [alertasAsistencia, cuentas]);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setTick(t => t + 1);
-    }, 5000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const pedirCuenta = async (cuenta) => {
-    setLoadingCuentaId(cuenta.id);
-    // Vibración corta de retroalimentación háptica (feedback táctil) al pulsar Cobrar
-    if (typeof navigator !== 'undefined' && navigator.vibrate) {
-      navigator.vibrate(50);
-    }
-    const mesaAsociada = mesas.find(m => m.id === cuenta.mesaId || (m.cliente && m.cliente.toLowerCase() === cuenta.cliente.toLowerCase()));
-    const mesaId = mesaAsociada ? mesaAsociada.id : 0;
-    const consumosTotal = cuenta.consumos.reduce((sum, item) => sum + item.precio * item.cantidad, 0);
-    const costoTiempo = (mesaAsociada && mesaAsociada.estado === 'ocupada')
-      ? (mesaAsociada.socios ? 0 : calcCosto(mesaAsociada))
-      : (cuenta.tiempoJuego || 0);
-    const totalAcumulado = costoTiempo + consumosTotal;
-
-    const dataAlerta = {
-      mesaId: mesaId,
-      cliente: cuenta.cliente,
-      tipo: 'cuenta',
-      etiqueta: 'Solicita Cuenta (Caja)',
-      estado: 'pendiente',
-      totalAcumulado: totalAcumulado,
-      atendidoAdmin: false,
-      atendidoMesero: false
-    };
-
-    if (isOffline) {
-      try {
-        const stored = localStorage.getItem('yoy_pending_waiter_alerts');
-        const pending = stored ? JSON.parse(stored) : [];
-        const yaExiste = pending.some(alerta => 
-          alerta.tipo === 'cuenta' && 
-          alerta.cliente && 
-          alerta.cliente.toLowerCase() === cuenta.cliente.toLowerCase()
-        );
-        if (!yaExiste) {
-          pending.push(dataAlerta);
-          localStorage.setItem('yoy_pending_waiter_alerts', JSON.stringify(pending));
-        }
-
-        // Registrar localmente para persistencia de la UI
-        setLocalRequestedCuentas(prev => {
-          const next = { ...prev, [cuenta.cliente.toLowerCase()]: true };
-          localStorage.setItem('yoy_local_requested_cuentas', JSON.stringify(next));
-          return next;
-        });
-
-        showToast('Modo offline: Solicitud guardada localmente. Se enviará al reconectar.', 'warning');
-        onClose();
-      } catch (err) {
-        console.error("Error al guardar en buffer offline:", err);
-      } finally {
-        setLoadingCuentaId(null);
-      }
-    } else {
-      try {
-        await addDoc(collection(db, 'mesa_pedidos'), {
-          ...dataAlerta,
-          createdAt: serverTimestamp()
-        });
-
-        // Registrar localmente para persistencia de la UI
-        setLocalRequestedCuentas(prev => {
-          const next = { ...prev, [cuenta.cliente.toLowerCase()]: true };
-          localStorage.setItem('yoy_local_requested_cuentas', JSON.stringify(next));
-          return next;
-        });
-
-        showToast(`Solicitud de cuenta enviada a caja para ${cuenta.cliente} ✓`, 'success');
-      } catch (err) {
-        console.error(err);
-        alert('Error al solicitar la cuenta: ' + err.message);
-      } finally {
-        setLoadingCuentaId(null);
-      }
-    }
-  };
-
-  const cuentasFiltradas = cuentas.filter(c => {
-    const term = filtroTexto.trim().toLowerCase();
-    if (!term) return true;
-    const mesaAsociada = mesas.find(m => m.id === c.mesaId || (m.cliente && m.cliente.toLowerCase() === c.cliente.toLowerCase()));
-    const matchCliente = c.cliente.toLowerCase().includes(term);
-    
-    // Si el término es un número entero, intentar coincidir exactamente con el ID de la mesa
-    const numTerm = parseInt(term, 10);
-    const matchMesaId = !isNaN(numTerm) && (c.mesaId === numTerm || (mesaAsociada && mesaAsociada.id === numTerm));
-    
-    const matchMesaText = mesaAsociada ? `mesa ${mesaAsociada.id}`.includes(term) : false;
-    return matchCliente || matchMesaId || matchMesaText;
-  });
-
-  return (
-    <div className="modal-overlay" onClick={onClose} style={{ zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)' }}>
-      <div className="modal" style={{ maxWidth: 500, maxHeight: '85vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
-        <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <i className="ri-secure-payment-line" style={{ color: 'var(--success)' }} />
-            Cuentas Activas ({cuentas.length})
-          </span>
-          <button onClick={onClose} className="btn-icon btn btn-secondary" style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 20, cursor: 'pointer' }}>
-            <i className="ri-close-line" />
-          </button>
-        </div>
-
-        {/* Buscador Interactivo */}
-        <div style={{ padding: '8px 16px', borderBottom: '1px solid var(--border)' }}>
-          <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-            <i className="ri-search-line" style={{ position: 'absolute', left: 10, color: 'var(--text-muted)' }} />
-            <input
-              type="text"
-              placeholder="Buscar por cliente o mesa..."
-              value={filtroTexto}
-              onChange={e => setFiltroTexto(e.target.value)}
-              style={{
-                width: '100%',
-                background: 'var(--bg-main)',
-                border: '1px solid var(--border)',
-                borderRadius: 8,
-                padding: '6px 12px 6px 32px',
-                color: '#fff',
-                fontSize: 12,
-                outline: 'none'
-              }}
-            />
-            {filtroTexto && (
-              <button 
-                onClick={() => setFiltroTexto('')}
-                style={{ position: 'absolute', right: 10, background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
-              >
-                <i className="ri-close-line" />
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Inyección CSS para animación de campana */}
-        <style>{`
-          @keyframes wiggle {
-            0%, 100% { transform: rotate(0deg); }
-            15% { transform: rotate(-15deg); }
-            30% { transform: rotate(12deg); }
-            45% { transform: rotate(-10deg); }
-            60% { transform: rotate(8deg); }
-            75% { transform: rotate(-4deg); }
-            90% { transform: rotate(2deg); }
-          }
-          .wiggle-bell {
-            animation: wiggle 2s infinite ease-in-out;
-            transform-origin: top center;
-            display: inline-block;
-          }
-        `}</style>
-
-        <div className="modal-body" style={{ overflowY: 'auto', flex: 1, padding: '12px 16px', textAlign: 'left' }}>
-          {cuentasFiltradas.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-muted)' }}>
-              {cuentas.length === 0 ? 'No hay cuentas activas en este momento.' : 'No se encontraron cuentas que coincidan.'}
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {/* Botón de Expansión Global (Sugerencia 3) */}
-              <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 4 }}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const allExpanded = cuentasFiltradas.length > 0 && cuentasFiltradas.every(c => !!expandedIds[c.id]);
-                    if (allExpanded) {
-                      setExpandedIds({});
-                    } else {
-                      const next = {};
-                      cuentasFiltradas.forEach(c => { next[c.id] = true; });
-                      setExpandedIds(next);
-                    }
-                  }}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: 'var(--bronze-light)',
-                    fontSize: 11,
-                    cursor: 'pointer',
-                    textDecoration: 'underline',
-                    padding: 0
-                  }}
-                >
-                  {cuentasFiltradas.length > 0 && cuentasFiltradas.every(c => !!expandedIds[c.id]) ? 'Contraer todo ▲' : 'Expandir todo ▼'}
-                </button>
-              </div>
-
-              {cuentasFiltradas.map(c => {
-                const mesaAsociada = mesas.find(m => m.id === c.mesaId || (m.cliente && m.cliente.toLowerCase() === c.cliente.toLowerCase()));
-                const consumosTotal = c.consumos.reduce((sum, item) => sum + item.precio * item.cantidad, 0);
-                const costoTiempo = (mesaAsociada && mesaAsociada.estado === 'ocupada')
-                  ? (mesaAsociada.socios ? 0 : calcCosto(mesaAsociada))
-                  : (c.tiempoJuego || 0);
-                const total = costoTiempo + consumosTotal;
-                const isExpanded = !!expandedIds[c.id];
-
-                const cuentaSolicitada = (alertasAsistencia || []).some(alerta => 
-                  alerta.tipo === 'cuenta' && 
-                  alerta.cliente && 
-                  alerta.cliente.toLowerCase() === c.cliente.toLowerCase()
-                ) || !!localRequestedCuentas[c.cliente.toLowerCase()];
-
-                const displayClienteName = c.mesaId 
-                  ? (c.cliente && c.cliente.toLowerCase().startsWith('mesa ') ? `Mesa ${c.mesaId}` : c.cliente)
-                  : c.cliente;
-
-                const tieneAsistenciaPendiente = (alertasAsistencia || []).some(alerta => 
-                  !alerta.atendidoMesero &&
-                  (
-                    (c.mesaId && alerta.mesaId === c.mesaId) ||
-                    (alerta.cliente && c.cliente && alerta.cliente.toLowerCase() === c.cliente.toLowerCase())
-                  )
-                );
-
-                return (
-                  <div key={c.id} style={{
-                    background: 'var(--bg-elevated)',
-                    border: '1px solid var(--border)',
-                    borderRadius: 10,
-                    padding: '8px 12px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 6,
-                    contentVisibility: 'auto',
-                    containIntrinsicSize: '0 44px'
-                  }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontWeight: 800, fontSize: 13, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'flex', alignItems: 'center' }}>
-                          {displayClienteName}
-                          {tieneAsistenciaPendiente && (
-                            <i className="ri-notification-3-fill wiggle-bell" style={{ color: 'var(--bronze-light)', marginLeft: 6, fontSize: 12, verticalAlign: 'middle' }} title="Llamada de asistencia o pedido pendiente" />
-                          )}
-                        </div>
-                        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 1 }}>
-                          {c.mesaId ? `📍 Mesa ${c.mesaId}` : (mesaAsociada ? `📍 Mesa ${mesaAsociada.id}` : '👤 Cuenta Directa')} · Tiempo: ${costoTiempo}
-                        </div>
-                      </div>
-                      
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <div style={{ textAlign: 'right' }}>
-                          <div style={{ fontSize: 14, fontWeight: 900, color: 'var(--success)' }}>${total} MXN</div>
-                          <button
-                            onClick={() => setExpandedIds(prev => ({ ...prev, [c.id]: !prev[c.id] }))}
-                            style={{
-                              background: 'none',
-                              border: 'none',
-                              color: 'var(--bronze-light)',
-                              fontSize: 10,
-                              cursor: 'pointer',
-                              textDecoration: 'underline',
-                              padding: 0,
-                              lineHeight: 1
-                            }}
-                          >
-                            {isExpanded ? 'Ocultar ▲' : 'Detalle ▼'}
-                          </button>
-                        </div>
-
-                        <button
-                          className="btn btn-sm"
-                          onClick={() => !cuentaSolicitada && loadingCuentaId !== c.id && pedirCuenta(c)}
-                          disabled={cuentaSolicitada || loadingCuentaId === c.id}
-                          style={{
-                            background: (cuentaSolicitada || loadingCuentaId === c.id)
-                              ? 'var(--bg-hover)' 
-                              : 'linear-gradient(135deg, var(--bronze), var(--bronze-light))',
-                            color: (cuentaSolicitada || loadingCuentaId === c.id) ? 'var(--text-muted)' : '#0d0d0f',
-                            fontWeight: 700,
-                            fontSize: 10,
-                            padding: '4px 10px',
-                            borderRadius: 6,
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 3,
-                            border: 'none',
-                            cursor: (cuentaSolicitada || loadingCuentaId === c.id) ? 'not-allowed' : 'pointer',
-                            whiteSpace: 'nowrap',
-                            height: 28
-                          }}
-                        >
-                          {loadingCuentaId === c.id ? (
-                            <i className="ri-loader-4-line ri-spin" style={{ fontSize: 12 }} />
-                          ) : (
-                            <i className="ri-secure-payment-line" style={{ fontSize: 12 }} />
-                          )}
-                          {loadingCuentaId === c.id ? 'Enviando...' : (cuentaSolicitada ? 'Pedido...' : 'Cobrar')}
-                        </button>
-                      </div>
-                    </div>
-
-                    {isExpanded && (
-                      <div style={{
-                        background: 'rgba(0, 0, 0, 0.15)',
-                        borderRadius: 6,
-                        padding: 8,
-                        fontSize: 11,
-                        marginTop: 2,
-                        border: '1px solid rgba(255, 255, 255, 0.05)'
-                      }}>
-                        <div style={{ fontWeight: 'bold', color: 'var(--bronze-light)', marginBottom: 2 }}>Productos consumidos:</div>
-                        {c.consumos.length === 0 ? (
-                          <div style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>Sin consumos registrados</div>
-                        ) : (
-                          <ul style={{ margin: 0, paddingLeft: 14, color: 'var(--text-secondary)' }}>
-                            {c.consumos.map((item, idx) => (
-                              <li key={idx} style={{ marginBottom: 1 }}>
-                                {item.cantidad}x {item.producto} (${item.precio * item.cantidad})
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-        <div className="modal-footer" style={{ padding: '8px 16px', display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid var(--border)' }}>
-          <button className="btn btn-secondary" onClick={onClose}>Cerrar</button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 export default function MeseroPage() {
   return (
