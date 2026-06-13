@@ -3937,37 +3937,35 @@ function ModalCuentasActivas({
   // Estado para la transferencia de consumos de cuenta huérfana (Sugerencia 2)
   const [targetMesaTransfer, setTargetMesaTransfer] = useState('');
 
+  const getMesaIdOfCuenta = (c) => {
+    if (!c) return null;
+    if (c.mesaId) return c.mesaId;
+    if (c.cliente) {
+      const match = c.cliente.match(/\(?[Mm]esa\s+(\d+)/);
+      if (match) {
+        return parseInt(match[1]);
+      }
+    }
+    return null;
+  };
+
   const isCuentaHuerfana = (c) => {
     if (!c) return false;
-    if (c.mesaId) {
-      const m = mesas.find(tbl => String(tbl.id) === String(c.mesaId));
+    const mId = getMesaIdOfCuenta(c);
+    if (mId) {
+      const m = mesas.find(tbl => tbl.id === mId);
       if (!m || m.estado !== 'ocupada') return true;
     }
-    const matchMesa = mesas.find(m => 
-      c.cliente && (
-        normalizeText(c.cliente) === `mesa ${m.id}` ||
-        normalizeText(c.cliente) === `mesa ${m.id} - pendiente` ||
-        normalizeText(c.cliente).startsWith(`mesa ${m.id} `)
-      )
-    );
-    if (matchMesa && matchMesa.estado !== 'ocupada') return true;
     return false;
   };
 
   const getMesaEstadoHuerfana = (c) => {
     if (!c) return null;
-    if (c.mesaId) {
-      const m = mesas.find(tbl => String(tbl.id) === String(c.mesaId));
+    const mId = getMesaIdOfCuenta(c);
+    if (mId) {
+      const m = mesas.find(tbl => tbl.id === mId);
       if (m) return m.estado;
     }
-    const matchMesa = mesas.find(m => 
-      c.cliente && (
-        normalizeText(c.cliente) === `mesa ${m.id}` ||
-        normalizeText(c.cliente) === `mesa ${m.id} - pendiente` ||
-        normalizeText(c.cliente).startsWith(`mesa ${m.id} `)
-      )
-    );
-    if (matchMesa) return matchMesa.estado;
     return null;
   };
 
@@ -4612,7 +4610,7 @@ function ModalCuentasActivas({
                           onChange={e => setTargetMesaTransfer(e.target.value)}
                         >
                           <option value="">Seleccionar mesa activa...</option>
-                          {mesas.filter(m => m.estado === 'ocupada').map(m => (
+                          {mesas.filter(m => m.estado === 'ocupada' && String(m.id) !== String(getMesaIdOfCuenta(cuentaSel))).map(m => (
                             <option key={m.id} value={m.id}>Mesa {m.id} ({m.cliente})</option>
                           ))}
                         </select>
