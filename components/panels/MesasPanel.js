@@ -415,6 +415,10 @@ function ModalCerrarMesa({ mesa, cuentasActivas, unloadedConsumos, onClose, onCe
     'Error de sistema / prueba',
   ];
 
+  // Estado para la confirmación de nombre al mover a pendientes
+  const [showPromptMoverPendiente, setShowPromptMoverPendiente] = useState(false);
+  const [nombrePagador, setNombrePagador] = useState('');
+
   const handleImprimirPreTicket = () => {
     imprimirPreTicket(mesa);
     onImprimirPreTicket();
@@ -452,6 +456,10 @@ function ModalCerrarMesa({ mesa, cuentasActivas, unloadedConsumos, onClose, onCe
           return;
         }
 
+        if (showPromptMoverPendiente) {
+          setShowPromptMoverPendiente(false);
+          return;
+        }
         if (camaraActiva) {
           setCamaraActiva(false);
           return;
@@ -466,7 +474,7 @@ function ModalCerrarMesa({ mesa, cuentasActivas, unloadedConsumos, onClose, onCe
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [camaraActiva, pagaCon, referencia, fotoComprobante, onClose]);
+  }, [camaraActiva, pagaCon, referencia, fotoComprobante, showPromptMoverPendiente, onClose]);
 
   useEffect(() => {
     const t = setInterval(() => setElapsed(Date.now() - (mesa.inicio || Date.now())), 1000);
@@ -837,11 +845,9 @@ function ModalCerrarMesa({ mesa, cuentasActivas, unloadedConsumos, onClose, onCe
                 <button
                   className="btn btn-secondary"
                   onClick={() => {
-                    onAgregarACuenta({
-                      costo: costoTiempo,
-                      cuentaId: cuentaAsociada ? cuentaAsociada.id : null,
-                      nombreNuevo: mesa.cliente ? `${mesa.cliente} (Mesa ${mesa.id} - Pendiente)` : `Mesa ${mesa.id} - Pendiente`
-                    });
+                    const isGeneric = !mesa.cliente || ['público', 'publico', 'público general', 'publico general'].includes(mesa.cliente.toLowerCase()) || mesa.cliente.toLowerCase() === `mesa ${mesa.id}`;
+                    setNombrePagador(isGeneric ? '' : mesa.cliente);
+                    setShowPromptMoverPendiente(true);
                   }}
                   style={{
                     background: 'linear-gradient(135deg, var(--bronze-light), var(--bronze))',
@@ -925,6 +931,64 @@ function ModalCerrarMesa({ mesa, cuentasActivas, unloadedConsumos, onClose, onCe
                           }}
                         >
                           <i className="ri-check-line" /> Confirmar Cortesía
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Modal/Prompt para Nombre de Pago al Mover a Pendiente */}
+                {showPromptMoverPendiente && (
+                  <div className="modal-overlay" style={{ zIndex: 2100 }} onClick={() => setShowPromptMoverPendiente(false)}>
+                    <div className="modal" style={{ maxWidth: 380, animation: 'scaleUpAlert 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)' }} onClick={e => e.stopPropagation()}>
+                      <div className="modal-header">
+                        <span className="modal-title" style={{ color: 'var(--bronze-light)', display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 900 }}>
+                          <i className="ri-user-shared-line" /> Mover a Pendientes
+                        </span>
+                        <button onClick={() => setShowPromptMoverPendiente(false)} className="btn btn-secondary" style={{ background: 'none', border: 'none', padding: 2 }}>
+                          <i className="ri-close-line" style={{ fontSize: 18 }} />
+                        </button>
+                      </div>
+                      <div className="modal-body" style={{ padding: '12px 0' }}>
+                        <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12, lineHeight: 1.4 }}>
+                          Para mover la cuenta de la <strong style={{ color: 'var(--bronze-light)' }}>Mesa {mesa.id}</strong> a pendientes, es obligatorio ingresar el nombre de la persona que pagará:
+                        </p>
+                        <div className="form-group" style={{ gap: 2 }}>
+                          <label className="form-label" style={{ fontSize: 10 }}>Nombre del Pagador</label>
+                          <input
+                            type="text"
+                            className="form-input"
+                            style={{ padding: '8px 12px', fontSize: 13 }}
+                            placeholder="Ej: Carlos Rodríguez / Amigo de Juan"
+                            value={nombrePagador}
+                            onChange={e => setNombrePagador(e.target.value)}
+                            autoFocus
+                          />
+                        </div>
+                      </div>
+                      <div className="modal-footer" style={{ display: 'flex', gap: 8 }}>
+                        <button className="btn btn-secondary" onClick={() => setShowPromptMoverPendiente(false)} style={{ flex: 1, padding: '6px 12px', fontSize: 11 }}>Cancelar</button>
+                        <button
+                          className="btn btn-primary"
+                          disabled={!nombrePagador.trim()}
+                          onClick={() => {
+                            onAgregarACuenta({
+                              costo: costoTiempo,
+                              cuentaId: cuentaAsociada ? cuentaAsociada.id : null,
+                              nombreNuevo: `${nombrePagador.trim()} (Mesa ${mesa.id} - Pendiente)`
+                            });
+                            setShowPromptMoverPendiente(false);
+                          }}
+                          style={{
+                            background: !nombrePagador.trim() ? 'var(--bg-hover)' : 'linear-gradient(135deg, var(--bronze-light), var(--bronze))',
+                            color: '#fff',
+                            cursor: !nombrePagador.trim() ? 'not-allowed' : 'pointer',
+                            flex: 1,
+                            padding: '6px 12px',
+                            fontSize: 11
+                          }}
+                        >
+                          <i className="ri-check-line" /> Confirmar y Mover
                         </button>
                       </div>
                     </div>
@@ -2294,9 +2358,11 @@ export default function MesasPanel({ showToast }) {
         ? { 
             ...c, 
             tiempoJuego: c.tiempoJuego + costo,
-            cliente: c.cliente.toLowerCase() === `mesa ${modalCerrar.id}`.toLowerCase()
-              ? `Mesa ${modalCerrar.id} - Pendiente`
-              : `${c.cliente} (Mesa ${modalCerrar.id} - Pendiente)`
+            cliente: nombreNuevo && nombreNuevo.includes('Pendiente')
+              ? nombreNuevo
+              : (c.cliente.toLowerCase() === `mesa ${modalCerrar.id}`.toLowerCase()
+                  ? `Mesa ${modalCerrar.id} - Pendiente`
+                  : `${c.cliente} (Mesa ${modalCerrar.id} - Pendiente)`)
           }
         : c
       ));
