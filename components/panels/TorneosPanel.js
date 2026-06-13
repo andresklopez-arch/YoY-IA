@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { obfuscate, deobfuscate } from '@/lib/crypto';
 import { db } from '@/lib/firebase';
-import { doc, setDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, onSnapshot, serverTimestamp, collection, addDoc } from 'firebase/firestore';
 
 
 
@@ -215,6 +215,186 @@ export default function TorneosPanel({ showToast }) {
         setTorneoActivo(updatedAct);
       }
     }
+  };
+
+  const saveRankingHistorico = async (ganador, perdedor, juegoTipo) => {
+    const key = (juegoTipo || 'Pool').toLowerCase();
+    const CATEGORIES_ORDER = ['4ta', '3ra', '2da', '1ra', 'Mtro'];
+
+    // Load current rankings
+    let rankingData = { pool: [], carambola: [], snooker: [] };
+    const saved = localStorage.getItem('yoy_ranking_historico');
+    if (saved) {
+      try {
+        rankingData = deobfuscate(saved) || { pool: [], carambola: [], snooker: [] };
+      } catch (e) {}
+    }
+
+    if (!rankingData[key]) rankingData[key] = [];
+
+    // Find or create players
+    let p1Index = rankingData[key].findIndex(r => r.nombre.toLowerCase() === ganador.toLowerCase());
+    let p2Index = rankingData[key].findIndex(r => r.nombre.toLowerCase() === perdedor.toLowerCase());
+
+    let p1 = p1Index !== -1 ? rankingData[key][p1Index] : { nombre: ganador, elo: 1500, pj: 0, pg: 0, pp: 0, categoria: '3ra', rachaV: 0, rachaD: 0 };
+    let p2 = p2Index !== -1 ? rankingData[key][p2Index] : { nombre: perdedor, elo: 1500, pj: 0, pg: 0, pp: 0, categoria: '3ra', rachaV: 0, rachaD: 0 };
+
+    // Update ELO
+    const expected1 = 1 / (1 + Math.pow(10, (p2.elo - p1.elo) / 400));
+    const expected2 = 1 / (1 + Math.pow(10, (p1.elo - p2.elo) / 400));
+    const K = 32;
+
+    p1.elo = Math.round(p1.elo + K * (1 - expected1));
+    p2.elo = Math.round(p2.elo + K * (0 - expected2));
+
+    p1.pj += 1;
+    p1.pg += 1;
+    p1.rachaV = (p1.rachaV || 0) + 1;
+    p1.rachaD = 0;
+
+    p2.pj += 1;
+    p2.pp += 1;
+    p2.rachaD = (p2.rachaD || 0) + 1;
+    p2.rachaV = 0;
+
+    // AI Motor auto-categorization
+    let msgIA = '';
+    const idx1 = CATEGORIES_ORDER.indexOf(p1.categoria || '3ra');
+    const idx2 = CATEGORIES_ORDER.indexOf(p2.categoria || '3ra');
+    if (idx1 < CATEGORIES_ORDER.length - 1) {
+      if (p1.rachaV >= 4 || (idx2 - idx1 >= 1)) {
+        p1.categoria = CATEGORIES_ORDER[idx1 + 1];
+        p1.rachaV = 0; // reset
+        msgIA = `🎉 IA Motor: ¡${p1.nombre} ha sido promovido a ${p1.categoria} debido a su gran rendimiento!`;
+      }
+    }
+
+    if (idx2 > 0) {
+      if (p2.rachaD >= 5) {
+        p2.categoria = CATEGORIES_ORDER[idx2 - 1];
+        p2.rachaD = 0; // reset
+        msgIA = `📉 IA Motor: ${p2.nombre} ha bajado a categoría ${p2.categoria} tras rachas difíciles.`;
+      }
+    }
+
+    if (p1Index !== -1) rankingData[key][p1Index] = p1;
+    else rankingData[key].push(p1);
+
+    if (p2Index !== -1) rankingData[key][p2Index] = p2;
+    else rankingData[key].push(p2);
+
+    // Sort top 20 by ELO
+    rankingData[key].sort((a, b) => b.elo - a.elo);
+    rankingData[key] = rankingData[key].slice(0, 20);
+
+    // Save
+    setRankingHistorico(rankingData);
+    try {
+      localStorage.setItem('yoy_ranking_historico', obfuscate(rankingData));
+      await setDoc(doc(db, 'config', 'ranking_historico'), {
+        rankings: rankingData,
+        updatedAt: serverTimestamp()
+      });
+      
+      // Log to general bitacora
+      await addDoc(collection(db, 'bitacora'), {
+        fecha: new Date().toISOString(),
+        accion: 'Ranking IA Update',
+        detalle: `Actualización ELO: ${ganador} (${p1.elo}) vs ${perdedor} (${p2.elo}). ${msgIA}`,
+        monto: 0,
+        operador: 'Motor IA YoY'
+      });
+    } catch (err) {
+      console.error("Error al guardar ranking histórico:", err);
+    }
+
+    if (msgIA) {
+      showToast(msgIA, 'info');
+    }
+  };
+
+  const imprimirTicketTorneo = (torneo) => {
+    if (!torneo) return;
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      showToast("El navegador bloqueó la ventana emergente. Por favor, habilite los pop-ups para imprimir.", "danger");
+      return;
+    }
+    
+    // Filter matches for current round
+    const roundPartidas = torneo.partidas.filter(p => p.ronda === torneo.rondaActual);
+    
+    let htmlContent = `
+      <html><head><title>Bracket Torneo - ${torneo.nombre}</title>
+      <style>
+        body { margin: 0; padding: 10px; font-family: 'Courier New', Courier, monospace; background: #fff; color: #000; font-size: 13px; line-height: 1.4; max-width: 280px; }
+        .text-center { text-align: center; }
+        .divider { border-top: 1px dashed #000; margin: 10px 0; }
+        .header { margin-bottom: 12px; }
+        .header h3 { margin: 0; font-size: 15px; font-weight: bold; text-transform: uppercase; }
+        .header p { margin: 2px 0; font-size: 11px; }
+        .match-row { margin-bottom: 10px; font-size: 12px; }
+        .match-number { font-weight: bold; text-decoration: underline; margin-bottom: 2px; }
+        .footer { margin-top: 20px; font-size: 10px; text-align: center; color: #555; }
+      </style>
+      </head>
+      <body>
+        <div class="header text-center">
+          <h3>YoY IA Billar Club</h3>
+          <p>Control de Torneos</p>
+          <p><strong>Torneo:</strong> ${torneo.nombre}</p>
+          <p><strong>Ronda:</strong> ${torneo.rondaActual}</p>
+          <p>Fecha: ${new Date().toLocaleString()}</p>
+        </div>
+        
+        <div class="divider"></div>
+        
+        <div class="text-center" style="font-weight: bold; margin-bottom: 8px;">EMPAREJAMIENTOS DE LA RONDA</div>
+        
+        <div class="divider"></div>
+    `;
+
+    roundPartidas.forEach((p, idx) => {
+      const p1 = torneo.ranking.find(r => r.nombre === p.j1);
+      const p2 = torneo.ranking.find(r => r.nombre === p.j2);
+      const handicap1 = p1 ? (p1.puntosInicio || 0) : 0;
+      const handicap2 = p2 ? (p2.puntosInicio || 0) : 0;
+      const cat1 = p1 ? (p1.categoria || '3ra') : '3ra';
+      const cat2 = p2 ? (p2.categoria || '3ra') : '3ra';
+      
+      const p1Str = `${p.j1} (${cat1})` + (handicap1 > 0 ? ` (+${handicap1} pts)` : '');
+      const p2Str = `${p.j2} (${cat2})` + (handicap2 > 0 ? ` (+${handicap2} pts)` : '');
+      
+      htmlContent += `
+        <div class="match-row">
+          <div class="match-number">Partido #${idx + 1}</div>
+          <div style="padding-left: 10px;">
+            ${p1Str}<br/>
+            <span style="font-style: italic; color: #555;">vs</span><br/>
+            ${p2Str}
+          </div>
+        </div>
+        <div class="divider"></div>
+      `;
+    });
+
+    htmlContent += `
+        <div class="footer">
+          <p>¡Que gane el mejor!</p>
+          <p>YoY IA Billar By Alfonso Iturbide</p>
+        </div>
+        <script>
+          window.onload = function() {
+            window.print();
+            setTimeout(function() { window.close(); }, 500);
+          }
+        </script>
+      </body>
+      </html>
+    `;
+
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
   };
 
   const asignarMesasAPartidas = (partidasList, mesasAsignadasIds) => {
