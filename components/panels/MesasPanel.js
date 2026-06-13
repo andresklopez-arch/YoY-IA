@@ -3971,6 +3971,70 @@ function ModalCuentasActivas({
     return null;
   };
 
+  const handleTransferirConsumos = async () => {
+    if (!targetMesaTransfer || !cuentaSel) return;
+    const destMesaId = parseInt(targetMesaTransfer);
+    const destMesa = mesas.find(m => m.id === destMesaId);
+    if (!destMesa || destMesa.estado !== 'ocupada') {
+      showToast('La mesa de destino debe estar ocupada.', 'warning');
+      return;
+    }
+
+    // Buscar la cuenta activa de la mesa destino
+    const destCuenta = cuentas.find(c => 
+      c.mesaId === destMesaId ||
+      (c.cliente && !['público', 'publico'].includes(c.cliente.toLowerCase()) && c.cliente.toLowerCase() === destMesa.cliente?.toLowerCase()) ||
+      c.cliente.toLowerCase() === `mesa ${destMesaId}`
+    );
+
+    if (!destCuenta) {
+      showToast('No se encontró una cuenta activa para la mesa de destino.', 'warning');
+      return;
+    }
+
+    const confirmacion = window.confirm(`¿Seguro que deseas transferir los consumos de "${cuentaSel.cliente}" a la cuenta de "${destCuenta.cliente}" (Mesa ${destMesaId})?`);
+    if (!confirmacion) return;
+
+    const consumosATransferir = cuentaSel.consumos || [];
+
+    await setCuentas(prev => {
+      // 1. Agregar los consumos a la cuenta destino
+      let updated = prev.map(c => {
+        if (c.id === destCuenta.id) {
+          const nuevosConsumos = [...c.consumos];
+          consumosATransferir.forEach(itemTransfer => {
+            const existeItem = nuevosConsumos.find(i => 
+              (itemTransfer.productoId && i.productoId === itemTransfer.productoId) || 
+              i.producto.toLowerCase() === itemTransfer.producto.toLowerCase()
+            );
+            if (existeItem) {
+              existeItem.cantidad += itemTransfer.cantidad;
+            } else {
+              nuevosConsumos.push({
+                ...itemTransfer,
+                id: Date.now() + Math.random()
+              });
+            }
+          });
+          return { ...c, consumos: nuevosConsumos };
+        }
+        return c;
+      });
+
+      // 2. Eliminar la cuenta de origen (huérfana)
+      updated = updated.filter(c => c.id !== cuentaSel.id);
+      return updated;
+    });
+
+    showToast(`Consumos transferidos con éxito a la Mesa ${destMesaId} ✓`, 'success');
+    if (registrarEvento) {
+      registrarEvento('Transferir Consumos', `Consumos de cuenta huérfana "${cuentaSel.cliente}" transferidos a Mesa ${destMesaId} (${destCuenta.cliente})`);
+    }
+
+    setCuentaSel(null);
+    setTargetMesaTransfer('');
+  };
+
   const calcTotal = (c) => {
     if (!c) return 0;
     const tConsumos = (c.consumos || []).reduce((s, i) => s + (i.precio * i.cantidad), 0);
