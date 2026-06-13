@@ -1347,11 +1347,36 @@ export default function TorneosPanel({ showToast }) {
       </div>
 
       {vistaPrincipal === 'torneos' && (
+        <>
+          {ultimoTorneoEliminado && (
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              background: 'rgba(239, 68, 68, 0.1)',
+              border: '1px solid rgba(239, 68, 68, 0.2)',
+              borderRadius: 8,
+              padding: '10px 16px',
+              marginBottom: 16,
+              fontSize: 13,
+              color: 'var(--text-primary)'
+            }}>
+              <span>🗑️ Torneo <strong>{ultimoTorneoEliminado.nombre}</strong> eliminado sin afectar el ranking global.</span>
+              <button
+                type="button"
+                className="btn btn-secondary btn-xs"
+                onClick={handleDeshacerEliminacion}
+                style={{ padding: '4px 12px' }}
+              >
+                Deshacer
+              </button>
+            </div>
+          )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: 20, alignItems: 'start' }}>
-        {/* Lista de torneos */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {torneos.map(t => (
+          <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: 20, alignItems: 'start' }}>
+            {/* Lista de torneos */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {torneos.filter(t => t.estado !== 'eliminado').map(t => (
             <div
               key={t.id}
               className="card"
@@ -1655,6 +1680,7 @@ export default function TorneosPanel({ showToast }) {
           </div>
         )}
       </div>
+      </>
       )}
 
       {vistaPrincipal === 'ranking_global' && renderRankingGlobal()}
