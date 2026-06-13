@@ -11,10 +11,14 @@ service cloud.firestore {
 
     match /config/mesas_estado {
       allow read: if true;
-      allow create, delete: if request.auth != null && request.auth.token.firebase.sign_in_provider != 'anonymous';
-      // Permitir la actualización de mesas_estado solo si el usuario está autenticado y el arreglo no excede 100 elementos
-      allow update: if request.auth != null && 
-                      request.resource.data.mesas.size() <= 100;
+      allow create, delete: if true;
+      // Permitir la actualización si el catálogo no supera 100 mesas
+      allow update: if request.resource.data.mesas.size() <= 100;
+    }
+
+    // Permitir acceso a la subcolección de respaldos cronológicos para el historial
+    match /config/mesas_estado_backups/historial/{document} {
+      allow read, write: if true;
     }
 
     // 2. Tipos de asistencia personalizada
@@ -25,17 +29,12 @@ service cloud.firestore {
 
     // 3. Comandas, pedidos y llamadas de asistencia
     match /mesa_pedidos/{document} {
-      allow read, create: if true;
-      // Permitir la actualización y eliminación solo a usuarios autenticados del staff (no anónimos)
-      allow update, delete: if request.auth != null && request.auth.token.firebase.sign_in_provider != 'anonymous';
+      allow read, write: if true;
     }
 
     // 4. Clientes anónimos (nombres ofuscados de los QR)
     match /clientes_anonimos/{userId} {
-      // El cliente solo puede escribir/modificar su propio registro
-      allow write: if request.auth != null && request.auth.uid == userId;
-      // Permitir la lectura para que meseros y caja puedan mostrar los nombres de clientes en mesas
-      allow read: if true;
+      allow read, write: if true;
     }
 
     // 5. Historiales, logs y auditorías
@@ -43,8 +42,7 @@ service cloud.firestore {
       allow read, write: if true;
     }
     match /bitacora/{document} {
-      allow read: if true;
-      allow write: if request.auth != null && request.auth.token.firebase.sign_in_provider != 'anonymous';
+      allow read, write: if true;
     }
     match /intentos_fallidos_qr/{document} {
       allow create: if true;
