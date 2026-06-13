@@ -679,63 +679,12 @@ export default function TorneosPanel({ showToast }) {
     updatedRanking.sort((a, b) => b.pts - a.pts || b.elo - a.elo);
     updatedRanking.forEach((r, idx) => { r.pos = idx + 1; });
 
-    // Check if all games in current round are complete
-    const partidasRondaActual = updatedPartidas.filter(p => p.ronda === torneoActivo.rondaActual);
-    const todasCompletas = partidasRondaActual.every(p => p.estado === 'completado');
-
-    let nextRondaNum = torneoActivo.rondaActual;
-    let finalizado = false;
-    let campeon = torneoActivo.campeon || null;
-
-    if (todasCompletas) {
-      const ganadores = partidasRondaActual.map(p => p.ganador).filter(g => g && g !== 'BYE');
-      if (ganadores.length === 1) {
-        finalizado = true;
-        campeon = ganadores[0];
-      } else if (ganadores.length > 1) {
-        // Shuffle and pair winners randomly for the next round
-        const ganadoresShuffled = [...ganadores].sort(() => 0.5 - Math.random());
-        nextRondaNum = torneoActivo.rondaActual + 1;
-        const nuevasPartidasSiguienteRonda = [];
-        let nextMatchId = updatedPartidas.length + 1;
-        for (let i = 0; i < ganadoresShuffled.length; i += 2) {
-          if (i + 1 < ganadoresShuffled.length) {
-            nuevasPartidasSiguienteRonda.push({
-              id: nextMatchId++,
-              j1: ganadoresShuffled[i],
-              j2: ganadoresShuffled[i + 1],
-              ronda: nextRondaNum,
-              resultado: null,
-              ganador: null,
-              mesaId: null,
-              estado: 'esperando_mesa'
-            });
-          } else {
-            nuevasPartidasSiguienteRonda.push({
-              id: nextMatchId++,
-              j1: ganadoresShuffled[i],
-              j2: 'BYE',
-              resultado: 'BYE',
-              ganador: ganadoresShuffled[i],
-              ronda: nextRondaNum,
-              mesaId: null,
-              estado: 'completado'
-            });
-          }
-        }
-        updatedPartidas = [...updatedPartidas, ...nuevasPartidasSiguienteRonda];
-      }
-    }
-
     const updatedTorneos = torneos.map(t => {
       if (t.id === torneoActivo.id) {
         return {
           ...t,
           partidas: updatedPartidas,
-          ranking: updatedRanking,
-          rondaActual: nextRondaNum,
-          estado: finalizado ? 'completado' : t.estado,
-          campeon: campeon
+          ranking: updatedRanking
         };
       }
       return t;
@@ -746,18 +695,7 @@ export default function TorneosPanel({ showToast }) {
     // Save ELO to global historical ELO rankings
     saveRankingHistorico(ganadorName, ganadorName === partida.j1 ? partida.j2 : partida.j1, torneoActivo.juegoTipo || 'Pool');
 
-    if (finalizado) {
-      showToast(`🏆 ¡El torneo ha finalizado! Campeón: ${campeon}`, 'success');
-    } else if (nextRondaNum > torneoActivo.rondaActual) {
-      showToast(`¡Ronda ${torneoActivo.rondaActual} concluida! Iniciando Ronda ${nextRondaNum}.`, 'success');
-      // Auto print ticket for new round pairings!
-      setTimeout(() => {
-        const updatedTorneo = updatedTorneos.find(t => t.id === torneoActivo.id);
-        if (updatedTorneo) imprimirTicketTorneo(updatedTorneo);
-      }, 500);
-    } else {
-      showToast(`Ganador registrado: ${ganadorName}`, 'success');
-    }
+    showToast(`Ganador registrado: ${ganadorName}`, 'success');
   };
 
   const asignarMesasAPartidas = (partidasList, mesasAsignadasIds) => {
@@ -813,6 +751,90 @@ export default function TorneosPanel({ showToast }) {
     
     setShowCrearTorneo(true);
     showToast(`Datos del torneo "${torneo.nombre}" cargados en el formulario de creación.`, 'info');
+  };
+
+  const handleSortearSiguienteRonda = () => {
+    if (!torneoActivo) return;
+
+    const partidasRondaActual = torneoActivo.partidas.filter(p => p.ronda === torneoActivo.rondaActual);
+    const todasCompletas = partidasRondaActual.length > 0 && partidasRondaActual.every(p => p.estado === 'completado');
+
+    if (!todasCompletas) {
+      showToast('Aún hay partidas pendientes en la ronda actual', 'warning');
+      return;
+    }
+
+    const ganadores = partidasRondaActual.map(p => p.ganador).filter(g => g && g !== 'BYE');
+    let updatedPartidas = [...torneoActivo.partidas];
+    let nextRondaNum = torneoActivo.rondaActual;
+    let finalizado = false;
+    let campeon = torneoActivo.campeon || null;
+
+    if (ganadores.length === 1) {
+      finalizado = true;
+      campeon = ganadores[0];
+    } else if (ganadores.length > 1) {
+      const ganadoresShuffled = [...ganadores].sort(() => 0.5 - Math.random());
+      nextRondaNum = torneoActivo.rondaActual + 1;
+      const nuevasPartidasSiguienteRonda = [];
+      let nextMatchId = updatedPartidas.length + 1;
+      for (let i = 0; i < ganadoresShuffled.length; i += 2) {
+        if (i + 1 < ganadoresShuffled.length) {
+          nuevasPartidasSiguienteRonda.push({
+            id: nextMatchId++,
+            j1: ganadoresShuffled[i],
+            j2: ganadoresShuffled[i + 1],
+            ronda: nextRondaNum,
+            resultado: null,
+            ganador: null,
+            mesaId: null,
+            estado: 'esperando_mesa'
+          });
+        } else {
+          nuevasPartidasSiguienteRonda.push({
+            id: nextMatchId++,
+            j1: ganadoresShuffled[i],
+            j2: 'BYE',
+            resultado: 'BYE',
+            ganador: ganadoresShuffled[i],
+            ronda: nextRondaNum,
+            mesaId: null,
+            estado: 'completado'
+          });
+        }
+      }
+      updatedPartidas = [...updatedPartidas, ...nuevasPartidasSiguienteRonda];
+      updatedPartidas = asignarMesasAPartidas(updatedPartidas, torneoActivo.mesasAsignadas || []);
+    }
+
+    const updatedTorneos = torneos.map(t => {
+      if (t.id === torneoActivo.id) {
+        return {
+          ...t,
+          partidas: updatedPartidas,
+          rondaActual: nextRondaNum,
+          estado: finalizado ? 'completado' : t.estado,
+          campeon: campeon
+        };
+      }
+      return t;
+    });
+
+    saveTorneos(updatedTorneos);
+
+    const updatedAct = updatedTorneos.find(t => t.id === torneoActivo.id);
+    if (updatedAct) {
+      setTorneoActivo(updatedAct);
+      setTimeout(() => {
+        imprimirTicketTorneo(updatedAct);
+      }, 500);
+    }
+
+    if (finalizado) {
+      showToast(`🏆 ¡El torneo ha finalizado! Campeón: ${campeon}`, 'success');
+    } else {
+      showToast(`Ronda ${nextRondaNum} sorteada y generada con éxito.`, 'success');
+    }
   };
 
   const handleCrearTorneo = (e) => {
@@ -1014,15 +1036,25 @@ export default function TorneosPanel({ showToast }) {
   };
 
   const handleCompletarTorneo = () => {
+    if (!torneoActivo) return;
+    
+    const lastRondaPartidas = torneoActivo.partidas.filter(p => p.ronda === torneoActivo.rondaActual);
+    const winnerPartida = lastRondaPartidas.find(p => p.ganador && p.ganador !== 'BYE');
+    const campeonName = winnerPartida ? winnerPartida.ganador : 'Sin campeón';
+
     const updatedTorneos = torneos.map(t => {
       if (t.id === torneoActivo.id) {
-        return { ...t, estado: 'completado' };
+        return { 
+          ...t, 
+          estado: 'completado',
+          campeon: campeonName
+        };
       }
       return t;
     });
 
     saveTorneos(updatedTorneos);
-    showToast('Torneo marcado como completado', 'success');
+    showToast(`🏆 Torneo finalizado. ¡Felicidades al campeón: ${campeonName}!`, 'success');
   };
 
   const handleRegistrarPartida = (e) => {
@@ -1154,64 +1186,12 @@ export default function TorneosPanel({ showToast }) {
 
     updatedPartidas = asignarMesasAPartidas(updatedPartidas, torneoActivo.mesasAsignadas || []);
 
-    let nextRondaNum = torneoActivo.rondaActual || 1;
-    let finalizado = false;
-    let campeon = torneoActivo.campeon || null;
-
-    if (torneoActivo.estado === 'activo') {
-      const partidasRondaActual = updatedPartidas.filter(p => p.ronda === torneoActivo.rondaActual);
-      const todasCompletas = partidasRondaActual.every(p => p.estado === 'completado');
-
-      if (todasCompletas) {
-        const ganadores = partidasRondaActual.map(p => p.ganador).filter(g => g && g !== 'BYE');
-        if (ganadores.length === 1) {
-          finalizado = true;
-          campeon = ganadores[0];
-        } else if (ganadores.length > 1) {
-          const ganadoresShuffled = [...ganadores].sort(() => 0.5 - Math.random());
-          nextRondaNum = (torneoActivo.rondaActual || 1) + 1;
-          const nuevasPartidasSiguienteRonda = [];
-          let nextMatchId = updatedPartidas.length + 1;
-          for (let i = 0; i < ganadoresShuffled.length; i += 2) {
-            if (i + 1 < ganadoresShuffled.length) {
-              nuevasPartidasSiguienteRonda.push({
-                id: nextMatchId++,
-                j1: ganadoresShuffled[i],
-                j2: ganadoresShuffled[i + 1],
-                ronda: nextRondaNum,
-                resultado: null,
-                ganador: null,
-                mesaId: null,
-                estado: 'esperando_mesa'
-              });
-            } else {
-              nuevasPartidasSiguienteRonda.push({
-                id: nextMatchId++,
-                j1: ganadoresShuffled[i],
-                j2: 'BYE',
-                resultado: 'BYE',
-                ganador: ganadoresShuffled[i],
-                ronda: nextRondaNum,
-                mesaId: null,
-                estado: 'completado'
-              });
-            }
-          }
-          updatedPartidas = [...updatedPartidas, ...nuevasPartidasSiguienteRonda];
-          updatedPartidas = asignarMesasAPartidas(updatedPartidas, torneoActivo.mesasAsignadas || []);
-        }
-      }
-    }
-
     const updatedTorneos = torneos.map(t => {
       if (t.id === torneoActivo.id) {
         return {
           ...t,
           partidas: updatedPartidas,
-          ranking: updatedRanking,
-          rondaActual: nextRondaNum,
-          estado: finalizado ? 'completado' : t.estado,
-          campeon: campeon
+          ranking: updatedRanking
         };
       }
       return t;
@@ -1227,13 +1207,7 @@ export default function TorneosPanel({ showToast }) {
     setTipoPartida('regular');
     setPartidaAEditar(null);
 
-    if (finalizado) {
-      showToast(`🏆 ¡El torneo ha finalizado! Campeón: ${campeon}`, 'success');
-    } else if (nextRondaNum > (torneoActivo.rondaActual || 1)) {
-      showToast(`¡Ronda ${torneoActivo.rondaActual} concluida! Iniciando Ronda ${nextRondaNum}.`, 'success');
-    } else {
-      showToast(`Partida registrada. ELOs actualizados.`, 'success');
-    }
+    showToast(`Partida registrada. ELOs actualizados.`, 'success');
   };
 
   const renderRankingGlobal = () => {
@@ -1447,6 +1421,19 @@ export default function TorneosPanel({ showToast }) {
                 </span>
                 <span style={{ color: 'var(--bronze-light)', fontWeight: 700 }}>{t.premio}</span>
               </div>
+              
+              {t.estado === 'completado' && t.ranking && t.ranking.length > 0 && (
+                <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px solid rgba(255,255,255,0.06)', fontSize: 10 }}>
+                  <div style={{ fontWeight: 600, color: 'var(--bronze-light)', marginBottom: 4 }}>Top 4 Final:</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 8px' }}>
+                    {t.ranking.slice(0, 4).map((r, idx) => (
+                      <div key={r.nombre} style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: 'var(--text-secondary)' }}>
+                        {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : '4º'} {r.nombre}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -1493,11 +1480,36 @@ export default function TorneosPanel({ showToast }) {
                     </button>
                   </>
                 )}
-                {torneoActivo.estado === 'activo' && (
-                  <button className="btn btn-warning btn-xs" onClick={handleCompletarTorneo}>
-                    <i className="ri-check-double-line" /> Finalizar Torneo
-                  </button>
-                )}
+                {torneoActivo.estado === 'activo' && (() => {
+                  const partidasRondaActual = torneoActivo.partidas.filter(p => p.ronda === torneoActivo.rondaActual);
+                  const todasCompletas = partidasRondaActual.length > 0 && partidasRondaActual.every(p => p.estado === 'completado');
+                  const ganadores = partidasRondaActual.map(p => p.ganador).filter(g => g && g !== 'BYE');
+                  
+                  if (todasCompletas) {
+                    if (ganadores.length > 1) {
+                      return (
+                        <button className="btn btn-success btn-xs" onClick={handleSortearSiguienteRonda} style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', justifyContent: 'center' }}>
+                          <i className="ri-sword-line" />
+                          Sorteo Siguiente Ronda (Ganadores de Ronda)
+                        </button>
+                      );
+                    } else {
+                      return (
+                        <button className="btn btn-warning btn-xs" onClick={handleCompletarTorneo} style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', justifyContent: 'center' }}>
+                          <i className="ri-check-double-line" />
+                          Finalizar Torneo y Declarar Campeón
+                        </button>
+                      );
+                    }
+                  } else {
+                    return (
+                      <div className="alert alert-info" style={{ fontSize: 11, padding: '6px 12px', borderRadius: 6, background: 'rgba(205,127,50,0.08)', border: '1px solid rgba(205,127,50,0.2)', color: 'var(--bronze-light)', display: 'flex', alignItems: 'center', gap: 6, width: '100%' }}>
+                        <i className="ri-information-line" style={{ fontSize: 14 }} />
+                        <span>Partidas de la Ronda {torneoActivo.rondaActual} en curso. Defina todos los ganadores para avanzar.</span>
+                      </div>
+                    );
+                  }
+                })()}
                 {torneoActivo.estado === 'completado' && (
                   <button 
                     className="btn btn-primary btn-xs" 
