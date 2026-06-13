@@ -962,6 +962,7 @@ export default function MesasPanel({ showToast }) {
   const { user } = useAuth();
   const [mesas, setMesas] = useState(INIT_MESAS);
   const isIncomingUpdateRef = useRef(false);
+  const hasLoadedFromFirestoreRef = useRef(false);
   const mesasRef = useRef(mesas);
   useEffect(() => {
     mesasRef.current = mesas;
@@ -1862,6 +1863,7 @@ export default function MesasPanel({ showToast }) {
       if (snap.exists()) {
         const data = snap.data();
         if (data && Array.isArray(data.mesas)) {
+          hasLoadedFromFirestoreRef.current = true;
           const isDifferent = !areMesasEqual(data.mesas, mesasRef.current);
           if (isDifferent) {
             isIncomingUpdateRef.current = true;
@@ -1869,6 +1871,7 @@ export default function MesasPanel({ showToast }) {
           }
         }
       } else {
+        hasLoadedFromFirestoreRef.current = true;
         const savedMesas = localStorage.getItem('yoy_billar_mesas');
         const initialMesas = savedMesas ? (deobfuscate(savedMesas) || INIT_MESAS) : INIT_MESAS;
         setDoc(docRef, {
@@ -1911,6 +1914,11 @@ export default function MesasPanel({ showToast }) {
       try {
         localStorage.setItem('yoy_billar_mesas', obfuscate(mesas));
         
+        // Evitar sobrescribir Firestore con el estado inicial local en el montaje
+        if (!hasLoadedFromFirestoreRef.current) {
+          return;
+        }
+
         if (isIncomingUpdateRef.current) {
           isIncomingUpdateRef.current = false;
           return;

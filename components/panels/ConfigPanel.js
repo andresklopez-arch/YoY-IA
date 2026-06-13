@@ -77,25 +77,6 @@ export default function ConfigPanel({ showToast }) {
   const [nuevaMesa, setNuevaMesa] = useState({ id: '', nombre: '', tarifa: '', tipo: 'Pool' });
   const [editingMesaId, setEditingMesaId] = useState(null);
 
-  const [historialRespaldos, setHistorialRespaldos] = useState([]);
-  useEffect(() => {
-    const q = query(
-      collection(db, 'config', 'mesas_estado_backups', 'historial'),
-      orderBy('backupAt', 'desc'),
-      limit(10)
-    );
-    const unsub = onSnapshot(q, snap => {
-      const list = snap.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      setHistorialRespaldos(list);
-    }, err => console.warn("Error al cargar historial de respaldos:", err));
-    return unsub;
-  }, []);
-
-  const [restoring, setRestoring] = useState(null); // null | 'descargando' | 'validando' | 'aplicando'
-
   // --- Estados de Ticket Config ---
   const [ticketConfig, setTicketConfig] = useState({
     showNombre: true,
@@ -393,14 +374,6 @@ export default function ConfigPanel({ showToast }) {
         console.error("Error al sincronizar catálogo tras modificar mesa:", err);
         showToast('Error de permisos en la base de datos o límite de 100 mesas excedido', 'error');
       });
-      // Respaldar catálogo automáticamente
-      setDoc(doc(db, 'config', 'mesas_estado_backup'), {
-        mesas: updatedMesas,
-        backupAt: serverTimestamp(),
-        reason: 'Modificación de mesa'
-      }).catch(err => console.error("Error al guardar respaldo:", err));
-      // Guardar en historial cronológico
-      guardarHistorialRespaldo(updatedMesas, 'Modificación de mesa');
       setEditingMesaId(null);
       setNuevaMesa({ id: '', nombre: '', tarifa: '', tipo: 'Pool' });
       showToast('Mesa modificada correctamente', 'success');
@@ -428,14 +401,6 @@ export default function ConfigPanel({ showToast }) {
         console.error("Error al sincronizar catálogo tras agregar mesa:", err);
         showToast('Error de permisos en la base de datos o límite de 100 mesas excedido', 'error');
       });
-      // Respaldar catálogo automáticamente
-      setDoc(doc(db, 'config', 'mesas_estado_backup'), {
-        mesas: updated,
-        backupAt: serverTimestamp(),
-        reason: 'Adición de mesa'
-      }).catch(err => console.error("Error al guardar respaldo:", err));
-      // Guardar en historial cronológico
-      guardarHistorialRespaldo(updated, 'Adición de mesa');
       setNuevaMesa({ id: '', nombre: '', tarifa: '', tipo: 'Pool' });
       showToast('Nueva mesa agregada', 'success');
     }
@@ -463,137 +428,10 @@ export default function ConfigPanel({ showToast }) {
       console.error("Error al sincronizar catálogo tras eliminar mesa:", err);
       showToast('Error de permisos en la base de datos', 'error');
     });
-    // Respaldar catálogo automáticamente
-    setDoc(doc(db, 'config', 'mesas_estado_backup'), {
-      mesas: updated,
-      backupAt: serverTimestamp(),
-      reason: 'Eliminación de mesa'
-    }).catch(err => console.error("Error al guardar respaldo:", err));
-    // Guardar en historial cronológico
-    guardarHistorialRespaldo(updated, 'Eliminación de mesa');
     showToast('Mesa eliminada', 'success');
   };
 
-  const guardarHistorialRespaldo = async (updatedList, reason) => {
-    try {
-      const compressedList = (updatedList || []).map(m => ({
-        id: m.id,
-        nombre: m.nombre,
-        tarifa: m.tarifa,
-        tipo: m.tipo || 'Pool'
-      }));
-      const histCollection = collection(db, 'config', 'mesas_estado_backups', 'historial');
-      await addDoc(histCollection, {
-        mesas: compressedList,
-        backupAt: Date.now(), // Usar timestamp numérico para ordenar fácilmente
-        reason: reason
-      });
-      // Purgar historial excedente (> 50 elementos)
-      const q = query(histCollection, orderBy('backupAt', 'desc'));
-      const snap = await getDocs(q);
-      if (snap.size > 50) {
-        const batch = writeBatch(db);
-        snap.docs.slice(50).forEach(doc => {
-          batch.delete(doc.ref);
-        });
-        await batch.commit();
-        console.log(`[Respaldo] Purgados ${snap.size - 50} respaldos antiguos excedentes.`);
-      }
-    } catch (e) {
-      console.warn("Error al guardar o purgar historial de respaldos:", e);
-    }
-  };
 
-  const handleRestoreBackup = async (customBackup = null) => {
-    if (restoring) return;
-    setRestoring('descargando');
-    try {
-      let data = null;
-      if (customBackup) {
-        data = customBackup;
-      } else {
-        const snap = await getDoc(doc(db, 'config', 'mesas_estado_backup'));
-        if (snap.exists()) {
-          data = snap.data();
-        }
-      }
-
-      if (data) {
-        setRestoring('validando');
-        const backupMesas = data.mesas || [];
-        const backupAt = data.backupAt?.toDate ? data.backupAt.toDate().toLocaleString() : (data.backupAt ? new Date(data.backupAt).toLocaleString() : 'fecha desconocida');
-        const reason = data.reason || 'Desconocido';
-        
-        if (backupMesas.length === 0) {
-          showToast('El respaldo se encuentra vacío o no es válido', 'warning');
-          return;
-        }
-
-        // Validación de Esquema (Sugerencia 1)
-        const esValido = backupMesas.every(m => 
-          m && 
-          typeof m.id === 'number' && 
-          typeof m.nombre === 'string' && 
-          typeof m.tarifa === 'number'
-        );
-        if (!esValido) {
-          showToast('El respaldo contiene datos con un formato de esquema inválido', 'danger');
-          return;
-        }
-
-        // Validación de IDs Únicos (Sugerencia 2)
-        const ids = backupMesas.map(m => m.id);
-        const tieneDuplicados = ids.some((val, i) => ids.indexOf(val) !== i);
-        if (tieneDuplicados) {
-          showToast('El respaldo contiene identificadores de mesa duplicados', 'danger');
-          return;
-        }
-
-        const confirmar = window.confirm(
-          `⚠️ RESTAURAR COPIA DE SEGURIDAD\n\n` +
-          `Se detectó un respaldo del catálogo del: ${backupAt}\n` +
-          `Motivo del respaldo: "${reason}"\n` +
-          `Número de mesas a restaurar: ${backupMesas.length}\n\n` +
-          `¿Deseas restaurar la estructura de mesas? Se reemplazará el catálogo de mesas actual.`
-        );
-
-        if (!confirmar) return;
-
-        setRestoring('aplicando');
-
-        // Reconstruir mesas asegurando valores por defecto para campos omitidos (Sugerencia 1)
-        const reconstructedMesas = backupMesas.map(m => ({
-          id: m.id,
-          nombre: m.nombre,
-          tipo: m.tipo || 'Pool',
-          estado: m.estado || 'libre',
-          cliente: m.cliente || null,
-          inicio: m.inicio || null,
-          tarifa: m.tarifa,
-          socios: m.socios || false,
-          clienteUid: m.clienteUid || ''
-        }));
-
-        // Restaurar estado de mesas
-        setMesas(reconstructedMesas);
-        localStorage.setItem('yoy_billar_mesas', obfuscate(reconstructedMesas));
-        
-        await setDoc(doc(db, 'config', 'mesas_estado'), {
-          mesas: reconstructedMesas,
-          updatedAt: serverTimestamp()
-        });
-
-        showToast('Catálogo de mesas restaurado correctamente', 'success');
-      } else {
-        showToast('No se encontró ninguna copia de seguridad en el servidor', 'warning');
-      }
-    } catch (err) {
-      console.error("Error al restaurar respaldo:", err);
-      showToast('Error al restaurar el respaldo (verifica los permisos o el formato del catálogo)', 'danger');
-    } finally {
-      setRestoring(null);
-    }
-  };
 
   const handleTicketToggle = (campo) => {
     const updated = { ...ticketConfig, [campo]: !ticketConfig[campo] };
@@ -1024,68 +862,6 @@ export default function ConfigPanel({ showToast }) {
                   </div>
                 ))}
               </div>
-              <button 
-                type="button" 
-                className="btn btn-secondary" 
-                style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }} 
-                onClick={() => handleRestoreBackup()}
-                disabled={!!restoring}
-              >
-                {restoring ? (
-                  <>
-                    <i className="ri-loader-4-line ri-spin" style={{ color: 'var(--bronze-light)' }} /> {
-                      restoring === 'descargando' ? 'Descargando...' :
-                      restoring === 'validando' ? 'Validando...' :
-                      restoring === 'aplicando' ? 'Aplicando...' : 'Restaurando...'
-                    }
-                  </>
-                ) : (
-                  <>
-                    <i className="ri-history-line" style={{ color: 'var(--bronze-light)' }} /> Restaurar Último Respaldo
-                  </>
-                )}
-              </button>
-
-              {/* Selector de Respaldos Históricos (Sugerencia 3) */}
-              {historialRespaldos.length > 0 && (
-                <div style={{ marginTop: 14, borderTop: '1px solid var(--border)', paddingTop: 14 }}>
-                  <label className="form-label" style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 8, display: 'block', textAlign: 'left' }}>
-                    ⌛ Historial de Respaldos (Últimos 10)
-                  </label>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 120, overflowY: 'auto' }}>
-                    {historialRespaldos.map(h => {
-                      const fecha = h.backupAt ? new Date(h.backupAt).toLocaleString() : 'Fecha desconocida';
-                      return (
-                        <div key={h.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px', background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 8 }}>
-                          <div style={{ fontSize: 11, textAlign: 'left' }}>
-                            <div 
-                              style={{ fontWeight: 700, color: 'var(--text-primary)' }} 
-                              title={h.reason || 'Respaldo automático'}
-                            >
-                              {h.reason && h.reason.length > 40 ? `${h.reason.substring(0, 40)}...` : (h.reason || 'Respaldo automático')}
-                            </div>
-                            <div style={{ color: 'var(--text-muted)', fontSize: 10 }}>{fecha} · {h.mesas?.length || 0} mesas</div>
-                          </div>
-                          <button 
-                            type="button" 
-                            className="btn btn-secondary btn-icon" 
-                            style={{ width: 24, height: 24, minWidth: 24, padding: 0 }} 
-                            title="Restaurar esta versión"
-                            onClick={() => handleRestoreBackup(h)}
-                            disabled={!!restoring}
-                          >
-                            {restoring ? (
-                              <i className="ri-loader-4-line ri-spin" style={{ fontSize: 12, color: 'var(--bronze-light)' }} />
-                            ) : (
-                              <i className="ri-history-line" style={{ fontSize: 12, color: 'var(--bronze-light)' }} />
-                            )}
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
             </div>
 
             {/* Impresión de QRs por Mesa */}
