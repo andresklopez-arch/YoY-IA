@@ -670,28 +670,55 @@ export default function TorneosPanel({ showToast }) {
       return;
     }
 
-    if (mesasSeleccionadas.length === 0) {
-      showToast('Por favor selecciona al menos una mesa para el torneo.', 'warning');
-      return;
+    // Shuffling and pairing players immediately
+    const shuffled = [...listaNuevosJugadores].sort(() => 0.5 - Math.random());
+    const partidasRonda = [];
+    let matchId = 1;
+    for (let i = 0; i < shuffled.length; i += 2) {
+      if (i + 1 < shuffled.length) {
+        partidasRonda.push({
+          id: matchId++,
+          j1: shuffled[i].nombre,
+          j2: shuffled[i + 1].nombre,
+          resultado: null,
+          ganador: null,
+          ronda: 1,
+          mesaId: null,
+          estado: 'esperando_mesa' // Manual assignment
+        });
+      } else {
+        partidasRonda.push({
+          id: matchId++,
+          j1: shuffled[i].nombre,
+          j2: 'BYE',
+          resultado: 'BYE',
+          ganador: shuffled[i].nombre,
+          ronda: 1,
+          mesaId: null,
+          estado: 'completado'
+        });
+      }
     }
 
     const nuevo = {
       id: Date.now(),
       nombre: nuevoNombre,
       modalidad: nuevaModalidad,
-      estado: 'inscripcion',
+      juegoTipo: nuevoJuegoTipo, // e.g. "Pool", "Carambola", "Snooker"
+      estado: 'activo', // Start active immediately
       jugadores: listaNuevosJugadores.length,
       max: parseInt(nuevoMax) || 16,
       premio: nuevoPremio,
       inscripcion: nuevaInscripcion,
       fechaInicio: nuevaFecha,
-      partidas: [],
-      mesasAsignadas: mesasSeleccionadas,
+      partidas: partidasRonda,
+      mesasAsignadas: [],
       rondaActual: 1,
       ranking: listaNuevosJugadores.map((j, idx) => ({
         pos: idx + 1,
         nombre: j.nombre,
         puntosInicio: j.puntosInicio,
+        categoria: j.categoria || '3ra',
         pj: 0,
         pg: 0,
         pp: 0,
@@ -704,21 +731,22 @@ export default function TorneosPanel({ showToast }) {
     saveTorneos(updated);
     setTorneoActivo(nuevo);
     setShowCrearTorneo(false);
-    showToast('Torneo creado en fase de inscripción', 'success');
+    
+    // Auto print bracket pairings
+    setTimeout(() => {
+      imprimirTicketTorneo(nuevo);
+    }, 500);
+
+    showToast('Torneo creado e iniciado. Partidas generadas aleatoriamente.', 'success');
 
     // Reset fields
     setNuevoNombre('');
-    setNuevaModalidad('Round Robin');
+    setNuevaModalidad('Eliminación Directa');
     setNuevoMax('16');
     setNuevoPremio('$1,500');
     setNuevaInscripcion('$100');
     setNuevaFecha('');
-    setListaNuevosJugadores([
-      { nombre: 'Carlos R.', puntosInicio: 0 },
-      { nombre: 'Pedro M.', puntosInicio: 5 },
-      { nombre: 'Ana G.', puntosInicio: 0 },
-      { nombre: 'Luis H.', puntosInicio: 5 },
-    ]);
+    setListaNuevosJugadores([]);
     setMesasSeleccionadas([]);
   };
 
