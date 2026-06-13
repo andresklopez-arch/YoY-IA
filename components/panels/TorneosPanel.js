@@ -12,6 +12,7 @@ export default function TorneosPanel({ showToast }) {
   const [torneos, setTorneos] = useState([]);
   const [torneoActivo, setTorneoActivo] = useState(null);
   const [vista, setVista] = useState('ranking');
+  const [ultimoTorneoEliminado, setUltimoTorneoEliminado] = useState(null);
 
   // Modales
   const [showCrearTorneo, setShowCrearTorneo] = useState(false);
