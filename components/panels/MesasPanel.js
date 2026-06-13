@@ -28,6 +28,11 @@ function areMesasEqual(arr1, arr2) {
   return true;
 }
 
+const normalizeText = (str) => {
+  if (!str) return '';
+  return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+};
+
 // ── DATOS INICIALES DE MESAS ───────────────────────────────
 const INIT_MESAS = [
   { id: 1, nombre: 'Mesa 1', tipo: 'Carambola 3B', estado: 'libre',    cliente: null, inicio: null, tarifa: 80, socios: false, clienteUid: '' },
@@ -372,8 +377,8 @@ function ModalCerrarMesa({ mesa, cuentasActivas, unloadedConsumos, onClose, onCe
   const cuentaAsociada = cuentasActivas.find(c => 
     c.mesaId === mesa.id ||
     (c.cliente && (
-      (mesa.cliente && !['público', 'publico'].includes(mesa.cliente.toLowerCase()) && c.cliente.toLowerCase() === mesa.cliente.toLowerCase()) || 
-      c.cliente.toLowerCase() === `mesa ${mesa.id}`
+      (mesa.cliente && normalizeText(c.cliente) === normalizeText(mesa.cliente)) || 
+      normalizeText(c.cliente) === `mesa ${mesa.id}`
     ))
   );
 
@@ -1789,8 +1794,8 @@ export default function MesasPanel({ showToast }) {
       const cuentaAsociada = cuentasActivas.find(c => 
         c.mesaId === m.id ||
         (c.cliente && (
-          (m.cliente && !['público', 'publico'].includes(m.cliente.toLowerCase()) && c.cliente.toLowerCase() === m.cliente.toLowerCase()) || 
-          c.cliente.toLowerCase() === `mesa ${m.id}`
+          (m.cliente && !['publico'].includes(normalizeText(m.cliente)) && normalizeText(c.cliente) === normalizeText(m.cliente)) || 
+          normalizeText(c.cliente) === `mesa ${m.id}`
         ))
       );
       const loaded = cuentaAsociada 
@@ -3802,6 +3807,43 @@ function ModalCuentasActivas({
 
   const [tick, setTick] = useState(0);
 
+  // Estado para la transferencia de consumos de cuenta huérfana (Sugerencia 2)
+  const [targetMesaTransfer, setTargetMesaTransfer] = useState('');
+
+  const isCuentaHuerfana = (c) => {
+    if (!c) return false;
+    if (c.mesaId) {
+      const m = mesas.find(tbl => String(tbl.id) === String(c.mesaId));
+      if (!m || m.estado !== 'ocupada') return true;
+    }
+    const matchMesa = mesas.find(m => 
+      c.cliente && (
+        normalizeText(c.cliente) === `mesa ${m.id}` ||
+        normalizeText(c.cliente) === `mesa ${m.id} - pendiente` ||
+        normalizeText(c.cliente).startsWith(`mesa ${m.id} `)
+      )
+    );
+    if (matchMesa && matchMesa.estado !== 'ocupada') return true;
+    return false;
+  };
+
+  const getMesaEstadoHuerfana = (c) => {
+    if (!c) return null;
+    if (c.mesaId) {
+      const m = mesas.find(tbl => String(tbl.id) === String(c.mesaId));
+      if (m) return m.estado;
+    }
+    const matchMesa = mesas.find(m => 
+      c.cliente && (
+        normalizeText(c.cliente) === `mesa ${m.id}` ||
+        normalizeText(c.cliente) === `mesa ${m.id} - pendiente` ||
+        normalizeText(c.cliente).startsWith(`mesa ${m.id} `)
+      )
+    );
+    if (matchMesa) return matchMesa.estado;
+    return null;
+  };
+
   const calcTotal = (c) => {
     if (!c) return 0;
     const tConsumos = (c.consumos || []).reduce((s, i) => s + (i.precio * i.cantidad), 0);
@@ -3901,8 +3943,8 @@ function ModalCuentasActivas({
     tiempoJuegoCosto = mesaSel.socios ? 0 : calcCosto(mesaSel);
     cuentaAsociadaMesa = cuentas.find(c => 
       c.cliente && (
-        (mesaSel.cliente && c.cliente.toLowerCase() === mesaSel.cliente.toLowerCase()) || 
-        c.cliente.toLowerCase() === `mesa ${mesaSel.id}`
+        (mesaSel.cliente && normalizeText(c.cliente) === normalizeText(mesaSel.cliente)) || 
+        normalizeText(c.cliente) === `mesa ${mesaSel.id}`
       )
     );
     consumosList = cuentaAsociadaMesa ? cuentaAsociadaMesa.consumos : [];
@@ -3941,8 +3983,8 @@ function ModalCuentasActivas({
         const matchingIdx = prev.findIndex(c => 
           c.mesaId === mesaSel.id ||
           (c.cliente && (
-            (mesaSel.cliente && !['público', 'publico'].includes(mesaSel.cliente.toLowerCase()) && c.cliente.toLowerCase() === mesaSel.cliente.toLowerCase()) || 
-            c.cliente.toLowerCase() === `mesa ${mesaSel.id}`
+            (mesaSel.cliente && normalizeText(c.cliente) === normalizeText(mesaSel.cliente)) || 
+            normalizeText(c.cliente) === `mesa ${mesaSel.id}`
           ))
         );
         if (matchingIdx >= 0) {
@@ -3991,8 +4033,8 @@ function ModalCuentasActivas({
     if (isMesaTab) {
       setCuentas(prev => prev.map(c => {
         if (c.cliente && (
-          (mesaSel.cliente && c.cliente.toLowerCase() === mesaSel.cliente.toLowerCase()) || 
-          c.cliente.toLowerCase() === `mesa ${mesaSel.id}`
+          (mesaSel.cliente && normalizeText(c.cliente) === normalizeText(mesaSel.cliente)) || 
+          normalizeText(c.cliente) === `mesa ${mesaSel.id}`
         )) {
           return {
             ...c,
@@ -4198,26 +4240,41 @@ function ModalCuentasActivas({
                   <p style={{ color: 'var(--text-muted)', fontSize: 13, textAlign: 'center', padding: '40px 0' }}>No hay cuentas pendientes.</p>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 380, overflowY: 'auto' }}>
-                    {cuentas.map(c => (
-                      <div
-                        key={c.id}
-                        onClick={() => { setCuentaSel(c); setShowCheckout(false); }}
-                        style={{
-                          background: cuentaSel?.id === c.id ? 'var(--bronze-subtle)' : 'var(--bg-elevated)',
-                          border: `1px solid ${cuentaSel?.id === c.id ? 'var(--border-bronze)' : 'var(--border)'}`,
-                          borderRadius: 10, padding: 12, cursor: 'pointer', transition: 'all 0.15s'
-                        }}
-                      >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: 13 }}>
-                          <span>{c.cliente}</span>
-                          <span style={{ color: 'var(--bronze-light)' }}>${calcTotal(c)} MXN</span>
+                    {cuentas.map(c => {
+                      const isHuerfana = isCuentaHuerfana(c);
+                      const estadoMesa = getMesaEstadoHuerfana(c);
+                      return (
+                        <div
+                          key={c.id}
+                          onClick={() => { setCuentaSel(c); setShowCheckout(false); }}
+                          style={{
+                            background: cuentaSel?.id === c.id ? 'var(--bronze-subtle)' : 'var(--bg-elevated)',
+                            border: `1px solid ${cuentaSel?.id === c.id ? 'var(--border-bronze)' : 'var(--border)'}`,
+                            borderRadius: 10, padding: 12, cursor: 'pointer', transition: 'all 0.15s'
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: 13 }}>
+                            <span style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 4 }}>
+                              {c.cliente}
+                              {estadoMesa === 'manten' ? (
+                                <span style={{ background: '#d97706', color: '#fff', fontSize: 9, padding: '2px 6px', borderRadius: 4, fontWeight: 800 }} title="La mesa está en mantenimiento">
+                                  ⚠️ Mantenimiento
+                                </span>
+                              ) : isHuerfana ? (
+                                <span style={{ background: '#ef4444', color: '#fff', fontSize: 9, padding: '2px 6px', borderRadius: 4, fontWeight: 800 }} title="La mesa asociada no está en juego u ocupada">
+                                  ⚠️ Huérfana
+                                </span>
+                              ) : null}
+                            </span>
+                            <span style={{ color: 'var(--bronze-light)' }}>${calcTotal(c)} MXN</span>
+                          </div>
+                          <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4, display: 'flex', justifyContent: 'space-between' }}>
+                            <span>Juego: ${c.tiempoJuego} MXN</span>
+                            <span>{c.consumos.length} consumos</span>
+                          </div>
                         </div>
-                        <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4, display: 'flex', justifyContent: 'space-between' }}>
-                          <span>Juego: ${c.tiempoJuego} MXN</span>
-                          <span>{c.consumos.length} consumos</span>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </>
@@ -4339,6 +4396,46 @@ function ModalCuentasActivas({
                       Agregar
                     </button>
                   </div>
+
+                  {/* Transferir consumos si la cuenta es huérfana (Sugerencia 2) */}
+                  {!isMesaTab && cuentaSel && isCuentaHuerfana(cuentaSel) && (cuentaSel.consumos || []).length > 0 && (
+                    <div style={{ 
+                      background: 'rgba(217, 83, 79, 0.05)', 
+                      border: '1px dashed var(--danger)', 
+                      borderRadius: 10, 
+                      padding: 10, 
+                      display: 'flex', 
+                      flexDirection: 'column', 
+                      gap: 8, 
+                      marginTop: 4 
+                    }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--bronze-light)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <i className="ri-swap-box-line" />
+                        TRANSFERIR CONSUMOS A MESA ACTIVA
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1.5fr auto', gap: 6, alignItems: 'center' }}>
+                        <select 
+                          className="form-select" 
+                          style={{ padding: '6px 8px', fontSize: 12 }} 
+                          value={targetMesaTransfer} 
+                          onChange={e => setTargetMesaTransfer(e.target.value)}
+                        >
+                          <option value="">Seleccionar mesa activa...</option>
+                          {mesas.filter(m => m.estado === 'ocupada').map(m => (
+                            <option key={m.id} value={m.id}>Mesa {m.id} ({m.cliente})</option>
+                          ))}
+                        </select>
+                        <button 
+                          className="btn btn-secondary btn-sm" 
+                          style={{ padding: '6px 12px', fontSize: 11, border: 'none', background: 'var(--bronze-light)', color: '#0d0d0f', fontWeight: 700 }}
+                          disabled={!targetMesaTransfer}
+                          onClick={handleTransferirConsumos}
+                        >
+                          Transferir
+                        </button>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Footer detalle */}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border)', paddingTop: 10 }}>

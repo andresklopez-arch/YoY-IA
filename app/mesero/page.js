@@ -8,6 +8,11 @@ import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth-context';
 import { AuthProvider } from '@/lib/auth-context';
 
+const normalizeText = (str) => {
+  if (!str) return '';
+  return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+};
+
 // ═══════════════════════════════════════════════════════════
 // VISTA MESERO — Dashboard de pedidos y asistencias en tiempo real
 // ═══════════════════════════════════════════════════════════
@@ -40,10 +45,10 @@ function MeseroContent() {
     return mesas.find(m => 
       (c.mesaId && String(m.id) === String(c.mesaId)) ||
       (c.cliente && (
-        (m.cliente && !['público', 'publico'].includes(m.cliente.toLowerCase()) && c.cliente.toLowerCase().startsWith(m.cliente.toLowerCase())) ||
-        c.cliente.toLowerCase() === `mesa ${m.id}` ||
-        c.cliente.toLowerCase() === `mesa ${m.id} - pendiente` ||
-        c.cliente.toLowerCase().startsWith(`mesa ${m.id} `)
+        (m.cliente && !['publico'].includes(normalizeText(m.cliente)) && normalizeText(c.cliente).startsWith(normalizeText(m.cliente))) ||
+        normalizeText(c.cliente) === `mesa ${m.id}` ||
+        normalizeText(c.cliente) === `mesa ${m.id} - pendiente` ||
+        normalizeText(c.cliente).startsWith(`mesa ${m.id} `)
       ))
     );
   };
@@ -67,17 +72,17 @@ function MeseroContent() {
         const tieneCuenta = cuentasFiltradas.some(c => 
           (c.mesaId && String(c.mesaId) === String(m.id)) ||
           (c.cliente && (
-            (m.cliente && !['público', 'publico'].includes(m.cliente.toLowerCase()) && c.cliente.toLowerCase().startsWith(m.cliente.toLowerCase())) ||
-            c.cliente.toLowerCase() === `mesa ${m.id}` ||
-            c.cliente.toLowerCase() === `mesa ${m.id} - pendiente` ||
-            c.cliente.toLowerCase().startsWith(`mesa ${m.id} `)
+            (m.cliente && !['publico'].includes(normalizeText(m.cliente)) && normalizeText(c.cliente).startsWith(normalizeText(m.cliente))) ||
+            normalizeText(c.cliente) === `mesa ${m.id}` ||
+            normalizeText(c.cliente) === `mesa ${m.id} - pendiente` ||
+            normalizeText(c.cliente).startsWith(`mesa ${m.id} `)
           ))
         );
         if (!tieneCuenta) {
           unificadas.push({
             id: `mesa_${m.id}`,
             mesaId: m.id,
-            cliente: (m.cliente && !['público', 'publico'].includes(m.cliente.toLowerCase())) ? m.cliente : `Mesa ${m.id}`,
+            cliente: (m.cliente && !['publico'].includes(normalizeText(m.cliente))) ? m.cliente : `Mesa ${m.id}`,
             consumos: [],
             tiempoJuego: 0
           });
@@ -995,8 +1000,8 @@ function MeseroContent() {
                   ) || !!localRequestedCuentas[c.cliente.toLowerCase()];
 
                   const displayClienteName = c.mesaId 
-                    ? (c.cliente && (c.cliente.toLowerCase().startsWith('mesa ') || ['público', 'publico'].includes(c.cliente.toLowerCase())) ? `Mesa ${c.mesaId}` : c.cliente)
-                    : (mesaAsociada ? (c.cliente && (c.cliente.toLowerCase().startsWith('mesa ') || ['público', 'publico'].includes(c.cliente.toLowerCase())) ? `Mesa ${mesaAsociada.id}` : c.cliente) : c.cliente);
+                    ? (c.cliente && (normalizeText(c.cliente).startsWith('mesa ') || ['publico'].includes(normalizeText(c.cliente))) ? `Mesa ${c.mesaId}` : c.cliente)
+                    : (mesaAsociada ? (c.cliente && (normalizeText(c.cliente).startsWith('mesa ') || ['publico'].includes(normalizeText(c.cliente))) ? `Mesa ${mesaAsociada.id}` : c.cliente) : c.cliente);
 
                   const tieneAsistenciaPendiente = (alertasAsistencia || []).some(alerta => 
                     !alerta.atendidoMesero &&
