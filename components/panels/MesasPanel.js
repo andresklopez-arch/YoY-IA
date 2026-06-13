@@ -423,7 +423,7 @@ function ModalAbrirMesa({ mesa, onClose, onConfirm }) {
 }
 
 // ── MODAL CERRAR MESA ────────────────────────────────────
-function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], registrarNuevoClienteDirectorio, unloadedConsumos, onClose, onCerrar, onAgregarACuenta, imprimirPreTicket, onImprimirPreTicket }) {
+function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], registrarNuevoClienteDirectorio, mesas = [], unloadedConsumos, onClose, onCerrar, onAgregarACuenta, imprimirPreTicket, onImprimirPreTicket }) {
   const cuentaAsociada = cuentasActivas.find(c => 
     c.mesaId === mesa.id ||
     (c.cliente && (
@@ -1140,10 +1140,21 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
                               registrarEvento('Intento Cuenta Genérica', `Intento de mover mesa ${mesa.id} a pendientes con pagador inválido: "${pagadorClean}"`);
                               return;
                             }
+                            const existente = cuentasActivas.find(c => c.cliente && getCleanClientName(c.cliente).toLowerCase() === getCleanClientName(pagadorClean).toLowerCase());
+                            if (existente) {
+                              const existingMesaId = existente.mesaId;
+                              if (existingMesaId && existingMesaId !== mesa.id) {
+                                const associatedTable = mesas.find(m => m.id === existingMesaId && m.estado === 'ocupada');
+                                if (associatedTable) {
+                                  const ok = window.confirm(`El cliente "${getCleanClientName(existente.cliente)}" ya tiene la Mesa ${existingMesaId} activa. ¿Deseas acumular esta sesión a su cuenta existente?`);
+                                  if (!ok) return;
+                                }
+                              }
+                            }
                             registrarNuevoClienteDirectorio(pagadorClean);
                             onAgregarACuenta({
                               costo: costoTiempo,
-                              cuentaId: cuentaAsociada ? cuentaAsociada.id : null,
+                              cuentaId: existente ? existente.id : (cuentaAsociada ? cuentaAsociada.id : null),
                               nombreNuevo: `${pagadorClean} (Mesa ${mesa.id} - Pendiente)`
                             });
                             setShowPromptMoverPendiente(false);
@@ -1177,13 +1188,35 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
                     registrarEvento('Intento Cuenta Genérica', `Intento de guardar mesa ${mesa.id} en cuenta con nombre inválido: "${nameClean}"`);
                     return;
                   }
+                  const existente = cuentasActivas.find(c => c.cliente && getCleanClientName(c.cliente).toLowerCase() === getCleanClientName(nameClean).toLowerCase());
+                  if (existente) {
+                    const existingMesaId = existente.mesaId;
+                    if (existingMesaId && existingMesaId !== mesa.id) {
+                      const associatedTable = mesas.find(m => m.id === existingMesaId && m.estado === 'ocupada');
+                      if (associatedTable) {
+                        const ok = window.confirm(`El cliente "${getCleanClientName(existente.cliente)}" ya tiene la Mesa ${existingMesaId} activa. ¿Deseas acumular esta sesión a su cuenta existente?`);
+                        if (!ok) return;
+                      }
+                    }
+                  }
                   registrarNuevoClienteDirectorio(nameClean);
                   onAgregarACuenta({
                     costo: costoTiempo,
-                    cuentaId: cuentaSeleccionada,
+                    cuentaId: existente ? existente.id : cuentaSeleccionada,
                     nombreNuevo: `${nameClean} (Mesa ${mesa.id} - Pendiente)`
                   });
                 } else {
+                  const targetCuentaObj = cuentasActivas.find(c => String(c.id) === String(cuentaSeleccionada));
+                  if (targetCuentaObj) {
+                    const existingMesaId = targetCuentaObj.mesaId;
+                    if (existingMesaId && existingMesaId !== mesa.id) {
+                      const associatedTable = mesas.find(m => m.id === existingMesaId && m.estado === 'ocupada');
+                      if (associatedTable) {
+                        const ok = window.confirm(`El cliente "${getCleanClientName(targetCuentaObj.cliente)}" ya tiene la Mesa ${existingMesaId} activa. ¿Confirmas que deseas acumular el consumo de la Mesa ${mesa.id} a su cuenta?`);
+                        if (!ok) return;
+                      }
+                    }
+                  }
                   onAgregarACuenta({
                     costo: costoTiempo,
                     cuentaId: cuentaSeleccionada,
@@ -3744,6 +3777,7 @@ export default function MesasPanel({ showToast }) {
           cuentasActivas={cuentasActivas}
           clientesRegistrados={clientesRegistrados}
           registrarNuevoClienteDirectorio={registrarNuevoClienteDirectorio}
+          mesas={mesas}
           unloadedConsumos={unloadedConsumos}
           onClose={() => setModalCerrar(null)}
           onCerrar={(data) => confirmarCerrarMesa(modalCerrar.id, data)}

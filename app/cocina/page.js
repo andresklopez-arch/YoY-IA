@@ -526,9 +526,13 @@ function CocinaContent() {
                             {pedido.cliente && 
                              !pedido.cliente.toLowerCase().startsWith('mesa ') && 
                              pedido.cliente.toLowerCase() !== 'público' && 
-                             pedido.cliente.toLowerCase() !== 'publico' && (
+                             pedido.cliente.toLowerCase() !== 'publico' ? (
                               <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 8 }}>
                                 ({pedido.cliente})
+                              </span>
+                            ) : (
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 9, background: 'rgba(239, 68, 68, 0.12)', border: '1px solid rgba(239, 68, 68, 0.3)', color: 'var(--danger)', padding: '2px 6px', borderRadius: 4, fontWeight: 700, marginLeft: 8 }}>
+                                <i className="ri-error-warning-line" /> SIN CLIENTE ASIGNADO
                               </span>
                             )}
                           </div>
@@ -597,8 +601,11 @@ function CocinaContent() {
                         {pedido.cliente && 
                          !pedido.cliente.toLowerCase().startsWith('mesa ') && 
                          pedido.cliente.toLowerCase() !== 'público' && 
-                         pedido.cliente.toLowerCase() !== 'publico' && 
-                         ` (${pedido.cliente})`}
+                         pedido.cliente.toLowerCase() !== 'publico' ? (
+                          ` (${pedido.cliente})`
+                        ) : (
+                          <span style={{ color: 'var(--danger)', fontSize: 9, marginLeft: 4, fontWeight: 'normal' }}> (Sin Cliente)</span>
+                        )}
                       </span>
                       <span style={{
                         fontSize: 9, fontWeight: 800, padding: '1px 6px', borderRadius: 99,
