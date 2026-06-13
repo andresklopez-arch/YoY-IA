@@ -820,6 +820,7 @@ export default function TorneosPanel({ showToast }) {
 
     const updated = [...torneos, nuevo];
     saveTorneos(updated);
+    inicializarJugadoresEnRankingGlobal(listaNuevosJugadores, nuevoJuegoTipo);
     setTorneoActivo(nuevo);
     setShowCrearTorneo(false);
     
