@@ -1033,6 +1033,22 @@ function ModalCuentasMesero({ cuentas, mesas, alertasAsistencia, isOffline, onCl
     });
   }, [cuentas]);
 
+  // Alerta háptica sutil al abrir el modal si hay solicitudes de asistencia pendientes
+  useEffect(() => {
+    if (typeof navigator !== 'undefined' && navigator.vibrate) {
+      const tieneAlertasAsistenciaModal = (alertasAsistencia || []).some(alerta => 
+        !alerta.atendidoMesero &&
+        cuentas.some(c => 
+          (c.mesaId && alerta.mesaId === c.mesaId) ||
+          (alerta.cliente && c.cliente && alerta.cliente.toLowerCase() === c.cliente.toLowerCase())
+        )
+      );
+      if (tieneAlertasAsistenciaModal) {
+        navigator.vibrate([100, 50, 100]);
+      }
+    }
+  }, [alertasAsistencia, cuentas]);
+
   useEffect(() => {
     const interval = setInterval(() => {
       setTick(t => t + 1);
@@ -1042,6 +1058,10 @@ function ModalCuentasMesero({ cuentas, mesas, alertasAsistencia, isOffline, onCl
 
   const pedirCuenta = async (cuenta) => {
     setLoadingCuentaId(cuenta.id);
+    // Vibración corta de retroalimentación háptica (feedback táctil) al pulsar Cobrar
+    if (typeof navigator !== 'undefined' && navigator.vibrate) {
+      navigator.vibrate(50);
+    }
     const mesaAsociada = mesas.find(m => m.id === cuenta.mesaId || (m.cliente && m.cliente.toLowerCase() === cuenta.cliente.toLowerCase()));
     const mesaId = mesaAsociada ? mesaAsociada.id : 0;
     const consumosTotal = cuenta.consumos.reduce((sum, item) => sum + item.precio * item.cantidad, 0);
@@ -1259,7 +1279,9 @@ function ModalCuentasMesero({ cuentas, mesas, alertasAsistencia, isOffline, onCl
                     padding: '8px 12px',
                     display: 'flex',
                     flexDirection: 'column',
-                    gap: 6
+                    gap: 6,
+                    contentVisibility: 'auto',
+                    containIntrinsicSize: '0 44px'
                   }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
                       <div style={{ flex: 1, minWidth: 0 }}>
