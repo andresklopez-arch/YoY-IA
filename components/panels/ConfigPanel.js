@@ -371,6 +371,12 @@ export default function ConfigPanel({ showToast }) {
         mesas: updatedMesas,
         updatedAt: serverTimestamp()
       }).catch(err => console.error("Error al sincronizar catálogo tras modificar mesa:", err));
+      // Respaldar catálogo automáticamente
+      setDoc(doc(db, 'config', 'mesas_estado_backup'), {
+        mesas: updatedMesas,
+        backupAt: serverTimestamp(),
+        reason: 'Modificación de mesa'
+      }).catch(err => console.error("Error al guardar respaldo:", err));
       setEditingMesaId(null);
       setNuevaMesa({ id: '', nombre: '', tarifa: '', tipo: 'Pool' });
       showToast('Mesa modificada correctamente', 'success');
@@ -395,6 +401,12 @@ export default function ConfigPanel({ showToast }) {
         mesas: updated,
         updatedAt: serverTimestamp()
       }).catch(err => console.error("Error al sincronizar catálogo tras agregar mesa:", err));
+      // Respaldar catálogo automáticamente
+      setDoc(doc(db, 'config', 'mesas_estado_backup'), {
+        mesas: updated,
+        backupAt: serverTimestamp(),
+        reason: 'Adición de mesa'
+      }).catch(err => console.error("Error al guardar respaldo:", err));
       setNuevaMesa({ id: '', nombre: '', tarifa: '', tipo: 'Pool' });
       showToast('Nueva mesa agregada', 'success');
     }
@@ -419,6 +431,12 @@ export default function ConfigPanel({ showToast }) {
       mesas: updated,
       updatedAt: serverTimestamp()
     }).catch(err => console.error("Error al sincronizar catálogo tras eliminar mesa:", err));
+    // Respaldar catálogo automáticamente
+    setDoc(doc(db, 'config', 'mesas_estado_backup'), {
+      mesas: updated,
+      backupAt: serverTimestamp(),
+      reason: 'Eliminación de mesa'
+    }).catch(err => console.error("Error al guardar respaldo:", err));
     showToast('Mesa eliminada', 'success');
   };
 

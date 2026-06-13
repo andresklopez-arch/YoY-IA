@@ -1831,11 +1831,13 @@ export default function MesasPanel({ showToast }) {
   // Limpieza automática de clientes anónimos con más de 30 días de antigüedad
   useEffect(() => {
     const limpiarClientesAnonimosViejos = async () => {
+      if (typeof window !== 'undefined' && !navigator.onLine) return;
       try {
         const limiteTiempo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
         const q = query(
           collection(db, 'clientes_anonimos'),
-          where('updatedAt', '<', limiteTiempo)
+          where('updatedAt', '<', limiteTiempo),
+          limit(400)
         );
         const snap = await getDocs(q);
         if (!snap.empty) {
