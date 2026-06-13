@@ -1,8 +1,7 @@
 const { initializeApp } = require('firebase/app');
-const { getFirestore, doc, getDoc, collection, getDocs, query, where } = require('firebase/firestore');
+const { getFirestore, doc, updateDoc } = require('firebase/firestore');
 const fs = require('fs');
 
-// Leer .env.local manualmente
 const envContent = fs.readFileSync('.env.local', 'utf8');
 const env = {};
 envContent.split('\n').forEach(line => {
@@ -26,15 +25,14 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 async function run() {
-  const snap = await getDocs(query(collection(db, 'mesa_pedidos'), where('mesaId', '==', 10)));
-  console.log("=== PEDIDOS MESA 10 ===");
-  snap.forEach(d => {
-    console.log(d.id, JSON.stringify(d.data(), null, 2));
+  const docRef = doc(db, 'mesa_pedidos', 'XzinGKD8aAMRTfpHJUdv');
+  await updateDoc(docRef, {
+    estado: 'atendido',
+    updatedAt: new Date()
   });
+
+  console.log("¡Comanda huérfana de Mesa 10 marcada como atendida/archivada!");
   process.exit(0);
 }
 
-run().catch(err => {
-  console.error(err);
-  process.exit(1);
-});
+run().catch(console.error);

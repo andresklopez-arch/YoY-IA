@@ -377,7 +377,7 @@ function ModalCerrarMesa({ mesa, cuentasActivas, unloadedConsumos, onClose, onCe
   const cuentaAsociada = cuentasActivas.find(c => 
     c.mesaId === mesa.id ||
     (c.cliente && (
-      (mesa.cliente && normalizeText(c.cliente) === normalizeText(mesa.cliente)) || 
+      (mesa.cliente && !['público', 'publico'].includes(normalizeText(mesa.cliente)) && normalizeText(c.cliente) === normalizeText(mesa.cliente)) || 
       normalizeText(c.cliente) === `mesa ${mesa.id}`
     ))
   );
@@ -2223,7 +2223,9 @@ export default function MesasPanel({ showToast }) {
     if (!targetId && nombreNuevo) {
       const existente = cuentasActivas.find(c => 
         (c.mesaId === modalCerrar.id) ||
-        (c.cliente && c.cliente.toLowerCase() === nombreNuevo.toLowerCase())
+        (c.cliente && 
+         !['público', 'publico'].includes(nombreNuevo.toLowerCase()) && 
+         c.cliente.toLowerCase() === nombreNuevo.toLowerCase())
       );
       if (existente) {
         targetId = existente.id;
