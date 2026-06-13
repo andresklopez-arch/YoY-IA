@@ -94,6 +94,8 @@ export default function ConfigPanel({ showToast }) {
     return unsub;
   }, []);
 
+  const [restoring, setRestoring] = useState(false);
+
   // --- Estados de Ticket Config ---
   const [ticketConfig, setTicketConfig] = useState({
     showNombre: true,
@@ -488,6 +490,8 @@ export default function ConfigPanel({ showToast }) {
   };
 
   const handleRestoreBackup = async (customBackup = null) => {
+    if (restoring) return;
+    setRestoring(true);
     try {
       let data = null;
       if (customBackup) {
@@ -547,6 +551,8 @@ export default function ConfigPanel({ showToast }) {
     } catch (err) {
       console.error("Error al restaurar respaldo:", err);
       showToast('Error de red al intentar restaurar el respaldo', 'danger');
+    } finally {
+      setRestoring(false);
     }
   };
 
@@ -984,8 +990,17 @@ export default function ConfigPanel({ showToast }) {
                 className="btn btn-secondary" 
                 style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }} 
                 onClick={() => handleRestoreBackup()}
+                disabled={restoring}
               >
-                <i className="ri-history-line" style={{ color: 'var(--bronze-light)' }} /> Restaurar Último Respaldo
+                {restoring ? (
+                  <>
+                    <i className="ri-loader-4-line ri-spin" style={{ color: 'var(--bronze-light)' }} /> Restaurando...
+                  </>
+                ) : (
+                  <>
+                    <i className="ri-history-line" style={{ color: 'var(--bronze-light)' }} /> Restaurar Último Respaldo
+                  </>
+                )}
               </button>
 
               {/* Selector de Respaldos Históricos (Sugerencia 3) */}
@@ -1009,8 +1024,13 @@ export default function ConfigPanel({ showToast }) {
                             style={{ width: 24, height: 24, minWidth: 24, padding: 0 }} 
                             title="Restaurar esta versión"
                             onClick={() => handleRestoreBackup(h)}
+                            disabled={restoring}
                           >
-                            <i className="ri-history-line" style={{ fontSize: 12, color: 'var(--bronze-light)' }} />
+                            {restoring ? (
+                              <i className="ri-loader-4-line ri-spin" style={{ fontSize: 12, color: 'var(--bronze-light)' }} />
+                            ) : (
+                              <i className="ri-history-line" style={{ fontSize: 12, color: 'var(--bronze-light)' }} />
+                            )}
                           </button>
                         </div>
                       );
