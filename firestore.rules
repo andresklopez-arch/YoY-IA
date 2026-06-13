@@ -5,8 +5,8 @@ service cloud.firestore {
     // 1. Colección config (inventario, mesas_estado, seguridad)
     match /config/{document} {
       allow read: if true;
-      // Se permite la escritura general excepto para mesas_estado que tiene sus propias reglas de seguridad
-      allow write: if document != "mesas_estado";
+      // Se permite la escritura general excepto para mesas_estado y mesas_estado_backup
+      allow write: if document != "mesas_estado" && document != "mesas_estado_backup";
     }
 
     match /config/mesas_estado {
@@ -17,9 +17,10 @@ service cloud.firestore {
                       request.resource.data.mesas.size() <= 100;
     }
 
-    // Permitir acceso a la subcolección de respaldos cronológicos para el historial
+    // Permitir lectura pero bloquear escrituras en el historial de respaldos obsoletos
     match /config/mesas_estado_backups/historial/{document} {
-      allow read, write: if true;
+      allow read: if true;
+      allow write: if false;
     }
 
     // 2. Tipos de asistencia personalizada
