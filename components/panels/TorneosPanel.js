@@ -1171,17 +1171,134 @@ export default function TorneosPanel({ showToast }) {
     }
   };
 
+  const renderRankingGlobal = () => {
+    const players = rankingHistorico[modalityTab] || [];
+    const top20Players = players.slice(0, 20);
+    return (
+      <div className="card" style={{ padding: 20 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 10 }}>
+          <div>
+            <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 700, margin: 0 }}>Ranking Global ELO - Top 20</h2>
+            <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '2px 0 0 0' }}>Los 20 mejores jugadores de pool, carambola o snooker</p>
+          </div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            {[
+              { id: 'pool', label: 'Pool' },
+              { id: 'carambola', label: 'Carambola' },
+              { id: 'snooker', label: 'Snooker' }
+            ].map(tab => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setModalityTab(tab.id)}
+                className={`btn btn-xs ${modalityTab === tab.id ? 'btn-primary' : 'btn-secondary'}`}
+                style={{ padding: '4px 10px', fontSize: 11 }}
+              >
+                {tab.label.toUpperCase()}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {top20Players.length === 0 ? (
+          <div className="card" style={{ textAlign: 'center', padding: 40, borderStyle: 'dashed' }}>
+            <i className="ri-medal-line" style={{ fontSize: 32, color: 'var(--text-muted)', display: 'block', marginBottom: 8 }} />
+            <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: 0 }}>No hay jugadores registrados en el ranking de {modalityTab} aún.</p>
+          </div>
+        ) : (
+          <div className="table-wrapper" style={{ border: 'none' }}>
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Jugador</th>
+                  <th>Categoría</th>
+                  <th>PJ</th>
+                  <th>PG</th>
+                  <th>PP</th>
+                  <th>Racha</th>
+                  <th>ELO</th>
+                </tr>
+              </thead>
+              <tbody>
+                {top20Players.map((r, idx) => (
+                  <tr key={r.nombre}>
+                    <td>
+                      <span style={{ fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 900, color: idx === 0 ? '#ffd700' : idx === 1 ? 'var(--silver)' : idx === 2 ? 'var(--bronze)' : 'var(--text-muted)' }}>
+                        {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : idx + 1}
+                      </span>
+                    </td>
+                    <td style={{ fontWeight: 700 }}>{r.nombre}</td>
+                    <td>
+                      <select
+                        className="form-select"
+                        style={{ width: '110px', padding: '2px 8px', fontSize: '12px', height: '28px', background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}
+                        value={r.categoria || '3ra'}
+                        onChange={(e) => handleCambiarCategoriaGlobal(r.nombre, e.target.value, modalityTab)}
+                      >
+                        <option value="Mtro">Mtro</option>
+                        <option value="1ra">1ra</option>
+                        <option value="2da">2da</option>
+                        <option value="3ra">3ra</option>
+                        <option value="4ta">4ta</option>
+                      </select>
+                    </td>
+                    <td>{r.pj || 0}</td>
+                    <td style={{ color: 'var(--success)', fontWeight: 700 }}>{r.pg || 0}</td>
+                    <td style={{ color: 'var(--danger)' }}>{r.pp || 0}</td>
+                    <td>
+                      {r.rachaV > 0 && <span style={{ color: 'var(--success)', fontSize: 11, fontWeight: 600 }}>🔥 V{r.rachaV}</span>}
+                      {r.rachaD > 0 && <span style={{ color: 'var(--danger)', fontSize: 11, fontWeight: 600 }}>❄️ D{r.rachaD}</span>}
+                      {!(r.rachaV > 0) && !(r.rachaD > 0) && <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>-</span>}
+                    </td>
+                    <td>
+                      <span style={{ background: 'var(--blue-glow)', color: 'var(--blue-light)', padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 700, border: '1px solid rgba(37,99,235,0.3)' }}>
+                        {r.elo || 1500}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div>
       <div className="page-header">
         <div>
           <h1 className="page-title gradient-bronze">Torneos y Ligas</h1>
-          <p className="page-subtitle">Gestión debrackets, ranking ELO y estadísticas de juego</p>
+          <p className="page-subtitle">Gestión de brackets, ranking ELO y estadísticas de juego</p>
         </div>
         <button className="btn btn-primary btn-sm" onClick={() => setShowCrearTorneo(true)}>
           <i className="ri-add-line" /> Crear Torneo
         </button>
       </div>
+
+      {/* Main Tab Selector */}
+      <div style={{ display: 'flex', gap: 10, marginBottom: 20, borderBottom: '1px solid var(--border)', paddingBottom: 10 }}>
+        <button 
+          className={`btn ${vistaPrincipal === 'torneos' ? 'btn-primary' : 'btn-secondary'}`}
+          type="button"
+          onClick={() => setVistaPrincipal('torneos')}
+          style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+        >
+          <i className="ri-trophy-line" /> Torneos Activos
+        </button>
+        <button 
+          className={`btn ${vistaPrincipal === 'ranking_global' ? 'btn-primary' : 'btn-secondary'}`}
+          type="button"
+          onClick={() => setVistaPrincipal('ranking_global')}
+          style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+        >
+          <i className="ri-bar-chart-box-line" /> Ranking ELO Global (Top 20)
+        </button>
+      </div>
+
+      {vistaPrincipal === 'torneos' && (
 
       <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: 20, alignItems: 'start' }}>
         {/* Lista de torneos */}
@@ -1415,6 +1532,9 @@ export default function TorneosPanel({ showToast }) {
           </div>
         )}
       </div>
+      )}
+
+      {vistaPrincipal === 'ranking_global' && renderRankingGlobal()}
 
       {/* Modal Crear Torneo */}
       {showCrearTorneo && (
