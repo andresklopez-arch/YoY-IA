@@ -18,15 +18,7 @@ const HISTORICO_DATA = [
 ];
 
 // ── PRODUCTOS INICIALES DEL INVENTARIO ────────────────────
-const DEFAULT_PRODUCTOS = [
-  { id: 1, nombre: 'Cerveza Corona Extra', categoria: 'Cerveza', precioCosto: 22, precioVenta: 45, stock: 120, stockMin: 30, stockOptimo: 150, unidad: 'bot' },
-  { id: 2, nombre: 'Refresco Coca-Cola 355ml', categoria: 'Refresco', precioCosto: 14, precioVenta: 30, stock: 80, stockMin: 20, stockOptimo: 100, unidad: 'pz' },
-  { id: 3, nombre: 'Nachos con Queso Gigantes', categoria: 'Snack', precioCosto: 32, precioVenta: 75, stock: 50, stockMin: 15, stockOptimo: 60, unidad: 'porc' },
-  { id: 4, nombre: 'Papas Fritas Crujientes', categoria: 'Snack', precioCosto: 20, precioVenta: 55, stock: 40, stockMin: 12, stockOptimo: 50, unidad: 'porc' },
-  { id: 5, nombre: 'Alitas de Pollo x10', categoria: 'Comida', precioCosto: 58, precioVenta: 120, stock: 35, stockMin: 10, stockOptimo: 45, unidad: 'pz' },
-  { id: 6, nombre: 'Café Americano Organico', categoria: 'Bebida', precioCosto: 12, precioVenta: 35, stock: 100, stockMin: 25, stockOptimo: 120, unidad: 'taza' },
-  { id: 7, nombre: 'Agua Embotellada 600ml', categoria: 'Bebida', precioCosto: 8, precioVenta: 20, stock: 150, stockMin: 40, stockOptimo: 180, unidad: 'pz' },
-];
+const DEFAULT_PRODUCTOS = [];
 
 const CATEGORIAS = ['Todas', 'Cerveza', 'Refresco', 'Snack', 'Comida', 'Bebida'];
 
@@ -139,10 +131,7 @@ export default function BarPanel({ showToast }) {
         if (savedLogs) {
           setLogs(deobfuscate(savedLogs) || []);
         } else {
-          const defaultLogs = [
-            { id: 1, fecha: new Date(Date.now() - 36*3600000).toISOString(), producto: 'Cerveza Corona Extra', tipo: 'entrada', cantidad: 48, detalle: 'Abastecimiento de bodega principal', operador: 'Admin YoY' },
-            { id: 2, fecha: new Date(Date.now() - 12*3600000).toISOString(), producto: 'Alitas de Pollo x10', tipo: 'merma', cantidad: 3, detalle: 'Insumo caducado en refrigeración', operador: 'Admin YoY' }
-          ];
+          const defaultLogs = [];
           setLogs(defaultLogs);
           localStorage.setItem('yoy_billar_stock_logs', obfuscate(defaultLogs));
         }
