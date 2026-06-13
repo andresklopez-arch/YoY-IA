@@ -217,6 +217,98 @@ export default function TorneosPanel({ showToast }) {
     }
   };
 
+  const handleCambiarCategoriaGlobal = async (jugadorNombre, nuevaCategoria, juegoTipo) => {
+    const key = (juegoTipo || 'Pool').toLowerCase();
+    
+    // Load current rankings
+    let rankingData = { pool: [], carambola: [], snooker: [] };
+    const saved = localStorage.getItem('yoy_ranking_historico');
+    if (saved) {
+      try {
+        rankingData = deobfuscate(saved) || { pool: [], carambola: [], snooker: [] };
+      } catch (e) {}
+    }
+
+    if (!rankingData[key]) rankingData[key] = [];
+
+    const idx = rankingData[key].findIndex(r => r.nombre.toLowerCase() === jugadorNombre.toLowerCase());
+    if (idx !== -1) {
+      rankingData[key][idx] = {
+        ...rankingData[key][idx],
+        categoria: nuevaCategoria,
+        rachaV: 0,
+        rachaD: 0
+      };
+
+      setRankingHistorico(rankingData);
+      try {
+        localStorage.setItem('yoy_ranking_historico', obfuscate(rankingData));
+        await setDoc(doc(db, 'config', 'ranking_historico'), {
+          rankings: rankingData,
+          updatedAt: serverTimestamp()
+        });
+        showToast(`Categoría de ${jugadorNombre} actualizada a ${nuevaCategoria}.`, 'success');
+
+        await addDoc(collection(db, 'bitacora'), {
+          fecha: new Date().toISOString(),
+          accion: 'Manual Category Update',
+          detalle: `Categoría de ${jugadorNombre} cambiada a ${nuevaCategoria} por operador.`,
+          monto: 0,
+          operador: 'Operador YoY'
+        });
+      } catch (err) {
+        console.error("Error al guardar ranking histórico:", err);
+      }
+    }
+  };
+
+  const inicializarJugadoresEnRankingGlobal = async (jugadores, juegoTipo) => {
+    const key = (juegoTipo || 'Pool').toLowerCase();
+    
+    // Load current rankings
+    let rankingData = { pool: [], carambola: [], snooker: [] };
+    const saved = localStorage.getItem('yoy_ranking_historico');
+    if (saved) {
+      try {
+        rankingData = deobfuscate(saved) || { pool: [], carambola: [], snooker: [] };
+      } catch (e) {}
+    }
+
+    if (!rankingData[key]) rankingData[key] = [];
+
+    let huboCambios = false;
+    jugadores.forEach(j => {
+      const exists = rankingData[key].some(r => r.nombre.toLowerCase() === j.nombre.toLowerCase());
+      if (!exists) {
+        rankingData[key].push({
+          nombre: j.nombre,
+          elo: 1500,
+          pj: 0,
+          pg: 0,
+          pp: 0,
+          categoria: j.categoria || '3ra',
+          rachaV: 0,
+          rachaD: 0
+        });
+        huboCambios = true;
+      }
+    });
+
+    if (huboCambios) {
+      rankingData[key].sort((a, b) => b.elo - a.elo);
+      setRankingHistorico(rankingData);
+      try {
+        localStorage.setItem('yoy_ranking_historico', obfuscate(rankingData));
+        await setDoc(doc(db, 'config', 'ranking_historico'), {
+          rankings: rankingData,
+          updatedAt: serverTimestamp()
+        });
+      } catch (err) {
+        console.error("Error al inicializar jugadores en ranking global:", err);
+      }
+    }
+  };
+
   const saveRankingHistorico = async (ganador, perdedor, juegoTipo) => {
     const key = (juegoTipo || 'Pool').toLowerCase();
     const CATEGORIES_ORDER = ['4ta', '3ra', '2da', '1ra', 'Mtro'];
@@ -283,9 +375,8 @@ export default function TorneosPanel({ showToast }) {
     if (p2Index !== -1) rankingData[key][p2Index] = p2;
     else rankingData[key].push(p2);
 
-    // Sort top 20 by ELO
+    // Sort by ELO
     rankingData[key].sort((a, b) => b.elo - a.elo);
-    rankingData[key] = rankingData[key].slice(0, 20);
 
     // Save
     setRankingHistorico(rankingData);
