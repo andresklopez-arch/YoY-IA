@@ -50,10 +50,21 @@ function MeseroContent() {
 
   // Unificar cuentas reales con las mesas ocupadas que aún no tengan cuenta registrada
   const getCuentasActivasUnificadas = () => {
-    const unificadas = [...cuentas];
+    // Filtrar cuentas asociadas a mesas en mantenimiento para evitar que aparezcan en la vista del mesero
+    const cuentasFiltradas = cuentas.filter(c => {
+      if (c.mesaId) {
+        const m = mesas.find(tbl => String(tbl.id) === String(c.mesaId));
+        if (m && m.estado === 'manten') return false;
+      }
+      const mesaAsoc = findMesaAsociada(c);
+      if (mesaAsoc && mesaAsoc.estado === 'manten') return false;
+      return true;
+    });
+
+    const unificadas = [...cuentasFiltradas];
     mesas.forEach(m => {
       if (m.estado === 'ocupada') {
-        const tieneCuenta = cuentas.some(c => 
+        const tieneCuenta = cuentasFiltradas.some(c => 
           (c.mesaId && String(c.mesaId) === String(m.id)) ||
           (c.cliente && (
             (m.cliente && !['público', 'publico'].includes(m.cliente.toLowerCase()) && c.cliente.toLowerCase().startsWith(m.cliente.toLowerCase())) ||
@@ -66,7 +77,7 @@ function MeseroContent() {
           unificadas.push({
             id: `mesa_${m.id}`,
             mesaId: m.id,
-            cliente: m.cliente || `Mesa ${m.id}`,
+            cliente: (m.cliente && !['público', 'publico'].includes(m.cliente.toLowerCase())) ? m.cliente : `Mesa ${m.id}`,
             consumos: [],
             tiempoJuego: 0
           });
@@ -984,8 +995,8 @@ function MeseroContent() {
                   ) || !!localRequestedCuentas[c.cliente.toLowerCase()];
 
                   const displayClienteName = c.mesaId 
-                    ? (c.cliente && c.cliente.toLowerCase().startsWith('mesa ') ? `Mesa ${c.mesaId}` : c.cliente)
-                    : (mesaAsociada ? (c.cliente && c.cliente.toLowerCase().startsWith('mesa ') ? `Mesa ${mesaAsociada.id}` : c.cliente) : c.cliente);
+                    ? (c.cliente && (c.cliente.toLowerCase().startsWith('mesa ') || ['público', 'publico'].includes(c.cliente.toLowerCase())) ? `Mesa ${c.mesaId}` : c.cliente)
+                    : (mesaAsociada ? (c.cliente && (c.cliente.toLowerCase().startsWith('mesa ') || ['público', 'publico'].includes(c.cliente.toLowerCase())) ? `Mesa ${mesaAsociada.id}` : c.cliente) : c.cliente);
 
                   const tieneAsistenciaPendiente = (alertasAsistencia || []).some(alerta => 
                     !alerta.atendidoMesero &&
