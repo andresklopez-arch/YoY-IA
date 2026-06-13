@@ -418,6 +418,20 @@ export default function MesaClientePage({ params }) {
           try {
             localStorage.setItem(`yoy_mesa_info_${mesaId}`, JSON.stringify(mesa));
           } catch (e) {}
+          
+          // Verificar si es una nueva sesión para limpiar el nombre de cliente anterior
+          if (typeof window !== 'undefined') {
+            try {
+              const savedInicio = localStorage.getItem(`yoy_mesa_session_inicio_${mesaId}`) || '';
+              const currentInicio = mesa.inicio ? String(mesa.inicio) : '';
+              if (savedInicio !== currentInicio) {
+                localStorage.setItem(`yoy_mesa_session_inicio_${mesaId}`, currentInicio);
+                localStorage.removeItem('yoy_cliente_nombre');
+                setClienteNombre('');
+              }
+            } catch (e) {}
+          }
+
           if (mesa.cliente && mesa.cliente !== 'Público') {
             setClienteNombre(mesa.cliente);
             const isGeneric = mesa.cliente.toLowerCase().startsWith('mesa ');
@@ -426,6 +440,11 @@ export default function MesaClientePage({ params }) {
                 localStorage.setItem('yoy_cliente_nombre', mesa.cliente);
               } catch (e) {}
             }
+          } else if (mesa.cliente === 'Público') {
+            setClienteNombre('');
+            try {
+              localStorage.removeItem('yoy_cliente_nombre');
+            } catch (e) {}
           }
         } else {
           setMesaInfo(null);

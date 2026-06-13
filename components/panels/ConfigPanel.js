@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { db } from '@/lib/firebase';
-import { collection, getDocs, addDoc, query, orderBy, deleteDoc, doc, where, setDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, getDocs, addDoc, query, orderBy, deleteDoc, doc, where, setDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { obfuscate, deobfuscate, hashPasswordSecure } from '@/lib/crypto';
 import { getClientDomain } from '@/lib/tenant';
 
@@ -112,22 +112,37 @@ export default function ConfigPanel({ showToast }) {
         }).catch(() => {})
       )
     );
+    // Escuchar mesas de Firestore en tiempo real como fuente única de verdad
+    const docRef = doc(db, 'config', 'mesas_estado');
+    const unsubMesas = onSnapshot(docRef, snap => {
+      if (snap.exists()) {
+        const data = snap.data();
+        if (data && Array.isArray(data.mesas)) {
+          setMesas(data.mesas);
+        }
+      } else {
+        const defaultMesas = [
+          { id: 1, nombre: 'Mesa 1', tipo: 'Carambola 3B', estado: 'libre', cliente: null, inicio: null, tarifa: 80, socios: false, clienteUid: '' },
+          { id: 2, nombre: 'Mesa 2', tipo: 'Carambola 3B', estado: 'libre', cliente: null, inicio: null, tarifa: 80, socios: false, clienteUid: '' },
+          { id: 3, nombre: 'Mesa 3', tipo: 'Pool 9B',      estado: 'libre', cliente: null, inicio: null, tarifa: 60, socios: false, clienteUid: '' },
+          { id: 4, nombre: 'Mesa 4', tipo: 'Carambola 3B', estado: 'libre', cliente: null, inicio: null, tarifa: 80, socios: false, clienteUid: '' },
+          { id: 5, nombre: 'Mesa 5', tipo: 'Snooker',      estado: 'libre', cliente: null, inicio: null, tarifa: 100, socios: false, clienteUid: '' },
+          { id: 6, nombre: 'Mesa 6', tipo: 'Pool 9B',      estado: 'libre', cliente: null, inicio: null, tarifa: 60, socios: false, clienteUid: '' },
+          { id: 7, nombre: 'Mesa 7', tipo: 'Carambola 3B', estado: 'libre', cliente: null, inicio: null, tarifa: 80, socios: false, clienteUid: '' },
+          { id: 8, nombre: 'Mesa 8', tipo: 'Pool 9B',      estado: 'libre', cliente: null, inicio: null, tarifa: 60, socios: false, clienteUid: '' },
+        ];
+        setMesas(defaultMesas);
+        setDoc(docRef, {
+          mesas: defaultMesas,
+          updatedAt: serverTimestamp()
+        }).catch(err => console.error("Error al inicializar mesas en config:", err));
+      }
+    }, err => {
+      console.error("Error al escuchar mesas en ConfigPanel:", err);
+    });
+
     if (typeof window !== 'undefined') {
       try {
-        const savedMesas = localStorage.getItem('yoy_billar_mesas');
-        if (savedMesas) {
-          setMesas(deobfuscate(savedMesas) || []);
-        } else {
-          const defaultMesas = [
-            { id: 1, nombre: 'Mesa 1', tipo: 'Carambola', estado: 'libre', cliente: null, inicio: null, tarifa: 80, socios: false },
-            { id: 2, nombre: 'Mesa 2', tipo: 'Carambola', estado: 'libre', cliente: null, inicio: null, tarifa: 80, socios: false },
-            { id: 3, nombre: 'Mesa 3', tipo: 'Pool', estado: 'libre', cliente: null, inicio: null, tarifa: 60, socios: false },
-            { id: 4, nombre: 'Mesa 4', tipo: 'Pool', estado: 'libre', cliente: null, inicio: null, tarifa: 60, socios: false },
-            { id: 5, nombre: 'Mesa 5', tipo: 'Snooker', estado: 'libre', cliente: null, inicio: null, tarifa: 100, socios: false },
-          ];
-          setMesas(defaultMesas);
-          localStorage.setItem('yoy_billar_mesas', obfuscate(defaultMesas));
-        }
 
         const savedTicket = localStorage.getItem('yoy_ticket_config');
         if (savedTicket) {
@@ -172,6 +187,7 @@ export default function ConfigPanel({ showToast }) {
         console.error(err);
       }
     }
+    return () => unsubMesas();
   }, []);
 
   const handleAddUser = async (e) => {
@@ -315,6 +331,10 @@ export default function ConfigPanel({ showToast }) {
       });
       setMesas(updatedMesas);
       localStorage.setItem('yoy_billar_mesas', obfuscate(updatedMesas));
+      setDoc(doc(db, 'config', 'mesas_estado'), {
+        mesas: updatedMesas,
+        updatedAt: serverTimestamp()
+      }).catch(err => console.error("Error al sincronizar catálogo tras modificar mesa:", err));
       setEditingMesaId(null);
       setNuevaMesa({ id: '', nombre: '', tarifa: '', tipo: 'Pool' });
       showToast('Mesa modificada correctamente', 'success');
@@ -331,11 +351,16 @@ export default function ConfigPanel({ showToast }) {
         cliente: null,
         inicio: null,
         tarifa: mesaTarifa,
-        socios: false
+        socios: false,
+        clienteUid: ''
       };
       const updated = [...mesas, nueva].sort((a, b) => a.id - b.id);
       setMesas(updated);
       localStorage.setItem('yoy_billar_mesas', obfuscate(updated));
+      setDoc(doc(db, 'config', 'mesas_estado'), {
+        mesas: updated,
+        updatedAt: serverTimestamp()
+      }).catch(err => console.error("Error al sincronizar catálogo tras agregar mesa:", err));
       setNuevaMesa({ id: '', nombre: '', tarifa: '', tipo: 'Pool' });
       showToast('Nueva mesa agregada', 'success');
     }
@@ -356,6 +381,10 @@ export default function ConfigPanel({ showToast }) {
     const updated = mesas.filter(m => m.id !== mesaId);
     setMesas(updated);
     localStorage.setItem('yoy_billar_mesas', obfuscate(updated));
+    setDoc(doc(db, 'config', 'mesas_estado'), {
+      mesas: updated,
+      updatedAt: serverTimestamp()
+    }).catch(err => console.error("Error al sincronizar catálogo tras eliminar mesa:", err));
     showToast('Mesa eliminada', 'success');
   };
 

@@ -940,6 +940,11 @@ function useLiveTick() {
 export default function MesasPanel({ showToast }) {
   const { user } = useAuth();
   const [mesas, setMesas] = useState(INIT_MESAS);
+  const isIncomingUpdateRef = useRef(false);
+  const mesasRef = useRef(mesas);
+  useEffect(() => {
+    mesasRef.current = mesas;
+  }, [mesas]);
   const [filtro, setFiltro] = useState('todas');
   const [animacionesActivas, setAnimacionesActivas] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -1788,9 +1793,6 @@ export default function MesasPanel({ showToast }) {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       try {
-        const savedMesas = localStorage.getItem('yoy_billar_mesas');
-        if (savedMesas) setMesas(deobfuscate(savedMesas) || INIT_MESAS);
-
         const savedCuentas = localStorage.getItem('yoy_billar_cuentas');
         if (savedCuentas) setCuentasActivas(deobfuscate(savedCuentas) || []);
 
@@ -1803,6 +1805,33 @@ export default function MesasPanel({ showToast }) {
         console.error("Error al cargar datos desde localStorage:", err);
       }
     }
+  }, []);
+
+  // Escuchar mesas de Firestore en tiempo real como fuente única de verdad
+  useEffect(() => {
+    const docRef = doc(db, 'config', 'mesas_estado');
+    const unsub = onSnapshot(docRef, snap => {
+      if (snap.exists()) {
+        const data = snap.data();
+        if (data && Array.isArray(data.mesas)) {
+          const isDifferent = JSON.stringify(data.mesas) !== JSON.stringify(mesasRef.current);
+          if (isDifferent) {
+            isIncomingUpdateRef.current = true;
+            setMesas(data.mesas);
+          }
+        }
+      } else {
+        const savedMesas = localStorage.getItem('yoy_billar_mesas');
+        const initialMesas = savedMesas ? (deobfuscate(savedMesas) || INIT_MESAS) : INIT_MESAS;
+        setDoc(docRef, {
+          mesas: initialMesas,
+          updatedAt: serverTimestamp()
+        }).catch(err => console.error("Error al inicializar mesas en Firestore:", err));
+      }
+    }, err => {
+      console.error("Error al escuchar mesas en tiempo real:", err);
+    });
+    return unsub;
   }, []);
 
   // Escuchar bitácora de Firestore en tiempo real para mantener sincronizado a todo el staff
@@ -1833,6 +1862,12 @@ export default function MesasPanel({ showToast }) {
     if (typeof window !== 'undefined') {
       try {
         localStorage.setItem('yoy_billar_mesas', obfuscate(mesas));
+        
+        if (isIncomingUpdateRef.current) {
+          isIncomingUpdateRef.current = false;
+          return;
+        }
+
         // Sincronizar estado general de mesas con Firestore para clientes con reintentos
         setDocWithRetry(doc(db, 'config', 'mesas_estado'), {
           mesas: mesas,
