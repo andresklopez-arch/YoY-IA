@@ -146,6 +146,32 @@ export default function TorneosPanel({ showToast }) {
       }
     });
 
+    // Escucha en tiempo real del Ranking Global
+    const unsubRanking = onSnapshot(doc(db, 'config', 'ranking_historico'), snap => {
+      if (snap.exists()) {
+        const data = snap.data();
+        if (data && data.rankings) {
+          setRankingHistorico(data.rankings);
+          try {
+            localStorage.setItem('yoy_ranking_historico', obfuscate(data.rankings));
+          } catch (e) {}
+        }
+      } else {
+        const initialRank = { pool: [], carambola: [], snooker: [] };
+        setRankingHistorico(initialRank);
+        try {
+          localStorage.setItem('yoy_ranking_historico', obfuscate(initialRank));
+        } catch (e) {}
+        setDoc(doc(db, 'config', 'ranking_historico'), { rankings: initialRank, updatedAt: serverTimestamp() });
+      }
+    }, err => {
+      console.warn("Error al escuchar ranking_historico:", err);
+      try {
+        const savedRank = localStorage.getItem('yoy_ranking_historico');
+        if (savedRank) setRankingHistorico(deobfuscate(savedRank) || { pool: [], carambola: [], snooker: [] });
+      } catch (e) {}
+    });
+
     // Cargar mesas
     const savedMesas = localStorage.getItem('yoy_billar_mesas');
     if (savedMesas) {
@@ -165,7 +191,10 @@ export default function TorneosPanel({ showToast }) {
       localStorage.setItem('yoy_billar_mesas', obfuscate(defaultMesas));
     }
 
-    return () => unsub();
+    return () => {
+      unsub();
+      unsubRanking();
+    };
   }, []);
 
   const saveTorneos = async (newTorneos) => {
