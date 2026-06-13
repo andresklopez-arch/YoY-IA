@@ -363,7 +363,7 @@ function ModalAbrirMesa({ mesa, onClose, onConfirm }) {
         </div>
         <div className="modal-footer">
           <button className="btn btn-secondary" onClick={onClose}>Cancelar</button>
-          <button className="btn btn-primary" onClick={() => onConfirm({ cliente: cliente || 'Público', esSocio, rentarTaco, rentarBolas, rentarTiza })}>
+          <button className="btn btn-primary" onClick={() => onConfirm({ cliente: cliente.trim() || `Mesa ${mesa.id}`, esSocio, rentarTaco, rentarBolas, rentarTiza })}>
             <i className="ri-play-circle-line" /> Iniciar Mesa
           </button>
         </div>
