@@ -76,7 +76,8 @@ export default function BarPanel({ showToast }) {
     stock: '',
     stockMin: '',
     stockOptimo: '',
-    unidad: 'pz'
+    unidad: 'pz',
+    activoIA: true
   });
 
   const generarConteoCiego = (listaProds = productos) => {
@@ -373,7 +374,7 @@ export default function BarPanel({ showToast }) {
 
   // Registrar Nuevo Producto
   const handleRegistrarProducto = () => {
-    const { nombre, categoria, precioCosto, precioVenta, stock, stockMin, stockOptimo, unidad } = formNuevo;
+    const { nombre, categoria, precioCosto, precioVenta, stock, stockMin, stockOptimo, unidad, activoIA } = formNuevo;
     if (!nombre.trim() || !precioCosto || !precioVenta) {
       showToast('Por favor complete los campos obligatorios: Nombre, Costo y Venta.', 'warning');
       return;
@@ -401,6 +402,7 @@ export default function BarPanel({ showToast }) {
       stockMin: minVal,
       stockOptimo: optimoVal,
       unidad: unidad || 'pz',
+      activoIA: activoIA !== false,
       lastModified: Date.now()
     };
 
@@ -436,7 +438,8 @@ export default function BarPanel({ showToast }) {
       stock: '',
       stockMin: '',
       stockOptimo: '',
-      unidad: 'pz'
+      unidad: 'pz',
+      activoIA: true
     });
   };
 
@@ -528,7 +531,7 @@ export default function BarPanel({ showToast }) {
   // Generar Orden de Compra Sugerida IA
   const generarOrdenCompraIA = () => {
     const orden = productos
-      .filter(p => p.stock <= p.stockMin)
+      .filter(p => p.stock <= p.stockMin && p.activoIA !== false)
       .map(p => {
         const cantidadSugerida = p.stockOptimo - p.stock;
         const costoTotal = cantidadSugerida * p.precioCosto;
@@ -748,7 +751,14 @@ export default function BarPanel({ showToast }) {
                   const esCritico = p.stock <= p.stockMin;
                   return (
                     <tr key={p.id} style={{ borderBottom: '1px solid var(--border)', background: esCritico ? 'rgba(239,68,68,0.02)' : 'none' }}>
-                      <td style={{ padding: '12px 8px', fontWeight: 600 }}>{p.nombre}</td>
+                      <td style={{ padding: '12px 8px', fontWeight: 600 }}>
+                        {p.nombre}
+                        {p.activoIA === false && (
+                          <span style={{ fontSize: 9, color: 'var(--text-muted)', marginLeft: 6, fontWeight: 400, border: '1px solid rgba(255,255,255,0.1)', padding: '2px 5px', borderRadius: 4, background: 'rgba(255,255,255,0.02)', display: 'inline-block' }}>
+                            IA Desactivada
+                          </span>
+                        )}
+                      </td>
                       <td style={{ padding: '12px 8px', color: 'var(--text-secondary)' }}>{p.categoria}</td>
                       <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 700, color: esCritico ? 'var(--danger)' : 'var(--text-primary)' }}>
                         {p.stock} <span style={{ fontSize: 10, fontWeight: 400, color: 'var(--text-muted)' }}>{p.unidad}</span>
@@ -1088,6 +1098,24 @@ export default function BarPanel({ showToast }) {
                     value={ajusteMotivo}
                     onChange={e => setAjusteMotivo(e.target.value)}
                   />
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: 'rgba(255,255,255,0.02)', borderRadius: 10, border: '1px solid var(--border)', marginTop: 8 }}>
+                  <input
+                    type="checkbox"
+                    id="activoIACheck"
+                    checked={modalAjuste.activoIA !== false}
+                    onChange={(e) => {
+                      const updated = { ...modalAjuste, activoIA: e.target.checked };
+                      setModalAjuste(updated);
+                      const nuevosProductos = productos.map(p => p.id === modalAjuste.id ? { ...p, activoIA: e.target.checked } : p);
+                      saveState(nuevosProductos, logs);
+                    }}
+                    style={{ width: 16, height: 16, cursor: 'pointer', accentColor: 'var(--bronze-light)' }}
+                  />
+                  <label htmlFor="activoIACheck" style={{ fontSize: 12, color: 'var(--text-primary)', cursor: 'pointer', fontWeight: 600 }}>
+                    🤖 Habilitar sugerencias de reorden IA para este producto
+                  </label>
                 </div>
               </div>
             </div>
@@ -1488,6 +1516,18 @@ export default function BarPanel({ showToast }) {
                       value={formNuevo.precioVenta}
                       onChange={e => setFormNuevo({ ...formNuevo, precioVenta: e.target.value })}
                     />
+                  </div>
+                  <div className="form-group" style={{ gridColumn: 'span 2', display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
+                    <input
+                      type="checkbox"
+                      id="formNuevoActivoIA"
+                      checked={formNuevo.activoIA !== false}
+                      onChange={e => setFormNuevo({ ...formNuevo, activoIA: e.target.checked })}
+                      style={{ width: 16, height: 16, cursor: 'pointer', accentColor: 'var(--bronze-light)' }}
+                    />
+                    <label htmlFor="formNuevoActivoIA" style={{ fontSize: 12, color: 'var(--text-primary)', cursor: 'pointer', fontWeight: 600 }}>
+                      🤖 Incluir este producto en sugerencias de reorden IA
+                    </label>
                   </div>
                 </div>
               </div>
