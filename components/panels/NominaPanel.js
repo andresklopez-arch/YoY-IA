@@ -99,6 +99,42 @@ function useVentasReales(fechaInicio, fechaFin) {
 }
 
 // ─────────────────────────────────────────────
+// MEJORA 2: HOOK DE ALERTAS IA GLOBALES
+// Exporta alertas para uso en el Topbar (badge)
+// ─────────────────────────────────────────────
+export function useAlertasNomina() {
+  const [alertas, setAlertas] = useState([]);
+
+  useEffect(() => {
+    const q = query(collection(db, 'nomina_asistencia'));
+    const unsub = onSnapshot(q, snap => {
+      const asistencias = snap.docs.map(d => d.data());
+      const mesActual = new Date().toISOString().slice(0, 7);
+      const nuevas = [];
+
+      // Detectar empleados con 3+ ausencias este mes
+      const porEmpleado = {};
+      asistencias.filter(a => a.fecha?.startsWith(mesActual)).forEach(a => {
+        if (!porEmpleado[a.empleadoId]) porEmpleado[a.empleadoId] = [];
+        porEmpleado[a.empleadoId].push(a);
+      });
+
+      Object.entries(porEmpleado).forEach(([empId, registros]) => {
+        const ausencias = registros.filter(r => r.estado === 'ausente').length;
+        if (ausencias >= 3) {
+          nuevas.push({ tipo: 'ausencia', empId, ausencias, mensaje: `${ausencias} ausencias este mes` });
+        }
+      });
+
+      setAlertas(nuevas);
+    });
+    return unsub;
+  }, []);
+
+  return alertas;
+}
+
+// ─────────────────────────────────────────────
 // COMPONENTES AUXILIARES
 // ─────────────────────────────────────────────
 function StatCardMini({ icon, label, value, color }) {
