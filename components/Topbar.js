@@ -698,14 +698,19 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
       {/* ── MODAL PASE DE LISTA QR ── */}
       {showModalPaseLista && typeof window !== 'undefined' && createPortal(
         <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)',
+          position: 'fixed',
+          top: '70px',
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.88)',
           display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 3000,
           backdropFilter: 'blur(5px)',
-          paddingTop: '60px',
-          paddingBottom: '60px',
+          paddingTop: '24px',
+          paddingBottom: '24px',
           overflowY: 'auto'
         }} onClick={() => setShowModalPaseLista(false)}>
-          <div className="modal" style={{ width: '90%', maxWidth: 700, maxHeight: '85vh', display: 'flex', flexDirection: 'column', background: 'var(--bg-card)', border: '1px solid var(--border-bronze)', boxShadow: 'var(--shadow-bronze)', borderRadius: 20 }} onClick={e => e.stopPropagation()}>
+          <div className="modal" style={{ width: '90%', maxWidth: 700, maxHeight: 'calc(100vh - 140px)', display: 'flex', flexDirection: 'column', background: 'var(--bg-card)', border: '1px solid var(--border-bronze)', boxShadow: 'var(--shadow-bronze)', borderRadius: 20 }} onClick={e => e.stopPropagation()}>
             <div className="modal-header" style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span className="modal-title" style={{ fontSize: 16, fontWeight: 800, color: 'var(--bronze-light)', textTransform: 'uppercase', letterSpacing: '0.1em', display: 'flex', alignItems: 'center', gap: 8 }}>
                 <i className="ri-qr-code-line" /> Pase de Lista y Acceso de Empleados
