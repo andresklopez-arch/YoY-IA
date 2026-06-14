@@ -20,6 +20,15 @@ const HISTORICO_DATA = [
 // ── PRODUCTOS INICIALES DEL INVENTARIO ────────────────────
 const DEFAULT_PRODUCTOS = [];
 
+const getCategoriaBadgeClass = (cat) => {
+  const norm = cat ? cat.toLowerCase() : '';
+  if (norm === 'cerveza') return 'badge-bronze';
+  if (norm === 'refresco') return 'badge-success';
+  if (norm === 'snack') return 'badge-blue';
+  if (norm === 'comida') return 'badge-warning';
+  if (norm === 'bebida') return 'badge-danger';
+  return 'badge-muted';
+};
 
 export default function BarPanel({ showToast }) {
   const { user } = useAuth();
@@ -68,6 +77,11 @@ export default function BarPanel({ showToast }) {
   const [modalOrdenCompra, setModalOrdenCompra] = useState(false);
   const [ordenSugerida, setOrdenSugerida] = useState([]);
   const [modalExportar, setModalExportar] = useState(false);
+  const [showGestionCategorias, setShowGestionCategorias] = useState(false);
+  const [editingCatName, setEditingCatName] = useState(null);
+  const [editingCatValue, setEditingCatValue] = useState('');
+  const [deletingCatName, setDeletingCatName] = useState(null);
+  const [reassignCatTarget, setReassignCatTarget] = useState('Bebida');
 
   // Estados para Auditoría e Inventarios IA seleccionables
   const [modoInventario, setModoInventario] = useState('general'); // general, periodico, azar, producto, inconsistencia, mas_vendidos, menos_vendidos
@@ -947,7 +961,11 @@ export default function BarPanel({ showToast }) {
                           </span>
                         )}
                       </td>
-                      <td style={{ padding: densidadVista === 'compact' ? '6px 8px' : '12px 8px', color: 'var(--text-secondary)' }}>{p.categoria}</td>
+                      <td style={{ padding: densidadVista === 'compact' ? '6px 8px' : '12px 8px' }}>
+                        <span className={`badge ${getCategoriaBadgeClass(p.categoria)}`} style={{ fontSize: densidadVista === 'compact' ? 9 : 10, padding: '2px 6px' }}>
+                          {p.categoria}
+                        </span>
+                      </td>
                       <td style={{ padding: densidadVista === 'compact' ? '6px 8px' : '12px 8px', textAlign: 'center', fontWeight: 700, color: esCritico ? 'var(--danger)' : 'var(--text-primary)' }}>
                         {p.stock} <span style={{ fontSize: densidadVista === 'compact' ? 9 : 10, fontWeight: 400, color: 'var(--text-muted)' }}>{p.unidad}</span>
                       </td>
@@ -1616,13 +1634,53 @@ export default function BarPanel({ showToast }) {
                     className="form-input"
                     placeholder="Ej: Cerveza Victoria 355ml"
                     value={formNuevo.nombre}
-                    onChange={e => setFormNuevo({ ...formNuevo, nombre: e.target.value })}
+                    onChange={e => {
+                      const val = e.target.value;
+                      let suggestedCat = formNuevo.categoria;
+                      const lower = val.toLowerCase();
+                      
+                      // Auto-sugerencias inteligentes de categoría
+                      if (lower.includes('cerveza') || lower.includes('corona') || lower.includes('victoria') || lower.includes('indio') || lower.includes('xx') || lower.includes('beer') || lower.includes('laton') || lower.includes('ultra')) {
+                        suggestedCat = 'Cerveza';
+                      } else if (lower.includes('coca') || lower.includes('refresco') || lower.includes('soda') || lower.includes('sprite') || lower.includes('fanta') || lower.includes('pepsi') || lower.includes('agua') || lower.includes('jugo')) {
+                        suggestedCat = 'Refresco';
+                      } else if (lower.includes('papas') || lower.includes('snacks') || lower.includes('sabritas') || lower.includes('cacahuates') || lower.includes('nachos') || lower.includes('papas')) {
+                        suggestedCat = 'Snack';
+                      } else if (lower.includes('hamburguesa') || lower.includes('alitas') || lower.includes('comida') || lower.includes('taco') || lower.includes('pizza') || lower.includes('boneless') || lower.includes('papas fritas')) {
+                        suggestedCat = 'Comida';
+                      } else if (lower.includes('vino') || lower.includes('whisky') || lower.includes('tequila') || lower.includes('bebida') || lower.includes('copa') || lower.includes('trago')) {
+                        suggestedCat = 'Bebida';
+                      }
+
+                      setFormNuevo({ ...formNuevo, nombre: val, categoria: suggestedCat });
+                    }}
                   />
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                   <div className="form-group">
-                    <label className="form-label">Categoría</label>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                      <label className="form-label" style={{ margin: 0 }}>Categoría</label>
+                      <button
+                        type="button"
+                        style={{ 
+                          background: 'none', 
+                          border: 'none', 
+                          color: 'var(--bronze-light)', 
+                          fontSize: 10, 
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 3,
+                          padding: 0,
+                          fontWeight: 600
+                        }}
+                        onClick={() => setShowGestionCategorias(true)}
+                        title="Administrar todas las categorías"
+                      >
+                        <i className="ri-settings-4-line" /> Administrar
+                      </button>
+                    </div>
                     <div style={{ display: 'flex', gap: 6 }}>
                       <select
                         className="form-select"
@@ -1757,6 +1815,245 @@ export default function BarPanel({ showToast }) {
               <button className="btn btn-secondary" onClick={() => setShowNuevoProducto(false)}>Cancelar</button>
               <button className="btn btn-primary" onClick={handleRegistrarProducto}>
                 Registrar Producto
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showGestionCategorias && (
+        <div className="modal-overlay" onClick={() => {
+          setShowGestionCategorias(false);
+          setEditingCatName(null);
+          setDeletingCatName(null);
+        }}>
+          <div className="modal" style={{ maxWidth: 500 }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <span className="modal-title">
+                <i className="ri-settings-4-line" style={{ marginRight: 8, color: 'var(--bronze-light)' }} />
+                Administrar Categorías
+              </span>
+              <button 
+                onClick={() => {
+                  setShowGestionCategorias(false);
+                  setEditingCatName(null);
+                  setDeletingCatName(null);
+                }} 
+                className="btn-icon btn btn-secondary" 
+                style={{ background: 'none', border: 'none' }}
+              >
+                <i className="ri-close-line" style={{ fontSize: 20 }} />
+              </button>
+            </div>
+            <div className="modal-body">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                
+                {/* Panel de eliminación y reasignación */}
+                {deletingCatName && (
+                  <div style={{ 
+                    padding: 12, 
+                    border: '1px solid #ef4444', 
+                    borderRadius: 8, 
+                    background: 'rgba(239, 68, 68, 0.1)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 10
+                  }}>
+                    <div style={{ fontWeight: 600, color: '#ef4444', fontSize: 13 }}>
+                      ¿Eliminar la categoría "{deletingCatName}"?
+                    </div>
+                    <p style={{ margin: 0, fontSize: 12, color: 'var(--text-primary)' }}>
+                      Los productos que pertenecen a esta categoría deben ser reasignados para no perder su información.
+                    </p>
+                    <div className="form-group">
+                      <label className="form-label" style={{ fontSize: 11 }}>Reasignar productos a:</label>
+                      <select
+                        className="form-select"
+                        value={reassignCatTarget}
+                        onChange={e => setReassignCatTarget(e.target.value)}
+                      >
+                        {categorias.filter(c => c !== 'Todas' && c !== deletingCatName).map(c => (
+                          <option key={c} value={c}>{c}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
+                      <button 
+                        className="btn btn-secondary" 
+                        style={{ padding: '4px 10px', fontSize: 12 }}
+                        onClick={() => setDeletingCatName(null)}
+                      >
+                        Cancelar
+                      </button>
+                      <button 
+                        className="btn btn-danger" 
+                        style={{ padding: '4px 10px', fontSize: 12, backgroundColor: '#ef4444', border: 'none', color: '#fff' }}
+                        onClick={async () => {
+                          const affectedProducts = productos.filter(p => p.categoria === deletingCatName);
+                          const updatedProducts = productos.map(p => 
+                            p.categoria === deletingCatName ? { ...p, categoria: reassignCatTarget } : p
+                          );
+                          await saveState(updatedProducts, logs);
+                          
+                          showToast(`Categoría "${deletingCatName}" eliminada. ${affectedProducts.length} productos reasignados a "${reassignCatTarget}" ✓`, 'success');
+                          
+                          await registrarEnBitacoraGeneral(
+                            'Eliminación Categoría', 
+                            `Eliminó categoría ${deletingCatName} y reasignó ${affectedProducts.length} productos a ${reassignCatTarget}`
+                          );
+                          
+                          setDeletingCatName(null);
+                        }}
+                      >
+                        Confirmar y Reasignar
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Lista de categorías */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div style={{ fontWeight: 600, fontSize: 12, color: 'var(--text-muted)' }}>Categorías Existentes</div>
+                  <div style={{ maxHeight: 220, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6, paddingRight: 4 }}>
+                    {categorias.filter(c => c !== 'Todas').map(cat => {
+                      const isEditing = editingCatName === cat;
+                      const productCount = productos.filter(p => p.categoria === cat).length;
+                      
+                      return (
+                        <div 
+                          key={cat} 
+                          style={{ 
+                            display: 'flex', 
+                            justifyContent: 'space-between', 
+                            alignItems: 'center', 
+                            padding: '8px 12px', 
+                            background: 'rgba(255,255,255,0.03)', 
+                            borderRadius: 6,
+                            border: '1px solid rgba(255,255,255,0.05)'
+                          }}
+                        >
+                          {isEditing ? (
+                            <div style={{ display: 'flex', gap: 6, width: '100%' }}>
+                              <input 
+                                type="text" 
+                                className="form-input" 
+                                style={{ flex: 1, padding: '4px 8px', fontSize: 13 }}
+                                value={editingCatValue}
+                                onChange={e => setEditingCatValue(e.target.value)}
+                                autoFocus
+                              />
+                              <button 
+                                className="btn btn-primary" 
+                                style={{ padding: '0 8px', fontSize: 12, display: 'flex', alignItems: 'center' }}
+                                onClick={async () => {
+                                  const newVal = editingCatValue.trim();
+                                  if (!newVal) {
+                                    showToast('El nombre no puede estar vacío', 'error');
+                                    return;
+                                  }
+                                  const formattedVal = newVal.charAt(0).toUpperCase() + newVal.slice(1);
+                                  if (categorias.includes(formattedVal) && formattedVal !== cat) {
+                                    showToast('Ese nombre de categoría ya existe', 'error');
+                                    return;
+                                  }
+                                  
+                                  const updatedProducts = productos.map(p => 
+                                    p.categoria === cat ? { ...p, categoria: formattedVal } : p
+                                  );
+                                  await saveState(updatedProducts, logs);
+                                  
+                                  showToast(`Categoría renombrada a "${formattedVal}" ✓`, 'success');
+                                  
+                                  await registrarEnBitacoraGeneral(
+                                    'Renombrar Categoría', 
+                                    `Cambió nombre de categoría ${cat} a ${formattedVal}`
+                                  );
+                                  
+                                  setEditingCatName(null);
+                                }}
+                              >
+                                Guardar
+                              </button>
+                              <button 
+                                className="btn btn-secondary" 
+                                style={{ padding: '0 8px', fontSize: 12 }}
+                                onClick={() => setEditingCatName(null)}
+                              >
+                                Cancelar
+                              </button>
+                            </div>
+                          ) : (
+                            <>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <span style={{ 
+                                  width: 8, 
+                                  height: 8, 
+                                  borderRadius: '50%', 
+                                  backgroundColor: 
+                                    cat === 'Cerveza' ? '#eab308' :
+                                    cat === 'Refresco' ? '#22c55e' :
+                                    cat === 'Snack' ? '#3b82f6' :
+                                    cat === 'Comida' ? '#ec4899' :
+                                    cat === 'Bebida' ? '#a855f7' : 'var(--text-muted)'
+                                }} />
+                                <span style={{ fontWeight: 500, fontSize: 13 }}>{cat}</span>
+                                <span style={{ 
+                                  fontSize: 10, 
+                                  color: 'var(--text-muted)', 
+                                  background: 'rgba(255,255,255,0.06)', 
+                                  padding: '1px 6px', 
+                                  borderRadius: 10 
+                                }}>
+                                  {productCount} {productCount === 1 ? 'prod' : 'prods'}
+                                </span>
+                              </div>
+                              <div style={{ display: 'flex', gap: 6 }}>
+                                <button 
+                                  type="button" 
+                                  style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 2 }}
+                                  title="Renombrar Categoría"
+                                  onClick={() => {
+                                    setEditingCatName(cat);
+                                    setEditingCatValue(cat);
+                                  }}
+                                >
+                                  <i className="ri-edit-line" style={{ fontSize: 14 }} />
+                                </button>
+                                <button 
+                                  type="button" 
+                                  style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer', padding: 2 }}
+                                  title="Eliminar Categoría"
+                                  onClick={() => {
+                                    const otherCats = categorias.filter(c => c !== 'Todas' && c !== cat);
+                                    if (otherCats.length > 0) {
+                                      setReassignCatTarget(otherCats[0]);
+                                    }
+                                    setDeletingCatName(cat);
+                                  }}
+                                >
+                                  <i className="ri-delete-bin-line" style={{ fontSize: 14 }} />
+                                </button>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button 
+                className="btn btn-secondary" 
+                onClick={() => {
+                  setShowGestionCategorias(false);
+                  setEditingCatName(null);
+                  setDeletingCatName(null);
+                }}
+              >
+                Cerrar
               </button>
             </div>
           </div>
