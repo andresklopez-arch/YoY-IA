@@ -1048,7 +1048,7 @@ export default function BarPanel({ showToast }) {
           </button>
         </div>
       )}
-      <div className="page-header" style={{ marginBottom: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div className="page-header" style={{ marginBottom: 14, display: 'flex', flexDirection: 'column', gap: 12, width: '100%', alignItems: 'stretch' }}>
         {/* Fila 1: Title and KPIs */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
           <div>
