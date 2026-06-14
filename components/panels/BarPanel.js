@@ -854,267 +854,250 @@ export default function BarPanel({ showToast }) {
   return (
     <div>
       <div className="page-header" style={{ marginBottom: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {/* Fila 1: Title and Buttons */}
+        {/* Fila 1: Title and KPIs */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
           <div>
             <h1 className="page-title gradient-bronze" style={{ margin: 0, lineHeight: 1.1 }}>Inventario Inteligente IA</h1>
             <p className="page-subtitle" style={{ margin: '4px 0 0 0', fontSize: 11 }}>Monitoreo de stock, auditoria fisica y motor predictivo de compras</p>
           </div>
 
-          {/* Botones de Accion */}
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-            <button className="btn btn-secondary btn-sm" onClick={optimizarStockConIA} style={{ color: 'var(--bronze-light)', borderColor: 'var(--border-bronze)' }}>
-              <i className="ri-magic-line" style={{ marginRight: 6 }} /> Optimizar Stock con IA
-            </button>
-            <button className="btn btn-secondary btn-sm" onClick={generarOrdenCompraIA} style={{ color: 'var(--bronze-light)', borderColor: 'var(--border-bronze)' }}>
-              <i className="ri-robot-line" style={{ marginRight: 6 }} /> Orden de Compra IA
-            </button>
-            <button className="btn btn-primary btn-sm" onClick={() => setShowNuevoProducto(true)}>
-              <i className="ri-add-line" /> Registrar Producto
-            </button>
-          </div>
-        </div>
-
-        {/* Fila 2: Widget and KPIs */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16, width: '100%', justifyContent: 'space-between' }}>
-            
-            {/* Inteligencia de Margen Widget */}
-            <div className="card" style={{ 
-              flex: 1, 
-              padding: '8px 12px',
-              height: '92px',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'center',
-              borderColor: hasAlerts ? 'rgba(239, 68, 68, 0.4)' : 'var(--border-bronze)',
-              background: 'linear-gradient(135deg, rgba(205,127,50,0.05) 0%, rgba(0,0,0,0.2) 100%)',
-              position: 'relative',
-              boxShadow: hasAlerts ? '0 0 15px rgba(239, 68, 68, 0.2)' : '0 0 15px rgba(205,127,50,0.08)',
-              animation: hasAlerts ? 'widgetGlow 2.5s infinite ease-in-out' : 'none',
-              borderRadius: 10,
-              flexShrink: 1,
-              minWidth: 0
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                <span style={{ fontSize: 9, textTransform: 'uppercase', color: hasAlerts ? '#f87171' : 'var(--bronze-light)', fontWeight: 800, letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <i className="ri-line-chart-line" /> Inteligencia de Margen IA
-                </span>
-                <span style={{ fontSize: 8, color: 'var(--text-muted)' }}>Desliza para ver sugerencias</span>
+          {/* Fila de Metricas en Modo Compacto */}
+          <div style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: 12, 
+            background: 'linear-gradient(135deg, rgba(205,127,50,0.03) 0%, rgba(0,0,0,0.1) 100%)',
+            border: '1px solid var(--border-bronze)',
+            borderRadius: 8, 
+            padding: '6px 12px',
+            height: '48px',
+            position: 'relative',
+            flexShrink: 0
+          }}>
+            {/* Metrica 1 */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+              <span style={{ fontSize: 8, textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.05em' }}>Productos Totales</span>
+              <div style={{ fontSize: 13, fontWeight: 900, color: 'var(--blue-light)', fontFamily: 'var(--font-display)' }}>
+                {productos.length} <span style={{ fontSize: 8, fontWeight: 500, color: 'var(--text-muted)' }}>pz</span>
               </div>
-              
-              {/* Scrollable Container with Custom visible scrollbar */}
-              <div className="custom-scroll" style={{ 
-                overflowY: 'auto', 
-                flex: 1, 
-                paddingRight: 4
-              }}>
-                <div style={{ 
-                  display: 'grid', 
-                  gridTemplateColumns: '1fr 1fr', 
-                  gap: 6
-                }}>
-                  {/* Sugerencias de Margen con Filtro de Descartadas y Boton Descartar */}
-                  {obtenerSugerenciasIA().filter(sug => {
-                    const ts = descartadas[sug.id];
-                    if (!ts) return true;
-                    return (Date.now() - ts) > 15 * 24 * 60 * 60 * 1000; // 15 dias
-                  }).map(sug => (
-                    <div key={sug.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '3px 6px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.04)', gap: 4 }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 0.5, flex: 1, marginRight: 8, overflow: 'hidden' }}>
-                        <span style={{ fontSize: 9, color: sug.type === 'success' ? 'var(--success)' : 'var(--bronze-light)', fontWeight: 700 }}>{sug.tag}</span>
-                        <span style={{ fontSize: 8, color: 'var(--text-secondary)', lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={sug.desc}>{sug.desc}</span>
+            </div>
+
+            <div style={{ width: 1, height: 16, background: 'var(--border)' }} />
+
+            {/* Metrica 2 (Stock Critico Clickable con Animacion) */}
+            <div 
+              className={stockCritico.length > 0 ? 'compact-pulse' : ''}
+              style={{ 
+                display: 'flex', 
+                flexDirection: 'column', 
+                gap: 0,
+                cursor: stockCritico.length > 0 ? 'pointer' : 'default',
+                padding: '2px 6px'
+              }}
+              onClick={() => {
+                if (stockCritico.length > 0) {
+                  setShowCriticoDropdown(!showCriticoDropdown);
+                }
+              }}
+            >
+              <span style={{ fontSize: 8, textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: 2 }}>
+                Alertas Stock {stockCritico.length > 0 && <i className="ri-arrow-down-s-line" style={{ fontSize: 8 }} />}
+              </span>
+              <div style={{ fontSize: 13, fontWeight: 900, color: stockCritico.length > 0 ? 'var(--danger)' : 'var(--success)', fontFamily: 'var(--font-display)', display: 'flex', alignItems: 'center' }}>
+                {stockCritico.length > 0 && (
+                  <i className="ri-alert-fill pulse-alert-icon" style={{ fontSize: 10, color: 'var(--danger)', marginRight: 3 }} />
+                )}
+                {stockCritico.length}
+              </div>
+            </div>
+
+            <div style={{ width: 1, height: 16, background: 'var(--border)' }} />
+
+            {/* Metrica 3 */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+              <span style={{ fontSize: 8, textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.05em' }}>Valor Inversion</span>
+              <div style={{ fontSize: 13, fontWeight: 900, color: 'var(--bronze-light)', fontFamily: 'var(--font-display)' }}>
+                ${costoTotalVal.toLocaleString()}
+              </div>
+            </div>
+
+            <div style={{ width: 1, height: 16, background: 'var(--border)' }} />
+
+            {/* Metrica 4 */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+              <span style={{ fontSize: 8, textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.05em' }}>Valor Venta</span>
+              <div style={{ fontSize: 13, fontWeight: 900, color: 'var(--success)', fontFamily: 'var(--font-display)', display: 'flex', alignItems: 'baseline', gap: 4 }}>
+                ${ventaTotalVal.toLocaleString()} <span style={{ fontSize: 8, color: 'var(--text-muted)', fontWeight: 500 }}>({margenGlobalPct}%)</span>
+              </div>
+            </div>
+
+            {/* Dropdown de Alertas de Stock Critico */}
+            {showCriticoDropdown && stockCritico.length > 0 && (
+              <div style={{
+                position: 'absolute',
+                top: '100%',
+                right: 0,
+                width: 320,
+                zIndex: 100,
+                marginTop: 6,
+                background: 'var(--bg-elevated, #1a1a1a)',
+                border: '1px solid rgba(239, 68, 68, 0.4)',
+                borderRadius: 10,
+                padding: '10px 12px',
+                boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5)',
+                animation: 'slideDown 0.2s ease-out forwards',
+              }} onClick={e => e.stopPropagation()}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: 4 }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--danger, #ef4444)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <i className="ri-error-warning-line" /> Alertas de Stock Critico ({stockCritico.length})
+                  </span>
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowCriticoDropdown(false);
+                    }}
+                    style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 0 }}
+                  >
+                    <i className="ri-close-line" style={{ fontSize: 14 }} />
+                  </button>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 5, maxHeight: 150, overflowY: 'auto', paddingRight: 2 }}>
+                  {stockCritico.map(p => (
+                    <div 
+                      key={p.id} 
+                      style={{ 
+                        display: 'flex', 
+                        justifyContent: 'space-between', 
+                        alignItems: 'center', 
+                        padding: '4px 6px', 
+                        background: 'rgba(239, 68, 68, 0.03)', 
+                        borderRadius: 6,
+                        border: '1px solid rgba(239, 68, 68, 0.08)'
+                      }}
+                    >
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                        <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 150 }}>{p.nombre}</span>
+                        <span style={{ fontSize: 8, color: 'var(--text-muted)' }}>Min: {p.stockMin} {p.unidad}</span>
                       </div>
-                      <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexShrink: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--danger, #ef4444)' }}>
+                          {p.stock} {p.unidad}
+                        </span>
                         <button
-                          className="btn btn-primary btn-xs"
-                          style={{ padding: '2px 6px', fontSize: 8, height: 16 }}
-                          onClick={sug.onAction}
-                        >
-                          {sug.label}
-                        </button>
-                        <button
-                          type="button"
-                          style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 2, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                          title="Descartar sugerencia por 15 dias"
+                          className="btn btn-xs btn-primary"
+                          style={{ padding: '1px 5px', fontSize: 8, height: 16, display: 'flex', alignItems: 'center' }}
                           onClick={(e) => {
                             e.stopPropagation();
-                            descartarSugerencia(sug.id);
+                            setModalAjuste(p);
+                            setShowCriticoDropdown(false);
                           }}
                         >
-                          <i className="ri-close-line" style={{ fontSize: 12 }} />
+                          Ajustar
                         </button>
                       </div>
                     </div>
                   ))}
-
-                  {/* Sugerencia 3: Cruce Concurrente en Vivo */}
-                  {inconsistenciasEnVivo.length === 0 ? (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(34,197,94,0.04)', padding: '3px 6px', borderRadius: 6, border: '1px solid rgba(34,197,94,0.12)' }}>
-                      <i className="ri-checkbox-circle-line" style={{ fontSize: 9, color: 'var(--success)' }} />
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-                        <span style={{ fontSize: 9, color: 'var(--success)', fontWeight: 700, lineHeight: 1 }}>CRUCE OK:</span>
-                        <span style={{ fontSize: 7, color: 'var(--text-secondary)', lineHeight: 1 }}>Sin discrepancias barra/mesas.</span>
-                      </div>
-                    </div>
-                  ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, background: 'rgba(239,68,68,0.04)', padding: '3px 6px', borderRadius: 6, border: '1px solid rgba(239,68,68,0.12)' }}>
-                      <div style={{ fontSize: 9, color: 'var(--danger)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 3 }}>
-                        <i className="ri-error-warning-line" style={{ fontSize: 10 }} /> DISCREPANCIAS ({inconsistenciasEnVivo.length})
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2, maxHeight: 36, overflowY: 'auto' }}>
-                        {inconsistenciasEnVivo.map((inc, index) => (
-                          <div key={index} style={{ fontSize: 7, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            . {inc.nombre}: <span style={{ color: 'var(--danger)' }}>{inc.motivo}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </div>
               </div>
+            )}
+          </div>
+        </div>
+
+        {/* Fila 2: Widget de Sugerencias IA Completo */}
+        <div style={{ width: '100%' }}>
+          {/* Inteligencia de Margen Widget */}
+          <div className="card" style={{ 
+            width: '100%', 
+            padding: '8px 12px',
+            height: '120px',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'center',
+            borderColor: hasAlerts ? 'rgba(239, 68, 68, 0.4)' : 'var(--border-bronze)',
+            background: 'linear-gradient(135deg, rgba(205,127,50,0.05) 0%, rgba(0,0,0,0.2) 100%)',
+            position: 'relative',
+            boxShadow: hasAlerts ? '0 0 15px rgba(239, 68, 68, 0.2)' : '0 0 15px rgba(205,127,50,0.08)',
+            animation: hasAlerts ? 'widgetGlow 2.5s infinite ease-in-out' : 'none',
+            borderRadius: 10
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+              <span style={{ fontSize: 9, textTransform: 'uppercase', color: hasAlerts ? '#f87171' : 'var(--bronze-light)', fontWeight: 800, letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: 4 }}>
+                <i className="ri-line-chart-line" /> Inteligencia de Margen IA
+              </span>
+              <span style={{ fontSize: 8, color: 'var(--text-muted)' }}>Desliza para ver sugerencias</span>
             </div>
-
-            {/* Fila de Métricas en Modo Compacto */}
-            <div style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: 12, 
-              background: 'linear-gradient(135deg, rgba(205,127,50,0.03) 0%, rgba(0,0,0,0.1) 100%)',
-              border: '1px solid var(--border-bronze)',
-              borderRadius: 8, 
-              padding: '6px 12px',
-              height: '48px',
-              position: 'relative',
-              flexShrink: 0
+            
+            {/* Scrollable Container with Custom visible scrollbar */}
+            <div className="custom-scroll" style={{ 
+              overflowY: 'auto', 
+              flex: 1, 
+              paddingRight: 4
             }}>
-              {/* Métrica 1 */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-                <span style={{ fontSize: 8, textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.05em' }}>Productos Totales</span>
-                <div style={{ fontSize: 13, fontWeight: 900, color: 'var(--blue-light)', fontFamily: 'var(--font-display)' }}>
-                  {productos.length} <span style={{ fontSize: 8, fontWeight: 500, color: 'var(--text-muted)' }}>pz</span>
-                </div>
-              </div>
-
-              <div style={{ width: 1, height: 16, background: 'var(--border)' }} />
-
-              {/* Métrica 2 (Stock Crítico Clickable con Animación) */}
-              <div 
-                className={stockCritico.length > 0 ? 'compact-pulse' : ''}
-                style={{ 
-                  display: 'flex', 
-                  flexDirection: 'column', 
-                  gap: 0,
-                  cursor: stockCritico.length > 0 ? 'pointer' : 'default',
-                  padding: '2px 6px'
-                }}
-                onClick={() => {
-                  if (stockCritico.length > 0) {
-                    setShowCriticoDropdown(!showCriticoDropdown);
-                  }
-                }}
-              >
-                <span style={{ fontSize: 8, textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: 2 }}>
-                  Alertas Stock {stockCritico.length > 0 && <i className="ri-arrow-down-s-line" style={{ fontSize: 8 }} />}
-                </span>
-                <div style={{ fontSize: 13, fontWeight: 900, color: stockCritico.length > 0 ? 'var(--danger)' : 'var(--success)', fontFamily: 'var(--font-display)', display: 'flex', alignItems: 'center' }}>
-                  {stockCritico.length > 0 && (
-                    <i className="ri-alert-fill pulse-alert-icon" style={{ fontSize: 10, color: 'var(--danger)', marginRight: 3 }} />
-                  )}
-                  {stockCritico.length}
-                </div>
-              </div>
-
-              <div style={{ width: 1, height: 16, background: 'var(--border)' }} />
-
-              {/* Métrica 3 */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-                <span style={{ fontSize: 8, textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.05em' }}>Valor Inversión</span>
-                <div style={{ fontSize: 13, fontWeight: 900, color: 'var(--bronze-light)', fontFamily: 'var(--font-display)' }}>
-                  ${costoTotalVal.toLocaleString()}
-                </div>
-              </div>
-
-              <div style={{ width: 1, height: 16, background: 'var(--border)' }} />
-
-              {/* Métrica 4 */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-                <span style={{ fontSize: 8, textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.05em' }}>Valor Venta</span>
-                <div style={{ fontSize: 13, fontWeight: 900, color: 'var(--success)', fontFamily: 'var(--font-display)', display: 'flex', alignItems: 'baseline', gap: 4 }}>
-                  ${ventaTotalVal.toLocaleString()} <span style={{ fontSize: 8, color: 'var(--text-muted)', fontWeight: 500 }}>({margenGlobalPct}%)</span>
-                </div>
-              </div>
-
-              {/* Dropdown de Alertas de Stock Crítico */}
-              {showCriticoDropdown && stockCritico.length > 0 && (
-                <div style={{
-                  position: 'absolute',
-                  top: '100%',
-                  right: 0,
-                  width: 320,
-                  zIndex: 100,
-                  marginTop: 6,
-                  background: 'var(--bg-elevated, #1a1a1a)',
-                  border: '1px solid rgba(239, 68, 68, 0.4)',
-                  borderRadius: 10,
-                  padding: '10px 12px',
-                  boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5)',
-                  animation: 'slideDown 0.2s ease-out forwards',
-                }} onClick={e => e.stopPropagation()}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: 4 }}>
-                    <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--danger, #ef4444)', display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <i className="ri-error-warning-line" /> Alertas de Stock Crítico ({stockCritico.length})
-                    </span>
-                    <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setShowCriticoDropdown(false);
-                      }}
-                      style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 0 }}
-                    >
-                      <i className="ri-close-line" style={{ fontSize: 14 }} />
-                    </button>
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 5, maxHeight: 150, overflowY: 'auto', paddingRight: 2 }}>
-                    {stockCritico.map(p => (
-                      <div 
-                        key={p.id} 
-                        style={{ 
-                          display: 'flex', 
-                          justifyContent: 'space-between', 
-                          alignItems: 'center', 
-                          padding: '4px 6px', 
-                          background: 'rgba(239, 68, 68, 0.03)', 
-                          borderRadius: 6,
-                          border: '1px solid rgba(239, 68, 68, 0.08)'
+              <div style={{ 
+                display: 'grid', 
+                gridTemplateColumns: '1fr 1fr', 
+                gap: 6
+              }}>
+                {/* Sugerencias de Margen con Filtro de Descartadas y Boton Descartar */}
+                {obtenerSugerenciasIA().filter(sug => {
+                  const ts = descartadas[sug.id];
+                  if (!ts) return true;
+                  return (Date.now() - ts) > 15 * 24 * 60 * 60 * 1000; // 15 dias
+                }).map(sug => (
+                  <div key={sug.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '3px 6px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.04)', gap: 4 }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 0.5, flex: 1, marginRight: 8, overflow: 'hidden' }}>
+                      <span style={{ fontSize: 9, color: sug.type === 'success' ? 'var(--success)' : 'var(--bronze-light)', fontWeight: 700 }}>{sug.tag}</span>
+                      <span style={{ fontSize: 8, color: 'var(--text-secondary)', lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={sug.desc}>{sug.desc}</span>
+                    </div>
+                    <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexShrink: 0 }}>
+                      <button
+                        className="btn btn-primary btn-xs"
+                        style={{ padding: '2px 6px', fontSize: 8, height: 16 }}
+                        onClick={sug.onAction}
+                      >
+                        {sug.label}
+                      </button>
+                      <button
+                        type="button"
+                        style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 2, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        title="Descartar sugerencia por 15 dias"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          descartarSugerencia(sug.id);
                         }}
                       >
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                          <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 150 }}>{p.nombre}</span>
-                          <span style={{ fontSize: 8, color: 'var(--text-muted)' }}>Mín: {p.stockMin} {p.unidad}</span>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--danger, #ef4444)' }}>
-                            {p.stock} {p.unidad}
-                          </span>
-                          <button
-                            className="btn btn-xs btn-primary"
-                            style={{ padding: '1px 5px', fontSize: 8, height: 16, display: 'flex', alignItems: 'center' }}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setModalAjuste(p);
-                              setShowCriticoDropdown(false);
-                            }}
-                          >
-                            Ajustar
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+                        <i className="ri-close-line" style={{ fontSize: 12 }} />
+                      </button>
+                    </div>
                   </div>
-                </div>
-              )}
-            </div>
+                ))}
 
+                {/* Sugerencia 3: Cruce Concurrente en Vivo */}
+                {inconsistenciasEnVivo.length === 0 ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(34,197,94,0.04)', padding: '3px 6px', borderRadius: 6, border: '1px solid rgba(34,197,94,0.12)' }}>
+                    <i className="ri-checkbox-circle-line" style={{ fontSize: 9, color: 'var(--success)' }} />
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+                      <span style={{ fontSize: 9, color: 'var(--success)', fontWeight: 700, lineHeight: 1 }}>CRUCE OK:</span>
+                      <span style={{ fontSize: 7, color: 'var(--text-secondary)', lineHeight: 1 }}>Sin discrepancias barra/mesas.</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2, background: 'rgba(239,68,68,0.04)', padding: '3px 6px', borderRadius: 6, border: '1px solid rgba(239,68,68,0.12)' }}>
+                    <div style={{ fontSize: 9, color: 'var(--danger)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 3 }}>
+                      <i className="ri-error-warning-line" style={{ fontSize: 10 }} /> DISCREPANCIAS ({inconsistenciasEnVivo.length})
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, maxHeight: 36, overflowY: 'auto' }}>
+                      {inconsistenciasEnVivo.map((inc, index) => (
+                        <div key={index} style={{ fontSize: 7, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          . {inc.nombre}: <span style={{ color: 'var(--danger)' }}>{inc.motivo}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
       <style>{`
@@ -1293,27 +1276,27 @@ export default function BarPanel({ showToast }) {
         {/* Lado Izquierdo: Catálogo y Stock */}
         <div>
           {/* Filtros */}
-          <div style={{ display: 'flex', gap: densidadVista === 'compact' ? 6 : 8, marginBottom: densidadVista === 'compact' ? 12 : 16, flexWrap: 'wrap', alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center', width: '100%', flexWrap: 'wrap' }}>
             <input 
               className="form-input" 
               style={{ 
-                width: densidadVista === 'compact' ? 180 : 220, 
-                padding: densidadVista === 'compact' ? '4px 10px' : '8px 12px', 
-                fontSize: densidadVista === 'compact' ? 11 : 13, 
-                height: densidadVista === 'compact' ? 26 : 32 
+                width: 180, 
+                padding: '4px 10px', 
+                fontSize: 11, 
+                height: 26 
               }} 
               placeholder="Buscar producto..." 
               value={busqueda} 
               onChange={e => setBusqueda(e.target.value)} 
             />
-            {/* Selector de Categorías Desplegable */}
+            {/* Selector de Categorias Desplegable */}
             <select
               className="form-select"
               style={{ 
-                width: densidadVista === 'compact' ? 140 : 180, 
-                padding: densidadVista === 'compact' ? '3px 10px' : '6px 12px', 
-                fontSize: densidadVista === 'compact' ? 11 : 13, 
-                height: densidadVista === 'compact' ? 26 : 32,
+                width: 140, 
+                padding: '3px 10px', 
+                fontSize: 11, 
+                height: 26,
                 cursor: 'pointer',
                 borderColor: filtro !== 'Todas' ? 'var(--bronze-light)' : 'var(--border)'
               }}
@@ -1322,10 +1305,25 @@ export default function BarPanel({ showToast }) {
             >
               {categorias.map(c => (
                 <option key={c} value={c}>
-                  {c === 'Todas' ? 'Todas las Categorías' : `Categoría: ${c}`}
+                  {c === 'Todas' ? 'Todas las Categorias' : `Categoria: ${c}`}
                 </option>
               ))}
             </select>
+
+            <div style={{ flex: 1 }} />
+
+            {/* Botones de Accion */}
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <button className="btn btn-secondary btn-xs" onClick={optimizarStockConIA} style={{ color: 'var(--bronze-light)', borderColor: 'var(--border-bronze)', height: 26, fontSize: 10, display: 'flex', alignItems: 'center' }}>
+                <i className="ri-magic-line" style={{ marginRight: 4 }} /> Optimizar Stock con IA
+              </button>
+              <button className="btn btn-secondary btn-xs" onClick={generarOrdenCompraIA} style={{ color: 'var(--bronze-light)', borderColor: 'var(--border-bronze)', height: 26, fontSize: 10, display: 'flex', alignItems: 'center' }}>
+                <i className="ri-robot-line" style={{ marginRight: 4 }} /> Orden de Compra IA
+              </button>
+              <button className="btn btn-primary btn-xs" onClick={() => setShowNuevoProducto(true)} style={{ height: 26, fontSize: 10, display: 'flex', alignItems: 'center' }}>
+                <i className="ri-add-line" style={{ marginRight: 4 }} /> Registrar Producto
+              </button>
+            </div>
           </div>
 
           {/* Tabla de existencias */}

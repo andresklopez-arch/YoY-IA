@@ -687,7 +687,7 @@ export default function ReportesPanel({ showToast }) {
             <div className="card" style={{ 
               flex: 1, 
               padding: '8px 12px',
-              height: '92px',
+              height: '120px',
               display: 'flex',
               flexDirection: 'column',
               justifyContent: 'center',
