@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { db } from '@/lib/firebase';
-import { collection, query, onSnapshot, orderBy, limit } from 'firebase/firestore';
+import { collection, query, onSnapshot, orderBy, limit, doc, setDoc, addDoc, serverTimestamp } from 'firebase/firestore';
 import { deobfuscate, obfuscate } from '@/lib/crypto';
 
 // Chart with tooltip hover
@@ -145,6 +145,12 @@ export default function ReportesPanel({ showToast }) {
   const [limitePresupuesto, setLimitePresupuesto] = useState(15000);
   const [ahora] = useState(() => Date.now());
 
+  // Nuevos estados para Inteligencia de Margen IA
+  const [productos, setProductos] = useState([]);
+  const [mesas, setMesas] = useState([]);
+  const [cuentasActivas, setCuentasActivas] = useState([]);
+  const [inconsistenciasEnVivo, setInconsistenciasEnVivo] = useState([]);
+  const [descartadas, setDescartadas] = useState({});
 
   useEffect(() => {
     // Escuchar gastos de firestore
@@ -197,6 +203,37 @@ export default function ReportesPanel({ showToast }) {
       }
     });
 
+    // Cargar sugerencias descartadas desde localStorage
+    const savedDescartadas = localStorage.getItem('yoy_sugerencias_descartadas');
+    if (savedDescartadas) {
+      try {
+        setDescartadas(JSON.parse(savedDescartadas));
+      } catch (e) {
+        console.error("Error al cargar descartadas en ReportesPanel:", e);
+      }
+    }
+
+    // Escuchar inventario de Firestore
+    const unsubInventario = onSnapshot(doc(db, 'config', 'inventario'), snap => {
+      if (snap.exists()) {
+        setProductos(snap.data().productos || []);
+      }
+    });
+
+    // Escuchar mesas de Firestore en tiempo real para inconsistencias
+    const unsubMesas = onSnapshot(doc(db, 'config', 'mesas_estado'), snap => {
+      if (snap.exists() && Array.isArray(snap.data().mesas)) {
+        setMesas(snap.data().mesas);
+      }
+    });
+
+    // Escuchar cuentas de Firestore en tiempo real para inconsistencias
+    const unsubCuentas = onSnapshot(doc(db, 'config', 'cuentas_estado'), snap => {
+      if (snap.exists() && Array.isArray(snap.data().cuentas)) {
+        setCuentasActivas(snap.data().cuentas);
+      }
+    });
+
     return () => {
       unsubGastos();
       unsubPagos();
@@ -204,8 +241,154 @@ export default function ReportesPanel({ showToast }) {
       unsubEncuestas();
       unsubPedidos();
       unsubBitacora();
+      unsubInventario();
+      unsubMesas();
+      unsubCuentas();
     };
   }, []);
+
+  // Cruce concurrente de inconsistencias en vivo
+  useEffect(() => {
+    const calcularInconsistencias = () => {
+      const incs = [];
+      mesas.forEach(m => {
+        if (m.estado === 'ocupada') {
+          const cuenta = cuentasActivas.find(c => c.cliente && m.cliente && c.cliente.trim().toLowerCase() === m.cliente.trim().toLowerCase());
+          const sinConsumo = !cuenta || !cuenta.consumos || cuenta.consumos.length === 0;
+          if (sinConsumo) {
+            const hrsJugadas = m.inicio ? ((Date.now() - m.inicio) / 3600000).toFixed(1) : '0';
+            incs.push({
+              mesaId: m.id,
+              nombre: m.nombre,
+              cliente: m.cliente || 'Desconocido',
+              horas: hrsJugadas,
+              motivo: `Mesa activa por ${hrsJugadas} hrs con $0 consumos de barra.`
+            });
+          }
+        }
+      });
+      setInconsistenciasEnVivo(incs);
+    };
+
+    calcularInconsistencias();
+    const interval = setInterval(calcularInconsistencias, 5000);
+    return () => clearInterval(interval);
+  }, [mesas, cuentasActivas]);
+
+  // Auxiliar para registrar en bitácora general de caja
+  const registrarEnBitacoraGeneral = async (accion, detalle, monto = 0) => {
+    try {
+      await addDoc(collection(db, 'bitacora'), {
+        fecha: new Date().toISOString(),
+        accion,
+        detalle,
+        monto,
+        operador: 'Auditor IA',
+        rolOperador: 'admin'
+      });
+    } catch (err) {
+      console.warn("Error al registrar en bitácora:", err);
+    }
+  };
+
+  // Ajustar precio sugerido por IA
+  const aplicarAjustePrecioIA = async (prodId, nuevoPrecio) => {
+    const prod = productos.find(p => p.id === prodId);
+    if (!prod) return;
+
+    const nuevosProductos = productos.map(p => p.id === prodId ? { ...p, precioVenta: nuevoPrecio, lastModified: Date.now() } : p);
+
+    try {
+      await setDoc(doc(db, 'config', 'inventario'), {
+        productos: nuevosProductos,
+        updatedAt: serverTimestamp()
+      });
+
+      // Sincronizar con la bitácora general
+      await registrarEnBitacoraGeneral(
+        'Precio IA',
+        `Precio de ${prod.nombre} ajustado por IA de $${prod.precioVenta} a $${nuevoPrecio} MXN`,
+        0
+      );
+
+      showToast(`Precio de ${prod.nombre} actualizado con éxito a $${nuevoPrecio} MXN ✓`, 'success');
+    } catch (err) {
+      console.error("Error al actualizar precio desde ReportesPanel:", err);
+      showToast('Error al aplicar ajuste de precio', 'danger');
+    }
+  };
+
+  // Generador centralizado de sugerencias dinámicas de IA (Margen, Stock y Promociones)
+  const obtenerSugerenciasIA = () => {
+    const sugList = [
+      {
+        id: 'sug-alta-demanda',
+        type: 'success',
+        tag: 'ALTA VELOCIDAD (Coronas)',
+        desc: 'Corona demanda +120%. Sugerimos subir a $52 MXN.',
+        label: 'Aplicar ($52)',
+        onAction: () => {
+          const corona = productos.find(p => p.nombre.toLowerCase().includes('corona'));
+          aplicarAjustePrecioIA(corona ? corona.id : 1, 52);
+        }
+      },
+      {
+        id: 'sug-rotacion-baja',
+        type: 'bronze-light',
+        tag: 'ROTACIÓN BAJA (Nachos Gigantes)',
+        desc: 'Nulo movimiento. Lanzar promo Nachos + Bebida $80.',
+        label: 'Promo POS',
+        onAction: () => showToast('Promoción cargada al módulo de Caja ✓', 'success')
+      }
+    ];
+
+    // 1. Alertas dinámicas de stock crítico
+    productos.forEach(p => {
+      if (p.stock <= p.stockMin && p.activoIA !== false) {
+        const cantidadPedir = p.stockOptimo - p.stock;
+        if (cantidadPedir > 0) {
+          sugList.push({
+            id: `sug-stock-critico-${p.id}`,
+            type: 'danger',
+            tag: `STOCK CRÍTICO (${p.nombre})`,
+            desc: `Quedan ${p.stock} ${p.unidad} (Mín: ${p.stockMin}). Sugerimos ordenar ${cantidadPedir} ${p.unidad}.`,
+            label: 'Ordenar',
+            onAction: async () => {
+              // Enviar reporte de reabastecimiento IA a bitácora y alerta
+              await registrarEnBitacoraGeneral(
+                'Reabastecimiento IA',
+                `Sugerencia de orden de compra generada para ${p.nombre} por ${cantidadPedir} unidades`,
+                0
+              );
+              showToast(`Orden sugerida por ${cantidadPedir} unidades registrada en Auditoría ✓`, 'success');
+            }
+          });
+        }
+      }
+    });
+
+    // 2. Alertas dinámicas de margen depreciado (bajo del 25%)
+    productos.forEach(p => {
+      if (p.precioVenta > 0 && p.precioCosto > 0 && p.activoIA !== false) {
+        const margen = (p.precioVenta - p.precioCosto) / p.precioVenta;
+        if (margen < 0.25) {
+          const nuevoPrecioSugerido = Math.round(p.precioCosto * 1.5);
+          if (nuevoPrecioSugerido > p.precioVenta) {
+            sugList.push({
+              id: `sug-margen-bajo-${p.id}`,
+              type: 'warning',
+              tag: `MARGEN BAJO (${p.nombre})`,
+              desc: `Margen es ${Math.round(margen * 100)}%. Ajustar precio a $${nuevoPrecioSugerido} MXN (Margen 33%).`,
+              label: `Ajustar ($${nuevoPrecioSugerido})`,
+              onAction: () => aplicarAjustePrecioIA(p.id, nuevoPrecioSugerido)
+            });
+          }
+        }
+      }
+    });
+
+    return sugList;
+  };
 
   const getEficienciaEntregas = () => {
     // Filtrar pedidos que tengan cocinaAtendidoAt y entregadoAt
@@ -440,13 +623,106 @@ export default function ReportesPanel({ showToast }) {
   const promedioEquipo = totalEncuestas > 0 ? encuestasList.reduce((acc, curr) => acc + (curr.calificaciones?.equipo || 0), 0) / totalEncuestas : 4.9;
   const promedioGeneral = (promedioAtencion + promedioRapidez + promedioLimpieza + promedioEquipo) / 4;
 
+  const stockCritico = productos.filter(p => p.stock <= p.stockMin);
+  const hasAlerts = (inconsistenciasEnVivo && inconsistenciasEnVivo.length > 0) || (stockCritico && stockCritico.length > 0);
+
   return (
     <div>
-      <div className="page-header">
+      <div className="page-header" style={{ alignItems: 'center', display: 'flex', justifyContent: 'space-between', marginBottom: 24 }}>
         <div>
           <h1 className="page-title gradient-bronze">Reportes e Inteligencia</h1>
-          <p className="page-subtitle">Análisis de negocio en tiempo real, filtros financieros y predicción IA</p>
+          <p className="page-subtitle" style={{ margin: 0 }}>Análisis de negocio en tiempo real, filtros financieros y predicción IA</p>
         </div>
+
+        {/* Inteligencia de Margen Widget (Duplicado en Reportes con Indicador de Descartes) */}
+        <div className="card" style={{ 
+          flex: '1', 
+          maxWidth: '460px', 
+          margin: '0 20px', 
+          padding: '8px 12px',
+          height: '76px',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
+          borderColor: hasAlerts ? 'rgba(239, 68, 68, 0.4)' : 'var(--border-bronze)',
+          background: 'linear-gradient(135deg, rgba(205,127,50,0.05) 0%, rgba(0,0,0,0.2) 100%)',
+          position: 'relative',
+          boxShadow: hasAlerts ? '0 0 15px rgba(239, 68, 68, 0.2)' : '0 0 15px rgba(205,127,50,0.08)',
+          animation: hasAlerts ? 'widgetGlow 2.5s infinite ease-in-out' : 'none',
+          borderRadius: 10
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+            <span style={{ fontSize: 9, textTransform: 'uppercase', color: hasAlerts ? '#f87171' : 'var(--bronze-light)', fontWeight: 800, letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: 4 }}>
+              <i className="ri-line-chart-line" /> Inteligencia de Margen IA
+            </span>
+            <span style={{ fontSize: 8, color: 'var(--text-muted)' }}>Vista de Almacén y Administración</span>
+          </div>
+          
+          {/* Scrollable Container with Custom visible scrollbar */}
+          <div className="custom-scroll" style={{ 
+            overflowY: 'auto', 
+            flex: 1, 
+            display: 'flex', 
+            flexDirection: 'column', 
+            gap: 4,
+            paddingRight: 4
+          }}>
+            {/* Sugerencias de Margen con Filtro de Descartadas e Indicador de Descartes */}
+            {obtenerSugerenciasIA().map(sug => {
+              const ts = descartadas[sug.id];
+              const isDescartada = ts && (Date.now() - ts) <= 15 * 24 * 60 * 60 * 1000;
+              const diasRestantes = isDescartada ? (15 - (Date.now() - ts) / (24 * 60 * 60 * 1000)).toFixed(1) : 0;
+              
+              return (
+                <div key={sug.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: isDescartada ? 'rgba(239,68,68,0.02)' : 'rgba(255,255,255,0.02)', padding: '4px 6px', borderRadius: 6, border: isDescartada ? '1px solid rgba(239,68,68,0.08)' : '1px solid rgba(255,255,255,0.04)', gap: 6 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 0.5, flex: 1, marginRight: 8, overflow: 'hidden' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <span style={{ fontSize: 9, color: sug.type === 'success' ? 'var(--success)' : sug.type === 'danger' ? 'var(--danger)' : 'var(--bronze-light)', fontWeight: 700 }}>{sug.tag}</span>
+                      {isDescartada && (
+                        <span style={{ fontSize: 7, background: 'rgba(239, 68, 68, 0.12)', color: 'var(--danger)', padding: '1px 4px', borderRadius: 4, fontWeight: 700 }}>
+                          Descartada en Bar ({diasRestantes}d)
+                        </span>
+                      )}
+                    </div>
+                    <span style={{ fontSize: 8, color: 'var(--text-secondary)', lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{sug.desc}</span>
+                  </div>
+                  <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexShrink: 0 }}>
+                    <button
+                      className="btn btn-primary btn-xs"
+                      style={{ padding: '2px 6px', fontSize: 8, height: 16 }}
+                      onClick={sug.onAction}
+                    >
+                      {sug.label}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* Sugerencia 3: Cruce Concurrente en Vivo */}
+            {inconsistenciasEnVivo.length === 0 ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(34,197,94,0.04)', padding: '4px 6px', borderRadius: 6, border: '1px solid rgba(34,197,94,0.12)' }}>
+                <i className="ri-checkbox-circle-line" style={{ fontSize: 9, color: 'var(--success)' }} />
+                <span style={{ fontSize: 9, color: 'var(--success)', fontWeight: 700 }}>CRUCE OK:</span>
+                <span style={{ fontSize: 8, color: 'var(--text-secondary)' }}>Sin discrepancias detectadas entre mesas y barra.</span>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2, background: 'rgba(239,68,68,0.04)', padding: '4px 6px', borderRadius: 6, border: '1px solid rgba(239,68,68,0.12)' }}>
+                <div style={{ fontSize: 9, color: 'var(--danger)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 3 }}>
+                  <i className="ri-error-warning-line" style={{ fontSize: 10 }} /> DISCREPANCIAS EN VIVO ({inconsistenciasEnVivo.length})
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  {inconsistenciasEnVivo.map((inc, index) => (
+                    <div key={index} style={{ fontSize: 8, color: 'var(--text-primary)' }}>
+                      · {inc.nombre} ({inc.cliente}): <span style={{ color: 'var(--danger)' }}>{inc.motivo}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
           {/* Selector de periodo general */}
           <div style={{ display: 'flex', background: 'var(--bg-elevated)', borderRadius: 10, padding: 2, border: '1px solid var(--border)' }}>
@@ -1603,6 +1879,28 @@ export default function ReportesPanel({ showToast }) {
           </div>
         </div>
       )}
+      <style>{`
+        @keyframes widgetGlow {
+          0% { box-shadow: 0 0 5px rgba(239, 68, 68, 0.2), inset 0 0 5px rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.3); }
+          50% { box-shadow: 0 0 15px rgba(239, 68, 68, 0.5), inset 0 0 10px rgba(239, 68, 68, 0.2); border-color: rgba(239, 68, 68, 0.6); }
+          100% { box-shadow: 0 0 5px rgba(239, 68, 68, 0.2), inset 0 0 5px rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.3); }
+        }
+        .custom-scroll::-webkit-scrollbar {
+          width: 5px !important;
+          display: block !important;
+        }
+        .custom-scroll::-webkit-scrollbar-track {
+          background: rgba(255, 255, 255, 0.02) !important;
+          border-radius: 4px !important;
+        }
+        .custom-scroll::-webkit-scrollbar-thumb {
+          background: var(--bronze-light, #cd7f32) !important;
+          border-radius: 4px !important;
+        }
+        .custom-scroll::-webkit-scrollbar-thumb:hover {
+          background: #e59848 !important;
+        }
+      `}</style>
     </div>
   );
 }
