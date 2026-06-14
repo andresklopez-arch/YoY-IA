@@ -695,146 +695,158 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
           )}
         </div>
       )}
-      {/* ── MODAL PASE DE LISTA QR ── */}
+      {/* ── MODAL PASE DE LISTA QR ── REESCRITO COMPLETAMENTE ── */}
       {showModalPaseLista && typeof window !== 'undefined' && createPortal(
         <>
-          {/* Capa 1: Fondo oscuro (cubre toda la pantalla) */}
+          {/* BACKDROP: fondo oscuro que cubre toda la pantalla */}
           <div
             onClick={() => setShowModalPaseLista(false)}
             style={{
-              position: 'fixed', inset: 0,
-              background: 'rgba(0,0,0,0.88)',
-              backdropFilter: 'blur(5px)',
-              zIndex: 2999,
+              position: 'fixed',
+              top: 0, left: 0, right: 0, bottom: 0,
+              background: 'rgba(0,0,0,0.85)',
+              backdropFilter: 'blur(4px)',
+              zIndex: 99998,
             }}
           />
-          {/* Capa 2: Contenedor de centrado (sólo el área debajo del topbar) */}
+
+          {/* MODAL BOX: posicionado de forma independiente con transform centrado */}
           <div
+            onClick={e => e.stopPropagation()}
             style={{
               position: 'fixed',
-              top: '70px',
-              left: 0,
-              right: 0,
-              bottom: 0,
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, calc(-50% + 35px))',
+              zIndex: 99999,
+              width: '90vw',
+              maxWidth: 700,
+              maxHeight: 'calc(100vh - 120px)',
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border-bronze)',
+              borderRadius: 20,
+              boxShadow: '0 25px 60px rgba(0,0,0,0.8), 0 0 30px rgba(205,127,50,0.2)',
               display: 'flex',
-              alignItems: 'flex-start',
-              justifyContent: 'center',
-              zIndex: 3000,
-              paddingTop: '5vh',
-              paddingLeft: '20px',
-              paddingRight: '20px',
-              paddingBottom: '20px',
-              overflowY: 'auto',
-              pointerEvents: 'none',
+              flexDirection: 'column',
+              overflow: 'hidden',
             }}
           >
-            <div
-              className="modal"
-              style={{
-                width: '100%',
-                maxWidth: 700,
-                maxHeight: 'calc(90vh - 70px)',
-                display: 'flex',
-                flexDirection: 'column',
-                background: 'var(--bg-card)',
-                border: '1px solid var(--border-bronze)',
-                boxShadow: 'var(--shadow-bronze)',
-                borderRadius: 20,
-                pointerEvents: 'all',
-                animation: 'slideUp 0.25s ease',
-                flexShrink: 0,
-              }}
-              onClick={e => e.stopPropagation()}
-            >
-              <div className="modal-header" style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span className="modal-title" style={{ fontSize: 16, fontWeight: 800, color: 'var(--bronze-light)', textTransform: 'uppercase', letterSpacing: '0.1em', display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <i className="ri-qr-code-line" /> Pase de Lista y Acceso de Empleados
-                </span>
-                <button onClick={() => setShowModalPaseLista(false)} className="btn-icon btn btn-secondary" style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 20, cursor: 'pointer' }}>
-                  <i className="ri-close-line" />
-                </button>
+            {/* Cabecera */}
+            <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+              <span style={{ fontSize: 16, fontWeight: 800, color: 'var(--bronze-light)', textTransform: 'uppercase', letterSpacing: '0.1em', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <i className="ri-qr-code-line" /> Pase de Lista y Acceso de Empleados
+              </span>
+              <button
+                onClick={() => setShowModalPaseLista(false)}
+                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 22, cursor: 'pointer', lineHeight: 1, padding: 4 }}
+              >
+                <i className="ri-close-line" />
+              </button>
+            </div>
+
+            {/* Cuerpo con scroll */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
+                Selecciona tu código QR para registrar tu hora de entrada y activar tu sesión de trabajo en este dispositivo.
+              </p>
+
+              {/* Buscador */}
+              <div style={{ position: 'relative' }}>
+                <input
+                  type="text"
+                  placeholder="Buscar empleado por nombre..."
+                  value={busquedaPaseLista}
+                  onChange={e => setBusquedaPaseLista(e.target.value)}
+                  style={{
+                    width: '100%', boxSizing: 'border-box',
+                    paddingLeft: 36, height: 38,
+                    background: 'var(--bg-elevated)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 10,
+                    color: 'var(--text-primary)',
+                    fontSize: 13,
+                    outline: 'none',
+                  }}
+                />
+                <i className="ri-search-line" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontSize: 16 }} />
               </div>
 
-              <div className="modal-body" style={{ padding: 24, overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: 16 }}>
-                <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
-                  Selecciona tu código QR para registrar tu hora de entrada (pase de lista) y activar tu sesión de trabajo en este dispositivo.
-                </p>
-
-                <div style={{ position: 'relative' }}>
-                  <input
-                    type="text"
-                    className="form-input"
-                    placeholder="Buscar empleado por nombre..."
-                    value={busquedaPaseLista}
-                    onChange={e => setBusquedaPaseLista(e.target.value)}
-                    style={{ width: '100%', paddingLeft: 36, height: 38 }}
-                  />
-                  <i className="ri-search-line" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontSize: 16 }} />
+              {/* Lista de empleados */}
+              {empleadosPaseLista.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '60px 10px', color: 'var(--text-muted)' }}>
+                  <i className="ri-loader-4-line" style={{ fontSize: 36, display: 'block', marginBottom: 10, animation: 'spin 1s linear infinite' }} />
+                  Cargando empleados activos...
                 </div>
-
-                {empleadosPaseLista.length === 0 ? (
-                  <div style={{ textAlign: 'center', padding: '40px 10px', color: 'var(--text-muted)' }}>
-                    <i className="ri-user-unfollow-line" style={{ fontSize: 32, display: 'block', marginBottom: 8 }} />
-                    Cargando empleados activos...
-                  </div>
-                ) : (
-                  <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
-                    gap: 16,
-                    marginTop: 10
-                  }}>
-                    {empleadosPaseLista
-                      .filter(emp => emp.nombre.toLowerCase().includes(busquedaPaseLista.toLowerCase()) || (emp.apellido || '').toLowerCase().includes(busquedaPaseLista.toLowerCase()))
-                      .map(emp => (
-                        <div
-                          key={emp.id}
-                          style={{
-                            background: 'var(--bg-elevated)',
-                            border: '1px solid var(--border)',
-                            borderRadius: 14,
-                            padding: 12,
-                            textAlign: 'center',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            gap: 10,
-                            cursor: 'pointer',
-                            transition: 'all 0.2s ease-in-out'
-                          }}
-                          onMouseEnter={e => {
-                            e.currentTarget.style.borderColor = 'var(--bronze-light)';
-                            e.currentTarget.style.transform = 'translateY(-2px)';
-                            e.currentTarget.style.boxShadow = '0 4px 12px rgba(205,127,50,0.15)';
-                          }}
-                          onMouseLeave={e => {
-                            e.currentTarget.style.borderColor = 'var(--border)';
-                            e.currentTarget.style.transform = 'none';
-                            e.currentTarget.style.boxShadow = 'none';
-                          }}
-                          onClick={() => handlePaseListaClick(emp)}
-                        >
-                          <div style={{ background: '#fff', padding: 8, borderRadius: 8, display: 'inline-block' }}>
-                            <QRCodeSVG value={`yoy-employee-${emp.id}`} size={90} bgColor="#fff" fgColor="#000" />
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 14 }}>
+                  {empleadosPaseLista
+                    .filter(emp =>
+                      emp.nombre.toLowerCase().includes(busquedaPaseLista.toLowerCase()) ||
+                      (emp.apellido || '').toLowerCase().includes(busquedaPaseLista.toLowerCase())
+                    )
+                    .map(emp => (
+                      <div
+                        key={emp.id}
+                        onClick={() => handlePaseListaClick(emp)}
+                        onMouseEnter={e => {
+                          e.currentTarget.style.borderColor = 'var(--bronze-light)';
+                          e.currentTarget.style.transform = 'translateY(-3px)';
+                          e.currentTarget.style.boxShadow = '0 6px 16px rgba(205,127,50,0.2)';
+                        }}
+                        onMouseLeave={e => {
+                          e.currentTarget.style.borderColor = 'var(--border)';
+                          e.currentTarget.style.transform = 'none';
+                          e.currentTarget.style.boxShadow = 'none';
+                        }}
+                        style={{
+                          background: 'var(--bg-elevated)',
+                          border: '1px solid var(--border)',
+                          borderRadius: 14,
+                          padding: 12,
+                          textAlign: 'center',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          gap: 10,
+                          cursor: 'pointer',
+                          transition: 'all 0.18s ease',
+                        }}
+                      >
+                        <div style={{ background: '#fff', padding: 8, borderRadius: 8 }}>
+                          <QRCodeSVG value={`yoy-employee-${emp.id}`} size={90} bgColor="#fff" fgColor="#000" />
+                        </div>
+                        <div style={{ width: '100%' }}>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {emp.nombre}
                           </div>
-                          <div style={{ flex: 1, minWidth: 0, width: '100%' }}>
-                            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                              {emp.nombre}
-                            </div>
-                            <div style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', marginTop: 2 }}>
-                              {emp.rol || 'Mesero'}
-                            </div>
+                          <div style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', marginTop: 2 }}>
+                            {emp.rol || 'Mesero'}
                           </div>
                         </div>
-                      ))
-                    }
-                  </div>
-                )}
-              </div>
+                      </div>
+                    ))}
+                </div>
+              )}
+            </div>
 
-              <div className="modal-footer" style={{ padding: '16px 24px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end' }}>
-                <button className="btn btn-secondary" onClick={() => setShowModalPaseLista(false)}>Cerrar</button>
-              </div>
+            {/* Pie */}
+            <div style={{ padding: '14px 24px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', flexShrink: 0 }}>
+              <button
+                onClick={() => setShowModalPaseLista(false)}
+                style={{
+                  background: 'var(--bg-elevated)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 10,
+                  color: 'var(--text-primary)',
+                  padding: '8px 20px',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  letterSpacing: '0.04em',
+                }}
+              >
+                Cerrar
+              </button>
             </div>
           </div>
         </>,
@@ -842,6 +854,7 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
       )}
 
     </header>
+
 
   );
 }
