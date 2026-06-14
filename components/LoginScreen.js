@@ -305,121 +305,75 @@ export default function LoginScreen({ showToast }) {
           padding: 32,
           boxShadow: 'var(--shadow-lg), 0 0 40px rgba(205,127,50,0.08)',
         }}>
-          <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', marginBottom: 20 }}>
-            <button
-              type="button"
-              onClick={() => setLoginMethod('correo')}
-              style={{
-                flex: 1, padding: '10px 0', background: 'none', border: 'none',
-                borderBottom: loginMethod === 'correo' ? '2px solid var(--bronze-light)' : 'none',
-                color: loginMethod === 'correo' ? 'var(--bronze-light)' : 'var(--text-muted)',
-                fontWeight: 700, fontSize: 12, cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.05em'
-              }}
-            >
-              Correo Electrónico
-            </button>
-            <button
-              type="button"
-              onClick={() => setLoginMethod('nip')}
-              style={{
-                flex: 1, padding: '10px 0', background: 'none', border: 'none',
-                borderBottom: loginMethod === 'nip' ? '2px solid var(--bronze-light)' : 'none',
-                color: loginMethod === 'nip' ? 'var(--bronze-light)' : 'var(--text-muted)',
-                fontWeight: 700, fontSize: 12, cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.05em'
-              }}
-            >
-              Ingreso por NIP
-            </button>
-          </div>
-
           <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {loginMethod === 'nip' ? (
+            {usersList.length > 0 ? (
               <div className="form-group">
-                <label className="form-label">NIP del Empleado</label>
+                <label className="form-label">Selecciona tu Usuario</label>
+                <select
+                  className="form-select"
+                  value={selectedEmail}
+                  onChange={e => setSelectedEmail(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '12px 16px',
+                    background: 'var(--bg-elevated)',
+                    border: '1px solid var(--border-bronze)',
+                    borderRadius: 10,
+                    color: 'var(--text-main)',
+                    fontSize: 14,
+                    boxSizing: 'border-box',
+                    outline: 'none',
+                    cursor: 'pointer',
+                    height: 46
+                  }}
+                >
+                  {usersList.map(u => (
+                    <option key={u.id} value={u.email} style={{ background: 'var(--bg-card)', color: 'var(--text-main)' }}>
+                      {u.name} ({u.role ? u.role.toUpperCase() : 'PERSONAL'})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <div className="form-group">
+                <label className="form-label">Correo Electrónico</label>
                 <input
-                  ref={nipRef}
                   className="form-input"
-                  type="password"
-                  maxLength={6}
-                  placeholder="••••"
-                  value={nip}
-                  onChange={e => setNip(e.target.value.replace(/\D/g, ''))}
-                  style={{ textAlign: 'center', fontSize: 20, letterSpacing: '0.3em' }}
+                  type="email"
+                  placeholder={`usuario@${getClientDomain()}`}
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
                   required
                 />
               </div>
-            ) : (
-              <>
-                {usersList.length > 0 ? (
-                  <div className="form-group">
-                    <label className="form-label">Selecciona tu Usuario</label>
-                    <select
-                      className="form-select"
-                      value={selectedEmail}
-                      onChange={e => setSelectedEmail(e.target.value)}
-                      style={{
-                        width: '100%',
-                        padding: '12px 16px',
-                        background: 'var(--bg-elevated)',
-                        border: '1px solid var(--border-bronze)',
-                        borderRadius: 10,
-                        color: 'var(--text-main)',
-                        fontSize: 14,
-                        boxSizing: 'border-box',
-                        outline: 'none',
-                        cursor: 'pointer',
-                        height: 46
-                      }}
-                    >
-                      {usersList.map(u => (
-                        <option key={u.id} value={u.email} style={{ background: 'var(--bg-card)', color: 'var(--text-main)' }}>
-                          {u.name} ({u.role ? u.role.toUpperCase() : 'PERSONAL'})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                ) : (
-                  <div className="form-group">
-                    <label className="form-label">Correo Electrónico</label>
-                    <input
-                      className="form-input"
-                      type="email"
-                      placeholder={`usuario@${getClientDomain()}`}
-                      value={email}
-                      onChange={e => setEmail(e.target.value)}
-                      required
-                    />
-                  </div>
-                )}
-
-                <div className="form-group">
-                  <label className="form-label">Contraseña</label>
-                  <div style={{ position: 'relative' }}>
-                    <input
-                      ref={passwordRef}
-                      className="form-input"
-                      type={showPass ? 'text' : 'password'}
-                      placeholder="••••••••"
-                      value={password}
-                      onChange={e => setPassword(e.target.value)}
-                      style={{ paddingRight: 44 }}
-                      required
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPass(p => !p)}
-                      style={{
-                        position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
-                        background: 'none', border: 'none', color: 'var(--text-muted)',
-                        cursor: 'pointer', fontSize: 16, padding: 4,
-                      }}
-                    >
-                      <i className={`ri-eye${showPass ? '-off' : ''}-line`} />
-                    </button>
-                  </div>
-                </div>
-              </>
             )}
+
+            <div className="form-group">
+              <label className="form-label">Contraseña</label>
+              <div style={{ position: 'relative' }}>
+                <input
+                  ref={passwordRef}
+                  className="form-input"
+                  type={showPass ? 'text' : 'password'}
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  style={{ paddingRight: 44 }}
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPass(p => !p)}
+                  style={{
+                    position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
+                    background: 'none', border: 'none', color: 'var(--text-muted)',
+                    cursor: 'pointer', fontSize: 16, padding: 4,
+                  }}
+                >
+                  <i className={`ri-eye${showPass ? '-off' : ''}-line`} />
+                </button>
+              </div>
+            </div>
 
             <button
               type="submit"

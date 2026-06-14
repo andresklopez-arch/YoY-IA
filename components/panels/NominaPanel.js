@@ -388,7 +388,6 @@ function EmpleadosTab({ showToast }) {
                 <F label="Nombre *"><input className="form-input" value={form.nombre} onChange={e => setForm(p => ({ ...p, nombre: e.target.value }))} placeholder="Juan" /></F>
                 <F label="Apellido"><input className="form-input" value={form.apellido} onChange={e => setForm(p => ({ ...p, apellido: e.target.value }))} placeholder="Pérez" /></F>
                 <F label="Teléfono"><input className="form-input" value={form.telefono} onChange={e => setForm(p => ({ ...p, telefono: e.target.value }))} placeholder="555-000-0000" /></F>
-                <F label="Email"><input className="form-input" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} placeholder="juan@example.com" /></F>
                 <F label="Departamento">
                   <select className="form-select" value={form.departamento} onChange={e => setForm(p => ({ ...p, departamento: e.target.value }))}>
                     {DEPARTAMENTOS.map(d => <option key={d}>{d}</option>)}
@@ -416,7 +415,6 @@ function EmpleadosTab({ showToast }) {
                   </select>
                 </F>
                 <F label="Sueldo Base ($)"><input className="form-input" type="number" value={form.sueldoBase} onChange={e => setForm(p => ({ ...p, sueldoBase: e.target.value }))} placeholder="0.00" /></F>
-                <F label="NIP de Ingreso (4-6 dígitos)"><input className="form-input" maxLength={6} type="password" value={form.nip || ''} onChange={e => setForm(p => ({ ...p, nip: e.target.value.replace(/\D/g, '') }))} placeholder="Ej: 1234" /></F>
               </div>
 
               <div style={{ marginTop: 20, padding: 16, background: 'var(--bg-elevated)', borderRadius: 12, border: '1px solid var(--border)' }}>

@@ -2,7 +2,8 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { useAlertasNomina } from '@/components/panels/NominaPanel';
-import { collection, query, where, onSnapshot, doc, getDoc, setDoc } from 'firebase/firestore';
+import { QRCodeSVG } from 'qrcode.react';
+import { collection, query, where, onSnapshot, doc, getDoc, setDoc, addDoc, getDocs, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { deobfuscate } from '@/lib/crypto';
 
@@ -54,9 +55,59 @@ const QUICK_NAV_TARGETS = [
 ];
 
 export default function Topbar({ user, activePanel, onToggleSidebar, showToast, onNavigate }) {
-  const { logout } = useAuth();
+  const { logout, loginWithEmpleadoId } = useAuth();
   const [time, setTime] = useState(new Date());
   const [showMenu, setShowMenu] = useState(false);
+  const [showModalPaseLista, setShowModalPaseLista] = useState(false);
+  const [empleadosPaseLista, setEmpleadosPaseLista] = useState([]);
+  const [busquedaPaseLista, setBusquedaPaseLista] = useState('');
+
+  useEffect(() => {
+    if (!showModalPaseLista) return;
+    const q = query(collection(db, 'nomina_empleados'), where('estado', '==', 'activo'));
+    const unsub = onSnapshot(q, snap => {
+      setEmpleadosPaseLista(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
+    return unsub;
+  }, [showModalPaseLista]);
+
+  const handlePaseListaClick = async (emp) => {
+    try {
+      const fechaHoy = new Date().toISOString().slice(0, 10);
+      const hour = new Date().getHours();
+      let turnoActual = 'noche';
+      if (hour >= 6 && hour < 14) turnoActual = 'manana';
+      else if (hour >= 14 && hour < 22) turnoActual = 'tarde';
+
+      const q = query(
+        collection(db, 'nomina_asistencia'),
+        where('empleadoId', '==', emp.id),
+        where('fecha', '==', fechaHoy),
+        where('turno', '==', turnoActual)
+      );
+      const snap = await getDocs(q);
+      if (snap.empty) {
+        await addDoc(collection(db, 'nomina_asistencia'), {
+          empleadoId: emp.id,
+          fecha: fechaHoy,
+          turno: turnoActual,
+          estado: 'presente',
+          createdAt: serverTimestamp()
+        });
+        showToast(`Asistencia de ${emp.nombre} registrada ✅`, 'success');
+      } else {
+        showToast(`${emp.nombre} ya tiene asistencia registrada para este turno.`, 'info');
+      }
+
+      await loginWithEmpleadoId(emp.id);
+      showToast(`Sesión iniciada como ${emp.nombre} ✓`, 'success');
+      setShowModalPaseLista(false);
+    } catch (err) {
+      console.error(err);
+      showToast('Error al procesar el pase de lista: ' + err.message, 'error');
+    }
+  };
+
   const alertasNomina = useAlertasNomina();
   const pedidosPendientes = usePedidosPendientes();
   const pedidosCocina = usePedidosCocina();
@@ -324,6 +375,27 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
           <span style={{ fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--bronze-light)' }}>
             {PANEL_LABELS[activePanel] || activePanel}
           </span>
+          {activePanel === 'mesas' && (
+            <button
+              onClick={() => setShowModalPaseLista(true)}
+              className="btn btn-secondary btn-xs"
+              style={{
+                height: 24,
+                padding: '2px 8px',
+                fontSize: 10,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 5,
+                borderColor: 'var(--border-bronze)',
+                color: 'var(--bronze-light)',
+                cursor: 'pointer',
+                marginLeft: 12
+              }}
+              title="Pase de Lista / Código QR"
+            >
+              <i className="ri-qr-code-line" style={{ fontSize: 12 }} /> Pase de Lista
+            </button>
+          )}
         </div>
       </div>
 
@@ -620,6 +692,106 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
               </button>
             </div>
           )}
+        </div>
+      )}
+      {/* ── MODAL PASE DE LISTA QR ── */}
+      {showModalPaseLista && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
+          backdropFilter: 'blur(5px)'
+        }} onClick={() => setShowModalPaseLista(false)}>
+          <div className="modal" style={{ width: '90%', maxWidth: 700, maxHeight: '85vh', display: 'flex', flexDirection: 'column', background: 'var(--bg-card)', border: '1px solid var(--border-bronze)', boxShadow: 'var(--shadow-bronze)', borderRadius: 20 }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header" style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span className="modal-title" style={{ fontSize: 16, fontWeight: 800, color: 'var(--bronze-light)', textTransform: 'uppercase', letterSpacing: '0.1em', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <i className="ri-qr-code-line" /> Pase de Lista y Acceso de Empleados
+              </span>
+              <button onClick={() => setShowModalPaseLista(false)} className="btn-icon btn btn-secondary" style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 20, cursor: 'pointer' }}>
+                <i className="ri-close-line" />
+              </button>
+            </div>
+            
+            <div className="modal-body" style={{ padding: 24, overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
+                Selecciona tu código QR para registrar tu hora de entrada (pase de lista) y activar tu sesión de trabajo en este dispositivo.
+              </p>
+              
+              <div style={{ position: 'relative' }}>
+                <input 
+                  type="text" 
+                  className="form-input" 
+                  placeholder="Buscar empleado por nombre..." 
+                  value={busquedaPaseLista}
+                  onChange={e => setBusquedaPaseLista(e.target.value)}
+                  style={{ width: '100%', paddingLeft: 36, height: 38 }}
+                />
+                <i className="ri-search-line" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontSize: 16 }} />
+              </div>
+              
+              {empleadosPaseLista.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '40px 10px', color: 'var(--text-muted)' }}>
+                  <i className="ri-user-unfollow-line" style={{ fontSize: 32, display: 'block', marginBottom: 8 }} />
+                  Cargando empleados activos...
+                </div>
+              ) : (
+                <div style={{ 
+                  display: 'grid', 
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', 
+                  gap: 16, 
+                  marginTop: 10 
+                }}>
+                  {empleadosPaseLista
+                    .filter(emp => emp.nombre.toLowerCase().includes(busquedaPaseLista.toLowerCase()) || (emp.apellido || '').toLowerCase().includes(busquedaPaseLista.toLowerCase()))
+                    .map(emp => (
+                      <div 
+                        key={emp.id}
+                        style={{
+                          background: 'var(--bg-elevated)',
+                          border: '1px solid var(--border)',
+                          borderRadius: 14,
+                          padding: 12,
+                          textAlign: 'center',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          gap: 10,
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease-in-out'
+                        }}
+                        onMouseEnter={e => {
+                          e.currentTarget.style.borderColor = 'var(--bronze-light)';
+                          e.currentTarget.style.transform = 'translateY(-2px)';
+                          e.currentTarget.style.boxShadow = '0 4px 12px rgba(205,127,50,0.15)';
+                        }}
+                        onMouseLeave={e => {
+                          e.currentTarget.style.borderColor = 'var(--border)';
+                          e.currentTarget.style.transform = 'none';
+                          e.currentTarget.style.boxShadow = 'none';
+                        }}
+                        onClick={() => handlePaseListaClick(emp)}
+                      >
+                        <div style={{ background: '#fff', padding: 8, borderRadius: 8, display: 'inline-block' }}>
+                          <QRCodeSVG value={`yoy-employee-${emp.id}`} size={90} bgColor="#fff" fgColor="#000" />
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0, width: '100%' }}>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {emp.nombre}
+                          </div>
+                          <div style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', marginTop: 2 }}>
+                            {emp.rol || 'Mesero'}
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  }
+                </div>
+              )}
+            </div>
+            
+            <div className="modal-footer" style={{ padding: '16px 24px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end' }}>
+              <button className="btn btn-secondary" onClick={() => setShowModalPaseLista(false)}>Cerrar</button>
+            </div>
+          </div>
         </div>
       )}
     </header>

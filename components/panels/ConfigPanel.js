@@ -331,6 +331,13 @@ export default function ConfigPanel({ showToast }) {
       formattedEmail = `${formattedEmail}@${getClientDomain()}`;
     }
 
+    if (newUser.role === 'cajero') {
+      if (!/^\d{6}$/.test(newUser.password)) {
+        showToast('El PIN/Contraseña de Cajero debe ser de exactamente 6 dígitos numéricos', 'error');
+        return;
+      }
+    }
+
     setSavingUser(true);
     try {
       const dupQuery = query(collection(db, 'users'), where('email', '==', formattedEmail));
@@ -1504,13 +1511,16 @@ export default function ConfigPanel({ showToast }) {
               </div>
 
               <div className="form-group">
-                <label className="form-label">Contraseña / PIN de Ingreso</label>
+                <label className="form-label">
+                  {newUser.role === 'cajero' ? 'PIN de Ingreso (exactamente 6 dígitos)' : 'Contraseña (Alfanumérica)'}
+                </label>
                 <input 
                   className="form-input" 
-                  type="password"
-                  placeholder="••••••••" 
+                  type={newUser.role === 'cajero' ? 'text' : 'password'}
+                  placeholder={newUser.role === 'cajero' ? 'Ej. 123456' : '••••••••'} 
                   value={newUser.password}
-                  onChange={e => setNewUser(p => ({ ...p, password: e.target.value }))}
+                  onChange={e => setNewUser(p => ({ ...p, password: newUser.role === 'cajero' ? e.target.value.replace(/\D/g, '') : e.target.value }))}
+                  maxLength={newUser.role === 'cajero' ? 6 : undefined}
                   required
                 />
               </div>
