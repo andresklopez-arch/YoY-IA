@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import { useAuth } from '@/lib/auth-context';
 import { useAlertasNomina } from '@/components/panels/NominaPanel';
 import { QRCodeSVG } from 'qrcode.react';
-import { collection, query, where, onSnapshot, doc, getDoc, setDoc, addDoc, getDocs, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc, getDoc, setDoc, addDoc, getDocs, serverTimestamp, updateDoc, orderBy, limit } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { deobfuscate } from '@/lib/crypto';
 

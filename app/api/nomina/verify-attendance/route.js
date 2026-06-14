@@ -139,14 +139,19 @@ export async function POST(request) {
     const logsSnap = await getDocs(qLogs);
     let tipoRegistro = 'entrada';
     if (!logsSnap.empty) {
-      const logsList = logsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-      logsList.sort((a, b) => {
-        const tA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : (a.createdAt || 0);
-        const tB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : (b.createdAt || 0);
-        return tB - tA;
-      });
-      const lastLog = logsList[0];
-      tipoRegistro = lastLog.tipo === 'entrada' ? 'salida' : 'entrada';
+      const logsList = logsSnap.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        .filter(l => l.tipo === 'entrada' || l.tipo === 'salida');
+
+      if (logsList.length > 0) {
+        logsList.sort((a, b) => {
+          const tA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : (a.createdAt || 0);
+          const tB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : (b.createdAt || 0);
+          return tB - tA;
+        });
+        const lastLog = logsList[0];
+        tipoRegistro = lastLog.tipo === 'entrada' ? 'salida' : 'entrada';
+      }
     }
 
     // 9. Registrar token como consumido para evitar re-uso

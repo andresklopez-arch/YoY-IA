@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, Component } from 'react';
+import { useState, useEffect, Component, useRef } from 'react';
 import Sidebar from '@/components/Sidebar';
 import Topbar from '@/components/Topbar';
 import ToastContainer from '@/components/ToastContainer';
@@ -84,6 +84,7 @@ function AppContent() {
 
   const [fichajeSoporteExitoso, setFichajeSoporteExitoso] = useState(null);
   const [fichajeError, setFichajeError] = useState(null);
+  const processedRef = useRef(false);
 
   // Autocierre de la pantalla de error de asistencia (3 segundos)
   useEffect(() => {
@@ -170,13 +171,10 @@ function AppContent() {
     const token = urlParams.get('token'); // Sugerencia 2: Leer token temporal de la URL
     const expires = urlParams.get('expires'); // Hoisted expires query parameter
     
-    if (!scanId) {
-      setIsProcessingQR(false);
+    if (!scanId || processedRef.current) {
       return;
     }
-
-    // Sugerencia 1: Limpieza explícita inmediata de la sesión previa en localStorage, Firebase y Contexto
-    logout().catch(() => {});
+    processedRef.current = true;
 
     // Limpiar el parámetro de la URL inmediatamente para evitar ejecuciones repetidas al recargar
     const newUrl = window.location.pathname;
@@ -184,6 +182,9 @@ function AppContent() {
 
     const procesarLoginQR = async () => {
       try {
+        // Sugerencia 1: Limpieza explícita inmediata de la sesión previa en localStorage, Firebase y Contexto
+        await logout();
+
         // 1. Obtener geolocalización para registrar coordenadas en la asistencia
         let geoData = { lat: null, lng: null, precision: null, status: 'No disponible' };
         if (typeof navigator !== 'undefined' && navigator.geolocation) {
@@ -601,57 +602,6 @@ function AppContent() {
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 4000);
   };
 
-  if (loading || !minLoadingDone || isProcessingQR) {
-    return (
-      <div style={{ display:'flex', alignItems:'center', justifyContent:'center', minHeight:'100vh', background:'var(--bg-base)' }}>
-        <div style={{ textAlign:'center', padding: '24px' }}>
-          {!imageError ? (
-            <img 
-              src="/logo-largo.png" 
-              alt="YoY IA Billar By Alfonso Iturbide" 
-              fetchpriority="high"
-              loading="eager"
-              onError={() => setImageError(true)}
-              className="animate-heartbeat"
-              style={{ 
-                width: 260, 
-                height: 'auto', 
-                objectFit: 'contain',
-                margin: '0 auto 24px',
-                display: 'block'
-               }} 
-            />
-          ) : (
-            <div className="animate-heartbeat" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', margin: '0 auto 24px' }}>
-              <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="var(--bronze-light)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ filter: 'drop-shadow(0 0 8px var(--bronze-light))' }}>
-                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" fill="var(--bronze-subtle)" />
-              </svg>
-              <span style={{ color: 'var(--bronze-light)', fontSize: 14, fontWeight: 700, marginTop: 8, letterSpacing: '0.1em' }}>YoY IA Billar</span>
-            </div>
-          )}
-          <p style={{ color:'var(--text-secondary)', fontSize: 10, letterSpacing:'0.2em', textTransform:'uppercase', fontWeight: 600 }}>
-            {isProcessingQR ? 'Procesando código de acceso...' : 'Iniciando sistema...'}
-          </p>
-        </div>
-        
-        <style>{`
-          @keyframes heartbeat {
-            0% { transform: scale(1); }
-            14% { transform: scale(1.12); }
-            28% { transform: scale(1); }
-            42% { transform: scale(1.2); }
-            70% { transform: scale(1); }
-          }
-          .animate-heartbeat {
-            animation: heartbeat 2.4s infinite ease-in-out;
-            will-change: transform;
-            filter: drop-shadow(0 0 15px rgba(205,127,50,0.25));
-          }
-        `}</style>
-      </div>
-    );
-  }
-
   if (fichajeSoporteExitoso) {
     return (
       <div style={{
@@ -749,6 +699,57 @@ function AppContent() {
             width: '100%', animation: 'shrinkWidth 3s linear forwards'
           }} />
         </div>
+      </div>
+    );
+  }
+
+  if (loading || !minLoadingDone || isProcessingQR) {
+    return (
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'center', minHeight:'100vh', background:'var(--bg-base)' }}>
+        <div style={{ textAlign:'center', padding: '24px' }}>
+          {!imageError ? (
+            <img 
+              src="/logo-largo.png" 
+              alt="YoY IA Billar By Alfonso Iturbide" 
+              fetchpriority="high"
+              loading="eager"
+              onError={() => setImageError(true)}
+              className="animate-heartbeat"
+              style={{ 
+                width: 260, 
+                height: 'auto', 
+                objectFit: 'contain',
+                margin: '0 auto 24px',
+                display: 'block'
+               }} 
+            />
+          ) : (
+            <div className="animate-heartbeat" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', margin: '0 auto 24px' }}>
+              <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="var(--bronze-light)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ filter: 'drop-shadow(0 0 8px var(--bronze-light))' }}>
+                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" fill="var(--bronze-subtle)" />
+              </svg>
+              <span style={{ color: 'var(--bronze-light)', fontSize: 14, fontWeight: 700, marginTop: 8, letterSpacing: '0.1em' }}>YoY IA Billar</span>
+            </div>
+          )}
+          <p style={{ color:'var(--text-secondary)', fontSize: 10, letterSpacing:'0.2em', textTransform:'uppercase', fontWeight: 600 }}>
+            {isProcessingQR ? 'Procesando código de acceso...' : 'Iniciando sistema...'}
+          </p>
+        </div>
+        
+        <style>{`
+          @keyframes heartbeat {
+            0% { transform: scale(1); }
+            14% { transform: scale(1.12); }
+            28% { transform: scale(1); }
+            42% { transform: scale(1.2); }
+            70% { transform: scale(1); }
+          }
+          .animate-heartbeat {
+            animation: heartbeat 2.4s infinite ease-in-out;
+            will-change: transform;
+            filter: drop-shadow(0 0 15px rgba(205,127,50,0.25));
+          }
+        `}</style>
       </div>
     );
   }
