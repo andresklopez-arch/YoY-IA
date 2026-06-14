@@ -90,8 +90,14 @@ export async function POST(request) {
     // 6. Validar precisión del GPS (Evita simulaciones de GPS y mala calidad de señal)
     const precision = coordenadas.precision;
     if (precision !== null && precision !== undefined) {
-      if (precision > 50) {
-        return NextResponse.json({ success: false, error: `Precisión de GPS insuficiente (${Math.round(precision)}m). Intenta salir a una zona más abierta.` }, { status: 400 });
+      if (precision > 150) {
+        let errorMsg = `Precisión de GPS insuficiente (${Math.round(precision)}m).`;
+        if (precision >= 1000) {
+          errorMsg += ' Detectamos que elegiste "Ubicación aproximada" al dar permisos. Por favor, ve a los ajustes de permisos del navegador de tu celular y cámbialo a "Ubicación precisa" (Ubicación de alta precisión).';
+        } else {
+          errorMsg += ' Intenta salir a una zona más abierta o activar el Wi-Fi para mejorar la precisión de la señal.';
+        }
+        return NextResponse.json({ success: false, error: errorMsg }, { status: 400 });
       }
       if (precision === 0) {
         return NextResponse.json({ success: false, error: 'Señal de ubicación inválida detectada. Favor de no usar simuladores de GPS.' }, { status: 400 });
