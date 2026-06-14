@@ -16,8 +16,25 @@ git commit -m "Actualizacion: %date% %time%"
 
 :: Intentar git push
 git push
-echo ================================
-echo  Cambios subidos correctamente
-echo ================================
+if %ERRORLEVEL% EQU 0 (
+  echo ================================
+  echo  Cambios subidos correctamente (GitHub)
+  echo ================================
+  goto end
+)
+
+echo.
+echo  Git push no disponible. Desplegando en segundo plano con Vercel...
+npx vercel --prod --no-wait --yes
+if %ERRORLEVEL% EQU 0 (
+  echo ================================
+  echo  Despliegue iniciado en Vercel (En segundo plano)
+  echo ================================
+) else (
+  echo ================================
+  echo  ERROR al iniciar despliegue en Vercel
+  echo ================================
+)
+
 :end
 pause
