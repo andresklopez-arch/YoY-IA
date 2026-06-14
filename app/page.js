@@ -68,7 +68,7 @@ class ErrorBoundary extends Component {
 }
 
 function AppContent() {
-  const { user, loading, loginWithEmpleadoId } = useAuth();
+  const { user, loading, loginWithEmpleadoId, logout } = useAuth();
   const [minLoadingDone, setMinLoadingDone] = useState(false);
   const [imageError, setImageError] = useState(false);
   const [activePanel, setActivePanel] = useState('mesas');
@@ -153,10 +153,15 @@ function AppContent() {
     if (typeof window === 'undefined') return;
     const urlParams = new URLSearchParams(window.location.search);
     const scanId = urlParams.get('scanId');
+    const token = urlParams.get('token'); // Sugerencia 2: Leer token temporal de la URL
+    
     if (!scanId) {
       setIsProcessingQR(false);
       return;
     }
+
+    // Sugerencia 1: Limpieza explícita inmediata de la sesión previa en localStorage, Firebase y Contexto
+    logout().catch(() => {});
 
     // Limpiar el parámetro de la URL inmediatamente para evitar ejecuciones repetidas al recargar
     const newUrl = window.location.pathname;
@@ -173,6 +178,42 @@ function AppContent() {
           return;
         }
         const emp = { id: empDoc.id, ...empDoc.data() };
+
+        // Sugerencia 2: Validar el token temporal de acceso si está configurado en la base de datos
+        if (emp.qrToken) {
+          if (emp.qrToken !== token || Date.now() > (emp.qrTokenExpires || 0)) {
+            showToast('Código de acceso QR vencido o inválido. Solicite al administrador abrir el modal nuevamente.', 'error');
+            setIsProcessingQR(false);
+            return;
+          }
+        }
+
+        // Sugerencia 3: Obtener geolocalización para registrar coordenadas en la asistencia y auditoría de la bitácora
+        let geoData = { lat: null, lng: null, precision: null, status: 'No disponible' };
+        if (typeof navigator !== 'undefined' && navigator.geolocation) {
+          try {
+            const getCoords = () => new Promise((resolve) => {
+              navigator.geolocation.getCurrentPosition(
+                (pos) => resolve({
+                  lat: pos.coords.latitude,
+                  lng: pos.coords.longitude,
+                  precision: pos.coords.accuracy,
+                  status: 'Obtenido'
+                }),
+                (err) => resolve({
+                  lat: null,
+                  lng: null,
+                  precision: null,
+                  status: `Error: ${err.message}`
+                }),
+                { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+              );
+            });
+            geoData = await getCoords();
+          } catch (geoErr) {
+            console.warn("Error obteniendo geolocalización:", geoErr);
+          }
+        }
 
         // 2. Registrar asistencia en la base de datos (si no existe para hoy/turno)
         const fechaHoy = new Date().toISOString().slice(0, 10);
@@ -194,6 +235,7 @@ function AppContent() {
             fecha: fechaHoy,
             turno: turnoActual,
             estado: 'presente',
+            coordenadas: geoData, // Guardar las coordenadas registradas en el pase de lista
             createdAt: serverTimestamp()
           });
           showToast(`Asistencia de ${emp.nombre} registrada ✅`, 'success');
@@ -209,7 +251,7 @@ function AppContent() {
         await addDoc(collection(db, 'bitacora'), {
           fecha: new Date().toISOString(),
           accion: 'Asistencia QR Escaneado',
-          detalle: `Pase de lista y login QR Escaneado: ${emp.nombre} (${emp.rol || 'Mesero'}) desde ${dispositivo}`,
+          detalle: `Pase de lista y login QR Escaneado: ${emp.nombre} (${emp.rol || 'Mesero'}) desde ${dispositivo}. Ubicación: ${geoData.status} (Lat: ${geoData.lat || 'N/A'}, Lng: ${geoData.lng || 'N/A'})`,
           monto: 0,
           operador: emp.nombre,
           rolOperador: (emp.rol || 'mesero').toLowerCase()
@@ -242,7 +284,7 @@ function AppContent() {
     };
 
     procesarLoginQR();
-  }, [loginWithEmpleadoId]);
+  }, [loginWithEmpleadoId, logout]);
 
   // 1. Escuchar capturas de venta del mesero
   useEffect(() => {
