@@ -14,7 +14,7 @@ import ConfigPanel from '@/components/panels/ConfigPanel';
 import NominaPanel from '@/components/panels/NominaPanel';
 import LoginScreen from '@/components/LoginScreen';
 import { AuthProvider, useAuth } from '@/lib/auth-context';
-import { collection, query, where, orderBy, limit, onSnapshot, doc, updateDoc, serverTimestamp, getDoc } from 'firebase/firestore';
+import { collection, query, where, orderBy, limit, onSnapshot, doc, updateDoc, serverTimestamp, getDoc, addDoc, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
 // ── ERROR BOUNDARY: captura crashes en paneles sin matar la app ──
@@ -68,7 +68,7 @@ class ErrorBoundary extends Component {
 }
 
 function AppContent() {
-  const { user, loading } = useAuth();
+  const { user, loading, loginWithEmpleadoId } = useAuth();
   const [minLoadingDone, setMinLoadingDone] = useState(false);
   const [imageError, setImageError] = useState(false);
   const [activePanel, setActivePanel] = useState('mesas');
@@ -134,6 +134,91 @@ function AppContent() {
       }
     }
   }, [user]);
+
+  // Escuchar si se abre la app escaneando un código QR con ?scanId=xxx (Para iniciar sesión en el dispositivo del empleado)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const urlParams = new URLSearchParams(window.location.search);
+    const scanId = urlParams.get('scanId');
+    if (!scanId) return;
+
+    // Limpiar el parámetro de la URL inmediatamente para evitar ejecuciones repetidas al recargar
+    const newUrl = window.location.pathname;
+    window.history.replaceState({}, document.title, newUrl);
+
+    const procesarLoginQR = async () => {
+      try {
+        // 1. Obtener datos del empleado desde Firestore
+        const docRef = doc(db, 'nomina_empleados', scanId);
+        const empDoc = await getDoc(docRef);
+        if (!empDoc.exists()) {
+          showToast('Empleado no encontrado', 'error');
+          return;
+        }
+        const emp = { id: empDoc.id, ...empDoc.data() };
+
+        // 2. Registrar asistencia en la base de datos (si no existe para hoy/turno)
+        const fechaHoy = new Date().toISOString().slice(0, 10);
+        const hour = new Date().getHours();
+        let turnoActual = 'noche';
+        if (hour >= 6 && hour < 14) turnoActual = 'manana';
+        else if (hour >= 14 && hour < 22) turnoActual = 'tarde';
+
+        const q = query(
+          collection(db, 'nomina_asistencia'),
+          where('empleadoId', '==', emp.id),
+          where('fecha', '==', fechaHoy),
+          where('turno', '==', turnoActual)
+        );
+        const snap = await getDocs(q);
+        if (snap.empty) {
+          await addDoc(collection(db, 'nomina_asistencia'), {
+            empleadoId: emp.id,
+            fecha: fechaHoy,
+            turno: turnoActual,
+            estado: 'presente',
+            createdAt: serverTimestamp()
+          });
+          showToast(`Asistencia de ${emp.nombre} registrada ✅`, 'success');
+        }
+
+        // Obtener el tipo de dispositivo que escanea
+        const ua = navigator.userAgent;
+        let dispositivo = 'PC/Terminal';
+        if (/Mobi|Android|iPhone/i.test(ua)) dispositivo = 'Móvil';
+        else if (/Tablet|iPad/i.test(ua)) dispositivo = 'Tablet';
+
+        // Registrar en la bitácora general para Reportes
+        await addDoc(collection(db, 'bitacora'), {
+          fecha: new Date().toISOString(),
+          accion: 'Asistencia QR Escaneado',
+          detalle: `Pase de lista y login QR Escaneado: ${emp.nombre} (${emp.rol || 'Mesero'}) desde ${dispositivo}`,
+          monto: 0,
+          operador: emp.nombre,
+          rolOperador: (emp.rol || 'mesero').toLowerCase()
+        });
+
+        // 3. Loguear al empleado en el dispositivo escaneador
+        await loginWithEmpleadoId(emp.id);
+        showToast(`Sesión iniciada como ${emp.nombre} ✓`, 'success');
+
+        // 4. Redireccionar de inmediato a su área de trabajo
+        const rolLower = (emp.rol || '').toLowerCase();
+        if (rolLower.includes('mesero')) {
+          window.location.href = '/mesero';
+        } else if (rolLower.includes('cocina')) {
+          window.location.href = '/cocina';
+        } else {
+          window.location.href = '/';
+        }
+      } catch (err) {
+        console.error(err);
+        showToast('Error al iniciar sesión con QR: ' + err.message, 'error');
+      }
+    };
+
+    procesarLoginQR();
+  }, [loginWithEmpleadoId]);
 
   // 1. Escuchar capturas de venta del mesero
   useEffect(() => {

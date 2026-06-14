@@ -62,16 +62,6 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
   const [showModalPaseLista, setShowModalPaseLista] = useState(false);
   const [empleadosPaseLista, setEmpleadosPaseLista] = useState([]);
   const [busquedaPaseLista, setBusquedaPaseLista] = useState('');
-  const [redirectTarget, setRedirectTarget] = useState(null);
-  const [redirectName, setRedirectName] = useState('');
-
-  // Reset redirect targets when showing the modal
-  useEffect(() => {
-    if (showModalPaseLista) {
-      setRedirectTarget(null);
-      setRedirectName('');
-    }
-  }, [showModalPaseLista]);
 
   useEffect(() => {
     if (!showModalPaseLista) return;
@@ -110,42 +100,27 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
         showToast(`${emp.nombre} ya tiene asistencia registrada para este turno.`, 'info');
       }
 
-      // Obtener información del dispositivo (Sugerencia 2)
+      // Obtener información del dispositivo
       const ua = typeof navigator !== 'undefined' ? navigator.userAgent : 'Desconocido';
       let dispositivo = 'PC/Terminal';
       if (/Mobi|Android|iPhone/i.test(ua)) dispositivo = 'Móvil';
       else if (/Tablet|iPad/i.test(ua)) dispositivo = 'Tablet';
 
-      // Registrar de inmediato en la bitácora general para que aparezca en el panel de Reportes (Sugerencia 2)
+      // Registrar de inmediato en la bitácora general para el panel de Reportes
       await addDoc(collection(db, 'bitacora'), {
         fecha: new Date().toISOString(),
-        accion: 'Asistencia QR',
-        detalle: `Pase de lista y login QR: ${emp.nombre} (${emp.rol || 'Mesero'}) desde ${dispositivo}`,
+        accion: 'Asistencia Consola',
+        detalle: `Pase de lista de ${emp.nombre} (${emp.rol || 'Mesero'}) registrado desde pantalla administrador por ${dispositivo}`,
         monto: 0,
         operador: emp.nombre,
         rolOperador: (emp.rol || 'mesero').toLowerCase()
       });
 
-      await loginWithEmpleadoId(emp.id);
-      showToast(`Sesión iniciada como ${emp.nombre} ✓`, 'success');
-
-      // Redireccionar al módulo correspondiente de inmediato (Sugerencia 1)
-      const rolLower = (emp.rol || '').toLowerCase();
-      if (rolLower.includes('mesero') || rolLower.includes('cocina')) {
-        const target = rolLower.includes('mesero') ? '/mesero' : '/cocina';
-        const name = rolLower.includes('mesero') ? 'Mesero' : 'Cocina';
-        setRedirectTarget(target);
-        setRedirectName(name);
-        showToast(`Redirigiendo al módulo de ${name}... 🚀`, 'info');
-        setTimeout(() => {
-          window.location.href = target;
-        }, 1500);
-      } else {
-        setShowModalPaseLista(false);
-      }
+      // No iniciamos sesión ni redirigimos en el equipo del administrador
+      setShowModalPaseLista(false);
     } catch (err) {
       console.error(err);
-      showToast('Error al procesar el pase de lista: ' + err.message, 'error');
+      showToast('Error al registrar pase de lista: ' + err.message, 'error');
     }
   };
 
@@ -790,28 +765,6 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
                 Selecciona tu código QR para registrar tu hora de entrada y activar tu sesión de trabajo en este dispositivo.
               </p>
 
-              {/* Enlace de Contingencia Manual si está redirigiendo */}
-              {redirectTarget && (
-                <div style={{
-                  padding: 16,
-                  background: 'var(--bronze-subtle)',
-                  border: '1px solid var(--border-bronze)',
-                  borderRadius: 12,
-                  textAlign: 'center',
-                  animation: 'pulse 2s infinite'
-                }}>
-                  <p style={{ margin: '0 0 8px 0', fontSize: 13, color: 'var(--bronze-light)', fontWeight: 600 }}>
-                    ¡Sesión Iniciada! Redirigiendo al módulo de {redirectName}... 🚀
-                  </p>
-                  <a
-                    href={redirectTarget}
-                    style={{ fontSize: 11, color: 'var(--text-primary)', textDecoration: 'underline', fontWeight: 700 }}
-                  >
-                    Haz clic aquí si la redirección automática no funciona.
-                  </a>
-                </div>
-              )}
-
               {/* Buscador */}
               <div style={{ position: 'relative' }}>
                 <input
@@ -875,7 +828,7 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
                         }}
                       >
                         <div style={{ background: '#fff', padding: 8, borderRadius: 8 }}>
-                          <QRCodeSVG value={`yoy-employee-${emp.id}`} size={90} bgColor="#fff" fgColor="#000" />
+                          <QRCodeSVG value={typeof window !== 'undefined' ? `${window.location.origin}/?scanId=${emp.id}` : `https://yoy-ia-billar.vercel.app/?scanId=${emp.id}`} size={90} bgColor="#fff" fgColor="#000" />
                         </div>
                         <div style={{ width: '100%' }}>
                           <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
