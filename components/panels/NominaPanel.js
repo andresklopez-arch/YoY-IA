@@ -348,7 +348,7 @@ export default function NominaPanel({ showToast }) {
   const [showEmpModal, setShowEmpModal] = useState(false);
   const [editandoEmpleado, setEditandoEmpleado] = useState(null);
   const [formEmpleado, setFormEmpleado] = useState({
-    nombre: '', apellido: '', telefono: '', email: '', departamento: 'Mesas', rol: 'Mesero', fechaIngreso: today(), estado: 'activo', frecuenciaPago: 'quincenal', sueldoBase: '', comisionMesas: '', comisionMesasTipo: 'porcentaje', comisionBar: '', comisionBarTipo: 'porcentaje', comisionTurno: '', comisionTurnoTipo: 'porcentaje', bonoTurno: '', notas: '', NIP: '', permisos: { dashboard: true, mesas: true, caja: true, bar: true, clientes: true, torneos: false, nomina: false, reportes: false, config: false }
+    nombre: '', apellido: '', telefono: '', email: '', departamento: 'Mesas', rol: 'Mesero', fechaIngreso: today(), estado: 'activo', frecuenciaPago: 'quincenal', sueldoBase: '', comisionMesas: '', comisionMesasTipo: 'porcentaje', comisionBar: '', comisionBarTipo: 'porcentaje', comisionTurno: '', comisionTurnoTipo: 'porcentaje', bonoTurno: '', notas: '', nip: '', permisos: { dashboard: true, mesas: true, caja: true, bar: true, clientes: true, torneos: false, nomina: false, reportes: false, config: false }
   });
 
   const [showGastoModal, setShowGastoModal] = useState(false);
@@ -503,11 +503,20 @@ export default function NominaPanel({ showToast }) {
   const guardarEmpleado = async () => {
     if (!formEmpleado.nombre.trim()) return showToast('El nombre es requerido', 'error');
     try {
-      let finalNip = formEmpleado.nip;
+      let finalNip = formEmpleado.nip || '';
       if (finalNip && /^\d{4,6}$/.test(finalNip)) {
         finalNip = await hashNip(finalNip);
       }
-      const data = { ...formEmpleado, nip: finalNip, updatedAt: serverTimestamp() };
+      
+      // Sanitizar datos para eliminar cualquier valor 'undefined' que Firestore no admita
+      const dataRaw = { ...formEmpleado, nip: finalNip, updatedAt: serverTimestamp() };
+      const data = {};
+      Object.entries(dataRaw).forEach(([key, val]) => {
+        if (val !== undefined) {
+          data[key] = val;
+        }
+      });
+
       if (editandoEmpleado) {
         await updateDoc(doc(db, 'nomina_empleados', editandoEmpleado), data);
         showToast('Empleado actualizado ✅', 'success');
@@ -762,7 +771,7 @@ export default function NominaPanel({ showToast }) {
                 <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>al</span>
                 <input className="form-input" type="date" value={fechaFin} onChange={e => setFechaFin(e.target.value)} style={{ width: 120, height: 30, fontSize: 11, padding: '2px 8px' }} />
                 <button className="btn btn-primary btn-sm" onClick={() => {
-                  setFormEmpleado({ nombre: '', apellido: '', telefono: '', email: '', departamento: 'Mesas', rol: 'Mesero', fechaIngreso: today(), estado: 'activo', frecuenciaPago: 'quincenal', sueldoBase: '', comisionMesas: '', comisionMesasTipo: 'porcentaje', comisionBar: '', comisionBarTipo: 'porcentaje', comisionTurno: '', comisionTurnoTipo: 'porcentaje', bonoTurno: '', notas: '', NIP: '', permisos: { dashboard: true, mesas: true, caja: true, bar: true, clientes: true, torneos: false, nomina: false, reportes: false, config: false } });
+                  setFormEmpleado({ nombre: '', apellido: '', telefono: '', email: '', departamento: 'Mesas', rol: 'Mesero', fechaIngreso: today(), estado: 'activo', frecuenciaPago: 'quincenal', sueldoBase: '', comisionMesas: '', comisionMesasTipo: 'porcentaje', comisionBar: '', comisionBarTipo: 'porcentaje', comisionTurno: '', comisionTurnoTipo: 'porcentaje', bonoTurno: '', notas: '', nip: '', permisos: { dashboard: true, mesas: true, caja: true, bar: true, clientes: true, torneos: false, nomina: false, reportes: false, config: false } });
                   setEditandoEmpleado(null);
                   setShowEmpModal(true);
                 }} style={{ height: 30, padding: '0 10px', fontSize: 11 }}>
@@ -1181,7 +1190,7 @@ export default function NominaPanel({ showToast }) {
 
               <div className="form-group" style={{ marginTop: 16 }}>
                 <label className="form-label">Notas</label>
-                <textarea className="form-input" rows={2} value={formEmpleado.notes} onChange={e => setFormEmpleado(p => ({ ...p, notas: e.target.value }))} placeholder="Notas adicionales..." style={{ resize: 'vertical' }} />
+                <textarea className="form-input" rows={2} value={formEmpleado.notas || ''} onChange={e => setFormEmpleado(p => ({ ...p, notas: e.target.value }))} placeholder="Notas adicionales..." style={{ resize: 'vertical' }} />
               </div>
             </div>
             <div className="modal-footer">
