@@ -72,6 +72,15 @@ export default function BarPanel({ showToast }) {
   const [ajusteCant, setAjusteCant] = useState('');
   const [ajusteTipo, setAjusteTipo] = useState('entrada'); // 'entrada', 'salida', 'merma'
   const [ajusteMotivo, setAjusteMotivo] = useState('');
+  const [ajustePrecioCompra, setAjustePrecioCompra] = useState('');
+
+  useEffect(() => {
+    if (modalAjuste) {
+      setAjustePrecioCompra(modalAjuste.precioCosto || '');
+    } else {
+      setAjustePrecioCompra('');
+    }
+  }, [modalAjuste]);
 
   // Modales IA
   const [modalOrdenCompra, setModalOrdenCompra] = useState(false);
@@ -378,6 +387,12 @@ export default function BarPanel({ showToast }) {
       return;
     }
 
+    const precioCompraNum = parseFloat(ajustePrecioCompra);
+    if (ajusteTipo === 'entrada' && (isNaN(precioCompraNum) || precioCompraNum <= 0)) {
+      showToast('Por favor ingrese un precio de compra válido y obligatorio para la entrada.', 'warning');
+      return;
+    }
+
     let nuevoStock = prod.stock;
     if (ajusteTipo === 'entrada') {
       nuevoStock += cant;
@@ -389,7 +404,16 @@ export default function BarPanel({ showToast }) {
       nuevoStock -= cant;
     }
 
-    const nuevosProductos = productos.map(p => p.id === prod.id ? { ...p, stock: nuevoStock, lastModified: Date.now() } : p);
+    const nuevosProductos = productos.map(p => 
+      p.id === prod.id 
+        ? { 
+            ...p, 
+            stock: nuevoStock, 
+            precioCosto: ajusteTipo === 'entrada' ? precioCompraNum : p.precioCosto, 
+            lastModified: Date.now() 
+          } 
+        : p
+    );
 
     const nuevoLog = {
       id: Date.now(),
@@ -397,7 +421,7 @@ export default function BarPanel({ showToast }) {
       producto: prod.nombre,
       tipo: ajusteTipo,
       cantidad: cant,
-      detalle: ajusteMotivo || (ajusteTipo === 'entrada' ? 'Reabastecimiento manual' : ajusteTipo === 'merma' ? 'Registro de merma' : 'Ajuste manual de stock'),
+      detalle: ajusteMotivo || (ajusteTipo === 'entrada' ? `Reabastecimiento (Precio compra: $${precioCompraNum} c/u)` : ajusteTipo === 'merma' ? 'Registro de merma' : 'Ajuste manual de stock'),
       operador: 'Admin YoY'
     };
 
@@ -408,13 +432,14 @@ export default function BarPanel({ showToast }) {
     registrarEnBitacoraGeneral(
       'Ajuste Inv', 
       `${ajusteTipo === 'entrada' ? 'Entrada' : ajusteTipo === 'merma' ? 'Merma' : 'Salida'} de ${cant} pz de ${prod.nombre} (${nuevoLog.detalle})`,
-      0
+      ajusteTipo === 'entrada' ? cant * precioCompraNum : 0
     );
 
     showToast(`Inventario de ${prod.nombre} actualizado con éxito ✓`, 'success');
     setModalAjuste(null);
     setAjusteCant('');
     setAjusteMotivo('');
+    setAjustePrecioCompra('');
   };
 
   // Registrar Nuevo Producto
@@ -1497,6 +1522,20 @@ export default function BarPanel({ showToast }) {
                     onChange={e => setAjusteCant(e.target.value)}
                   />
                 </div>
+
+                {ajusteTipo === 'entrada' && (
+                  <div className="form-group">
+                    <label className="form-label">Precio de Compra Unitario ($) *</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      className="form-input"
+                      placeholder="Ej: 15.50"
+                      value={ajustePrecioCompra}
+                      onChange={e => setAjustePrecioCompra(e.target.value)}
+                    />
+                  </div>
+                )}
 
                 <div className="form-group">
                   <label className="form-label">Motivo o Detalle</label>
