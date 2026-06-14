@@ -83,6 +83,7 @@ function AppContent() {
   });
 
   const [fichajeSoporteExitoso, setFichajeSoporteExitoso] = useState(null);
+  const [fichajeError, setFichajeError] = useState(null);
 
   // Autocierre de confirmación de asistencia para personal de soporte
   useEffect(() => {
@@ -167,6 +168,7 @@ function AppContent() {
     const urlParams = new URLSearchParams(window.location.search);
     const scanId = urlParams.get('scanId');
     const token = urlParams.get('token'); // Sugerencia 2: Leer token temporal de la URL
+    const expires = urlParams.get('expires'); // Hoisted expires query parameter
     
     if (!scanId) {
       setIsProcessingQR(false);
@@ -217,7 +219,7 @@ function AppContent() {
 
         const rawPayload = {
           empleadoId: scanId,
-          expires: new URLSearchParams(window.location.search).get('expires') || Date.now(),
+          expires: expires || Date.now(),
           coordenadas: geoData,
           dispositivo
         };
@@ -235,7 +237,7 @@ function AppContent() {
 
         const data = await res.json();
         if (!res.ok || !data.success) {
-          showToast(data.error || 'Error al procesar asistencia', 'error');
+          setFichajeError(data.error || 'Error al procesar asistencia');
           setIsProcessingQR(false);
           return;
         }
@@ -273,7 +275,7 @@ function AppContent() {
         }
       } catch (err) {
         console.error(err);
-        showToast('Error al iniciar sesión con QR: ' + err.message, 'error');
+        setFichajeError('Error al registrar asistencia con QR: ' + err.message);
         setIsProcessingQR(false);
       }
     };
@@ -665,7 +667,7 @@ function AppContent() {
             {fichajeSoporteExitoso.tipo === 'entrada' ? '🌅' : '🌙'}
           </div>
           <h2 style={{ fontSize: 22, fontWeight: 900, color: '#fff', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-            {fichajeSoporteExitoso.tipo === 'entrada' ? 'Entrada Registrada' : 'Salida Registrada'}
+            {fichajeSoporteExitoso.tipo === 'entrada' ? 'Pase de Lista OK' : 'Registro de Salida OK'}
           </h2>
           <p style={{ fontSize: 16, color: 'var(--bronze-light)', fontWeight: 700, marginBottom: 4 }}>
             {fichajeSoporteExitoso.nombre}
@@ -680,8 +682,8 @@ function AppContent() {
             color: 'var(--text-secondary)', lineHeight: 1.6
           }}>
             {fichajeSoporteExitoso.tipo === 'entrada' 
-              ? '¡Tu hora de entrada ha sido guardada! Que tengas una excelente jornada laboral.' 
-              : '¡Tu hora de salida ha sido guardada! Gracias por tu trabajo y que tengas un excelente descanso.'}
+              ? '¡Tu pase de lista de entrada ha sido registrado exitosamente!' 
+              : '¡Tu registro de salida ha sido guardado exitosamente!'}
           </div>
 
           <button
@@ -696,6 +698,43 @@ function AppContent() {
             onMouseLeave={e => { e.currentTarget.style.transform = 'none'; }}
           >
             Aceptar
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (fichajeError) {
+    return (
+      <div style={{
+        minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: 'var(--bg-base)', padding: 24
+      }}>
+        <div style={{
+          background: 'var(--bg-elevated)', border: '2px solid var(--danger)',
+          borderRadius: 20, padding: 40, maxWidth: 450, width: '100%', textAlign: 'center',
+          boxShadow: '0 10px 40px rgba(0,0,0,0.5), var(--shadow-danger)'
+        }}>
+          <div style={{ fontSize: 64, marginBottom: 20 }}>❌</div>
+          <h2 style={{ fontSize: 22, fontWeight: 900, color: '#fff', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            Fallo de Asistencia
+          </h2>
+          <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 24, lineHeight: 1.6 }}>
+            {fichajeError}
+          </p>
+          <button
+            onClick={() => {
+              setFichajeError(null);
+              window.location.href = '/';
+            }}
+            style={{
+              background: 'linear-gradient(135deg, var(--danger), #f87171)',
+              color: '#fff', border: 'none', borderRadius: 12, padding: '12px 32px',
+              fontWeight: 800, fontSize: 13, cursor: 'pointer', width: '100%',
+              textTransform: 'uppercase', letterSpacing: '0.05em', transition: 'transform 0.15s'
+            }}
+          >
+            Reintentar / Volver
           </button>
         </div>
       </div>
