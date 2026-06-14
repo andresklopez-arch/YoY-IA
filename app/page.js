@@ -227,6 +227,46 @@ function AppContent() {
           }
         }
 
+        // Validación estricta de geolocalización y geocerca (200 metros)
+        if (geoData.status !== 'Obtenido') {
+          showToast('Geolocalización requerida. Por favor, activa el GPS y otorga permisos de ubicación en tu navegador para registrar asistencia.', 'error');
+          setIsProcessingQR(false);
+          return;
+        }
+
+        let sucursalCoords = { lat: 20.659698, lng: -103.349609 }; // Sucursal por defecto
+        try {
+          const sucDoc = await getDoc(doc(db, 'config', 'sucursal'));
+          if (sucDoc.exists() && sucDoc.data().lat && sucDoc.data().lng) {
+            sucursalCoords.lat = Number(sucDoc.data().lat);
+            sucursalCoords.lng = Number(sucDoc.data().lng);
+          }
+        } catch (err) {
+          console.warn("Error cargando coordenadas de sucursal, usando por defecto:", err);
+        }
+
+        const getDistanceInMeters = (lat1, lon1, lat2, lon2) => {
+          const R = 6371e3; // Radio de la Tierra en metros
+          const φ1 = lat1 * Math.PI / 180;
+          const φ2 = lat2 * Math.PI / 180;
+          const Δφ = (lat2 - lat1) * Math.PI / 180;
+          const Δλ = (lon2 - lon1) * Math.PI / 180;
+
+          const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+                    Math.cos(φ1) * Math.cos(φ2) *
+                    Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+          const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+          return R * c;
+        };
+
+        const distancia = getDistanceInMeters(geoData.lat, geoData.lng, sucursalCoords.lat, sucursalCoords.lng);
+        if (distancia > 200) {
+          showToast(`Estás fuera del rango permitido del establecimiento para pasar lista (Distancia: ${Math.round(distancia)}m). Debes estar a menos de 200m.`, 'error');
+          setIsProcessingQR(false);
+          return;
+        }
+
         // 2. Determinar si es Entrada o Salida consultando en memoria los logs de hoy
         const fechaHoy = new Date().toISOString().slice(0, 10);
         const qLogs = query(

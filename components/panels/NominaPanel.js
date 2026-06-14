@@ -356,6 +356,70 @@ export default function NominaPanel({ showToast }) {
   const [busqueda, setBusqueda] = useState('');
   const [busquedaGastos, setBusquedaGastos] = useState('');
 
+  const [activeQrToken, setActiveQrToken] = useState('');
+  const [activeQrExpires, setActiveQrExpires] = useState(0);
+
+  const generarTokenQR = async (empleadoId) => {
+    try {
+      const tokenRandom = Math.random().toString(36).substring(2, 10).toUpperCase();
+      const expires = Date.now() + 5 * 60 * 1000; // 5 minutos
+      
+      await updateDoc(doc(db, 'nomina_empleados', empleadoId), {
+        qrToken: tokenRandom,
+        qrTokenExpires: expires
+      });
+      
+      setActiveQrToken(tokenRandom);
+      setActiveQrExpires(expires);
+      showToast('Código QR dinámico generado con éxito (Válido por 5 minutos) 🔑', 'success');
+    } catch (err) {
+      console.error("Error al generar token QR:", err);
+      showToast('Error al generar token QR: ' + err.message, 'error');
+    }
+  };
+
+  const exportarCSV = () => {
+    if (fichajesFiltrados.length === 0) {
+      showToast('No hay registros para exportar', 'warning');
+      return;
+    }
+    
+    // Cabeceras del CSV con BOM para soporte UTF-8 en Excel
+    let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
+    csvContent += "Fecha,Hora,Empleado,Rol,Evento,Dispositivo,Latitud,Longitud,Precision,Estado GPS\r\n";
+    
+    fichajesFiltrados.forEach(log => {
+      const date = log.createdAt?.toDate ? log.createdAt.toDate() : new Date(log.createdAt || Date.now());
+      const fechaFmt = date.toLocaleDateString('es-MX');
+      const horaFmt = date.toLocaleTimeString('es-MX');
+      const nombre = `"${log.nombre.replace(/"/g, '""')}"`;
+      const rol = `"${(log.rol || '').replace(/"/g, '""')}"`;
+      
+      let tipoText = log.tipo;
+      if (log.tipo === 'entrada') tipoText = 'Entrada (QR)';
+      else if (log.tipo === 'salida') tipoText = 'Salida (QR)';
+      else if (log.tipo === 'login') tipoText = 'Login (Sesión)';
+      else if (log.tipo === 'logout') tipoText = 'Logout (Sesión)';
+
+      const dispositivo = log.dispositivo || 'PC/Terminal';
+      const lat = log.coordenadas?.lat || 'N/D';
+      const lng = log.coordenadas?.lng || 'N/D';
+      const precision = log.coordenadas?.precision ? `${Math.round(log.coordenadas.precision)}m` : 'N/D';
+      const statusGps = log.coordenadas?.status || 'N/D';
+      
+      csvContent += `${fechaFmt},${horaFmt},${nombre},${rol},${tipoText},${dispositivo},${lat},${lng},${precision},${statusGps}\r\n`;
+    });
+    
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `reporte_fichajes_${fichajeFechaInicio}_a_${fichajeFechaFin}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast('Reporte CSV descargado con éxito ✅', 'success');
+  };
+
   // Modales
   const [showEmpModal, setShowEmpModal] = useState(false);
   const [editandoEmpleado, setEditandoEmpleado] = useState(null);
@@ -915,6 +979,8 @@ export default function NominaPanel({ showToast }) {
                             <button className="btn btn-secondary btn-xs btn-icon" onClick={() => {
                               setEditandoEmpleado(c.emp.id);
                               setFormEmpleado({ nip: '', ...c.emp });
+                              setActiveQrToken('');
+                              setActiveQrExpires(0);
                               setShowEmpModal(true);
                             }} title="Editar datos"><i className="ri-pencil-line" /></button>
                             <button className="btn btn-danger btn-xs btn-icon" onClick={() => eliminarEmpleado(c.emp.id)} title="Eliminar"><i className="ri-delete-bin-line" /></button>
@@ -1134,6 +1200,10 @@ export default function NominaPanel({ showToast }) {
                 <option value="login">🔑 Login (Sesión)</option>
                 <option value="logout">🔒 Logout (Sesión)</option>
               </select>
+
+              <button className="btn btn-secondary btn-sm" onClick={exportarCSV} style={{ height: 30, fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}>
+                <i className="ri-file-excel-2-line" style={{ color: '#22c55e' }} /> Exportar Excel
+              </button>
             </div>
           </div>
 
@@ -1391,18 +1461,35 @@ export default function NominaPanel({ showToast }) {
                 </div>
               </div>
 
-              {/* Código QR (Si el empleado está editándose) */}
+              {/* Código QR Dinámico Temporal */}
               {editandoEmpleado && (
                 <div style={{ marginTop: 20, padding: 16, background: 'var(--bg-elevated)', borderRadius: 12, border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
                   <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--bronze-light)' }}>
                     <i className="ri-qr-code-line" /> Código QR de Acceso y Pase de Lista
                   </div>
-                  <div style={{ background: '#fff', padding: 10, borderRadius: 8 }}>
-                    <QRCodeSVG value={typeof window !== 'undefined' ? `${window.location.origin}/?scanId=${editandoEmpleado}` : `https://yoy-ia-billar.vercel.app/?scanId=${editandoEmpleado}`} size={120} />
-                  </div>
-                  <div style={{ fontSize: 10, color: 'var(--text-muted)', textAlign: 'center' }}>
-                    Este código permite al empleado realizar pase de lista e iniciar sesión desde su propio celular.
-                  </div>
+                  
+                  {activeQrToken ? (
+                    <>
+                      <div style={{ background: '#fff', padding: 10, borderRadius: 8 }}>
+                        <QRCodeSVG value={typeof window !== 'undefined' ? `${window.location.origin}/?scanId=${editandoEmpleado}&token=${activeQrToken}` : `https://yoy-ia-billar.vercel.app/?scanId=${editandoEmpleado}&token=${activeQrToken}`} size={120} />
+                      </div>
+                      <div style={{ fontSize: 10, color: 'var(--text-secondary)', textAlign: 'center', fontWeight: 600 }}>
+                        Token: <span style={{ color: 'var(--bronze-light)' }}>{activeQrToken}</span> · Válido por 5 minutos
+                      </div>
+                      <button className="btn btn-secondary btn-xs" onClick={() => generarTokenQR(editandoEmpleado)} style={{ height: 26, fontSize: 10 }}>
+                        🔄 Regenerar Código
+                      </button>
+                    </>
+                  ) : (
+                    <div style={{ textAlign: 'center', padding: '10px 0' }}>
+                      <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 12 }}>
+                        Genera un código QR dinámico temporal para que el empleado escanee y pase lista desde su celular de forma segura.
+                      </p>
+                      <button className="btn btn-primary btn-sm" onClick={() => generarTokenQR(editandoEmpleado)}>
+                        🔑 Generar QR Dinámico
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
 
