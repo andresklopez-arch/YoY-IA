@@ -192,19 +192,23 @@ export function useAlertasNomina() {
 // ─────────────────────────────────────────────
 // COMPONENTES AUXILIARES
 // ─────────────────────────────────────────────
-function StatCardMini({ icon, label, value, color }) {
+function StatCardMini({ icon, label, value, color, tooltip }) {
   return (
-    <div style={{
-      background: 'var(--bg-card)',
-      border: '1px solid var(--border)',
-      borderRadius: 12,
-      padding: '8px 14px',
-      display: 'flex',
-      alignItems: 'center',
-      gap: 12,
-      minWidth: 140,
-      flex: 1
-    }}>
+    <div 
+      title={tooltip}
+      style={{
+        background: 'var(--bg-card)',
+        border: '1px solid var(--border)',
+        borderRadius: 12,
+        padding: '8px 14px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 12,
+        minWidth: 140,
+        flex: 1,
+        cursor: tooltip ? 'help' : 'default'
+      }}
+    >
       <div style={{
         width: 32, height: 32, borderRadius: 8,
         background: `${color}15`, border: `1px solid ${color}30`,
@@ -585,10 +589,10 @@ export default function NominaPanel({ showToast }) {
           <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>Control unificado de personal, asistencia diaria, liquidación de nóminas y egresos.</p>
         </div>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          <StatCardMini icon="ri-shopping-bag-3-line" label="Gastos Mes" value={fmt(totalGastosMes)} color="var(--danger)" />
-          <StatCardMini icon="ri-money-dollar-circle-line" label="Nómina Mes" value={fmt(totalNomina)} color="var(--warning)" />
-          <StatCardMini icon="ri-add-circle-line" label="Total Egresos" value={fmt(totalEgresos)} color="var(--bronze-light)" />
-          <StatCardMini icon="ri-group-line" label="Activos" value={empleados.filter(e => e.estado === 'activo').length} color="var(--success)" />
+          <StatCardMini icon="ri-shopping-bag-3-line" label="Gastos Mes" value={fmt(totalGastosMes)} color="var(--danger)" tooltip="Gastos acumulados registrados este mes" />
+          <StatCardMini icon="ri-money-dollar-circle-line" label="Nómina Mes" value={fmt(totalNomina)} color="var(--warning)" tooltip="Nómina total pagada y liquidada este mes" />
+          <StatCardMini icon="ri-add-circle-line" label="Total Egresos" value={fmt(totalEgresos)} color="var(--bronze-light)" tooltip={`Nómina (${fmt(totalNomina)}) + Gastos (${fmt(totalGastosMes)})`} />
+          <StatCardMini icon="ri-group-line" label="Activos" value={empleados.filter(e => e.estado === 'activo').length} color="var(--success)" tooltip="Total de personal activo en el sistema" />
         </div>
       </div>
 
