@@ -228,6 +228,174 @@ function AppContent() {
     }
   };
 
+  const imprimirOrdenCompraTFT = (ordenItems) => {
+    if (!ordenItems || ordenItems.length === 0) return;
+
+    const printWindow = window.open('', '_blank', 'width=600,height=600');
+    if (!printWindow) {
+      showToast('Permita las ventanas emergentes para imprimir la orden de compra', 'warning');
+      return;
+    }
+
+    const dateStr = new Date().toLocaleDateString('es-MX', { year: 'numeric', month: '2-digit', day: '2-digit' });
+    const timeStr = new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+    const totalCosto = ordenItems.reduce((s, o) => s + o.costoTotal, 0);
+    const totalRetorno = ordenItems.reduce((s, o) => s + o.retornoPotencial, 0);
+    const totalGanancia = ordenItems.reduce((s, o) => s + o.gananciaProyectada, 0);
+
+    const itemsHtml = ordenItems.map(o => `
+      <tr style="border-bottom: 1px dashed #000;">
+        <td style="padding: 4px 0; font-size: 11px;"><b>${o.nombre}</b><br>Pedir: ${o.cantidadAPedir} ${o.unidad || 'pz'} (Stock: ${o.stock})</td>
+        <td style="text-align: right; padding: 4px 0; font-size: 11px; vertical-align: bottom;">$${o.costoTotal}</td>
+      </tr>
+    `).join('');
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Orden de Compra IA</title>
+          <style>
+            @page {
+              size: 80mm auto;
+              margin: 0;
+            }
+            body {
+              font-family: 'Courier New', Courier, monospace;
+              width: 72mm;
+              margin: 0;
+              padding: 10px;
+              color: #000;
+              background: #fff;
+            }
+            h3, p {
+              margin: 4px 0;
+              text-align: center;
+            }
+            .divider {
+              border-top: 1px dashed #000;
+              margin: 8px 0;
+            }
+            .totals table {
+              width: 100%;
+            }
+            .totals td {
+              font-size: 11px;
+              padding: 2px 0;
+            }
+          </style>
+        </head>
+        <body>
+          <h3>YOY IA BILLAR</h3>
+          <p style="font-size: 10px; font-weight: bold;">ORDEN DE COMPRA SUGERIDA IA</p>
+          <div class="divider"></div>
+          <p style="font-size: 9px; text-align: left;">Fecha: ${dateStr} - Hora: ${timeStr}</p>
+          <p style="font-size: 9px; text-align: left;">Origen: Generacion Automatica IA</p>
+          <div class="divider"></div>
+          
+          <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+              <tr style="border-bottom: 1px solid #000;">
+                <th style="text-align: left; font-size: 10px; padding-bottom: 4px;">Producto</th>
+                <th style="text-align: right; font-size: 10px; padding-bottom: 4px;">Costo</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${itemsHtml}
+            </tbody>
+          </table>
+          
+          <div class="divider"></div>
+          
+          <div class="totals">
+            <table>
+              <tr>
+                <td><b>COSTO ADQUISICION:</b></td>
+                <td style="text-align: right;"><b>$${totalCosto} MXN</b></td>
+              </tr>
+              <tr>
+                <td>RETORNO PROYECTADO:</td>
+                <td style="text-align: right;">$${totalRetorno} MXN</td>
+              </tr>
+              <tr>
+                <td>GANANCIA ESTIMADA:</td>
+                <td style="text-align: right;">$${totalGanancia} MXN</td>
+              </tr>
+            </table>
+          </div>
+          
+          <div class="divider"></div>
+          <p style="font-size: 8px; text-align: center; margin-top: 15px;">
+            Yoy IA Billar - Alfonso Iturbide<br>
+            * TICKET DE REORDEN AUTOMATICO *
+          </p>
+          <br><br>
+          <script>
+            window.onload = function() {
+              window.print();
+              setTimeout(function() { window.close(); }, 500);
+            };
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
+  // Autocheck y reorden diario automatico al iniciar sesion
+  useEffect(() => {
+    if (!user) return;
+
+    // Solo permitir auto-impresion a roles autorizados que operan la consola y ticketera termica
+    const rolesAutorizados = ['admin', 'cajero', 'gerente'];
+    if (!rolesAutorizados.includes(user.role)) return;
+
+    const hoy = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD
+    const lastAutoPrint = localStorage.getItem('yoy_last_auto_print_purchase_order');
+
+    if (lastAutoPrint !== hoy) {
+      const docRef = doc(db, 'config', 'inventario');
+      getDoc(docRef).then(snap => {
+        if (snap.exists()) {
+          const productos = snap.data().productos || [];
+          const itemsReorden = [];
+          
+          productos.forEach(p => {
+            if (p.stock <= p.stockMin && p.activoIA !== false) {
+              const cantidadPedir = p.stockOptimo - p.stock;
+              if (cantidadPedir > 0) {
+                itemsReorden.push({
+                  id: p.id,
+                  nombre: p.nombre,
+                  stock: p.stock,
+                  min: p.stockMin,
+                  optimo: p.stockOptimo,
+                  cantidadAPedir: cantidadPedir,
+                  costoUnitario: p.precioCosto,
+                  costoTotal: cantidadPedir * p.precioCosto,
+                  retornoPotencial: cantidadPedir * p.precioVenta,
+                  gananciaProyectada: (cantidadPedir * p.precioVenta) - (cantidadPedir * p.precioCosto),
+                  unidad: p.unidad || 'pz'
+                });
+              }
+            }
+          });
+
+          if (itemsReorden.length > 0) {
+            localStorage.setItem('yoy_last_auto_print_purchase_order', hoy);
+            setTimeout(() => {
+              imprimirOrdenCompraTFT(itemsReorden);
+              showToast('Impresion de Orden de Compra IA diaria enviada ✓', 'success');
+            }, 3000);
+          } else {
+            localStorage.setItem('yoy_last_auto_print_purchase_order', hoy);
+          }
+        }
+      }).catch(err => {
+        console.warn("Auto-check de compra diario fallido:", err);
+      });
+    }
+  }, [user]);
+
   const showToast = (message, type = 'info') => {
     const id = Date.now();
     setToasts(prev => [...prev, { id, message, type }]);

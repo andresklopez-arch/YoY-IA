@@ -637,6 +637,120 @@ export default function BarPanel({ showToast }) {
     setShowModalOptimizacion(false);
   };
 
+  // Impresion de Ticket Termico para Orden de Compra
+  const imprimirOrdenCompraTFT = (ordenItems) => {
+    if (!ordenItems || ordenItems.length === 0) return;
+
+    const printWindow = window.open('', '_blank', 'width=600,height=600');
+    if (!printWindow) {
+      showToast('Permita las ventanas emergentes para imprimir la orden de compra', 'warning');
+      return;
+    }
+
+    const dateStr = new Date().toLocaleDateString('es-MX', { year: 'numeric', month: '2-digit', day: '2-digit' });
+    const timeStr = new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+    const totalCosto = ordenItems.reduce((s, o) => s + o.costoTotal, 0);
+    const totalRetorno = ordenItems.reduce((s, o) => s + o.retornoPotencial, 0);
+    const totalGanancia = ordenItems.reduce((s, o) => s + o.gananciaProyectada, 0);
+
+    const itemsHtml = ordenItems.map(o => `
+      <tr style="border-bottom: 1px dashed #000;">
+        <td style="padding: 4px 0; font-size: 11px;"><b>${o.nombre}</b><br>Pedir: ${o.cantidadAPedir} ${o.unidad || 'pz'} (Stock: ${o.stock})</td>
+        <td style="text-align: right; padding: 4px 0; font-size: 11px; vertical-align: bottom;">$${o.costoTotal}</td>
+      </tr>
+    `).join('');
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Orden de Compra IA</title>
+          <style>
+            @page {
+              size: 80mm auto;
+              margin: 0;
+            }
+            body {
+              font-family: 'Courier New', Courier, monospace;
+              width: 72mm;
+              margin: 0;
+              padding: 10px;
+              color: #000;
+              background: #fff;
+            }
+            h3, p {
+              margin: 4px 0;
+              text-align: center;
+            }
+            .divider {
+              border-top: 1px dashed #000;
+              margin: 8px 0;
+            }
+            .totals table {
+              width: 100%;
+            }
+            .totals td {
+              font-size: 11px;
+              padding: 2px 0;
+            }
+          </style>
+        </head>
+        <body>
+          <h3>YOY IA BILLAR</h3>
+          <p style="font-size: 10px; font-weight: bold;">ORDEN DE COMPRA SUGERIDA IA</p>
+          <div class="divider"></div>
+          <p style="font-size: 9px; text-align: left;">Fecha: ${dateStr} - Hora: ${timeStr}</p>
+          <p style="font-size: 9px; text-align: left;">Origen: Generacion IA</p>
+          <div class="divider"></div>
+          
+          <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+              <tr style="border-bottom: 1px solid #000;">
+                <th style="text-align: left; font-size: 10px; padding-bottom: 4px;">Producto</th>
+                <th style="text-align: right; font-size: 10px; padding-bottom: 4px;">Costo</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${itemsHtml}
+            </tbody>
+          </table>
+          
+          <div class="divider"></div>
+          
+          <div class="totals">
+            <table>
+              <tr>
+                <td><b>COSTO ADQUISICION:</b></td>
+                <td style="text-align: right;"><b>$${totalCosto} MXN</b></td>
+              </tr>
+              <tr>
+                <td>RETORNO PROYECTADO:</td>
+                <td style="text-align: right;">$${totalRetorno} MXN</td>
+              </tr>
+              <tr>
+                <td>GANANCIA ESTIMADA:</td>
+                <td style="text-align: right;">$${totalGanancia} MXN</td>
+              </tr>
+            </table>
+          </div>
+          
+          <div class="divider"></div>
+          <p style="font-size: 8px; text-align: center; margin-top: 15px;">
+            Yoy IA Billar - Alfonso Iturbide<br>
+            * TICKET DE REORDEN IA *
+          </p>
+          <br><br>
+          <script>
+            window.onload = function() {
+              window.print();
+              setTimeout(function() { window.close(); }, 500);
+            };
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
   // Generar Orden de Compra Sugerida IA
   const generarOrdenCompraIA = () => {
     const orden = productos
@@ -655,12 +769,20 @@ export default function BarPanel({ showToast }) {
           costoUnitario: p.precioCosto,
           costoTotal,
           retornoPotencial,
-          gananciaProyectada: retornoPotencial - costoTotal
+          gananciaProyectada: retornoPotencial - costoTotal,
+          unidad: p.unidad || 'pz'
         };
       });
 
     setOrdenSugerida(orden);
     setModalOrdenCompra(true);
+
+    if (orden.length > 0) {
+      imprimirOrdenCompraTFT(orden);
+      showToast('Orden de compra sugerida enviada a la impresora termica ✓', 'success');
+    } else {
+      showToast('No hay productos que requieran orden de compra.', 'info');
+    }
   };
 
   // Confirmar y cargar la orden de compra sugerida en el stock (Recomendación 3)
@@ -1881,6 +2003,16 @@ export default function BarPanel({ showToast }) {
               <button className="btn btn-secondary" onClick={() => setModalOrdenCompra(false)}>Cancelar</button>
               {ordenSugerida.length > 0 && (
                 <>
+                  <button
+                    className="btn btn-secondary"
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', padding: '10px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600, color: 'var(--bronze-light)', borderColor: 'var(--border-bronze)' }}
+                    onClick={() => {
+                      imprimirOrdenCompraTFT(ordenSugerida);
+                      showToast('Re-imprimiendo ticket de orden de compra ✓', 'success');
+                    }}
+                  >
+                    <i className="ri-printer-line" style={{ fontSize: 16 }} /> Imprimir Ticket
+                  </button>
                   <button
                     className="btn btn-success"
                     style={{ background: '#25D366', color: '#fff', border: 'none', display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', padding: '10px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600 }}
