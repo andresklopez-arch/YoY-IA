@@ -400,6 +400,8 @@ export default function NominaPanel({ showToast }) {
       else if (log.tipo === 'salida') tipoText = 'Salida (QR)';
       else if (log.tipo === 'login') tipoText = 'Login (Sesión)';
       else if (log.tipo === 'logout') tipoText = 'Logout (Sesión)';
+      else if (log.tipo === 'intento_fallido_geocerca') tipoText = `Fallo Geocerca (${log.coordenadas?.distanciaCalculada ? log.coordenadas.distanciaCalculada + 'm' : 'Lejos'})`;
+      else if (log.tipo === 'intento_fallido_gps') tipoText = 'Fallo GPS (Inactivo)';
 
       const dispositivo = log.dispositivo || 'PC/Terminal';
       const lat = log.coordenadas?.lat || 'N/D';
@@ -1260,10 +1262,20 @@ export default function NominaPanel({ showToast }) {
                       badgeText = 'Login (NIP/Pass)';
                       badgeIcon = 'ri-key-line';
                     } else if (log.tipo === 'logout') {
-                      badgeColor = '#eab308';
-                      badgeBg = 'rgba(234,179,8,0.15)';
+                      badgeColor = '#b0b8c8';
+                      badgeBg = 'rgba(176,184,200,0.15)';
                       badgeText = 'Logout (Sesión)';
                       badgeIcon = 'ri-lock-line';
+                    } else if (log.tipo === 'intento_fallido_geocerca') {
+                      badgeColor = '#f97316'; // Naranja
+                      badgeBg = 'rgba(249,115,22,0.15)';
+                      badgeText = `Geocerca Fallida (${log.coordenadas?.distanciaCalculada ? log.coordenadas.distanciaCalculada + 'm' : 'Lejos'})`;
+                      badgeIcon = 'ri-road-map-line';
+                    } else if (log.tipo === 'intento_fallido_gps') {
+                      badgeColor = '#ec4899'; // Rosa
+                      badgeBg = 'rgba(236,72,153,0.15)';
+                      badgeText = 'GPS Bloqueado';
+                      badgeIcon = 'ri-gps-line';
                     }
 
                     const formatHora = (ts) => {

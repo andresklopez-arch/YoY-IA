@@ -227,6 +227,14 @@ export default function ConfigPanel({ showToast }) {
 
   useEffect(() => {
     fetchUsuarios();
+    // Cargar configuración de sucursal desde Firestore
+    getDoc(doc(db, 'config', 'sucursal')).then(snap => {
+      if (snap.exists()) {
+        const d = snap.data();
+        setSucursal(p => ({ ...p, ...d }));
+      }
+    }).catch(err => console.error("Error al cargar configuración de sucursal:", err));
+
     // Cargar límite de cortesías desde Firestore
     import('@/lib/firebase').then(({ db }) =>
       import('firebase/firestore').then(({ doc, getDoc }) =>
@@ -381,6 +389,43 @@ export default function ConfigPanel({ showToast }) {
     } catch (err) {
       console.error("Error al eliminar usuario:", err);
       showToast('Error al eliminar el usuario de Firestore', 'error');
+    }
+  };
+
+  const obtenerUbicacionActualSucursal = () => {
+    if (typeof navigator !== 'undefined' && navigator.geolocation) {
+      showToast('Obteniendo ubicación del dispositivo...', 'info');
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setSucursal(p => ({
+            ...p,
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude
+          }));
+          showToast('Coordenadas obtenidas correctamente 📍', 'success');
+        },
+        (err) => {
+          showToast('Error al obtener ubicación: ' + err.message, 'error');
+        },
+        { enableHighAccuracy: true }
+      );
+    } else {
+      showToast('Geolocalización no soportada en este navegador', 'error');
+    }
+  };
+
+  const handleSaveSucursal = async () => {
+    try {
+      await setDoc(doc(db, 'config', 'sucursal'), {
+        ...sucursal,
+        lat: Number(sucursal.lat) || 20.659698,
+        lng: Number(sucursal.lng) || -103.349609,
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+      showToast('Configuración de sucursal guardada y sincronizada con Firestore ✓', 'success');
+    } catch (err) {
+      console.error("Error al guardar configuración de sucursal:", err);
+      showToast('Error al guardar configuración: ' + err.message, 'error');
     }
   };
 
@@ -702,20 +747,40 @@ export default function ConfigPanel({ showToast }) {
                 ].map(f => (
                   <div key={f.key} className="form-group">
                     <label className="form-label">{f.label}</label>
-                    <input className="form-input" value={sucursal[f.key]} onChange={e => setSucursal(p => ({ ...p, [f.key]: e.target.value }))} />
+                    <input className="form-input" value={sucursal[f.key] || ''} onChange={e => setSucursal(p => ({ ...p, [f.key]: e.target.value }))} />
                   </div>
                 ))}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                   <div className="form-group">
                     <label className="form-label">Apertura</label>
-                    <input className="form-input" type="time" value={sucursal.horarioApertura} onChange={e => setSucursal(p => ({ ...p, horarioApertura: e.target.value }))} />
+                    <input className="form-input" type="time" value={sucursal.horarioApertura || ''} onChange={e => setSucursal(p => ({ ...p, horarioApertura: e.target.value }))} />
                   </div>
                   <div className="form-group">
                     <label className="form-label">Cierre</label>
-                    <input className="form-input" type="time" value={sucursal.horarioCierre} onChange={e => setSucursal(p => ({ ...p, horarioCierre: e.target.value }))} />
+                    <input className="form-input" type="time" value={sucursal.horarioCierre || ''} onChange={e => setSucursal(p => ({ ...p, horarioCierre: e.target.value }))} />
                   </div>
                 </div>
-                <button className="btn btn-primary" onClick={() => guardar('sucursal')}>
+
+                <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: 10, marginTop: 4 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--bronze-light)', marginBottom: 10 }}>
+                    📍 Geocerca para Asistencia (QR)
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+                    <div className="form-group">
+                      <label className="form-label">Latitud</label>
+                      <input className="form-input" type="number" step="any" value={sucursal.lat || ''} onChange={e => setSucursal(p => ({ ...p, lat: e.target.value }))} placeholder="20.659698" style={{ fontSize: 12 }} />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Longitud</label>
+                      <input className="form-input" type="number" step="any" value={sucursal.lng || ''} onChange={e => setSucursal(p => ({ ...p, lng: e.target.value }))} placeholder="-103.349609" style={{ fontSize: 12 }} />
+                    </div>
+                  </div>
+                  <button className="btn btn-secondary btn-xs" onClick={obtenerUbicacionActualSucursal} style={{ display: 'flex', alignItems: 'center', gap: 4, width: '100%', justifyContent: 'center', height: 28, fontSize: 11 }}>
+                    <i className="ri-map-pin-line" style={{ color: 'var(--bronze-light)' }} /> Usar Ubicación de este Dispositivo
+                  </button>
+                </div>
+
+                <button className="btn btn-primary" onClick={handleSaveSucursal} style={{ marginTop: 6 }}>
                   <i className="ri-save-line" /> Guardar Sucursal
                 </button>
               </div>

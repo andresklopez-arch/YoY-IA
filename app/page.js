@@ -227,8 +227,31 @@ function AppContent() {
           }
         }
 
+        // Obtener el tipo de dispositivo y fecha de hoy
+        const ua = navigator.userAgent;
+        let dispositivo = 'PC/Terminal';
+        if (/Mobi|Android|iPhone/i.test(ua)) dispositivo = 'Móvil';
+        else if (/Tablet|iPad/i.test(ua)) dispositivo = 'Tablet';
+
+        const fechaHoy = new Date().toISOString().slice(0, 10);
+
         // Validación estricta de geolocalización y geocerca (200 metros)
         if (geoData.status !== 'Obtenido') {
+          try {
+            await addDoc(collection(db, 'nomina_asistencia_log'), {
+              empleadoId: emp.id,
+              nombre: `${emp.nombre} ${emp.apellido || ''}`.trim(),
+              rol: emp.rol || 'Mesero',
+              fecha: fechaHoy,
+              tipo: 'intento_fallido_gps',
+              coordenadas: geoData,
+              dispositivo,
+              createdAt: serverTimestamp()
+            });
+          } catch (logErr) {
+            console.error("Error al registrar auditoría de GPS fallido:", logErr);
+          }
+
           showToast('Geolocalización requerida. Por favor, activa el GPS y otorga permisos de ubicación en tu navegador para registrar asistencia.', 'error');
           setIsProcessingQR(false);
           return;
@@ -262,13 +285,32 @@ function AppContent() {
 
         const distancia = getDistanceInMeters(geoData.lat, geoData.lng, sucursalCoords.lat, sucursalCoords.lng);
         if (distancia > 200) {
+          try {
+            await addDoc(collection(db, 'nomina_asistencia_log'), {
+              empleadoId: emp.id,
+              nombre: `${emp.nombre} ${emp.apellido || ''}`.trim(),
+              rol: emp.rol || 'Mesero',
+              fecha: fechaHoy,
+              tipo: 'intento_fallido_geocerca',
+              coordenadas: {
+                ...geoData,
+                distanciaCalculada: Math.round(distancia),
+                sucursalLat: sucursalCoords.lat,
+                sucursalLng: sucursalCoords.lng
+              },
+              dispositivo,
+              createdAt: serverTimestamp()
+            });
+          } catch (logErr) {
+            console.error("Error al registrar auditoría de geovalla fallida:", logErr);
+          }
+
           showToast(`Estás fuera del rango permitido del establecimiento para pasar lista (Distancia: ${Math.round(distancia)}m). Debes estar a menos de 200m.`, 'error');
           setIsProcessingQR(false);
           return;
         }
 
         // 2. Determinar si es Entrada o Salida consultando en memoria los logs de hoy
-        const fechaHoy = new Date().toISOString().slice(0, 10);
         const qLogs = query(
           collection(db, 'nomina_asistencia_log'),
           where('empleadoId', '==', emp.id),
@@ -286,12 +328,6 @@ function AppContent() {
           const lastLog = logsList[0];
           tipoRegistro = lastLog.tipo === 'entrada' ? 'salida' : 'entrada';
         }
-
-        // Obtener el tipo de dispositivo que escanea
-        const ua = navigator.userAgent;
-        let dispositivo = 'PC/Terminal';
-        if (/Mobi|Android|iPhone/i.test(ua)) dispositivo = 'Móvil';
-        else if (/Tablet|iPad/i.test(ua)) dispositivo = 'Tablet';
 
         // Registrar log de asistencia en nomina_asistencia_log
         await addDoc(collection(db, 'nomina_asistencia_log'), {
