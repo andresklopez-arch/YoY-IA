@@ -95,21 +95,42 @@ export default function BarPanel({ showToast }) {
   const [descartadas, setDescartadas] = useState({});
 
   useEffect(() => {
-    const saved = localStorage.getItem('yoy_sugerencias_descartadas');
-    if (saved) {
-      try {
-        setDescartadas(JSON.parse(saved));
-      } catch (e) {
-        console.error(e);
+    // Escuchar sugerencias descartadas en tiempo real de Firestore
+    const unsub = onSnapshot(doc(db, 'config', 'sugerencias_descartadas'), snap => {
+      if (snap.exists() && snap.data().descartadas) {
+        setDescartadas(snap.data().descartadas);
+        try {
+          localStorage.setItem('yoy_sugerencias_descartadas', JSON.stringify(snap.data().descartadas));
+        } catch (e) {}
       }
-    }
+    }, err => {
+      console.warn("Error al escuchar sugerencias descartadas:", err);
+      const saved = localStorage.getItem('yoy_sugerencias_descartadas');
+      if (saved) {
+        try {
+          setDescartadas(JSON.parse(saved));
+        } catch (e) {}
+      }
+    });
+    return unsub;
   }, []);
 
-  const descartarSugerencia = (id) => {
+  const descartarSugerencia = async (id) => {
     const updated = { ...descartadas, [id]: Date.now() };
     setDescartadas(updated);
-    localStorage.setItem('yoy_sugerencias_descartadas', JSON.stringify(updated));
-    showToast('Sugerencia descartada. Reaparecerá en 15 días ✓', 'info');
+    try {
+      localStorage.setItem('yoy_sugerencias_descartadas', JSON.stringify(updated));
+    } catch (e) {}
+    try {
+      await setDoc(doc(db, 'config', 'sugerencias_descartadas'), {
+        descartadas: updated,
+        updatedAt: serverTimestamp()
+      });
+      showToast('Sugerencia descartada. Reaparecerá en 15 días ✓', 'info');
+    } catch (err) {
+      console.error(err);
+      showToast('Sugerencia descartada localmente ✓', 'info');
+    }
   };
 
   // Estados para Auditoría e Inventarios IA seleccionables
@@ -785,6 +806,8 @@ export default function BarPanel({ showToast }) {
       }
     ];
 
+    const stockCriticoIds = productos.filter(p => p.stock <= p.stockMin).map(p => p.id);
+
     // 1. Alertas dinámicas de stock crítico
     productos.forEach(p => {
       if (p.stock <= p.stockMin && p.activoIA !== false) {
@@ -797,7 +820,6 @@ export default function BarPanel({ showToast }) {
             desc: `Quedan ${p.stock} ${p.unidad} (Mín: ${p.stockMin}). Sugerimos ordenar ${cantidadPedir} ${p.unidad}.`,
             label: 'Ordenar',
             onAction: () => {
-              // Simular o abrir orden de compra IA para este producto
               setOrdenSugerida([{
                 id: p.id,
                 nombre: p.nombre,
@@ -817,8 +839,9 @@ export default function BarPanel({ showToast }) {
       }
     });
 
-    // 2. Alertas dinámicas de margen depreciado (bajo del 25%)
+    // 2. Alertas dinámicas de margen depreciado (bajo del 25%) - Omitir si ya está en stock crítico
     productos.forEach(p => {
+      if (stockCriticoIds.includes(p.id)) return; // Priorización: Saltar advertencias de margen si el producto necesita reabastecerse
       if (p.precioVenta > 0 && p.precioCosto > 0 && p.activoIA !== false) {
         const margen = (p.precioVenta - p.precioCosto) / p.precioVenta;
         if (margen < 0.25) {

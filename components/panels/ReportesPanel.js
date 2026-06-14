@@ -203,15 +203,23 @@ export default function ReportesPanel({ showToast }) {
       }
     });
 
-    // Cargar sugerencias descartadas desde localStorage
-    const savedDescartadas = localStorage.getItem('yoy_sugerencias_descartadas');
-    if (savedDescartadas) {
-      try {
-        setDescartadas(JSON.parse(savedDescartadas));
-      } catch (e) {
-        console.error("Error al cargar descartadas en ReportesPanel:", e);
+    // Escuchar sugerencias descartadas en tiempo real de Firestore
+    const unsubDescartadas = onSnapshot(doc(db, 'config', 'sugerencias_descartadas'), snap => {
+      if (snap.exists() && snap.data().descartadas) {
+        setDescartadas(snap.data().descartadas);
+        try {
+          localStorage.setItem('yoy_sugerencias_descartadas', JSON.stringify(snap.data().descartadas));
+        } catch (e) {}
       }
-    }
+    }, err => {
+      console.warn("Error al escuchar sugerencias descartadas:", err);
+      const saved = localStorage.getItem('yoy_sugerencias_descartadas');
+      if (saved) {
+        try {
+          setDescartadas(JSON.parse(saved));
+        } catch (e) {}
+      }
+    });
 
     // Escuchar inventario de Firestore
     const unsubInventario = onSnapshot(doc(db, 'config', 'inventario'), snap => {
@@ -241,6 +249,7 @@ export default function ReportesPanel({ showToast }) {
       unsubEncuestas();
       unsubPedidos();
       unsubBitacora();
+      unsubDescartadas();
       unsubInventario();
       unsubMesas();
       unsubCuentas();
@@ -342,6 +351,8 @@ export default function ReportesPanel({ showToast }) {
       }
     ];
 
+    const stockCriticoIds = productos.filter(p => p.stock <= p.stockMin).map(p => p.id);
+
     // 1. Alertas dinámicas de stock crítico
     productos.forEach(p => {
       if (p.stock <= p.stockMin && p.activoIA !== false) {
@@ -367,8 +378,9 @@ export default function ReportesPanel({ showToast }) {
       }
     });
 
-    // 2. Alertas dinámicas de margen depreciado (bajo del 25%)
+    // 2. Alertas dinámicas de margen depreciado (bajo del 25%) - Omitir si ya está en stock crítico
     productos.forEach(p => {
+      if (stockCriticoIds.includes(p.id)) return; // Priorización: Saltar advertencias de margen si el producto necesita reabastecerse
       if (p.precioVenta > 0 && p.precioCosto > 0 && p.activoIA !== false) {
         const margen = (p.precioVenta - p.precioCosto) / p.precioVenta;
         if (margen < 0.25) {
