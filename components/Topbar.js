@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '@/lib/auth-context';
 import { useAlertasNomina } from '@/components/panels/NominaPanel';
 import { QRCodeSVG } from 'qrcode.react';
@@ -695,12 +696,13 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
         </div>
       )}
       {/* ── MODAL PASE DE LISTA QR ── */}
-      {showModalPaseLista && (
+      {showModalPaseLista && typeof window !== 'undefined' && createPortal(
         <div style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)',
-          display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 1000,
+          display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 3000,
           backdropFilter: 'blur(5px)',
-          paddingTop: '140px',
+          paddingTop: '60px',
+          paddingBottom: '60px',
           overflowY: 'auto'
         }} onClick={() => setShowModalPaseLista(false)}>
           <div className="modal" style={{ width: '90%', maxWidth: 700, maxHeight: '85vh', display: 'flex', flexDirection: 'column', background: 'var(--bg-card)', border: '1px solid var(--border-bronze)', boxShadow: 'var(--shadow-bronze)', borderRadius: 20 }} onClick={e => e.stopPropagation()}>
@@ -794,7 +796,8 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
               <button className="btn btn-secondary" onClick={() => setShowModalPaseLista(false)}>Cerrar</button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </header>
   );
