@@ -1171,7 +1171,7 @@ export default function BarPanel({ showToast }) {
                       }}
                     >
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                        <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 150 }}>{p.nombre}</span>
+                        <span style={{ display: 'inline-block', fontSize: 10, fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 150 }} title={p.nombre}>{p.nombre}</span>
                         <span style={{ fontSize: 8, color: 'var(--text-muted)' }}>Min: {p.stockMin} {p.unidad}</span>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -1237,8 +1237,8 @@ export default function BarPanel({ showToast }) {
                 }).map(sug => (
                   <div key={sug.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '3px 6px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.04)', gap: 4, minWidth: 0 }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 0.5, flex: 1, marginRight: 8, overflow: 'hidden', minWidth: 0 }}>
-                      <span style={{ fontSize: 9, color: sug.type === 'success' ? 'var(--success)' : 'var(--bronze-light)', fontWeight: 700 }}>{sug.tag}</span>
-                      <span style={{ fontSize: 8, color: 'var(--text-secondary)', lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={sug.desc}>{sug.desc}</span>
+                      <span style={{ display: 'block', fontSize: 9, color: sug.type === 'success' ? 'var(--success)' : 'var(--bronze-light)', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={sug.tag}>{sug.tag}</span>
+                      <span style={{ display: 'block', fontSize: 8, color: 'var(--text-secondary)', lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={sug.desc}>{sug.desc}</span>
                     </div>
                     <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexShrink: 0 }}>
                       <button
@@ -1268,8 +1268,8 @@ export default function BarPanel({ showToast }) {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(34,197,94,0.04)', padding: '3px 6px', borderRadius: 6, border: '1px solid rgba(34,197,94,0.12)', minWidth: 0 }}>
                     <i className="ri-checkbox-circle-line" style={{ fontSize: 9, color: 'var(--success)' }} />
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 0, minWidth: 0 }}>
-                      <span style={{ fontSize: 9, color: 'var(--success)', fontWeight: 700, lineHeight: 1 }}>CRUCE OK:</span>
-                      <span style={{ fontSize: 7, color: 'var(--text-secondary)', lineHeight: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Sin discrepancias barra/mesas.</span>
+                      <span style={{ display: 'block', fontSize: 9, color: 'var(--success)', fontWeight: 700, lineHeight: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>CRUCE OK:</span>
+                      <span style={{ display: 'block', fontSize: 7, color: 'var(--text-secondary)', lineHeight: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Sin discrepancias barra/mesas.</span>
                     </div>
                   </div>
                 ) : (
