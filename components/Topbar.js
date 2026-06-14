@@ -899,6 +899,16 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
           {/* OVERLAY ENFOCADO PARA ESCANEAR QR INDIVIDUAL */}
           {focusedEmpleadoQR && (
             <>
+              <style dangerouslySetInnerHTML={{ __html: `
+                @keyframes modalPopIn {
+                  from { opacity: 0; transform: translate(-50%, -45%) scale(0.95); }
+                  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+                }
+                @keyframes overlayFadeIn {
+                  from { opacity: 0; }
+                  to { opacity: 0.9; }
+                }
+              `}} />
               <div
                 onClick={() => setFocusedEmpleadoQR(null)}
                 style={{
@@ -907,6 +917,7 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
                   background: 'rgba(0,0,0,0.9)',
                   backdropFilter: 'blur(8px)',
                   zIndex: 999998,
+                  animation: 'overlayFadeIn 0.2s ease forwards'
                 }}
               />
               <div
@@ -927,7 +938,8 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'center',
-                  gap: 16
+                  gap: 16,
+                  animation: 'modalPopIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards'
                 }}
               >
                 <div>
@@ -954,6 +966,21 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
                 <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.5, padding: '0 10px' }}>
                   Escanea este código con tu celular para registrar asistencia e ingresar a tu área de trabajo.
                 </div>
+
+                {typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') && (
+                  <div style={{
+                    padding: '8px 12px',
+                    background: 'rgba(245, 158, 11, 0.1)',
+                    border: '1px solid rgba(245, 158, 11, 0.2)',
+                    borderRadius: 10,
+                    fontSize: 9,
+                    color: 'var(--warning)',
+                    lineHeight: 1.4,
+                    textAlign: 'center'
+                  }}>
+                    <strong>Aviso de Red Local:</strong> Estás ejecutando en localhost. Para que el celular se conecte, usa la URL de producción o tu dirección IP local (ej. http://192.168.X.X:3000).
+                  </div>
+                )}
 
                 <button
                   onClick={() => setFocusedEmpleadoQR(null)}

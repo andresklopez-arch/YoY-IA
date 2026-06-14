@@ -17,11 +17,29 @@ const normalizeText = (str) => {
 // VISTA MESERO — Dashboard de pedidos y asistencias en tiempo real
 // ═══════════════════════════════════════════════════════════
 function MeseroContent() {
+  const { user, loading } = useAuth();
+
+  useEffect(() => {
+    if (loading) return;
+    if (!user) {
+      window.location.href = '/';
+      return;
+    }
+    const rolLower = (user.role || '').toLowerCase();
+    const isAuthorized = 
+      rolLower.includes('admin') || 
+      rolLower.includes('mesero') ||
+      user.isFreeAccess === true;
+
+    if (!isAuthorized) {
+      window.location.href = '/';
+    }
+  }, [user, loading]);
+
   const [pedidos, setPedidos] = useState([]);
   const [rawPedidos, setRawPedidos] = useState([]);
   const [sonido, setSonido] = useState(true);
   const [ultimoCount, setUltimoCount] = useState(0);
-  const { user } = useAuth();
   
   const [toast, setToast] = useState(null);
   const showToast = (message, type = 'success') => {

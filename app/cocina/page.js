@@ -28,7 +28,28 @@ const DEFAULT_INSUMOS = [
 ];
 
 function CocinaContent() {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
+
+  useEffect(() => {
+    if (loading) return;
+    if (!user) {
+      window.location.href = '/';
+      return;
+    }
+    const rolLower = (user.role || '').toLowerCase();
+    const isAuthorized = 
+      rolLower.includes('admin') || 
+      rolLower.includes('cocina') || 
+      rolLower.includes('bartender') || 
+      rolLower.includes('barman') || 
+      rolLower.includes('cocinero') ||
+      user.isFreeAccess === true;
+
+    if (!isAuthorized) {
+      window.location.href = '/';
+    }
+  }, [user, loading]);
+
   const [tab, setTab] = useState('pedidos'); // pedidos | insumos | inventario
   const [pedidos, setPedidos] = useState([]);
   const [historial, setHistorial] = useState([]);
