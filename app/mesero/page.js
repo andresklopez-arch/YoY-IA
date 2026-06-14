@@ -823,7 +823,7 @@ function MeseroContent() {
             {/* Botón X — cerrar y volver a Mesas */}
             <button
               onClick={() => {
-                window.location.href = 'https://yoy-ia-billar.vercel.app';
+                window.location.href = '/';
               }}
               title="Cerrar y volver a Mesas"
               style={{
