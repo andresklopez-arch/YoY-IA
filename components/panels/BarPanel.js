@@ -393,6 +393,14 @@ export default function BarPanel({ showToast }) {
       return;
     }
 
+    if (ajusteTipo === 'entrada' && prod.precioCosto > 0) {
+      const diffPercent = Math.abs((precioCompraNum - prod.precioCosto) / prod.precioCosto) * 100;
+      if (diffPercent > 30) {
+        const confirmacion = window.confirm(`¡Atención! El precio de compra ($${precioCompraNum}) varía un ${diffPercent.toFixed(0)}% respecto al costo anterior ($${prod.precioCosto}). ¿Desea registrar esta entrada con ese precio?`);
+        if (!confirmacion) return;
+      }
+    }
+
     let nuevoStock = prod.stock;
     if (ajusteTipo === 'entrada') {
       nuevoStock += cant;
@@ -410,6 +418,9 @@ export default function BarPanel({ showToast }) {
             ...p, 
             stock: nuevoStock, 
             precioCosto: ajusteTipo === 'entrada' ? precioCompraNum : p.precioCosto, 
+            historialCostos: ajusteTipo === 'entrada' 
+              ? [...(p.historialCostos || []), { fecha: new Date().toISOString(), costo: precioCompraNum, cantidad: cant }]
+              : (p.historialCostos || []),
             lastModified: Date.now() 
           } 
         : p
@@ -1534,6 +1545,44 @@ export default function BarPanel({ showToast }) {
                       value={ajustePrecioCompra}
                       onChange={e => setAjustePrecioCompra(e.target.value)}
                     />
+                    {/* Live Margin Calculation */}
+                    {(() => {
+                      const compraNum = parseFloat(ajustePrecioCompra);
+                      const ventaNum = modalAjuste.precioVenta || 0;
+                      if (!isNaN(compraNum) && compraNum > 0 && ventaNum > 0) {
+                        const margen = ((ventaNum - compraNum) / ventaNum) * 100;
+                        return (
+                          <div style={{ 
+                            fontSize: 10, 
+                            marginTop: 4, 
+                            fontWeight: 600, 
+                            color: margen < 15 ? '#ef4444' : margen < 30 ? '#eab308' : '#22c55e',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 4
+                          }}>
+                            <i className={margen < 15 ? 'ri-error-warning-fill' : 'ri-checkbox-circle-fill'} />
+                            Margen de utilidad proyectado: {margen.toFixed(0)}%
+                            {margen < 15 && ' (Margen Crítico 🚨)'}
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
+
+                    {/* Historical Cost Logs */}
+                    {modalAjuste.historialCostos && modalAjuste.historialCostos.length > 0 && (
+                      <div style={{ marginTop: 6, fontSize: 9, color: 'var(--text-muted)' }}>
+                        <span style={{ fontWeight: 600 }}>Historial de costos recientes:</span>
+                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 2 }}>
+                          {modalAjuste.historialCostos.slice(-3).reverse().map((h, i) => (
+                            <span key={i} style={{ background: 'rgba(255,255,255,0.04)', padding: '1px 5px', borderRadius: 4, border: '1px solid rgba(255,255,255,0.06)' }}>
+                              ${h.costo.toFixed(2)} ({new Date(h.fecha).toLocaleDateString('es-MX', { month: '2-digit', day: '2-digit' })})
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 
