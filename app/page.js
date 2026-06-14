@@ -233,8 +233,11 @@ function AppContent() {
 
     const printWindow = window.open('', '_blank', 'width=600,height=600');
     if (!printWindow) {
+      localStorage.setItem('yoy_popups_blocked_warning', 'true');
       showToast('Permita las ventanas emergentes para imprimir la orden de compra', 'warning');
       return;
+    } else {
+      localStorage.removeItem('yoy_popups_blocked_warning');
     }
 
     const dateStr = new Date().toLocaleDateString('es-MX', { year: 'numeric', month: '2-digit', day: '2-digit' });
@@ -381,13 +384,49 @@ function AppContent() {
           });
 
           if (itemsReorden.length > 0) {
-            localStorage.setItem('yoy_last_auto_print_purchase_order', hoy);
-            setTimeout(() => {
-              imprimirOrdenCompraTFT(itemsReorden);
-              showToast('Impresion de Orden de Compra IA diaria enviada ✓', 'success');
-            }, 3000);
+            const totalCosto = itemsReorden.reduce((s, o) => s + o.costoTotal, 0);
+            const totalRetorno = itemsReorden.reduce((s, o) => s + o.retornoPotencial, 0);
+            const totalGanancia = itemsReorden.reduce((s, o) => s + o.gananciaProyectada, 0);
+
+            const ultimaOrden = {
+              fecha: hoy,
+              items: itemsReorden,
+              totalCosto,
+              totalRetorno,
+              totalGanancia,
+              impresoAt: new Date().toISOString()
+            };
+
+            updateDoc(docRef, { ultimaOrdenDiaria: ultimaOrden })
+              .then(() => {
+                localStorage.setItem('yoy_last_auto_print_purchase_order', hoy);
+                setTimeout(() => {
+                  imprimirOrdenCompraTFT(itemsReorden);
+                  showToast('Impresion de Orden de Compra IA diaria enviada ✓', 'success');
+                }, 3000);
+              })
+              .catch(err => {
+                console.error("Error al guardar ultimaOrdenDiaria en Firestore:", err);
+                // Fallback: marcar localmente de todas formas para no ciclar
+                localStorage.setItem('yoy_last_auto_print_purchase_order', hoy);
+                setTimeout(() => {
+                  imprimirOrdenCompraTFT(itemsReorden);
+                }, 3000);
+              });
           } else {
-            localStorage.setItem('yoy_last_auto_print_purchase_order', hoy);
+            // Guardar orden vacia en Firestore indicando que hoy se reviso pero no hubo faltantes
+            updateDoc(docRef, { 
+              ultimaOrdenDiaria: {
+                fecha: hoy,
+                items: [],
+                totalCosto: 0,
+                totalRetorno: 0,
+                totalGanancia: 0,
+                impresoAt: new Date().toISOString()
+              }
+            }).finally(() => {
+              localStorage.setItem('yoy_last_auto_print_purchase_order', hoy);
+            });
           }
         }
       }).catch(err => {

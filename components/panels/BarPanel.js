@@ -75,6 +75,13 @@ export default function BarPanel({ showToast }) {
   const [ordenSugerida, setOrdenSugerida] = useState([]);
   const [modalExportar, setModalExportar] = useState(false);
   const [showGestionCategorias, setShowGestionCategorias] = useState(false);
+  
+  // Nuevos estados para mejoras de ticket/impresion y recepcion
+  const [ultimaOrdenDiaria, setUltimaOrdenDiaria] = useState(null);
+  const [popupsBloqueados, setPopupsBloqueados] = useState(false);
+  const [subModalRecepcion, setSubModalRecepcion] = useState(false);
+  const [montoRealCompra, setMontoRealCompra] = useState(0);
+  const [referenciaFactura, setReferenciaFactura] = useState('');
   const [editingCatName, setEditingCatName] = useState(null);
   const [editingCatValue, setEditingCatValue] = useState('');
   const [deletingCatName, setDeletingCatName] = useState(null);
@@ -101,6 +108,16 @@ export default function BarPanel({ showToast }) {
       }
     });
     return unsub;
+  }, []);
+
+  // Leer estado de pop-ups bloqueados en el montaje
+  useEffect(() => {
+    try {
+      const blocked = localStorage.getItem('yoy_popups_blocked_warning') === 'true';
+      if (blocked) {
+        setPopupsBloqueados(true);
+      }
+    } catch (e) {}
   }, []);
 
   const descartarSugerencia = async (id) => {
@@ -232,6 +249,8 @@ export default function BarPanel({ showToast }) {
     const unsub = onSnapshot(doc(db, 'config', 'inventario'), snap => {
       if (snap.exists()) {
         const firestoreProds = snap.data().productos || [];
+        const ultimaOrden = snap.data().ultimaOrdenDiaria || null;
+        setUltimaOrdenDiaria(ultimaOrden);
         if (firestoreProds.length > 0) {
           let localRaw = null;
           try {
@@ -643,8 +662,13 @@ export default function BarPanel({ showToast }) {
 
     const printWindow = window.open('', '_blank', 'width=600,height=600');
     if (!printWindow) {
+      setPopupsBloqueados(true);
+      localStorage.setItem('yoy_popups_blocked_warning', 'true');
       showToast('Permita las ventanas emergentes para imprimir la orden de compra', 'warning');
       return;
+    } else {
+      setPopupsBloqueados(false);
+      localStorage.removeItem('yoy_popups_blocked_warning');
     }
 
     const dateStr = new Date().toLocaleDateString('es-MX', { year: 'numeric', month: '2-digit', day: '2-digit' });
@@ -788,6 +812,14 @@ export default function BarPanel({ showToast }) {
   // Confirmar y cargar la orden de compra sugerida en el stock (Recomendación 3)
   const aprobarCargarOrdenCompra = () => {
     if (ordenSugerida.length === 0) return;
+    const totalCosto = ordenSugerida.reduce((s,o)=>s+o.costoTotal, 0);
+    setMontoRealCompra(totalCosto);
+    setReferenciaFactura('');
+    setSubModalRecepcion(true);
+  };
+
+  const confirmarYRecibirMercanciaReal = () => {
+    if (ordenSugerida.length === 0) return;
 
     const nuevosProductos = productos.map(p => {
       const itemOrden = ordenSugerida.find(o => o.id === p.id);
@@ -805,22 +837,23 @@ export default function BarPanel({ showToast }) {
         producto: o.nombre,
         tipo: 'entrada',
         cantidad: o.cantidadAPedir,
-        detalle: 'Reabastecimiento automático aprobado por IA',
-        operador: 'Admin YoY'
+        detalle: `Reabastecimiento IA aprobado${referenciaFactura ? ` (Ref: ${referenciaFactura})` : ''}`,
+        operador: user ? (user.name || user.alias || 'Admin YoY') : 'Admin YoY'
       });
     });
 
     saveState(nuevosProductos, nuevosLogs);
 
-    const totalCosto = ordenSugerida.reduce((s,o)=>s+o.costoTotal, 0);
-    // Sincronizar con la bitácora general de caja (Recomendación 3) - costo como egreso
+    // Sincronizar con la bitácora general de caja - costo real como egreso
+    const descripcionEgreso = `Reabastecimiento IA aprobado para ${ordenSugerida.length} productos${referenciaFactura ? ` (Ref: ${referenciaFactura})` : ''} (${ordenSugerida.map(o=>`${o.cantidadAPedir}x ${o.nombre}`).join(', ')})`;
     registrarEnBitacoraGeneral(
       'Compra IA', 
-      `Reabastecimiento IA aprobado para ${ordenSugerida.length} productos (${ordenSugerida.map(o=>`${o.cantidadAPedir}x ${o.nombre}`).join(', ')})`,
-      -totalCosto
+      descripcionEgreso,
+      -montoRealCompra
     );
 
-    showToast('Orden de compra IA aplicada con éxito. Stock actualizado ✓', 'success');
+    showToast(`Mercancia recibida y egreso de $${montoRealCompra} MXN asentado en caja ✓`, 'success');
+    setSubModalRecepcion(false);
     setModalOrdenCompra(false);
   };
 
@@ -975,6 +1008,46 @@ export default function BarPanel({ showToast }) {
 
   return (
     <div>
+      {popupsBloqueados && (
+        <div style={{
+          background: 'rgba(239, 68, 68, 0.15)',
+          border: '1px solid #ef4444',
+          borderRadius: 8,
+          padding: '10px 14px',
+          marginBottom: 12,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          color: '#ef4444',
+          fontSize: 12,
+          fontWeight: 500
+        }}>
+          <span>
+            ⚠️ <b>Ventanas emergentes bloqueadas:</b> El navegador esta bloqueando las ventanas de impresion de tickets. 
+            Por favor, haga clic en el icono de bloqueo/popups en la barra de direcciones y seleccione "Permitir siempre".
+          </span>
+          <button 
+            onClick={() => {
+              setPopupsBloqueados(false);
+              try {
+                localStorage.removeItem('yoy_popups_blocked_warning');
+              } catch (e) {}
+            }} 
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#ef4444',
+              cursor: 'pointer',
+              fontSize: 14,
+              fontWeight: 'bold',
+              padding: '0 4px'
+            }}
+            title="Cerrar aviso"
+          >
+            ✕
+          </button>
+        </div>
+      )}
       <div className="page-header" style={{ marginBottom: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
         {/* Fila 1: Title and KPIs */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
@@ -1436,6 +1509,19 @@ export default function BarPanel({ showToast }) {
 
             {/* Botones de Accion */}
             <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              {ultimaOrdenDiaria && ultimaOrdenDiaria.fecha === new Date().toLocaleDateString('en-CA') && ultimaOrdenDiaria.items?.length > 0 && (
+                <button 
+                  className="btn btn-secondary btn-xs" 
+                  onClick={() => {
+                    imprimirOrdenCompraTFT(ultimaOrdenDiaria.items);
+                    showToast('Re-imprimiendo ticket de orden de compra diaria ✓', 'success');
+                  }} 
+                  style={{ color: 'var(--bronze-light)', borderColor: 'var(--border-bronze)', height: 26, fontSize: 9.5, padding: '0 8px', display: 'flex', alignItems: 'center' }}
+                  title="Reimprimir el ticket de orden de compra automatica generado hoy al iniciar sesion"
+                >
+                  <i className="ri-printer-line" style={{ marginRight: 4 }} /> Reimprimir Ticket Diario
+                </button>
+              )}
               <button className="btn btn-secondary btn-xs" onClick={optimizarStockConIA} style={{ color: 'var(--bronze-light)', borderColor: 'var(--border-bronze)', height: 26, fontSize: 9.5, padding: '0 8px', display: 'flex', alignItems: 'center' }}>
                 <i className="ri-magic-line" style={{ marginRight: 4 }} /> Optimizar Stock con IA
               </button>
@@ -1926,7 +2012,6 @@ export default function BarPanel({ showToast }) {
         </div>
       )}
 
-      {/* ── MODAL ORDEN DE COMPRA SUGERIDA POR IA ─────────────────── */}
       {modalOrdenCompra && (
         <div className="modal-overlay" onClick={() => setModalOrdenCompra(false)}>
           <div className="modal" style={{ maxWidth: 660 }} onClick={e => e.stopPropagation()}>
@@ -2033,6 +2118,61 @@ export default function BarPanel({ showToast }) {
                   </button>
                 </>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {subModalRecepcion && (
+        <div className="modal-overlay" style={{ zIndex: 1100 }} onClick={() => setSubModalRecepcion(false)}>
+          <div className="modal" style={{ maxWidth: 420 }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <span className="modal-title">
+                <i className="ri-check-double-line" style={{ marginRight: 8, color: 'var(--success)' }} />
+                Conciliación y Recepción
+              </span>
+              <button onClick={() => setSubModalRecepcion(false)} className="btn-icon btn btn-secondary" style={{ background: 'none', border: 'none' }}>
+                <i className="ri-close-line" style={{ fontSize: 20 }} />
+              </button>
+            </div>
+            <div className="modal-body">
+              <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 14 }}>
+                Ingrese los datos reales de la compra para asentar el egreso correcto en el corte de caja.
+              </p>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)' }}>Monto Real Pagado ($ MXN)</label>
+                  <input 
+                    type="number" 
+                    className="form-control"
+                    style={{ background: 'var(--bg-main)', border: '1px solid var(--border)', color: 'var(--text-main)', borderRadius: 8, padding: '8px 12px', fontSize: 13 }}
+                    value={montoRealCompra}
+                    onChange={e => setMontoRealCompra(parseFloat(e.target.value) || 0)}
+                  />
+                </div>
+                
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)' }}>Referencia / Factura # (Opcional)</label>
+                  <input 
+                    type="text" 
+                    placeholder="Ej. FAC-9932 o Remisión"
+                    className="form-control"
+                    style={{ background: 'var(--bg-main)', border: '1px solid var(--border)', color: 'var(--text-main)', borderRadius: 8, padding: '8px 12px', fontSize: 13 }}
+                    value={referenciaFactura}
+                    onChange={e => setReferenciaFactura(e.target.value)}
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="modal-footer" style={{ gap: 8 }}>
+              <button className="btn btn-secondary" onClick={() => setSubModalRecepcion(false)}>Cancelar</button>
+              <button 
+                className="btn btn-primary" 
+                onClick={confirmarYRecibirMercanciaReal}
+              >
+                Confirmar y Registrar
+              </button>
             </div>
           </div>
         </div>
