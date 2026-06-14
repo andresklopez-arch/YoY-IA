@@ -194,6 +194,8 @@ input, select, textarea {
   display: flex;
   flex-direction: column;
   position: relative;
+  min-width: 0;
+  overflow-x: hidden;
 }
 
 .topbar {
@@ -217,7 +219,11 @@ input, select, textarea {
   flex: 1;
   padding: 24px;
   overflow-y: auto;
+  overflow-x: hidden;
   margin-top: 70px;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 /* ── SIDEBAR COMPONENTES ─────────────────────────────────── */

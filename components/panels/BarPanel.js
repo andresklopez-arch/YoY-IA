@@ -1007,7 +1007,7 @@ export default function BarPanel({ showToast }) {
   };
 
   return (
-    <div>
+    <div style={{ width: '100%', overflow: 'hidden', boxSizing: 'border-box' }}>
       {popupsBloqueados && (
         <div style={{
           background: 'rgba(239, 68, 68, 0.15)',
@@ -1203,6 +1203,8 @@ export default function BarPanel({ showToast }) {
           {/* Inteligencia de Margen Widget */}
           <div className="card" style={{ 
             width: '100%', 
+            boxSizing: 'border-box',
+            maxWidth: '100%',
             padding: '8px 12px',
             height: '120px',
             display: 'flex',
@@ -1472,10 +1474,10 @@ export default function BarPanel({ showToast }) {
       )}
 
       {/* Main Layout: Stock & Predictor */}
-      <div style={{ display: 'grid', gridTemplateColumns: densidadVista === 'compact' ? '1fr 290px' : '1fr 340px', gap: densidadVista === 'compact' ? 14 : 20, alignItems: 'start' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: densidadVista === 'compact' ? 'minmax(0, 1fr) 290px' : 'minmax(0, 1fr) 340px', gap: densidadVista === 'compact' ? 14 : 20, alignItems: 'start', width: '100%', boxSizing: 'border-box', overflow: 'hidden' }}>
         
         {/* Lado Izquierdo: Catálogo y Stock */}
-        <div>
+        <div style={{ minWidth: 0, overflow: 'hidden' }}>
           {/* Filtros */}
           <div style={{ display: 'flex', gap: 6, marginBottom: 12, alignItems: 'center', width: '100%', flexWrap: 'nowrap' }}>
             <input 
@@ -1693,7 +1695,7 @@ export default function BarPanel({ showToast }) {
         </div>
 
         {/* Lado Derecho: Inteligencia IA */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: densidadVista === 'compact' ? 14 : 20 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: densidadVista === 'compact' ? 14 : 20, minWidth: 0, overflow: 'hidden' }}>
           
           {/* Módulo IA: Sincronización en la Nube Supabase (Sugerencia 2) */}
           <div className="card" style={{ padding: densidadVista === 'compact' ? 12 : 16, border: '1px solid var(--border-bronze)', background: 'rgba(205,127,50,0.02)' }}>
