@@ -677,65 +677,126 @@ export default function BarPanel({ showToast }) {
 
   return (
     <div>
-      <div className="page-header">
+      <div className="page-header" style={{ marginBottom: densidadVista === 'compact' ? 14 : 24 }}>
         <div>
           <h1 className="page-title gradient-bronze">Inventario Inteligente IA</h1>
-          <p className="page-subtitle">Monitoreo de stock, auditoría física y motor predictivo de compras</p>
+          <p className="page-subtitle" style={{ margin: 0 }}>Monitoreo de stock, auditoría física y motor predictivo de compras</p>
         </div>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          {/* Selector de Densidad de Vista */}
-          <div style={{ display: 'flex', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)', borderRadius: 8, padding: 2, marginRight: 6 }}>
-            <button 
-              className="btn btn-xs" 
-              style={{ 
-                padding: '4px 8px', 
-                fontSize: 10, 
-                borderRadius: 6, 
-                background: densidadVista === 'compact' ? 'var(--bronze-subtle)' : 'transparent',
-                border: 'none',
-                color: densidadVista === 'compact' ? 'var(--bronze-light)' : 'var(--text-secondary)',
-                fontWeight: 600,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 4
-              }}
-              onClick={() => changeDensity('compact')}
-              title="Vista Compacta"
-            >
-              <i className="ri-grid-fill" /> Compacto
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
+          {/* Fila de Botones */}
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            {/* Selector de Densidad de Vista */}
+            <div style={{ display: 'flex', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)', borderRadius: 8, padding: 2, marginRight: 6 }}>
+              <button 
+                className="btn btn-xs" 
+                style={{ 
+                  padding: '4px 8px', 
+                  fontSize: 10, 
+                  borderRadius: 6, 
+                  background: densidadVista === 'compact' ? 'var(--bronze-subtle)' : 'transparent',
+                  border: 'none',
+                  color: densidadVista === 'compact' ? 'var(--bronze-light)' : 'var(--text-secondary)',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4
+                }}
+                onClick={() => changeDensity('compact')}
+                title="Vista Compacta"
+              >
+                <i className="ri-grid-fill" /> Compacto
+              </button>
+              <button 
+                className="btn btn-xs" 
+                style={{ 
+                  padding: '4px 8px', 
+                  fontSize: 10, 
+                  borderRadius: 6, 
+                  background: densidadVista === 'classic' ? 'var(--bronze-subtle)' : 'transparent',
+                  border: 'none',
+                  color: densidadVista === 'classic' ? 'var(--bronze-light)' : 'var(--text-secondary)',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4
+                }}
+                onClick={() => changeDensity('classic')}
+                title="Vista Clásica (Espaciosa)"
+              >
+                <i className="ri-layout-grid-fill" /> Clásico
+              </button>
+            </div>
+
+            <button className="btn btn-secondary btn-sm" onClick={optimizarStockConIA} style={{ color: 'var(--bronze-light)', borderColor: 'var(--border-bronze)' }}>
+              <i className="ri-magic-line" style={{ marginRight: 6 }} /> Optimizar Stock con IA
             </button>
-            <button 
-              className="btn btn-xs" 
-              style={{ 
-                padding: '4px 8px', 
-                fontSize: 10, 
-                borderRadius: 6, 
-                background: densidadVista === 'classic' ? 'var(--bronze-subtle)' : 'transparent',
-                border: 'none',
-                color: densidadVista === 'classic' ? 'var(--bronze-light)' : 'var(--text-secondary)',
-                fontWeight: 600,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 4
-              }}
-              onClick={() => changeDensity('classic')}
-              title="Vista Clásica (Espaciosa)"
-            >
-              <i className="ri-layout-grid-fill" /> Clásico
+            <button className="btn btn-secondary btn-sm" onClick={generarOrdenCompraIA} style={{ color: 'var(--bronze-light)', borderColor: 'var(--border-bronze)' }}>
+              <i className="ri-robot-line" style={{ marginRight: 6 }} /> Orden de Compra IA
+            </button>
+            <button className="btn btn-primary btn-sm" onClick={() => setShowNuevoProducto(true)}>
+              <i className="ri-add-line" /> Registrar Producto
             </button>
           </div>
 
-          <button className="btn btn-secondary btn-sm" onClick={optimizarStockConIA} style={{ color: 'var(--bronze-light)', borderColor: 'var(--border-bronze)' }}>
-            <i className="ri-magic-line" style={{ marginRight: 6 }} /> Optimizar Stock con IA
-          </button>
-          <button className="btn btn-secondary btn-sm" onClick={generarOrdenCompraIA} style={{ color: 'var(--bronze-light)', borderColor: 'var(--border-bronze)' }}>
-            <i className="ri-robot-line" style={{ marginRight: 6 }} /> Orden de Compra IA
-          </button>
-          <button className="btn btn-primary btn-sm" onClick={() => setShowNuevoProducto(true)}>
-            <i className="ri-add-line" /> Registrar Producto
-          </button>
+          {/* Fila de Métricas en Modo Compacto (Subida cerca de los botones, sin texto de Resumen) */}
+          {densidadVista === 'compact' && (
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: 12, 
+              background: 'linear-gradient(135deg, rgba(205,127,50,0.03) 0%, rgba(0,0,0,0.1) 100%)',
+              border: '1px solid var(--border-bronze)',
+              borderRadius: 8, 
+              padding: '6px 12px',
+              marginTop: 2
+            }}>
+              {/* Métrica 1 */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+                <span style={{ fontSize: 8, textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.05em' }}>Productos Totales</span>
+                <div style={{ fontSize: 13, fontWeight: 900, color: 'var(--blue-light)', fontFamily: 'var(--font-display)' }}>
+                  {productos.length} <span style={{ fontSize: 8, fontWeight: 500, color: 'var(--text-muted)' }}>pz</span>
+                </div>
+              </div>
+
+              <div style={{ width: 1, height: 16, background: 'var(--border)' }} />
+
+              {/* Métrica 2 */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+                <span style={{ fontSize: 8, textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.05em' }}>Alertas de Stock</span>
+                <div style={{ fontSize: 13, fontWeight: 900, color: stockCritico.length > 0 ? 'var(--danger)' : 'var(--success)', fontFamily: 'var(--font-display)', display: 'flex', alignItems: 'center' }}>
+                  {stockCritico.length > 0 && (
+                    <i className="ri-alert-fill pulse-alert-icon" style={{ fontSize: 10, color: 'var(--danger)', marginRight: 3 }} />
+                  )}
+                  {stockCritico.length}
+                </div>
+              </div>
+
+              <div style={{ width: 1, height: 16, background: 'var(--border)' }} />
+
+              {/* Métrica 3 */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+                <span style={{ fontSize: 8, textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.05em' }}>Valor Inversión</span>
+                <div style={{ fontSize: 13, fontWeight: 900, color: 'var(--bronze-light)', fontFamily: 'var(--font-display)' }}>
+                  ${costoTotalVal.toLocaleString()}
+                </div>
+              </div>
+
+              <div style={{ width: 1, height: 16, background: 'var(--border)' }} />
+
+              {/* Métrica 4 */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+                <span style={{ fontSize: 8, textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.05em' }}>Valor Venta</span>
+                <div style={{ fontSize: 13, fontWeight: 900, color: 'var(--success)', fontFamily: 'var(--font-display)', display: 'flex', alignItems: 'baseline', gap: 4 }}>
+                  ${ventaTotalVal.toLocaleString()}
+                  <span style={{ fontSize: 8, color: 'var(--text-muted)', fontWeight: 500 }}>
+                    ({margenGlobalPct}%)
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
       <style>{`
@@ -752,89 +813,7 @@ export default function BarPanel({ showToast }) {
       `}</style>
 
       {/* Condicional según Densidad de Vista */}
-      {densidadVista === 'compact' ? (
-        /* Tarjeta de Resumen de Stock Única y Compacta */
-        <div className="card" style={{
-          padding: '8px 16px',
-          marginBottom: 14,
-          background: 'linear-gradient(135deg, rgba(205,127,50,0.05) 0%, rgba(0,0,0,0.15) 100%)',
-          border: '1px solid var(--border-bronze)',
-          borderRadius: 10,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 12,
-          flexWrap: 'wrap',
-          marginTop: 8
-        }}>
-          {/* Lado izquierdo: Título / Icono */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{
-              width: 28,
-              height: 28,
-              borderRadius: 6,
-              background: 'var(--bronze-subtle, rgba(205,127,50,0.1))',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'var(--bronze-light)'
-            }}>
-              <i className="ri-database-2-line" style={{ fontSize: 14 }} />
-            </div>
-            <div>
-              <h3 style={{ fontSize: 11, fontWeight: 800, color: '#fff', margin: 0, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Resumen de Existencias</h3>
-              <p style={{ fontSize: 8, color: 'var(--text-secondary)', margin: 0 }}>Auditoría física y métricas generales</p>
-            </div>
-          </div>
-
-          {/* Lado derecho: Métricas compactas */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
-            {/* Métrica 1 */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-              <span style={{ fontSize: 8, textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.05em' }}>Productos Totales</span>
-              <div style={{ fontSize: 13, fontWeight: 900, color: 'var(--blue-light)', fontFamily: 'var(--font-display)' }}>
-                {productos.length} <span style={{ fontSize: 8, fontWeight: 500, color: 'var(--text-muted)' }}>pz</span>
-              </div>
-            </div>
-
-            <div style={{ width: 1, height: 18, background: 'var(--border)' }} />
-
-            {/* Métrica 2 */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-              <span style={{ fontSize: 8, textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.05em' }}>Alertas de Stock</span>
-              <div style={{ fontSize: 13, fontWeight: 900, color: stockCritico.length > 0 ? 'var(--danger)' : 'var(--success)', fontFamily: 'var(--font-display)', display: 'flex', alignItems: 'center' }}>
-                {stockCritico.length > 0 && (
-                  <i className="ri-alert-fill pulse-alert-icon" style={{ fontSize: 10, color: 'var(--danger)', marginRight: 3 }} />
-                )}
-                {stockCritico.length}
-              </div>
-            </div>
-
-            <div style={{ width: 1, height: 18, background: 'var(--border)' }} />
-
-            {/* Métrica 3 */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-              <span style={{ fontSize: 8, textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.05em' }}>Valor Inversión</span>
-              <div style={{ fontSize: 13, fontWeight: 900, color: 'var(--bronze-light)', fontFamily: 'var(--font-display)' }}>
-                ${costoTotalVal.toLocaleString()}
-              </div>
-            </div>
-
-            <div style={{ width: 1, height: 18, background: 'var(--border)' }} />
-
-            {/* Métrica 4 */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-              <span style={{ fontSize: 8, textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.05em' }}>Valor Venta</span>
-              <div style={{ fontSize: 13, fontWeight: 900, color: 'var(--success)', fontFamily: 'var(--font-display)', display: 'flex', alignItems: 'baseline', gap: 4 }}>
-                ${ventaTotalVal.toLocaleString()}
-                <span style={{ fontSize: 8, color: 'var(--text-muted)', fontWeight: 500 }}>
-                  ({margenGlobalPct}%)
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-      ) : (
+      {densidadVista === 'classic' && (
         /* Grid de KPIs de Inventario Clásico (Spacious) */
         <div className="stat-grid" style={{ marginBottom: 20, marginTop: 12 }}>
           {[
