@@ -42,7 +42,13 @@ const CATEGORIAS_GASTO = [
   { id: 'otro',       label: 'Otro / Personalizado',  icon: '➕', color: '#6b7280' },
 ];
 
-const fmt = (n) => `$${Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const moneyFormatter = new Intl.NumberFormat('es-MX', {
+  style: 'currency',
+  currency: 'MXN',
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2
+});
+const fmt = (n) => moneyFormatter.format(Number(n || 0));
 const today = () => new Date().toISOString().slice(0, 10);
 
 // Hook: ventas reales de bar y mesas para comisiones
@@ -193,9 +199,15 @@ export function useAlertasNomina() {
 // COMPONENTES AUXILIARES
 // ─────────────────────────────────────────────
 function StatCardMini({ icon, label, value, color, tooltip }) {
+  const [hovered, setHovered] = useState(false);
+
   return (
     <div 
-      title={tooltip}
+      onMouseEnter={() => tooltip && setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      tabIndex={tooltip ? 0 : undefined}
+      onFocus={() => tooltip && setHovered(true)}
+      onBlur={() => setHovered(false)}
       style={{
         background: 'var(--bg-card)',
         border: '1px solid var(--border)',
@@ -206,14 +218,28 @@ function StatCardMini({ icon, label, value, color, tooltip }) {
         gap: 12,
         minWidth: 140,
         flex: 1,
-        cursor: tooltip ? 'help' : 'default'
+        cursor: tooltip ? 'pointer' : 'default',
+        position: 'relative',
+        outline: 'none',
+        transition: 'border-color 0.25s ease, transform 0.25s ease, box-shadow 0.25s ease',
+        transform: hovered && tooltip ? 'translateY(-2px)' : 'none',
+        borderColor: hovered && tooltip ? color : 'var(--border)',
+        boxShadow: hovered && tooltip ? `0 6px 16px ${color}10` : 'none'
       }}
     >
+      <style dangerouslySetInnerHTML={{ __html: `
+        @keyframes tooltipFadeIn {
+          from { opacity: 0; transform: translateX(-50%) translateY(0px) scale(0.95); }
+          to { opacity: 1; transform: translateX(-50%) translateY(-8px) scale(1); }
+        }
+      `}} />
       <div style={{
         width: 32, height: 32, borderRadius: 8,
         background: `${color}15`, border: `1px solid ${color}30`,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: 16, color
+        fontSize: 16, color,
+        transition: 'transform 0.25s ease',
+        transform: hovered ? 'scale(1.1)' : 'none'
       }}>
         <i className={icon} />
       </div>
@@ -221,6 +247,42 @@ function StatCardMini({ icon, label, value, color, tooltip }) {
         <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</div>
         <div style={{ fontSize: 16, fontWeight: 800, color: '#fff', marginTop: 2 }}>{value}</div>
       </div>
+
+      {/* Burbuja de Tooltip Personalizada */}
+      {hovered && tooltip && (
+        <div style={{
+          position: 'absolute',
+          bottom: '100%',
+          left: '50%',
+          transform: 'translateX(-50%) translateY(-8px)',
+          background: 'rgba(15, 23, 42, 0.95)',
+          backdropFilter: 'blur(8px)',
+          border: '1px solid var(--border)',
+          borderRadius: 8,
+          padding: '6px 12px',
+          color: '#fff',
+          fontSize: 10,
+          fontWeight: 600,
+          whiteSpace: 'nowrap',
+          zIndex: 100,
+          boxShadow: '0 4px 20px rgba(0,0,0,0.6)',
+          animation: 'tooltipFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+          pointerEvents: 'none',
+          borderTop: `2px solid ${color}`
+        }}>
+          {tooltip}
+          {/* Pequeño indicador de flecha */}
+          <div style={{
+            position: 'absolute',
+            top: '100%',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            borderWidth: '5px',
+            borderStyle: 'solid',
+            borderColor: 'rgba(15, 23, 42, 0.95) transparent transparent transparent'
+          }} />
+        </div>
+      )}
     </div>
   );
 }
