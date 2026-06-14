@@ -673,21 +673,15 @@ export default function BarPanel({ showToast }) {
           </button>
         </div>
       </div>
-
-      {/* Grid de KPIs de Inventario */}
-      <div className="stat-grid" style={{ marginBottom: 24 }}>
-        {[
-          { label: 'Productos Totales', value: productos.length, icon: 'ri-archive-line', color: 'icon-blue', accent: 'var(--blue-light)' },
-          { label: 'Alertas de Stock', value: stockCritico.length, icon: 'ri-alert-line', color: stockCritico.length > 0 ? 'icon-danger' : 'icon-success', accent: stockCritico.length > 0 ? 'var(--danger)' : 'var(--success)' },
-          { label: 'Valor de Inversión', value: `$${productos.reduce((s,p)=>s+(p.stock*p.precioCosto), 0)}`, icon: 'ri-money-dollar-box-line', color: 'icon-bronze', accent: 'var(--bronze-light)' },
-          { label: 'Valor de Venta', value: `$${productos.reduce((s,p)=>s+(p.stock*p.precioVenta), 0)}`, icon: 'ri-coins-line', color: 'icon-success', accent: 'var(--success)' },
-        ].map((s, i) => (
-          <div key={i} className="stat-card">
-            <div className={`stat-card-icon ${s.color}`}><i className={s.icon} /></div>
-            <div className="stat-card-value" style={{ color: s.accent, fontSize: 26 }}>{s.value}</div>
-            <div className="stat-card-label">{s.label}</div>
-          </div>
-        ))}
+      {/* Barra de KPIs compacta y premium */}
+      <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', marginTop: 12, marginBottom: 20, padding: '8px 12px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 10, fontSize: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><i className="ri-archive-line" style={{ color: 'var(--blue-light)', fontSize: 14 }} /> <span>Productos: <strong>{productos.length}</strong></span></div>
+        <div style={{ width: 1, height: 12, background: 'var(--border)' }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><i className="ri-alert-line" style={{ color: stockCritico.length > 0 ? 'var(--danger)' : 'var(--success)', fontSize: 14 }} /> <span>Alertas: <strong style={{ color: stockCritico.length > 0 ? 'var(--danger)' : 'var(--success)' }}>{stockCritico.length}</strong></span></div>
+        <div style={{ width: 1, height: 12, background: 'var(--border)' }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><i className="ri-money-dollar-box-line" style={{ color: 'var(--bronze-light)', fontSize: 14 }} /> <span>Inversión: <strong style={{ color: 'var(--bronze-light)' }}>${productos.reduce((s,p)=>s+(p.stock*p.precioCosto), 0)}</strong></span></div>
+        <div style={{ width: 1, height: 12, background: 'var(--border)' }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><i className="ri-coins-line" style={{ color: 'var(--success)', fontSize: 14 }} /> <span>Valor Venta: <strong style={{ color: 'var(--success)' }}>${productos.reduce((s,p)=>s+(p.stock*p.precioVenta), 0)}</strong></span></div>
       </div>
 
       {/* Alerta stock crítico */}
@@ -716,92 +710,6 @@ export default function BarPanel({ showToast }) {
             ))}
           </div>
 
-          {/* Modalidades de Inventario y Auditoría IA */}
-          <div style={{
-            background: 'var(--bg-elevated)',
-            border: '1px solid var(--border)',
-            borderRadius: 12,
-            padding: 12,
-            marginBottom: 16,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 10
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--bronze-light)', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'flex', alignItems: 'center', gap: 4 }}>
-                <i className="ri-survey-line" /> Modalidad de Auditoría e Inventario IA
-              </div>
-              <span className="badge badge-bronze" style={{ fontSize: 9 }}>Motor IA Activo</span>
-            </div>
-
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              {[
-                { id: 'general', label: 'General', icon: 'ri-archive-line' },
-                { id: 'periodico', label: 'Periódico', icon: 'ri-calendar-todo-line' },
-                { id: 'azar', label: 'Al Azar (Ciego)', icon: 'ri-shuffle-line' },
-                { id: 'producto', label: 'Por Producto', icon: 'ri-search-eye-line' },
-                { id: 'inconsistencia', label: 'Con Inconsistencias', icon: 'ri-error-warning-line' },
-                { id: 'mas_vendidos', label: 'Más Vendidos', icon: 'ri-line-chart-line' },
-                { id: 'menos_vendidos', label: 'Menos Vendidos', icon: 'ri-arrow-down-circle-line' },
-              ].map(m => (
-                <button
-                  key={m.id}
-                  onClick={() => {
-                    setModoInventario(m.id);
-                    if (m.id === 'azar') generarConteoCiego();
-                  }}
-                  className={`btn btn-sm`}
-                  style={{
-                    fontSize: 11,
-                    padding: '6px 10px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 4,
-                    background: modoInventario === m.id ? 'var(--bronze-subtle)' : 'var(--bg-elevated)',
-                    border: `1px solid ${modoInventario === m.id ? 'var(--border-bronze)' : 'var(--border)'}`,
-                    color: modoInventario === m.id ? 'var(--bronze-light)' : 'var(--text-secondary)'
-                  }}
-                >
-                  <i className={m.icon} />
-                  {m.label}
-                </button>
-              ))}
-            </div>
-
-            {/* Opciones extra según modo */}
-            {modoInventario === 'producto' && (
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center', animation: 'slideUp 0.15s ease' }}>
-                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Seleccionar Producto:</span>
-                <select
-                  className="form-select"
-                  style={{ width: 240, padding: 6, fontSize: 12, background: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-primary)', borderRadius: 8 }}
-                  value={productoSelId}
-                  onChange={e => setProductoSelId(e.target.value)}
-                >
-                  <option value="">-- Seleccionar --</option>
-                  {productos.map(p => (
-                    <option key={p.id} value={p.id}>{p.nombre}</option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            {modoInventario === 'azar' && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', animation: 'slideUp 0.15s ease' }}>
-                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                  <i className="ri-robot-line" style={{ marginRight: 4 }} />
-                  La IA seleccionó 3 productos ciegos al azar para auditar existencias hoy.
-                </span>
-                <button
-                  className="btn btn-secondary btn-sm"
-                  style={{ fontSize: 10, padding: '4px 8px' }}
-                  onClick={() => generarConteoCiego()}
-                >
-                  <i className="ri-refresh-line" /> Regenerar Auditoría
-                </button>
-              </div>
-            )}
-          </div>
           {/* Tabla de existencias */}
           <div className="card" style={{ padding: 16, overflowX: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
@@ -867,64 +775,69 @@ export default function BarPanel({ showToast }) {
             </table>
           </div>
 
-          {/* Historial de Auditorías de Stock */}
-          <div className="card" style={{ padding: 16, marginTop: 20 }}>
-            <h3 style={{ fontSize: 14, textTransform: 'uppercase', color: 'var(--text-secondary)', marginBottom: 12, fontWeight: 700 }}>
-              <i className="ri-history-line" style={{ marginRight: 6 }} />
-              Bitácora de Auditoría y Movimientos de Inventario
-            </h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 220, overflowY: 'auto' }}>
-              {todosLosLogs.length === 0 ? (
-                <p style={{ color: 'var(--text-muted)', fontSize: 12, textAlign: 'center', padding: '20px 0' }}>No hay registros de auditoría de stock.</p>
-              ) : (
-                todosLosLogs.map(l => {
-                  const isEntrada = l.tipo === 'entrada';
-                  const isMerma = l.tipo === 'merma';
-                  const isVentaQr = l.tipo === 'venta_qr';
-                  const isCierre = l.tipo === 'cierre';
-                  const isAjustePrecio = l.tipo === 'ajuste_precio';
-                  return (
-                    <div key={l.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 10, fontSize: 12 }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <span className={`badge ${isEntrada ? 'badge-success' : isMerma ? 'badge-danger' : isVentaQr ? 'badge-info' : isCierre ? 'badge-success' : 'badge-bronze'}`} style={{ fontSize: 8, padding: '1px 4px' }}>
-                            {l.tipo.toUpperCase()}
-                          </span>
-                          <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{new Date(l.fecha).toLocaleString()}</span>
-                        </div>
-                        <span style={{ fontWeight: 700 }}>{l.producto}</span>
-                        <span style={{ color: 'var(--text-secondary)', fontSize: 11 }}>{l.detalle}</span>
-                      </div>
-                      {!isAjustePrecio && (
-                        <div style={{ fontSize: 14, fontWeight: 800, color: isEntrada ? 'var(--success)' : isCierre ? 'var(--success)' : isVentaQr ? 'var(--info)' : 'var(--danger)' }}>
-                          {isEntrada ? '+' : isCierre ? '+$' : '-'}{isCierre ? l.monto : l.cantidad}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })
-              )}
+          {/* Modalidad de Auditoría e Inventario IA compactada */}
+          <div style={{
+            background: 'var(--bg-elevated)',
+            border: '1px solid var(--border)',
+            borderRadius: 12,
+            padding: '10px 14px',
+            marginTop: 16,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+            flexWrap: 'wrap'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--bronze-light)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <i className="ri-survey-line" /> Modalidad Auditoría IA
+              </div>
+              <span className="badge badge-bronze" style={{ fontSize: 8, padding: '1px 5px' }}>Motor IA Activo</span>
             </div>
-            {hasMoreLogs && (
-              <button 
-                onClick={() => setLogsLimit(prev => prev + 50)} 
-                className="btn btn-secondary btn-sm" 
-                style={{ 
-                  marginTop: 12, 
-                  width: '100%', 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  justifyContent: 'center', 
-                  gap: 6,
-                  color: 'var(--bronze-light)',
-                  borderColor: 'var(--border-bronze)',
-                  background: 'var(--bg-elevated)'
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <select
+                className="form-select"
+                style={{ padding: '4px 8px', fontSize: 12, minWidth: 160, background: 'var(--bg-base)', border: '1px solid var(--border)', color: 'var(--text-primary)', borderRadius: 6 }}
+                value={modoInventario}
+                onChange={e => {
+                  const m = e.target.value;
+                  setModoInventario(m);
+                  if (m === 'azar') generarConteoCiego();
                 }}
               >
-                <i className="ri-arrow-down-double-line" />
-                Cargar más registros de venta QR
-              </button>
-            )}
+                <option value="general">General (Catálogo Completo)</option>
+                <option value="periodico">Periódico (Críticos o ID Par)</option>
+                <option value="azar">Al Azar (Ciego - 3 sugerencias)</option>
+                <option value="producto">Por Producto Especificado</option>
+                <option value="inconsistencia">Con Inconsistencias Detectadas</option>
+                <option value="mas_vendidos">Más Vendidos (Por Consumo)</option>
+                <option value="menos_vendidos">Menos Vendidos (Por Consumo)</option>
+              </select>
+
+              {modoInventario === 'producto' && (
+                <select
+                  className="form-select"
+                  style={{ padding: '4px 8px', fontSize: 12, width: 180, background: 'var(--bg-base)', border: '1px solid var(--border)', color: 'var(--text-primary)', borderRadius: 6 }}
+                  value={productoSelId}
+                  onChange={e => setProductoSelId(e.target.value)}
+                >
+                  <option value="">-- Seleccionar --</option>
+                  {productos.map(p => (
+                    <option key={p.id} value={p.id}>{p.nombre}</option>
+                  ))}
+                </select>
+              )}
+
+              {modoInventario === 'azar' && (
+                <button
+                  className="btn btn-secondary btn-xs"
+                  style={{ display: 'flex', alignItems: 'center', gap: 4 }}
+                  onClick={() => generarConteoCiego()}
+                >
+                  <i className="ri-refresh-line" /> Regenerar
+                </button>
+              )}
+            </div>
           </div>
         </div>
 

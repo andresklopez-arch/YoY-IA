@@ -45,6 +45,15 @@ export default function CajaPanel({ showToast }) {
   // Cola de impresión térmica
   const [colaImpresion, setColaImpresion] = useState([]);
 
+  // Pestaña activa para la sección inferior de movimientos
+  const [tabActivo, setTabActivo] = useState('caja'); // 'caja' | 'inventario'
+
+  // Estados para Auditoría y Movimientos de Inventario relocalizados
+  const [inventarioLogs, setInventarioLogs] = useState([]);
+  const [inventarioDbLogs, setInventarioDbLogs] = useState([]);
+  const [inventarioLogsLimit, setInventarioLogsLimit] = useState(50);
+  const [inventarioHasMoreLogs, setInventarioHasMoreLogs] = useState(true);
+
   // Escuchar PIN de Administrador desde Firestore
   useEffect(() => {
     const unsub = onSnapshot(doc(db, 'config', 'seguridad'), snap => {
@@ -202,6 +211,70 @@ export default function CajaPanel({ showToast }) {
     });
     return unsub;
   }, []);
+
+  // Cargar logs locales de inventario
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const savedLogs = localStorage.getItem('yoy_billar_stock_logs');
+        if (savedLogs) {
+          setInventarioLogs(deobfuscate(savedLogs) || []);
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }
+  }, []);
+
+  // Escuchar historial_stock en Firestore para movimientos de inventario
+  useEffect(() => {
+    const q = query(
+      collection(db, 'historial_stock'),
+      orderBy('fecha', 'desc'),
+      limit(inventarioLogsLimit)
+    );
+    const unsub = onSnapshot(q, snap => {
+      const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      setInventarioDbLogs(items);
+      setInventarioHasMoreLogs(items.length === inventarioLogsLimit);
+    }, err => {
+      console.error("Error al escuchar historial de stock en tiempo real en Caja:", err);
+    });
+    return unsub;
+  }, [inventarioLogsLimit]);
+
+  const todosLosInventarioLogs = [
+    ...inventarioLogs.map(l => ({
+      id: `local-${l.id}`,
+      fecha: l.fecha,
+      producto: l.producto,
+      tipo: l.tipo,
+      cantidad: l.cantidad,
+      detalle: l.detalle,
+      operador: l.operador || 'Sistema',
+      monto: 0
+    })),
+    ...inventarioDbLogs.map(l => {
+      const fechaISO = l.fecha?.toDate ? l.fecha.toDate().toISOString() : new Date().toISOString();
+      const prodNombres = l.items && l.items.length > 0 
+        ? l.items.map(i => `${i.cantidad}x ${i.nombre}`).join(', ') 
+        : 'Renta de mesa (Tiempo)';
+      const cantTotal = l.items?.reduce((s, i) => s + i.cantidad, 0) || 0;
+      const esCierre = l.tipo === 'cierre_mesa_liquidada';
+      return {
+        id: l.id,
+        fecha: fechaISO,
+        producto: prodNombres,
+        tipo: esCierre ? 'cierre' : 'venta_qr',
+        cantidad: cantTotal,
+        detalle: esCierre
+          ? `Mesa ${l.mesaId} cerrada por ${l.cliente} (Total: $${l.total || 0} MXN cobrado vía ${(l.metodoPago || 'efectivo').toUpperCase()})`
+          : `Descuento automático comanda Mesa ${l.mesaId} (${l.cliente})`,
+        operador: esCierre ? (l.operador || 'Cajero Principal') : 'Cliente QR',
+        monto: l.total || 0
+      };
+    })
+  ].sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
 
   const limpiarBitacora = async () => {
     setBitacora([]);
@@ -408,47 +481,149 @@ export default function CajaPanel({ showToast }) {
             </div>
           </div>
 
-          {/* Tabla de transacciones */}
+          {/* Panel de Movimientos y Auditorías Tabuladas */}
           <div className="card">
-            <div className="card-header">
-              <h3 className="card-title">Movimientos del Turno</h3>
-              <button className="btn btn-secondary btn-sm" onClick={() => showToast('Exportando...', 'info')}>
+            <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: 10, marginBottom: 14 }}>
+              <div style={{ display: 'flex', gap: 12 }}>
+                <button
+                  onClick={() => setTabActivo('caja')}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    fontSize: 13,
+                    fontWeight: 700,
+                    color: tabActivo === 'caja' ? 'var(--bronze-light)' : 'var(--text-muted)',
+                    borderBottom: tabActivo === 'caja' ? '2px solid var(--bronze-light)' : 'none',
+                    paddingBottom: 4,
+                    cursor: 'pointer',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.05em'
+                  }}
+                >
+                  <i className="ri-receipt-line" style={{ marginRight: 6 }} />
+                  Transacciones de Caja
+                </button>
+                <button
+                  onClick={() => setTabActivo('inventario')}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    fontSize: 13,
+                    fontWeight: 700,
+                    color: tabActivo === 'inventario' ? 'var(--bronze-light)' : 'var(--text-muted)',
+                    borderBottom: tabActivo === 'inventario' ? '2px solid var(--bronze-light)' : 'none',
+                    paddingBottom: 4,
+                    cursor: 'pointer',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.05em'
+                  }}
+                >
+                  <i className="ri-history-line" style={{ marginRight: 6 }} />
+                  Movimientos de Inventario
+                </button>
+              </div>
+              <button
+                className="btn btn-secondary btn-sm"
+                onClick={() => {
+                  if (tabActivo === 'caja') {
+                    showToast('Exportando transacciones...', 'info');
+                  } else {
+                    showToast('Exportando bitácora de inventario...', 'info');
+                  }
+                }}
+              >
                 <i className="ri-download-line" /> Exportar
               </button>
             </div>
-            <div className="table-wrapper" style={{ border: 'none' }}>
-              <table>
-                <thead>
-                  <tr>
-                    <th>Hora</th>
-                    <th>Descripción</th>
-                    <th>Cliente / Destino</th>
-                    <th>Método</th>
-                    <th style={{ textAlign: 'right' }}>Monto</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {cobros.map(t => (
-                    <tr key={t.id} style={{ background: t.tipo === 'corte' ? 'rgba(205,127,50,0.05)' : 'none' }}>
-                      <td style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-display)', fontSize: 12 }}>{t.hora}</td>
-                      <td style={{ fontWeight: 600 }}>
-                        {t.tipo === 'corte' ? '📋 ' : ''}{t.descripcion}
-                      </td>
-                      <td style={{ color: 'var(--text-secondary)' }}>{t.cliente}</td>
-                      <td>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <i className={METODO_ICONS[t.metodo] || 'ri-cash-line'} style={{ fontSize: 14, color: 'var(--text-muted)' }} />
-                          <span style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'capitalize' }}>{t.metodo}</span>
-                        </div>
-                      </td>
-                      <td style={{ textAlign: 'right', fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 700, color: t.color }}>
-                        {t.monto > 0 ? '+' : ''}${t.monto.toLocaleString()}
-                      </td>
+
+            {tabActivo === 'caja' ? (
+              <div className="table-wrapper" style={{ border: 'none' }}>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Hora</th>
+                      <th>Descripción</th>
+                      <th>Cliente / Destino</th>
+                      <th>Método</th>
+                      <th style={{ textAlign: 'right' }}>Monto</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {cobros.map(t => (
+                      <tr key={t.id} style={{ background: t.tipo === 'corte' ? 'rgba(205,127,50,0.05)' : 'none' }}>
+                        <td style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-display)', fontSize: 12 }}>{t.hora}</td>
+                        <td style={{ fontWeight: 600 }}>
+                          {t.tipo === 'corte' ? '📋 ' : ''}{t.descripcion}
+                        </td>
+                        <td style={{ color: 'var(--text-secondary)' }}>{t.cliente}</td>
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <i className={METODO_ICONS[t.metodo] || 'ri-cash-line'} style={{ fontSize: 14, color: 'var(--text-muted)' }} />
+                            <span style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'capitalize' }}>{t.metodo}</span>
+                          </div>
+                        </td>
+                        <td style={{ textAlign: 'right', fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 700, color: t.color }}>
+                          {t.monto > 0 ? '+' : ''}${t.monto.toLocaleString()}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 300, overflowY: 'auto' }}>
+                {todosLosInventarioLogs.length === 0 ? (
+                  <p style={{ color: 'var(--text-muted)', fontSize: 12, textAlign: 'center', padding: '20px 0' }}>No hay registros de auditoría de stock.</p>
+                ) : (
+                  todosLosInventarioLogs.map(l => {
+                    const isEntrada = l.tipo === 'entrada';
+                    const isMerma = l.tipo === 'merma';
+                    const isVentaQr = l.tipo === 'venta_qr';
+                    const isCierre = l.tipo === 'cierre';
+                    const isAjustePrecio = l.tipo === 'ajuste_precio';
+                    return (
+                      <div key={l.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 10, fontSize: 12 }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span className={`badge ${isEntrada ? 'badge-success' : isMerma ? 'badge-danger' : isVentaQr ? 'badge-info' : isCierre ? 'badge-success' : 'badge-bronze'}`} style={{ fontSize: 8, padding: '1px 4px' }}>
+                              {l.tipo.toUpperCase()}
+                            </span>
+                            <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{new Date(l.fecha).toLocaleString()}</span>
+                          </div>
+                          <span style={{ fontWeight: 700 }}>{l.producto}</span>
+                          <span style={{ color: 'var(--text-secondary)', fontSize: 11 }}>{l.detalle}</span>
+                        </div>
+                        {!isAjustePrecio && (
+                          <div style={{ fontSize: 14, fontWeight: 800, color: isEntrada ? 'var(--success)' : isCierre ? 'var(--success)' : isVentaQr ? 'var(--info)' : 'var(--danger)' }}>
+                            {isEntrada ? '+' : isCierre ? '+$' : '-'}{isCierre ? l.monto : l.cantidad}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+                {inventarioHasMoreLogs && (
+                  <button 
+                    onClick={() => setInventarioLogsLimit(prev => prev + 50)} 
+                    className="btn btn-secondary btn-sm" 
+                    style={{ 
+                      marginTop: 12, 
+                      width: '100%', 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      justifyContent: 'center', 
+                      gap: 6,
+                      color: 'var(--bronze-light)',
+                      borderColor: 'var(--border-bronze)',
+                      background: 'var(--bg-elevated)'
+                    }}
+                  >
+                    <i className="ri-arrow-down-double-line" />
+                    Cargar más registros de inventario
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         </>
       )}
