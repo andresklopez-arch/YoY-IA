@@ -671,7 +671,8 @@ function AppContent() {
         <div style={{
           background: 'var(--bg-elevated)', border: '2px solid var(--bronze-light)',
           borderRadius: 20, padding: 40, maxWidth: 450, width: '100%', textAlign: 'center',
-          boxShadow: '0 10px 40px rgba(0,0,0,0.5), var(--shadow-bronze)'
+          boxShadow: '0 10px 40px rgba(0,0,0,0.5), var(--shadow-bronze)',
+          position: 'relative', overflow: 'hidden'
         }}>
           <div style={{ fontSize: 64, marginBottom: 20 }}>
             {fichajeSoporteExitoso.tipo === 'entrada' ? '🌅' : '🌙'}
@@ -709,6 +710,12 @@ function AppContent() {
           >
             Aceptar
           </button>
+
+          {/* Barra de progreso de auto-cierre (3 segundos) */}
+          <div style={{
+            position: 'absolute', bottom: 0, left: 0, height: 4, background: 'var(--bronze-light)',
+            width: '100%', animation: 'shrinkWidth 3s linear forwards'
+          }} />
         </div>
       </div>
     );
@@ -723,7 +730,8 @@ function AppContent() {
         <div style={{
           background: 'var(--bg-elevated)', border: '2px solid var(--danger)',
           borderRadius: 20, padding: 40, maxWidth: 450, width: '100%', textAlign: 'center',
-          boxShadow: '0 10px 40px rgba(0,0,0,0.5), var(--shadow-danger)'
+          boxShadow: '0 10px 40px rgba(0,0,0,0.5), var(--shadow-danger)',
+          position: 'relative', overflow: 'hidden'
         }}>
           <div style={{ fontSize: 64, marginBottom: 20 }}>❌</div>
           <h2 style={{ fontSize: 22, fontWeight: 900, color: '#fff', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
@@ -746,6 +754,12 @@ function AppContent() {
           >
             Reintentar / Volver
           </button>
+
+          {/* Barra de progreso de auto-cierre (3 segundos) */}
+          <div style={{
+            position: 'absolute', bottom: 0, left: 0, height: 4, background: 'var(--danger)',
+            width: '100%', animation: 'shrinkWidth 3s linear forwards'
+          }} />
         </div>
       </div>
     );
