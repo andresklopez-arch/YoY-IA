@@ -81,6 +81,18 @@ function AppContent() {
     return false;
   });
 
+  const [fichajeSoporteExitoso, setFichajeSoporteExitoso] = useState(null);
+
+  // Autocierre de confirmación de asistencia para personal de soporte
+  useEffect(() => {
+    if (fichajeSoporteExitoso) {
+      const timer = setTimeout(() => {
+        setFichajeSoporteExitoso(null);
+      }, 10000);
+      return () => clearTimeout(timer);
+    }
+  }, [fichajeSoporteExitoso]);
+
   // Medir y establecer el ancho de la barra de desplazamiento como una variable CSS
   useEffect(() => {
     const calculateScrollbarWidth = () => {
@@ -215,30 +227,24 @@ function AppContent() {
           }
         }
 
-        // 2. Registrar asistencia en la base de datos (si no existe para hoy/turno)
+        // 2. Determinar si es Entrada o Salida consultando en memoria los logs de hoy
         const fechaHoy = new Date().toISOString().slice(0, 10);
-        const hour = new Date().getHours();
-        let turnoActual = 'noche';
-        if (hour >= 6 && hour < 14) turnoActual = 'manana';
-        else if (hour >= 14 && hour < 22) turnoActual = 'tarde';
-
-        const q = query(
-          collection(db, 'nomina_asistencia'),
+        const qLogs = query(
+          collection(db, 'nomina_asistencia_log'),
           where('empleadoId', '==', emp.id),
-          where('fecha', '==', fechaHoy),
-          where('turno', '==', turnoActual)
+          where('fecha', '==', fechaHoy)
         );
-        const snap = await getDocs(q);
-        if (snap.empty) {
-          await addDoc(collection(db, 'nomina_asistencia'), {
-            empleadoId: emp.id,
-            fecha: fechaHoy,
-            turno: turnoActual,
-            estado: 'presente',
-            coordenadas: geoData, // Guardar las coordenadas registradas en el pase de lista
-            createdAt: serverTimestamp()
+        const logsSnap = await getDocs(qLogs);
+        let tipoRegistro = 'entrada';
+        if (!logsSnap.empty) {
+          const logsList = logsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+          logsList.sort((a, b) => {
+            const tA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : (a.createdAt || 0);
+            const tB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : (b.createdAt || 0);
+            return tB - tA;
           });
-          showToast(`Asistencia de ${emp.nombre} registrada ✅`, 'success');
+          const lastLog = logsList[0];
+          tipoRegistro = lastLog.tipo === 'entrada' ? 'salida' : 'entrada';
         }
 
         // Obtener el tipo de dispositivo que escanea
@@ -247,34 +253,82 @@ function AppContent() {
         if (/Mobi|Android|iPhone/i.test(ua)) dispositivo = 'Móvil';
         else if (/Tablet|iPad/i.test(ua)) dispositivo = 'Tablet';
 
+        // Registrar log de asistencia en nomina_asistencia_log
+        await addDoc(collection(db, 'nomina_asistencia_log'), {
+          empleadoId: emp.id,
+          nombre: `${emp.nombre} ${emp.apellido || ''}`.trim(),
+          rol: emp.rol || 'Mesero',
+          fecha: fechaHoy,
+          tipo: tipoRegistro,
+          coordenadas: geoData,
+          dispositivo,
+          createdAt: serverTimestamp()
+        });
+
+        // Si es Entrada, marcar también en nomina_asistencia (asistencia diaria legacy)
+        if (tipoRegistro === 'entrada') {
+          const hour = new Date().getHours();
+          let turnoActual = 'noche';
+          if (hour >= 6 && hour < 14) turnoActual = 'manana';
+          else if (hour >= 14 && hour < 22) turnoActual = 'tarde';
+
+          const qAsist = query(
+            collection(db, 'nomina_asistencia'),
+            where('empleadoId', '==', emp.id),
+            where('fecha', '==', fechaHoy),
+            where('turno', '==', turnoActual)
+          );
+          const snapAsist = await getDocs(qAsist);
+          if (snapAsist.empty) {
+            await addDoc(collection(db, 'nomina_asistencia'), {
+              empleadoId: emp.id,
+              fecha: fechaHoy,
+              turno: turnoActual,
+              estado: 'presente',
+              coordenadas: geoData,
+              createdAt: serverTimestamp()
+            });
+          }
+        }
+
         // Registrar en la bitácora general para Reportes
         await addDoc(collection(db, 'bitacora'), {
           fecha: new Date().toISOString(),
-          accion: 'Asistencia QR Escaneado',
-          detalle: `Pase de lista y login QR Escaneado: ${emp.nombre} (${emp.rol || 'Mesero'}) desde ${dispositivo}. Ubicación: ${geoData.status} (Lat: ${geoData.lat || 'N/A'}, Lng: ${geoData.lng || 'N/A'})`,
+          accion: `Fichaje QR ${tipoRegistro === 'entrada' ? 'Entrada' : 'Salida'}`,
+          detalle: `Fichaje QR: ${emp.nombre} (${emp.rol || 'Mesero'}) marcó ${tipoRegistro === 'entrada' ? 'entrada' : 'salida'} desde ${dispositivo}. Ubicación: ${geoData.status}`,
           monto: 0,
           operador: emp.nombre,
           rolOperador: (emp.rol || 'mesero').toLowerCase()
         });
 
-        // 3. Loguear al empleado en el dispositivo escaneador
-        await loginWithEmpleadoId(emp.id);
-        showToast(`Sesión iniciada como ${emp.nombre} ✓`, 'success');
-
-        // 4. Redireccionar de inmediato a su área de trabajo
+        // 3. Determinar comportamiento según el rol (Mesero/Cocina loguea, Soporte solo ficha)
         const rolLower = (emp.rol || '').toLowerCase();
-        if (rolLower.includes('mesero')) {
-          window.location.href = '/mesero';
-        } else if (
-          rolLower.includes('cocina') ||
-          rolLower.includes('bartender') ||
-          rolLower.includes('barman') ||
-          rolLower.includes('cocinero')
-        ) {
-          window.location.href = '/cocina';
+        const esMeseroOKitchen = rolLower.includes('mesero') ||
+                                 rolLower.includes('cocina') ||
+                                 rolLower.includes('bartender') ||
+                                 rolLower.includes('barman') ||
+                                 rolLower.includes('cocinero');
+
+        if (esMeseroOKitchen) {
+          // Loguear al empleado en el dispositivo escaneador
+          await loginWithEmpleadoId(emp.id);
+          showToast(`Sesión iniciada como ${emp.nombre} ✓`, 'success');
+
+          // Redireccionar de inmediato a su área de trabajo
+          if (rolLower.includes('mesero')) {
+            window.location.href = '/mesero';
+          } else {
+            window.location.href = '/cocina';
+          }
         } else {
-          window.location.href = '/';
+          // Personal de soporte: no inician sesión. Mostrar pantalla visual de éxito
+          setFichajeSoporteExitoso({
+            nombre: `${emp.nombre} ${emp.apellido || ''}`.trim(),
+            rol: emp.rol || 'Soporte',
+            tipo: tipoRegistro
+          });
           setIsProcessingQR(false);
+          showToast(`Asistencia de ${emp.nombre} registrada ✅`, 'success');
         }
       } catch (err) {
         console.error(err);
@@ -651,6 +705,58 @@ function AppContent() {
             filter: drop-shadow(0 0 15px rgba(205,127,50,0.25));
           }
         `}</style>
+      </div>
+    );
+  }
+
+  if (fichajeSoporteExitoso) {
+    return (
+      <div style={{
+        minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: 'var(--bg-base)', padding: 24
+      }}>
+        <div style={{
+          background: 'var(--bg-elevated)', border: '2px solid var(--bronze-light)',
+          borderRadius: 20, padding: 40, maxWidth: 450, width: '100%', textAlign: 'center',
+          boxShadow: '0 10px 40px rgba(0,0,0,0.5), var(--shadow-bronze)'
+        }}>
+          <div style={{ fontSize: 64, marginBottom: 20 }}>
+            {fichajeSoporteExitoso.tipo === 'entrada' ? '🌅' : '🌙'}
+          </div>
+          <h2 style={{ fontSize: 22, fontWeight: 900, color: '#fff', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            {fichajeSoporteExitoso.tipo === 'entrada' ? 'Entrada Registrada' : 'Salida Registrada'}
+          </h2>
+          <p style={{ fontSize: 16, color: 'var(--bronze-light)', fontWeight: 700, marginBottom: 4 }}>
+            {fichajeSoporteExitoso.nombre}
+          </p>
+          <p style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 24 }}>
+            {fichajeSoporteExitoso.rol}
+          </p>
+          
+          <div style={{
+            background: 'var(--bg-card)', border: '1px solid var(--border)',
+            borderRadius: 12, padding: '16px 20px', marginBottom: 32, fontSize: 13,
+            color: 'var(--text-secondary)', lineHeight: 1.6
+          }}>
+            {fichajeSoporteExitoso.tipo === 'entrada' 
+              ? '¡Tu hora de entrada ha sido guardada! Que tengas una excelente jornada laboral.' 
+              : '¡Tu hora de salida ha sido guardada! Gracias por tu trabajo y que tengas un excelente descanso.'}
+          </div>
+
+          <button
+            onClick={() => setFichajeSoporteExitoso(null)}
+            style={{
+              background: 'linear-gradient(135deg, var(--bronze), var(--bronze-light))',
+              color: '#fff', border: 'none', borderRadius: 12, padding: '12px 32px',
+              fontWeight: 800, fontSize: 13, cursor: 'pointer', width: '100%',
+              textTransform: 'uppercase', letterSpacing: '0.05em', transition: 'transform 0.15s'
+            }}
+            onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.02)'; }}
+            onMouseLeave={e => { e.currentTarget.style.transform = 'none'; }}
+          >
+            Aceptar
+          </button>
+        </div>
       </div>
     );
   }

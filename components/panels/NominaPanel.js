@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   collection, addDoc, updateDoc, deleteDoc, doc,
-  onSnapshot, query, orderBy, where, getDocs, serverTimestamp
+  onSnapshot, query, orderBy, where, getDocs, serverTimestamp, limit
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { hashNip } from '@/lib/crypto';
@@ -331,6 +331,18 @@ export default function NominaPanel({ showToast }) {
   const [insights, setInsights] = useState([]);
   const [calculos, setCalculos] = useState([]);
 
+  // Estados del Fichaje / Pase de Lista
+  const [subSeccion, setSubSeccion] = useState('resumen');
+  const [fichajesLogs, setFichajesLogs] = useState([]);
+  const [fichajeFechaInicio, setFichajeFechaInicio] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 7);
+    return d.toISOString().slice(0, 10);
+  });
+  const [fichajeFechaFin, setFichajeFechaFin] = useState(() => today());
+  const [fichajeFiltroBusqueda, setFichajeFiltroBusqueda] = useState('');
+  const [fichajeFiltroTipo, setFiltroTipo] = useState('');
+
   // Rango de fechas para el cálculo de nómina y filtrado de gastos
   const [fechaInicio, setFechaInicio] = useState(() => {
     const d = new Date();
@@ -379,6 +391,9 @@ export default function NominaPanel({ showToast }) {
       }),
       onSnapshot(query(collection(db, 'gastos'), orderBy('fecha', 'desc')), snap => {
         setGastos(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      }),
+      onSnapshot(query(collection(db, 'nomina_asistencia_log'), orderBy('createdAt', 'desc'), limit(500)), snap => {
+        setFichajesLogs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
       }),
       onSnapshot(query(collection(db, 'presupuestos')), snap => {
         const map = {};
@@ -639,6 +654,18 @@ export default function NominaPanel({ showToast }) {
     `${c.emp.nombre} ${c.emp.apellido} ${c.emp.rol} ${c.emp.departamento}`.toLowerCase().includes(busqueda.toLowerCase())
   );
 
+  const fichajesFiltrados = useMemo(() => {
+    return fichajesLogs.filter(log => {
+      const matchFecha = (!fichajeFechaInicio || log.fecha >= fichajeFechaInicio) &&
+                         (!fichajeFechaFin || log.fecha <= fichajeFechaFin);
+      const matchBusqueda = !fichajeFiltroBusqueda || 
+                            log.nombre.toLowerCase().includes(fichajeFiltroBusqueda.toLowerCase()) ||
+                            (log.rol || '').toLowerCase().includes(fichajeFiltroBusqueda.toLowerCase());
+      const matchTipo = !fichajeFiltroTipo || log.tipo === fichajeFiltroTipo;
+      return matchFecha && matchBusqueda && matchTipo;
+    });
+  }, [fichajesLogs, fichajeFechaInicio, fichajeFechaFin, fichajeFiltroBusqueda, fichajeFiltroTipo]);
+
   const gastosFiltrados = gastos
     .filter(g => g.fecha?.startsWith(filtroMes))
     .filter(g => !filtroCategoria || g.categoria === filtroCategoria)
@@ -685,8 +712,39 @@ export default function NominaPanel({ showToast }) {
         </div>
       </div>
 
+      {/* ── SELECTOR DE SUB-SECCIÓN / MENU DE PANTALLA ── */}
+      <div style={{
+        display: 'flex', gap: 12, marginBottom: 20, borderBottom: '1px solid var(--border)',
+        paddingBottom: 10
+      }}>
+        <button
+          onClick={() => setSubSeccion('resumen')}
+          style={{
+            background: subSeccion === 'resumen' ? 'var(--bronze-subtle)' : 'transparent',
+            border: subSeccion === 'resumen' ? '1px solid var(--border-bronze)' : '1px solid transparent',
+            color: subSeccion === 'resumen' ? 'var(--bronze-light)' : 'var(--text-secondary)',
+            borderRadius: 8, padding: '8px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+            transition: 'all 0.25s', display: 'flex', alignItems: 'center', gap: 6
+          }}
+        >
+          <i className="ri-dashboard-line" /> Resumen de Nómina & Gastos
+        </button>
+        <button
+          onClick={() => setSubSeccion('fichajes')}
+          style={{
+            background: subSeccion === 'fichajes' ? 'var(--bronze-subtle)' : 'transparent',
+            border: subSeccion === 'fichajes' ? '1px solid var(--border-bronze)' : '1px solid transparent',
+            color: subSeccion === 'fichajes' ? 'var(--bronze-light)' : 'var(--text-secondary)',
+            borderRadius: 8, padding: '8px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+            transition: 'all 0.25s', display: 'flex', alignItems: 'center', gap: 6
+          }}
+        >
+          <i className="ri-qr-code-line" /> Historial de Fichajes (Pase de Lista)
+        </button>
+      </div>
+
       {/* ── BANNER DE ALERTAS E INSIGHTS DE IA ── */}
-      {insights.length > 0 && (
+      {insights.length > 0 && subSeccion === 'resumen' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
           {insights.map(ins => (
             <div key={ins.id} style={{
@@ -704,15 +762,16 @@ export default function NominaPanel({ showToast }) {
         </div>
       )}
 
-      {/* ── DISTRIBUCION SPLIT GRID (70% / 30%) ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '7fr 3fr', gap: 20, alignItems: 'start' }}>
-        
-        {/* COLUMNA IZQUIERDA (70%) */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {subSeccion === 'resumen' ? (
+        /* ── DISTRIBUCION SPLIT GRID (70% / 30%) ── */
+        <div style={{ display: 'grid', gridTemplateColumns: '7fr 3fr', gap: 20, alignItems: 'start' }}>
           
-          {/* SECCION 1: PASE DE LISTA RÁPIDO */}
-          <div className="card">
-            <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          {/* COLUMNA IZQUIERDA (70%) */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            
+            {/* SECCION 1: PASE DE LISTA RÁPIDO */}
+            <div className="card">
+              <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
               <div>
                 <h3 className="card-title"><i className="ri-calendar-check-line" style={{ marginRight: 6 }} />Pase de Lista del Día</h3>
                 <p style={{ fontSize: 10, color: 'var(--text-muted)', margin: 0 }}>Registra la asistencia del personal para el turno actual de forma inmediata</p>
@@ -1055,6 +1114,153 @@ export default function NominaPanel({ showToast }) {
         </div>
 
       </div>
+      ) : (
+        /* ── HISTORIAL DE FICHAJES (PASE DE LISTA DETALLADO) ── */
+        <div className="card">
+          <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 15, flexWrap: 'wrap', gap: 12 }}>
+            <div>
+              <h3 className="card-title"><i className="ri-qr-code-line" style={{ marginRight: 6 }} />Historial de Pase de Lista y Fichajes</h3>
+              <p style={{ fontSize: 10, color: 'var(--text-muted)', margin: 0 }}>Registro detallado de accesos por QR (entrada/salida) y sesiones de administrador (login/logout)</p>
+            </div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <input className="form-input" type="date" value={fichajeFechaInicio} onChange={e => setFichajeFechaInicio(e.target.value)} style={{ width: 120, height: 30, fontSize: 11, padding: '2px 8px' }} />
+              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>al</span>
+              <input className="form-input" type="date" value={fichajeFechaFin} onChange={e => setFichajeFechaFin(e.target.value)} style={{ width: 120, height: 30, fontSize: 11, padding: '2px 8px' }} />
+              
+              <select className="form-select" value={fichajeFiltroTipo} onChange={e => setFiltroTipo(e.target.value)} style={{ width: 130, height: 30, fontSize: 11, padding: '2px 8px' }}>
+                <option value="">Todos los eventos</option>
+                <option value="entrada">🌅 Entrada (QR)</option>
+                <option value="salida">🌙 Salida (QR)</option>
+                <option value="login">🔑 Login (Sesión)</option>
+                <option value="logout">🔒 Logout (Sesión)</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Buscador */}
+          <div style={{ marginBottom: 15, position: 'relative' }}>
+            <input
+              className="form-input" type="text" placeholder="Buscar por nombre o rol..."
+              value={fichajeFiltroBusqueda} onChange={e => setFichajeFiltroBusqueda(e.target.value)}
+              style={{ paddingLeft: 32, fontSize: 12, height: 32 }}
+            />
+            <i className="ri-search-line" style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+          </div>
+
+          {/* Tabla de Resultados */}
+          <div className="table-container">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Fecha y Hora</th>
+                  <th>Empleado</th>
+                  <th>Rol</th>
+                  <th style={{ textAlign: 'center' }}>Evento</th>
+                  <th style={{ textAlign: 'center' }}>Dispositivo</th>
+                  <th style={{ textAlign: 'center' }}>Ubicación / Coordenadas</th>
+                </tr>
+              </thead>
+              <tbody>
+                {fichajesFiltrados.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)', fontSize: 12 }}>
+                      No se encontraron registros de fichaje para este periodo
+                    </td>
+                  </tr>
+                ) : (
+                  fichajesFiltrados.map(log => {
+                    let badgeColor = '#6b7280';
+                    let badgeBg = 'rgba(107,114,128,0.15)';
+                    let badgeText = log.tipo;
+                    let badgeIcon = 'ri-question-line';
+
+                    if (log.tipo === 'entrada') {
+                      badgeColor = '#22c55e';
+                      badgeBg = 'rgba(34,197,94,0.15)';
+                      badgeText = 'Entrada (QR)';
+                      badgeIcon = 'ri-login-box-line';
+                    } else if (log.tipo === 'salida') {
+                      badgeColor = '#ef4444';
+                      badgeBg = 'rgba(239,68,68,0.15)';
+                      badgeText = 'Salida (QR)';
+                      badgeIcon = 'ri-logout-box-line';
+                    } else if (log.tipo === 'login') {
+                      badgeColor = '#3b82f6';
+                      badgeBg = 'rgba(59,130,246,0.15)';
+                      badgeText = 'Login (NIP/Pass)';
+                      badgeIcon = 'ri-key-line';
+                    } else if (log.tipo === 'logout') {
+                      badgeColor = '#eab308';
+                      badgeBg = 'rgba(234,179,8,0.15)';
+                      badgeText = 'Logout (Sesión)';
+                      badgeIcon = 'ri-lock-line';
+                    }
+
+                    const formatHora = (ts) => {
+                      if (!ts) return '—';
+                      const date = ts.toDate ? ts.toDate() : new Date(ts);
+                      return date.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                    };
+
+                    const formatFecha = (ts) => {
+                      if (!ts) return log.fecha || '—';
+                      const date = ts.toDate ? ts.toDate() : new Date(ts);
+                      return date.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                    };
+
+                    const coords = log.coordenadas;
+                    const hasCoords = coords && coords.lat && coords.lng;
+
+                    return (
+                      <tr key={log.id}>
+                        <td style={{ fontSize: 12 }}>
+                          <strong>{formatFecha(log.createdAt)}</strong>
+                          <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{formatHora(log.createdAt)}</div>
+                        </td>
+                        <td style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>
+                          {log.nombre}
+                        </td>
+                        <td style={{ fontSize: 11, textTransform: 'uppercase', color: 'var(--text-secondary)' }}>
+                          {log.rol}
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
+                          <span style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 700,
+                            padding: '2px 8px', borderRadius: 6, color: badgeColor, background: badgeBg,
+                            border: `1px solid ${badgeColor}30`, textTransform: 'uppercase'
+                          }}>
+                            <i className={badgeIcon} /> {badgeText}
+                          </span>
+                        </td>
+                        <td style={{ textAlign: 'center', fontSize: 11 }}>
+                          <i className={log.dispositivo === 'Móvil' ? 'ri-smartphone-line' : log.dispositivo === 'Tablet' ? 'ri-tablet-line' : 'ri-computer-line'} style={{ marginRight: 4, color: 'var(--text-muted)' }} />
+                          {log.dispositivo || 'PC/Terminal'}
+                        </td>
+                        <td style={{ textAlign: 'center', fontSize: 11 }}>
+                          {hasCoords ? (
+                            <a
+                              href={`https://www.google.com/maps?q=${coords.lat},${coords.lng}`}
+                              target="_blank" rel="noopener noreferrer"
+                              style={{
+                                color: 'var(--bronze-light)', display: 'inline-flex', alignItems: 'center',
+                                gap: 4, textDecoration: 'underline', fontWeight: 600
+                              }}
+                            >
+                              <i className="ri-map-pin-line" /> Ver en Google Maps
+                            </a>
+                          ) : (
+                            <span style={{ color: 'var(--text-muted)' }}>Sin coordenadas ({coords?.status || 'N/D'})</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* ── MODALES DEL SISTEMA ── */}
 
