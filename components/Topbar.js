@@ -698,8 +698,10 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
       {showModalPaseLista && (
         <div style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
-          backdropFilter: 'blur(5px)'
+          display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 1000,
+          backdropFilter: 'blur(5px)',
+          paddingTop: '140px',
+          overflowY: 'auto'
         }} onClick={() => setShowModalPaseLista(false)}>
           <div className="modal" style={{ width: '90%', maxWidth: 700, maxHeight: '85vh', display: 'flex', flexDirection: 'column', background: 'var(--bg-card)', border: '1px solid var(--border-bronze)', boxShadow: 'var(--shadow-bronze)', borderRadius: 20 }} onClick={e => e.stopPropagation()}>
             <div className="modal-header" style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
