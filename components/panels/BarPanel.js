@@ -1228,19 +1228,15 @@ export default function BarPanel({ showToast }) {
               flex: 1, 
               paddingRight: 4
             }}>
-              <div style={{ 
-                display: 'grid', 
-                gridTemplateColumns: '1fr 1fr', 
-                gap: 6
-              }}>
+              <div className="sugerencias-grid">
                 {/* Sugerencias de Margen con Filtro de Descartadas y Boton Descartar */}
                 {obtenerSugerenciasIA().filter(sug => {
                   const ts = descartadas[sug.id];
                   if (!ts) return true;
                   return (Date.now() - ts) > 15 * 24 * 60 * 60 * 1000; // 15 dias
                 }).map(sug => (
-                  <div key={sug.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '3px 6px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.04)', gap: 4 }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 0.5, flex: 1, marginRight: 8, overflow: 'hidden' }}>
+                  <div key={sug.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '3px 6px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.04)', gap: 4, minWidth: 0 }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 0.5, flex: 1, marginRight: 8, overflow: 'hidden', minWidth: 0 }}>
                       <span style={{ fontSize: 9, color: sug.type === 'success' ? 'var(--success)' : 'var(--bronze-light)', fontWeight: 700 }}>{sug.tag}</span>
                       <span style={{ fontSize: 8, color: 'var(--text-secondary)', lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={sug.desc}>{sug.desc}</span>
                     </div>
@@ -1269,15 +1265,15 @@ export default function BarPanel({ showToast }) {
 
                 {/* Sugerencia 3: Cruce Concurrente en Vivo */}
                 {inconsistenciasEnVivo.length === 0 ? (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(34,197,94,0.04)', padding: '3px 6px', borderRadius: 6, border: '1px solid rgba(34,197,94,0.12)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(34,197,94,0.04)', padding: '3px 6px', borderRadius: 6, border: '1px solid rgba(34,197,94,0.12)', minWidth: 0 }}>
                     <i className="ri-checkbox-circle-line" style={{ fontSize: 9, color: 'var(--success)' }} />
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 0, minWidth: 0 }}>
                       <span style={{ fontSize: 9, color: 'var(--success)', fontWeight: 700, lineHeight: 1 }}>CRUCE OK:</span>
-                      <span style={{ fontSize: 7, color: 'var(--text-secondary)', lineHeight: 1 }}>Sin discrepancias barra/mesas.</span>
+                      <span style={{ fontSize: 7, color: 'var(--text-secondary)', lineHeight: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Sin discrepancias barra/mesas.</span>
                     </div>
                   </div>
                 ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2, background: 'rgba(239,68,68,0.04)', padding: '3px 6px', borderRadius: 6, border: '1px solid rgba(239,68,68,0.12)' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2, background: 'rgba(239,68,68,0.04)', padding: '3px 6px', borderRadius: 6, border: '1px solid rgba(239,68,68,0.12)', minWidth: 0 }}>
                     <div style={{ fontSize: 9, color: 'var(--danger)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 3 }}>
                       <i className="ri-error-warning-line" style={{ fontSize: 10 }} /> DISCREPANCIAS ({inconsistenciasEnVivo.length})
                     </div>
@@ -1296,6 +1292,16 @@ export default function BarPanel({ showToast }) {
         </div>
       </div>
       <style>{`
+        .sugerencias-grid {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 6px;
+        }
+        @media (max-width: 768px) {
+          .sugerencias-grid {
+            grid-template-columns: minmax(0, 1fr);
+          }
+        }
         @keyframes pulseAlert {
           0% { opacity: 0.4; transform: scale(0.95); }
           50% { opacity: 1; transform: scale(1.08); }
