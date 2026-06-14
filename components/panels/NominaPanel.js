@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   collection, addDoc, updateDoc, deleteDoc, doc,
   onSnapshot, query, orderBy, where, getDocs, serverTimestamp
@@ -105,7 +105,6 @@ function useVentasReales(fechaInicio, fechaFin) {
 export function useAlertasNomina() {
   const [empleados, setEmpleados] = useState([]);
   const [asistencias, setAsistencias] = useState([]);
-  const [alertas, setAlertas] = useState([]);
 
   useEffect(() => {
     // Escuchar empleados para saber quiénes están activos
@@ -129,33 +128,63 @@ export function useAlertasNomina() {
     };
   }, []);
 
-  useEffect(() => {
+  const alertas = useMemo(() => {
     const mesActual = new Date().toISOString().slice(0, 7);
-    const activosIds = new Set(empleados.filter(e => e.estado === 'activo').map(e => e.id));
+    const activosIds = new Set(empleados.filter(e => e?.estado === 'activo').map(e => e.id));
     const nuevas = [];
 
     const porEmpleado = {};
-    asistencias.filter(a => a.fecha?.startsWith(mesActual) && activosIds.has(a.empleadoId)).forEach(a => {
-      if (!porEmpleado[a.empleadoId]) porEmpleado[a.empleadoId] = [];
-      porEmpleado[a.empleadoId].push(a);
-    });
+    asistencias
+      .filter(a => a?.fecha?.startsWith(mesActual) && a?.empleadoId && activosIds.has(a.empleadoId))
+      .forEach(a => {
+        if (!porEmpleado[a.empleadoId]) porEmpleado[a.empleadoId] = [];
+        porEmpleado[a.empleadoId].push(a);
+      });
 
     Object.entries(porEmpleado).forEach(([empId, registros]) => {
       const ausencias = registros.filter(r => r.estado === 'ausente').length;
       if (ausencias >= 3) {
         const emp = empleados.find(e => e.id === empId);
-        const nombre = emp ? `${emp.nombre} ${emp.apellido || ''}`.trim() : 'Empleado';
+        const nombre = emp ? `${emp.nombre || ''} ${emp.apellido || ''}`.trim() : 'Empleado';
         nuevas.push({
           tipo: 'ausencia',
           empId,
           ausencias,
-          mensaje: `${nombre}: ${ausencias} ausencias este mes`
+          mensaje: `${nombre || 'Empleado'}: ${ausencias} ausencias este mes`
         });
       }
     });
 
-    setAlertas(nuevas);
+    return nuevas;
   }, [empleados, asistencias]);
+
+  // Reproducir un sonido de alerta si hay alertas nuevas de alta prioridad
+  const prevAlertasCount = useRef(0);
+  useEffect(() => {
+    if (alertas.length > prevAlertasCount.current) {
+      try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (AudioCtx) {
+          const ctx = new AudioCtx();
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          
+          osc.frequency.setValueAtTime(523.25, ctx.currentTime); // C5
+          osc.frequency.setValueAtTime(659.25, ctx.currentTime + 0.15); // E5
+          gain.gain.setValueAtTime(0.08, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
+          
+          osc.start(ctx.currentTime);
+          osc.stop(ctx.currentTime + 0.4);
+        }
+      } catch (e) {
+        console.warn("Audio Context no está permitido o no es soportado aún:", e);
+      }
+    }
+    prevAlertasCount.current = alertas.length;
+  }, [alertas]);
 
   return alertas;
 }
