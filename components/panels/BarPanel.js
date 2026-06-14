@@ -92,6 +92,25 @@ export default function BarPanel({ showToast }) {
   const [deletingCatName, setDeletingCatName] = useState(null);
   const [reassignCatTarget, setReassignCatTarget] = useState('Bebida');
   const [showCriticoDropdown, setShowCriticoDropdown] = useState(false);
+  const [descartadas, setDescartadas] = useState({});
+
+  useEffect(() => {
+    const saved = localStorage.getItem('yoy_sugerencias_descartadas');
+    if (saved) {
+      try {
+        setDescartadas(JSON.parse(saved));
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  }, []);
+
+  const descartarSugerencia = (id) => {
+    const updated = { ...descartadas, [id]: Date.now() };
+    setDescartadas(updated);
+    localStorage.setItem('yoy_sugerencias_descartadas', JSON.stringify(updated));
+    showToast('Sugerencia descartada. Reaparecerá en 15 días ✓', 'info');
+  };
 
   // Estados para Auditoría e Inventarios IA seleccionables
   const [modoInventario, setModoInventario] = useState('general'); // general, periodico, azar, producto, inconsistencia, mas_vendidos, menos_vendidos
@@ -740,6 +759,86 @@ export default function BarPanel({ showToast }) {
   const costoTotalVal = productos.reduce((s, p) => s + (p.stock * p.precioCosto), 0);
   const ventaTotalVal = productos.reduce((s, p) => s + (p.stock * p.precioVenta), 0);
   const margenGlobalPct = ventaTotalVal > 0 ? (((ventaTotalVal - costoTotalVal) / ventaTotalVal) * 100).toFixed(0) : '0';
+  const hasAlerts = (inconsistenciasEnVivo && inconsistenciasEnVivo.length > 0) || (stockCritico && stockCritico.length > 0);
+
+  // Generador centralizado de sugerencias dinámicas de IA (Margen, Stock y Promociones)
+  const obtenerSugerenciasIA = () => {
+    const sugList = [
+      {
+        id: 'sug-alta-demanda',
+        type: 'success',
+        tag: 'ALTA VELOCIDAD (Coronas)',
+        desc: 'Corona demanda +120%. Sugerimos subir a $52 MXN.',
+        label: 'Aplicar ($52)',
+        onAction: () => {
+          const corona = productos.find(p => p.nombre.toLowerCase().includes('corona'));
+          aplicarAjustePrecioIA(corona ? corona.id : 1, 52);
+        }
+      },
+      {
+        id: 'sug-rotacion-baja',
+        type: 'bronze-light',
+        tag: 'ROTACIÓN BAJA (Nachos Gigantes)',
+        desc: 'Nulo movimiento. Lanzar promo Nachos + Bebida $80.',
+        label: 'Promo POS',
+        onAction: () => showToast('Promoción cargada al módulo de Caja ✓', 'success')
+      }
+    ];
+
+    // 1. Alertas dinámicas de stock crítico
+    productos.forEach(p => {
+      if (p.stock <= p.stockMin && p.activoIA !== false) {
+        const cantidadPedir = p.stockOptimo - p.stock;
+        if (cantidadPedir > 0) {
+          sugList.push({
+            id: `sug-stock-critico-${p.id}`,
+            type: 'danger',
+            tag: `STOCK CRÍTICO (${p.nombre})`,
+            desc: `Quedan ${p.stock} ${p.unidad} (Mín: ${p.stockMin}). Sugerimos ordenar ${cantidadPedir} ${p.unidad}.`,
+            label: 'Ordenar',
+            onAction: () => {
+              // Simular o abrir orden de compra IA para este producto
+              setOrdenSugerida([{
+                id: p.id,
+                nombre: p.nombre,
+                stock: p.stock,
+                min: p.stockMin,
+                optimo: p.stockOptimo,
+                cantidadAPedir: cantidadPedir,
+                costoUnitario: p.precioCosto,
+                costoTotal: cantidadPedir * p.precioCosto,
+                retornoPotencial: cantidadPedir * p.precioVenta,
+                gananciaProyectada: (cantidadPedir * p.precioVenta) - (cantidadPedir * p.precioCosto)
+              }]);
+              setModalOrdenCompra(true);
+            }
+          });
+        }
+      }
+    });
+
+    // 2. Alertas dinámicas de margen depreciado (bajo del 25%)
+    productos.forEach(p => {
+      if (p.precioVenta > 0 && p.precioCosto > 0 && p.activoIA !== false) {
+        const margen = (p.precioVenta - p.precioCosto) / p.precioVenta;
+        if (margen < 0.25) {
+          const nuevoPrecioSugerido = Math.round(p.precioCosto * 1.5);
+          if (nuevoPrecioSugerido > p.precioVenta) {
+            sugList.push({
+              id: `sug-margen-bajo-${p.id}`,
+              type: 'warning',
+              tag: `MARGEN BAJO (${p.nombre})`,
+              desc: `Margen es ${Math.round(margen * 100)}%. Ajustar precio a $${nuevoPrecioSugerido} MXN (Margen 33%).`,
+              label: `Ajustar ($${nuevoPrecioSugerido})`,
+              onAction: () => aplicarAjustePrecioIA(p.id, nuevoPrecioSugerido)
+            });
+          }
+        }
+      }
+    });
+
+    return sugList;
+  };
 
   return (
     <div>
@@ -759,14 +858,15 @@ export default function BarPanel({ showToast }) {
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'center',
-          borderColor: 'var(--border-bronze)',
+          borderColor: hasAlerts ? 'rgba(239, 68, 68, 0.4)' : 'var(--border-bronze)',
           background: 'linear-gradient(135deg, rgba(205,127,50,0.05) 0%, rgba(0,0,0,0.2) 100%)',
           position: 'relative',
-          boxShadow: '0 0 15px rgba(205,127,50,0.08)',
+          boxShadow: hasAlerts ? '0 0 15px rgba(239, 68, 68, 0.2)' : '0 0 15px rgba(205,127,50,0.08)',
+          animation: hasAlerts ? 'widgetGlow 2.5s infinite ease-in-out' : 'none',
           borderRadius: 10
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-            <span style={{ fontSize: 9, textTransform: 'uppercase', color: 'var(--bronze-light)', fontWeight: 800, letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span style={{ fontSize: 9, textTransform: 'uppercase', color: hasAlerts ? '#f87171' : 'var(--bronze-light)', fontWeight: 800, letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: 4 }}>
               <i className="ri-line-chart-line" /> Inteligencia de Margen IA
             </span>
             <span style={{ fontSize: 8, color: 'var(--text-muted)' }}>Desliza para ver sugerencias</span>
@@ -781,35 +881,39 @@ export default function BarPanel({ showToast }) {
             gap: 4,
             paddingRight: 4
           }}>
-            {/* Sugerencia 1: Aumento por alta demanda */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '4px 6px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.04)' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 0.5, flex: 1, marginRight: 8 }}>
-                <span style={{ fontSize: 9, color: 'var(--success)', fontWeight: 700 }}>ALTA VELOCIDAD (Coronas)</span>
-                <span style={{ fontSize: 8, color: 'var(--text-secondary)', lineHeight: 1.1 }}>Corona demanda +120%. Sugerimos subir a $52 MXN.</span>
+            {/* Sugerencias de Margen con Filtro de Descartadas y Botón Descartar */}
+            {obtenerSugerenciasIA().filter(sug => {
+              const ts = descartadas[sug.id];
+              if (!ts) return true;
+              return (Date.now() - ts) > 15 * 24 * 60 * 60 * 1000; // 15 días
+            }).map(sug => (
+              <div key={sug.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '4px 6px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.04)', gap: 6 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 0.5, flex: 1, marginRight: 8, overflow: 'hidden' }}>
+                  <span style={{ fontSize: 9, color: sug.type === 'success' ? 'var(--success)' : 'var(--bronze-light)', fontWeight: 700 }}>{sug.tag}</span>
+                  <span style={{ fontSize: 8, color: 'var(--text-secondary)', lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{sug.desc}</span>
+                </div>
+                <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexShrink: 0 }}>
+                  <button
+                    className="btn btn-primary btn-xs"
+                    style={{ padding: '2px 6px', fontSize: 8, height: 16 }}
+                    onClick={sug.onAction}
+                  >
+                    {sug.label}
+                  </button>
+                  <button
+                    type="button"
+                    style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 2, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                    title="Descartar sugerencia por 15 días"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      descartarSugerencia(sug.id);
+                    }}
+                  >
+                    <i className="ri-close-line" style={{ fontSize: 12 }} />
+                  </button>
+                </div>
               </div>
-              <button
-                className="btn btn-primary btn-xs"
-                style={{ padding: '2px 6px', fontSize: 8, height: 16, flexShrink: 0 }}
-                onClick={() => aplicarAjustePrecioIA(1, 52)}
-              >
-                Aplicar ($52)
-              </button>
-            </div>
-
-            {/* Sugerencia 2: Promoción por rotación baja */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '4px 6px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.04)' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 0.5, flex: 1, marginRight: 8 }}>
-                <span style={{ fontSize: 9, color: 'var(--bronze-light)', fontWeight: 700 }}>ROTACIÓN BAJA (Nachos Gigantes)</span>
-                <span style={{ fontSize: 8, color: 'var(--text-secondary)', lineHeight: 1.1 }}>Nulo movimiento. Lanzar promo Nachos + Bebida $80.</span>
-              </div>
-              <button
-                className="btn btn-secondary btn-xs"
-                style={{ padding: '2px 6px', fontSize: 8, height: 16, borderColor: 'var(--border-bronze)', color: 'var(--bronze-light)', flexShrink: 0 }}
-                onClick={() => showToast('Promoción cargada al módulo de Caja ✓', 'success')}
-              >
-                Promo POS
-              </button>
-            </div>
+            ))}
 
             {/* Sugerencia 3: Cruce Concurrente en Vivo */}
             {inconsistenciasEnVivo.length === 0 ? (
@@ -1075,6 +1179,11 @@ export default function BarPanel({ showToast }) {
         @keyframes slideDown {
           from { opacity: 0; transform: translateY(-10px); }
           to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes widgetGlow {
+          0% { box-shadow: 0 0 5px rgba(239, 68, 68, 0.2), inset 0 0 5px rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.3); }
+          50% { box-shadow: 0 0 15px rgba(239, 68, 68, 0.5), inset 0 0 10px rgba(239, 68, 68, 0.2); border-color: rgba(239, 68, 68, 0.6); }
+          100% { box-shadow: 0 0 5px rgba(239, 68, 68, 0.2), inset 0 0 5px rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.3); }
         }
         .custom-scroll::-webkit-scrollbar {
           width: 5px !important;
