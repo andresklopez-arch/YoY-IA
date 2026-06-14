@@ -906,66 +906,71 @@ export default function BarPanel({ showToast }) {
               <div className="custom-scroll" style={{ 
                 overflowY: 'auto', 
                 flex: 1, 
-                display: 'flex', 
-                flexDirection: 'column', 
-                gap: 4,
                 paddingRight: 4
               }}>
-                {/* Sugerencias de Margen con Filtro de Descartadas y Botón Descartar */}
-                {obtenerSugerenciasIA().filter(sug => {
-                  const ts = descartadas[sug.id];
-                  if (!ts) return true;
-                  return (Date.now() - ts) > 15 * 24 * 60 * 60 * 1000; // 15 días
-                }).map(sug => (
-                  <div key={sug.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '4px 6px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.04)', gap: 6 }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 0.5, flex: 1, marginRight: 8, overflow: 'hidden' }}>
-                      <span style={{ fontSize: 9, color: sug.type === 'success' ? 'var(--success)' : 'var(--bronze-light)', fontWeight: 700 }}>{sug.tag}</span>
-                      <span style={{ fontSize: 8, color: 'var(--text-secondary)', lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{sug.desc}</span>
+                <div style={{ 
+                  display: 'grid', 
+                  gridTemplateColumns: '1fr 1fr', 
+                  gap: 6
+                }}>
+                  {/* Sugerencias de Margen con Filtro de Descartadas y Boton Descartar */}
+                  {obtenerSugerenciasIA().filter(sug => {
+                    const ts = descartadas[sug.id];
+                    if (!ts) return true;
+                    return (Date.now() - ts) > 15 * 24 * 60 * 60 * 1000; // 15 dias
+                  }).map(sug => (
+                    <div key={sug.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '3px 6px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.04)', gap: 4 }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 0.5, flex: 1, marginRight: 8, overflow: 'hidden' }}>
+                        <span style={{ fontSize: 9, color: sug.type === 'success' ? 'var(--success)' : 'var(--bronze-light)', fontWeight: 700 }}>{sug.tag}</span>
+                        <span style={{ fontSize: 8, color: 'var(--text-secondary)', lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={sug.desc}>{sug.desc}</span>
+                      </div>
+                      <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexShrink: 0 }}>
+                        <button
+                          className="btn btn-primary btn-xs"
+                          style={{ padding: '2px 6px', fontSize: 8, height: 16 }}
+                          onClick={sug.onAction}
+                        >
+                          {sug.label}
+                        </button>
+                        <button
+                          type="button"
+                          style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 2, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                          title="Descartar sugerencia por 15 dias"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            descartarSugerencia(sug.id);
+                          }}
+                        >
+                          <i className="ri-close-line" style={{ fontSize: 12 }} />
+                        </button>
+                      </div>
                     </div>
-                    <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexShrink: 0 }}>
-                      <button
-                        className="btn btn-primary btn-xs"
-                        style={{ padding: '2px 6px', fontSize: 8, height: 16 }}
-                        onClick={sug.onAction}
-                      >
-                        {sug.label}
-                      </button>
-                      <button
-                        type="button"
-                        style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 2, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                        title="Descartar sugerencia por 15 días"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          descartarSugerencia(sug.id);
-                        }}
-                      >
-                        <i className="ri-close-line" style={{ fontSize: 12 }} />
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                  ))}
 
-                {/* Sugerencia 3: Cruce Concurrente en Vivo */}
-                {inconsistenciasEnVivo.length === 0 ? (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(34,197,94,0.04)', padding: '4px 6px', borderRadius: 6, border: '1px solid rgba(34,197,94,0.12)' }}>
-                    <i className="ri-checkbox-circle-line" style={{ fontSize: 9, color: 'var(--success)' }} />
-                    <span style={{ fontSize: 9, color: 'var(--success)', fontWeight: 700 }}>CRUCE OK:</span>
-                    <span style={{ fontSize: 8, color: 'var(--text-secondary)' }}>Sin discrepancias detectadas entre mesas y barra.</span>
-                  </div>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2, background: 'rgba(239,68,68,0.04)', padding: '4px 6px', borderRadius: 6, border: '1px solid rgba(239,68,68,0.12)' }}>
-                    <div style={{ fontSize: 9, color: 'var(--danger)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 3 }}>
-                      <i className="ri-error-warning-line" style={{ fontSize: 10 }} /> DISCREPANCIAS EN VIVO ({inconsistenciasEnVivo.length})
+                  {/* Sugerencia 3: Cruce Concurrente en Vivo */}
+                  {inconsistenciasEnVivo.length === 0 ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(34,197,94,0.04)', padding: '3px 6px', borderRadius: 6, border: '1px solid rgba(34,197,94,0.12)' }}>
+                      <i className="ri-checkbox-circle-line" style={{ fontSize: 9, color: 'var(--success)' }} />
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+                        <span style={{ fontSize: 9, color: 'var(--success)', fontWeight: 700, lineHeight: 1 }}>CRUCE OK:</span>
+                        <span style={{ fontSize: 7, color: 'var(--text-secondary)', lineHeight: 1 }}>Sin discrepancias barra/mesas.</span>
+                      </div>
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                      {inconsistenciasEnVivo.map((inc, index) => (
-                        <div key={index} style={{ fontSize: 8, color: 'var(--text-primary)' }}>
-                          · {inc.nombre} ({inc.cliente}): <span style={{ color: 'var(--danger)' }}>{inc.motivo}</span>
-                        </div>
-                      ))}
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, background: 'rgba(239,68,68,0.04)', padding: '3px 6px', borderRadius: 6, border: '1px solid rgba(239,68,68,0.12)' }}>
+                      <div style={{ fontSize: 9, color: 'var(--danger)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 3 }}>
+                        <i className="ri-error-warning-line" style={{ fontSize: 10 }} /> DISCREPANCIAS ({inconsistenciasEnVivo.length})
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2, maxHeight: 36, overflowY: 'auto' }}>
+                        {inconsistenciasEnVivo.map((inc, index) => (
+                          <div key={index} style={{ fontSize: 7, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            . {inc.nombre}: <span style={{ color: 'var(--danger)' }}>{inc.motivo}</span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             </div>
 
