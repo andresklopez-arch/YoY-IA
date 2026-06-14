@@ -123,13 +123,18 @@ function AppContent() {
     }
   }, [user, activePanel]);
 
-  // Auto-redireccionar si el usuario es mesero o cocina y accede al panel principal (Sugerencia 3)
+  // Auto-redireccionar si el usuario es mesero, cocina o bartender y accede al panel principal (Sugerencia 3)
   useEffect(() => {
     if (user) {
       const rolLower = (user.role || '').toLowerCase();
       if (rolLower.includes('mesero')) {
         window.location.href = '/mesero';
-      } else if (rolLower.includes('cocina')) {
+      } else if (
+        rolLower.includes('cocina') ||
+        rolLower.includes('bartender') ||
+        rolLower.includes('barman') ||
+        rolLower.includes('cocinero')
+      ) {
         window.location.href = '/cocina';
       }
     }
@@ -206,7 +211,12 @@ function AppContent() {
         const rolLower = (emp.rol || '').toLowerCase();
         if (rolLower.includes('mesero')) {
           window.location.href = '/mesero';
-        } else if (rolLower.includes('cocina')) {
+        } else if (
+          rolLower.includes('cocina') ||
+          rolLower.includes('bartender') ||
+          rolLower.includes('barman') ||
+          rolLower.includes('cocinero')
+        ) {
           window.location.href = '/cocina';
         } else {
           window.location.href = '/';

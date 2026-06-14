@@ -62,6 +62,7 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
   const [showModalPaseLista, setShowModalPaseLista] = useState(false);
   const [empleadosPaseLista, setEmpleadosPaseLista] = useState([]);
   const [busquedaPaseLista, setBusquedaPaseLista] = useState('');
+  const [focusedEmpleadoQR, setFocusedEmpleadoQR] = useState(null);
 
   useEffect(() => {
     if (!showModalPaseLista) return;
@@ -827,8 +828,13 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
                           transition: 'all 0.18s ease',
                         }}
                       >
-                        <div style={{ background: '#fff', padding: 8, borderRadius: 8 }}>
-                          <QRCodeSVG value={typeof window !== 'undefined' ? `${window.location.origin}/?scanId=${emp.id}` : `https://yoy-ia-billar.vercel.app/?scanId=${emp.id}`} size={90} bgColor="#fff" fgColor="#000" />
+                        <div style={{
+                          width: 48, height: 48, borderRadius: '50%',
+                          background: 'var(--bg-card)', border: '1px solid var(--border)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: 20, color: 'var(--bronze-light)'
+                        }}>
+                          <i className="ri-user-line" />
                         </div>
                         <div style={{ width: '100%' }}>
                           <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -838,6 +844,31 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
                             {emp.rol || 'Mesero'}
                           </div>
                         </div>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation(); // Evitar registrar asistencia al hacer clic en ver QR
+                            setFocusedEmpleadoQR(emp);
+                          }}
+                          style={{
+                            marginTop: 4,
+                            width: '100%',
+                            background: 'rgba(205,127,50,0.1)',
+                            border: '1px solid rgba(205,127,50,0.2)',
+                            borderRadius: 8,
+                            color: 'var(--bronze-light)',
+                            padding: '6px 8px',
+                            fontSize: 10,
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 4,
+                            transition: 'all 0.2s'
+                          }}
+                        >
+                          <i className="ri-qr-code-line" /> Acceso Móvil
+                        </button>
                       </div>
                     ))}
                 </div>
@@ -864,6 +895,86 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
               </button>
             </div>
           </div>
+
+          {/* OVERLAY ENFOCADO PARA ESCANEAR QR INDIVIDUAL */}
+          {focusedEmpleadoQR && (
+            <>
+              <div
+                onClick={() => setFocusedEmpleadoQR(null)}
+                style={{
+                  position: 'fixed',
+                  top: 0, left: 0, right: 0, bottom: 0,
+                  background: 'rgba(0,0,0,0.9)',
+                  backdropFilter: 'blur(8px)',
+                  zIndex: 999998,
+                }}
+              />
+              <div
+                style={{
+                  position: 'fixed',
+                  top: '50%',
+                  left: '50%',
+                  transform: 'translate(-50%, -50%)',
+                  zIndex: 999999,
+                  width: '90vw',
+                  maxWidth: 360,
+                  background: 'var(--bg-card)',
+                  border: '1px solid var(--border-bronze)',
+                  borderRadius: 24,
+                  boxShadow: '0 25px 60px rgba(0,0,0,0.9), 0 0 40px rgba(205,127,50,0.3)',
+                  padding: 24,
+                  textAlign: 'center',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: 16
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--bronze-light)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                    Acceso Móvil
+                  </div>
+                  <div style={{ fontSize: 13, color: '#fff', fontWeight: 700, marginTop: 4 }}>
+                    {focusedEmpleadoQR.nombre} {focusedEmpleadoQR.apellido || ''}
+                  </div>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', marginTop: 2, letterSpacing: '0.04em' }}>
+                    {focusedEmpleadoQR.rol || 'Mesero'}
+                  </div>
+                </div>
+
+                <div style={{ background: '#fff', padding: 16, borderRadius: 16, boxShadow: '0 8px 24px rgba(0,0,0,0.2)' }}>
+                  <QRCodeSVG 
+                    value={typeof window !== 'undefined' ? `${window.location.origin}/?scanId=${focusedEmpleadoQR.id}` : `https://yoy-ia-billar.vercel.app/?scanId=${focusedEmpleadoQR.id}`} 
+                    size={180} 
+                    bgColor="#fff" 
+                    fgColor="#000" 
+                  />
+                </div>
+
+                <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.5, padding: '0 10px' }}>
+                  Escanea este código con tu celular para registrar asistencia e ingresar a tu área de trabajo.
+                </div>
+
+                <button
+                  onClick={() => setFocusedEmpleadoQR(null)}
+                  style={{
+                    width: '100%',
+                    background: 'var(--bg-elevated)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 12,
+                    color: 'var(--text-primary)',
+                    padding: '10px 0',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  Cerrar
+                </button>
+              </div>
+            </>
+          )}
         </>,
         document.body
       )}
