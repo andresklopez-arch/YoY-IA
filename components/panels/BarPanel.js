@@ -656,6 +656,9 @@ export default function BarPanel({ showToast }) {
   ].sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
 
   const stockCritico = productos.filter(p => p.stock <= p.stockMin);
+  const costoTotalVal = productos.reduce((s, p) => s + (p.stock * p.precioCosto), 0);
+  const ventaTotalVal = productos.reduce((s, p) => s + (p.stock * p.precioVenta), 0);
+  const margenGlobalPct = ventaTotalVal > 0 ? (((ventaTotalVal - costoTotalVal) / ventaTotalVal) * 100).toFixed(0) : '0';
 
   return (
     <div>
@@ -676,6 +679,19 @@ export default function BarPanel({ showToast }) {
           </button>
         </div>
       </div>
+      <style>{`
+        @keyframes pulseAlert {
+          0% { opacity: 0.4; transform: scale(0.95); }
+          50% { opacity: 1; transform: scale(1.08); }
+          100% { opacity: 0.4; transform: scale(0.95); }
+        }
+        .pulse-alert-icon {
+          animation: pulseAlert 1.6s infinite ease-in-out;
+          filter: drop-shadow(0 0 4px var(--danger));
+          display: inline-block;
+        }
+      `}</style>
+
       {/* Tarjeta de Resumen de Stock Única y Compacta */}
       <div className="card" style={{
         padding: '12px 20px',
@@ -725,7 +741,10 @@ export default function BarPanel({ showToast }) {
           {/* Métrica 2 */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
             <span style={{ fontSize: 9, textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.05em' }}>Alertas de Stock</span>
-            <div style={{ fontSize: 15, fontWeight: 900, color: stockCritico.length > 0 ? 'var(--danger)' : 'var(--success)', fontFamily: 'var(--font-display)' }}>
+            <div style={{ fontSize: 15, fontWeight: 900, color: stockCritico.length > 0 ? 'var(--danger)' : 'var(--success)', fontFamily: 'var(--font-display)', display: 'flex', alignItems: 'center' }}>
+              {stockCritico.length > 0 && (
+                <i className="ri-alert-fill pulse-alert-icon" style={{ fontSize: 12, color: 'var(--danger)', marginRight: 5 }} />
+              )}
               {stockCritico.length}
             </div>
           </div>
@@ -736,7 +755,7 @@ export default function BarPanel({ showToast }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
             <span style={{ fontSize: 9, textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.05em' }}>Valor Inversión</span>
             <div style={{ fontSize: 15, fontWeight: 900, color: 'var(--bronze-light)', fontFamily: 'var(--font-display)' }}>
-              ${productos.reduce((s,p)=>s+(p.stock*p.precioCosto), 0).toLocaleString()}
+              ${costoTotalVal.toLocaleString()}
             </div>
           </div>
 
@@ -746,8 +765,11 @@ export default function BarPanel({ showToast }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
             <span style={{ fontSize: 9, textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.05em' }}>Valor Venta</span>
             <div style={{ fontSize: 15, fontWeight: 900, color: 'var(--success)', fontFamily: 'var(--font-display)' }}>
-              ${productos.reduce((s,p)=>s+(p.stock*p.precioVenta), 0).toLocaleString()}
+              ${ventaTotalVal.toLocaleString()}
             </div>
+            <span style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 1, fontWeight: 500 }}>
+              Margen: <strong style={{ color: parseFloat(margenGlobalPct) > 50 ? 'var(--success)' : 'var(--bronze-light)' }}>{margenGlobalPct}%</strong>
+            </span>
           </div>
         </div>
       </div>
@@ -1173,7 +1195,7 @@ export default function BarPanel({ showToast }) {
                     onChange={(e) => {
                       const updated = { ...modalAjuste, activoIA: e.target.checked };
                       setModalAjuste(updated);
-                      const nuevosProductos = productos.map(p => p.id === modalAjuste.id ? { ...p, activoIA: e.target.checked } : p);
+                      const nuevosProductos = productos.map(p => p.id === modalAjuste.id ? { ...p, activoIA: e.target.checked, lastModified: Date.now() } : p);
                       saveState(nuevosProductos, logs);
                     }}
                     style={{ width: 16, height: 16, cursor: 'pointer', accentColor: 'var(--bronze-light)' }}
