@@ -25,9 +25,6 @@ const hashPassword = (pwd) => {
 
 export default function CajaPanel({ showToast }) {
   const { user } = useAuth();
-  const [isAdminUnlocked, setIsAdminUnlocked] = useState(false);
-  const [adminPassword, setAdminPassword] = useState('');
-  const [adminPinHash, setAdminPinHash] = useState('170440'); // Hash of '1111'
   const [cobros, setCobros] = useState([]);
   const [mostrarCorte, setMostrarCorte] = useState(false);
   const [cantidades, setCantidades] = useState({
@@ -55,28 +52,7 @@ export default function CajaPanel({ showToast }) {
   const [inventarioHasMoreLogs, setInventarioHasMoreLogs] = useState(true);
   const [loadingMoreInventario, setLoadingMoreInventario] = useState(false);
 
-  // Escuchar PIN de Administrador desde Firestore
-  useEffect(() => {
-    const unsub = onSnapshot(doc(db, 'config', 'seguridad'), snap => {
-      if (snap.exists() && snap.data().adminPinHash) {
-        const hash = snap.data().adminPinHash;
-        setAdminPinHash(hash);
-        localStorage.setItem('yoy_admin_pin_hash', obfuscate(hash));
-      } else {
-        if (typeof window !== 'undefined') {
-          const localHash = localStorage.getItem('yoy_admin_pin_hash');
-          if (localHash) setAdminPinHash(deobfuscate(localHash) || '170440');
-        }
-      }
-    }, err => {
-      console.warn("Firestore seguridad sync error (offline fallback):", err);
-      if (typeof window !== 'undefined') {
-        const localHash = localStorage.getItem('yoy_admin_pin_hash');
-        if (localHash) setAdminPinHash(deobfuscate(localHash) || '170440');
-      }
-    });
-    return unsub;
-  }, []);
+
 
   // Sincronizar transacciones y bitácora en tiempo real entre pestañas
   useEffect(() => {
@@ -351,15 +327,7 @@ export default function CajaPanel({ showToast }) {
     return esCierre && esMontoCero;
   });
 
-  const handleUnlockAdmin = () => {
-    if (hashPassword(adminPassword) === adminPinHash) {
-      setIsAdminUnlocked(true);
-      showToast('Acceso administrador autorizado', 'success');
-      setAdminPassword('');
-    } else {
-      showToast('Contraseña incorrecta', 'danger');
-    }
-  };
+
 
 
   const guardarCorteCaja = () => {
@@ -409,103 +377,50 @@ export default function CajaPanel({ showToast }) {
           <p className="page-subtitle">Corte del día · Turno actual · Modo Estándar</p>
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          {isAdminUnlocked ? (
-            <>
-              <button className="btn btn-secondary btn-sm" onClick={() => setMostrarBitacora(true)}>
-                <i className="ri-history-line" /> Bitácora
-              </button>
-              <button className="btn btn-secondary btn-sm" onClick={() => setMostrarCorte(true)}>
-                <i className="ri-file-list-3-line" /> Corte de Caja
-              </button>
-              <button className="btn btn-danger btn-sm" onClick={() => setIsAdminUnlocked(false)} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <i className="ri-lock-line" /> Bloquear Caja
-              </button>
-            </>
-          ) : (
-            <button className="btn btn-primary btn-sm" onClick={() => {
-              const el = document.getElementById('admin-unlock-input');
-              if (el) el.focus();
-            }}>
-              <i className="ri-lock-unlock-line" style={{ marginRight: 4 }} /> Desbloquear Admin
-            </button>
-          )}
+          <button className="btn btn-secondary btn-sm" onClick={() => setMostrarBitacora(true)}>
+            <i className="ri-history-line" /> Bitácora
+          </button>
+          <button className="btn btn-secondary btn-sm" onClick={() => setMostrarCorte(true)}>
+            <i className="ri-file-list-3-line" /> Corte de Caja
+          </button>
         </div>
       </div>
 
-      {!isAdminUnlocked ? (
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16, marginBottom: 24 }}>
-          {/* Card de Desbloqueo Inline */}
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '30px 20px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16 }}>
-            <i className="ri-lock-password-line" style={{ fontSize: 36, color: 'var(--bronze-light)', marginBottom: 12 }} />
-            <h2 style={{ fontSize: 16, fontWeight: 900, color: '#fff', marginBottom: 6 }}>🔐 Métricas Financieras Protegidas</h2>
-            <p style={{ fontSize: 12, color: 'var(--text-secondary)', textAlign: 'center', maxWidth: 360, marginBottom: 16 }}>
-              Ingrese la contraseña de administrador para visualizar ingresos, egresos, utilidades y bitácoras de auditoría.
-            </p>
-            <div style={{ display: 'flex', gap: 10, width: '100%', maxWidth: 300 }}>
-              <input
-                id="admin-unlock-input"
-                type="password"
-                className="form-input"
-                placeholder="PIN de Administrador"
-                value={adminPassword}
-                onChange={e => setAdminPassword(e.target.value)}
-                style={{ textAlign: 'center' }}
-                onKeyDown={e => { if (e.key === 'Enter') handleUnlockAdmin(); }}
-              />
-              <button className="btn btn-primary" onClick={handleUnlockAdmin}>Desbloquear</button>
-            </div>
+      {/* Resumen financiero */}
+      <div className="stat-grid" style={{ marginBottom: 24 }}>
+        {[
+          { label: 'Ingresos Hoy', value: `$${totalHoy.toLocaleString()}`, icon: 'ri-arrow-up-circle-line', color: 'icon-success', accent: 'var(--success)' },
+          { label: 'Gastos Hoy', value: `$${totalGastos.toLocaleString()}`, icon: 'ri-arrow-down-circle-line', color: 'icon-danger', accent: 'var(--danger)' },
+          { label: 'Utilidad', value: `$${utilidad.toLocaleString()}`, icon: 'ri-funds-line', color: 'icon-blue', accent: utilidad > 0 ? 'var(--success)' : 'var(--danger)' },
+          { label: 'Transacciones', value: cobros.length, icon: 'ri-receipt-line', color: 'icon-bronze', accent: 'var(--bronze-light)' },
+        ].map((s, i) => (
+          <div key={i} className="stat-card">
+            <div className={`stat-card-icon ${s.color}`}><i className={s.icon} /></div>
+            <div className="stat-card-value" style={{ fontSize: 24, color: s.accent }}>{s.value}</div>
+            <div className="stat-card-label">{s.label}</div>
           </div>
-          
-          {/* Vista previa de caja para cajero */}
-          <div className="card" style={{ padding: 20, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center' }}>
-            <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'rgba(205,127,50,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
-              <i className="ri-cash-line" style={{ fontSize: 20, color: 'var(--bronze-light)' }} />
-            </div>
-            <h4 style={{ fontSize: 14, fontWeight: 700, color: '#fff', margin: '0 0 6px 0' }}>Estado del Turno</h4>
-            <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4 }}>Operaciones Activas</div>
-            <span className="badge badge-success" style={{ fontSize: 9, padding: '2px 8px' }}>Caja Abierta ✓</span>
-            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 12 }}>Registrando cobros y comandas en tiempo real.</div>
-          </div>
-        </div>
-      ) : (
-        <>
-          {/* Resumen financiero */}
-          <div className="stat-grid" style={{ marginBottom: 24 }}>
-            {[
-              { label: 'Ingresos Hoy', value: `$${totalHoy.toLocaleString()}`, icon: 'ri-arrow-up-circle-line', color: 'icon-success', accent: 'var(--success)' },
-              { label: 'Gastos Hoy', value: `$${totalGastos.toLocaleString()}`, icon: 'ri-arrow-down-circle-line', color: 'icon-danger', accent: 'var(--danger)' },
-              { label: 'Utilidad', value: `$${utilidad.toLocaleString()}`, icon: 'ri-funds-line', color: 'icon-blue', accent: utilidad > 0 ? 'var(--success)' : 'var(--danger)' },
-              { label: 'Transacciones', value: cobros.length, icon: 'ri-receipt-line', color: 'icon-bronze', accent: 'var(--bronze-light)' },
-            ].map((s, i) => (
-              <div key={i} className="stat-card">
-                <div className={`stat-card-icon ${s.color}`}><i className={s.icon} /></div>
-                <div className="stat-card-value" style={{ fontSize: 24, color: s.accent }}>{s.value}</div>
-                <div className="stat-card-label">{s.label}</div>
-              </div>
-            ))}
-          </div>
+        ))}
+      </div>
 
-          {/* Métodos de pago breakdown */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 24 }}>
-            {[
-              { label: 'Efectivo', icon: 'ri-money-dollar-circle-line', metodo: 'efectivo', color: 'var(--success)' },
-              { label: 'SPEI / QR', icon: 'ri-qr-code-line', metodo: 'spei', color: 'var(--blue-light)' },
-              { label: 'Tarjeta', icon: 'ri-bank-card-line', metodo: 'tarjeta', color: 'var(--bronze-light)' },
-            ].map(m => {
-              const subtotal = cobros.filter(t => m.metodo === 'efectivo' ? (t.metodo === m.metodo && t.tipo !== 'corte') : (t.metodo === m.metodo)).reduce((s, t) => s + t.monto, 0);
-              return (
-                <div key={m.metodo} className="card" style={{ padding: 16 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                    <i className={m.icon} style={{ fontSize: 18, color: m.color }} />
-                    <span style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-muted)', fontWeight: 600 }}>{m.label}</span>
-                  </div>
-                  <div style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, color: m.color }}>${subtotal.toLocaleString()}</div>
-                </div>
-              );
-            })}
-          </div>
-        </>
-      )}
+      {/* Métodos de pago breakdown */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 24 }}>
+        {[
+          { label: 'Efectivo', icon: 'ri-money-dollar-circle-line', metodo: 'efectivo', color: 'var(--success)' },
+          { label: 'SPEI / QR', icon: 'ri-qr-code-line', metodo: 'spei', color: 'var(--blue-light)' },
+          { label: 'Tarjeta', icon: 'ri-bank-card-line', metodo: 'tarjeta', color: 'var(--bronze-light)' },
+        ].map(m => {
+          const subtotal = cobros.filter(t => m.metodo === 'efectivo' ? (t.metodo === m.metodo && t.tipo !== 'corte') : (t.metodo === m.metodo)).reduce((s, t) => s + t.monto, 0);
+          return (
+            <div key={m.metodo} className="card" style={{ padding: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <i className={m.icon} style={{ fontSize: 18, color: m.color }} />
+                <span style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-muted)', fontWeight: 600 }}>{m.label}</span>
+              </div>
+              <div style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, color: m.color }}>${subtotal.toLocaleString()}</div>
+            </div>
+          );
+        })}
+      </div>
 
           {/* Cola de Impresión Térmica */}
           <div className="card" style={{ marginBottom: 24 }}>
@@ -579,7 +494,7 @@ export default function CajaPanel({ showToast }) {
                   }}
                 >
                   <i className="ri-history-line" style={{ marginRight: 6 }} />
-                  Movimientos de Inventario {!isAdminUnlocked && '🔒'}
+                  Movimientos de Inventario
                 </button>
               </div>
               <button
@@ -631,83 +546,67 @@ export default function CajaPanel({ showToast }) {
                 </table>
               </div>
             ) : (
-              !isAdminUnlocked ? (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 20px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 12, textAlign: 'center' }}>
-                  <i className="ri-lock-line" style={{ fontSize: 32, color: 'var(--bronze-light)', marginBottom: 8 }} />
-                  <h4 style={{ fontSize: 14, fontWeight: 700, color: '#fff', marginBottom: 4 }}>🔒 Pestaña Protegida</h4>
-                  <p style={{ fontSize: 11, color: 'var(--text-muted)', maxWidth: 280, marginBottom: 12 }}>
-                    Se requiere contraseña de administrador para visualizar la bitácora de movimientos de stock.
-                  </p>
-                  <button className="btn btn-secondary btn-sm" onClick={() => {
-                    const el = document.getElementById('admin-unlock-input');
-                    if (el) el.focus();
-                  }}>
-                    Desbloquear en Panel Superior
-                  </button>
-                </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 300, overflowY: 'auto' }}>
-                  {todosLosInventarioLogs.length === 0 ? (
-                    <p style={{ color: 'var(--text-muted)', fontSize: 12, textAlign: 'center', padding: '20px 0' }}>No hay registros de auditoría de stock.</p>
-                  ) : (
-                    todosLosInventarioLogs.map(l => {
-                      const isEntrada = l.tipo === 'entrada';
-                      const isMerma = l.tipo === 'merma';
-                      const isVentaQr = l.tipo === 'venta_qr';
-                      const isCierre = l.tipo === 'cierre';
-                      const isAjustePrecio = l.tipo === 'ajuste_precio';
-                      return (
-                        <div key={l.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 10, fontSize: 12 }}>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                              <span className={`badge ${isEntrada ? 'badge-success' : isMerma ? 'badge-danger' : isVentaQr ? 'badge-info' : isCierre ? 'badge-success' : 'badge-bronze'}`} style={{ fontSize: 8, padding: '1px 4px' }}>
-                                {l.tipo.toUpperCase()}
-                              </span>
-                              <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{new Date(l.fecha).toLocaleString()}</span>
-                            </div>
-                            <span style={{ fontWeight: 700 }}>{l.producto}</span>
-                            <span style={{ color: 'var(--text-secondary)', fontSize: 11 }}>{l.detalle}</span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 300, overflowY: 'auto' }}>
+                {todosLosInventarioLogs.length === 0 ? (
+                  <p style={{ color: 'var(--text-muted)', fontSize: 12, textAlign: 'center', padding: '20px 0' }}>No hay registros de auditoría de stock.</p>
+                ) : (
+                  todosLosInventarioLogs.map(l => {
+                    const isEntrada = l.tipo === 'entrada';
+                    const isMerma = l.tipo === 'merma';
+                    const isVentaQr = l.tipo === 'venta_qr';
+                    const isCierre = l.tipo === 'cierre';
+                    const isAjustePrecio = l.tipo === 'ajuste_precio';
+                    return (
+                      <div key={l.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 10, fontSize: 12 }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span className={`badge ${isEntrada ? 'badge-success' : isMerma ? 'badge-danger' : isVentaQr ? 'badge-info' : isCierre ? 'badge-success' : 'badge-bronze'}`} style={{ fontSize: 8, padding: '1px 4px' }}>
+                              {l.tipo.toUpperCase()}
+                            </span>
+                            <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{new Date(l.fecha).toLocaleString()}</span>
                           </div>
-                          {!isAjustePrecio && (
-                            <div style={{ fontSize: 14, fontWeight: 800, color: isEntrada ? 'var(--success)' : isCierre ? 'var(--success)' : isVentaQr ? 'var(--info)' : 'var(--danger)' }}>
-                              {isEntrada ? '+' : isCierre ? '+$' : '-'}{isCierre ? l.monto : l.cantidad}
-                            </div>
-                          )}
+                          <span style={{ fontWeight: 700 }}>{l.producto}</span>
+                          <span style={{ color: 'var(--text-secondary)', fontSize: 11 }}>{l.detalle}</span>
                         </div>
-                      );
-                    })
-                  )}
-                  {inventarioHasMoreLogs && (
-                    <button 
-                      onClick={cargarMasInventarioLogs}
-                      disabled={loadingMoreInventario}
-                      className="btn btn-secondary btn-sm" 
-                      style={{ 
-                        marginTop: 12, 
-                        width: '100%', 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        justifyContent: 'center', 
-                        gap: 6,
-                        color: 'var(--bronze-light)',
-                        borderColor: 'var(--border-bronze)',
-                        background: 'var(--bg-elevated)',
-                        opacity: loadingMoreInventario ? 0.7 : 1,
-                        cursor: loadingMoreInventario ? 'not-allowed' : 'pointer'
-                      }}
-                    >
-                      {loadingMoreInventario ? (
-                        <>⧗ Cargando...</>
-                      ) : (
-                        <>
-                          <i className="ri-arrow-down-double-line" />
-                          Cargar más registros de inventario
-                        </>
-                      )}
-                    </button>
-                  )}
-                </div>
-              )
+                        {!isAjustePrecio && (
+                          <div style={{ fontSize: 14, fontWeight: 800, color: isEntrada ? 'var(--success)' : isCierre ? 'var(--success)' : isVentaQr ? 'var(--info)' : 'var(--danger)' }}>
+                            {isEntrada ? '+' : isCierre ? '+$' : '-'}{isCierre ? l.monto : l.cantidad}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+                {inventarioHasMoreLogs && (
+                  <button 
+                    onClick={cargarMasInventarioLogs}
+                    disabled={loadingMoreInventario}
+                    className="btn btn-secondary btn-sm" 
+                    style={{ 
+                      marginTop: 12, 
+                      width: '100%', 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      justifyContent: 'center', 
+                      gap: 6,
+                      color: 'var(--bronze-light)',
+                      borderColor: 'var(--border-bronze)',
+                      background: 'var(--bg-elevated)',
+                      opacity: loadingMoreInventario ? 0.7 : 1,
+                      cursor: loadingMoreInventario ? 'not-allowed' : 'pointer'
+                    }}
+                  >
+                    {loadingMoreInventario ? (
+                      <>⧗ Cargando...</>
+                    ) : (
+                      <>
+                        <i className="ri-arrow-down-double-line" />
+                        Cargar más registros de inventario
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
             )}
           </div>
 
