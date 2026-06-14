@@ -853,14 +853,15 @@ export default function BarPanel({ showToast }) {
 
   return (
     <div>
-      <div className="page-header" style={{ marginBottom: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
-          <h1 className="page-title gradient-bronze" style={{ margin: 0, lineHeight: 1.1 }}>Inventario Inteligente IA</h1>
-          <p className="page-subtitle" style={{ margin: '4px 0 0 0', fontSize: 11 }}>Monitoreo de stock, auditoría física y motor predictivo de compras</p>
-        </div>
+      <div className="page-header" style={{ marginBottom: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {/* Fila 1: Title and Buttons */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+          <div>
+            <h1 className="page-title gradient-bronze" style={{ margin: 0, lineHeight: 1.1 }}>Inventario Inteligente IA</h1>
+            <p className="page-subtitle" style={{ margin: '4px 0 0 0', fontSize: 11 }}>Monitoreo de stock, auditoria fisica y motor predictivo de compras</p>
+          </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 10, flex: 1, marginLeft: 20 }}>
-          {/* Fila 1: Botones de Acción (Sin selector de densidad) */}
+          {/* Botones de Accion */}
           <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
             <button className="btn btn-secondary btn-sm" onClick={optimizarStockConIA} style={{ color: 'var(--bronze-light)', borderColor: 'var(--border-bronze)' }}>
               <i className="ri-magic-line" style={{ marginRight: 6 }} /> Optimizar Stock con IA
@@ -872,9 +873,10 @@ export default function BarPanel({ showToast }) {
               <i className="ri-add-line" /> Registrar Producto
             </button>
           </div>
+        </div>
 
-          {/* Fila 2: Widget de Sugerencias IA (Más grande, abajo y a la derecha en el espacio vacío) + KPIs */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16, width: '100%', justifyContent: 'flex-end' }}>
+        {/* Fila 2: Widget and KPIs */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, width: '100%', justifyContent: 'flex-end' }}>
             
             {/* Inteligencia de Margen Widget */}
             <div className="card" style={{ 
@@ -1107,7 +1109,6 @@ export default function BarPanel({ showToast }) {
               )}
             </div>
 
-          </div>
         </div>
       </div>
       <style>{`

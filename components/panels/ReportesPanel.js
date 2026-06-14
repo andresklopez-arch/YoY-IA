@@ -640,13 +640,13 @@ export default function ReportesPanel({ showToast }) {
 
   return (
     <div>
-      <div className="page-header" style={{ alignItems: 'center', display: 'flex', justifyContent: 'space-between', marginBottom: 24 }}>
-        <div>
-          <h1 className="page-title gradient-bronze" style={{ margin: 0, lineHeight: 1.1 }}>Reportes e Inteligencia</h1>
-          <p className="page-subtitle" style={{ margin: '4px 0 0 0', fontSize: 11 }}>Análisis de negocio en tiempo real, filtros financieros y predicción IA</p>
-        </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 10, flex: 1, marginLeft: 20 }}>
+      <div className="page-header" style={{ marginBottom: 24, display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {/* Fila 1: Title and Buttons */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+          <div>
+            <h1 className="page-title gradient-bronze" style={{ margin: 0, lineHeight: 1.1 }}>Reportes e Inteligencia</h1>
+            <p className="page-subtitle" style={{ margin: '4px 0 0 0', fontSize: 11 }}>Analisis de negocio en tiempo real, filtros financieros y prediccion IA</p>
+          </div>
           {/* Fila 1: Selector y Exportar */}
           <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
             {/* Selector de periodo general */}
@@ -680,9 +680,10 @@ export default function ReportesPanel({ showToast }) {
               <i className="ri-file-pdf-line" /> Exportar
             </button>
           </div>
+        </div>
 
-          {/* Fila 2: Widget de Sugerencias IA (Más grande, abajo y a la derecha en el espacio vacío) */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16, width: '100%', justifyContent: 'flex-end' }}>
+        {/* Fila 2: Widget de Sugerencias IA */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, width: '100%', justifyContent: 'flex-end' }}>
             <div className="card" style={{ 
               width: '480px', 
               padding: '8px 12px',
@@ -770,7 +771,6 @@ export default function ReportesPanel({ showToast }) {
               </div>
             </div>
           </div>
-        </div>
       </div>
 
       {/* Selector de sub-paneles */}
