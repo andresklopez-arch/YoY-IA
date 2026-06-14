@@ -743,11 +743,98 @@ export default function BarPanel({ showToast }) {
 
   return (
     <div>
-      <div className="page-header" style={{ marginBottom: densidadVista === 'compact' ? 14 : 24 }}>
+      <div className="page-header" style={{ marginBottom: densidadVista === 'compact' ? 14 : 24, alignItems: 'center' }}>
         <div>
           <h1 className="page-title gradient-bronze">Inventario Inteligente IA</h1>
           <p className="page-subtitle" style={{ margin: 0 }}>Monitoreo de stock, auditoría física y motor predictivo de compras</p>
         </div>
+
+        {/* Inteligencia de Margen Widget (Compacto y Prominente en el Centro del Header) */}
+        <div className="card" style={{ 
+          flex: '1', 
+          maxWidth: '460px', 
+          margin: '0 20px', 
+          padding: '8px 12px',
+          height: '76px',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
+          borderColor: 'var(--border-bronze)',
+          background: 'linear-gradient(135deg, rgba(205,127,50,0.05) 0%, rgba(0,0,0,0.2) 100%)',
+          position: 'relative',
+          boxShadow: '0 0 15px rgba(205,127,50,0.08)',
+          borderRadius: 10
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+            <span style={{ fontSize: 9, textTransform: 'uppercase', color: 'var(--bronze-light)', fontWeight: 800, letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: 4 }}>
+              <i className="ri-line-chart-line" /> Inteligencia de Margen IA
+            </span>
+            <span style={{ fontSize: 8, color: 'var(--text-muted)' }}>Desliza para ver sugerencias</span>
+          </div>
+          
+          {/* Scrollable Container with Custom visible scrollbar */}
+          <div className="custom-scroll" style={{ 
+            overflowY: 'auto', 
+            flex: 1, 
+            display: 'flex', 
+            flexDirection: 'column', 
+            gap: 4,
+            paddingRight: 4
+          }}>
+            {/* Sugerencia 1: Aumento por alta demanda */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '4px 6px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.04)' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 0.5, flex: 1, marginRight: 8 }}>
+                <span style={{ fontSize: 9, color: 'var(--success)', fontWeight: 700 }}>ALTA VELOCIDAD (Coronas)</span>
+                <span style={{ fontSize: 8, color: 'var(--text-secondary)', lineHeight: 1.1 }}>Corona demanda +120%. Sugerimos subir a $52 MXN.</span>
+              </div>
+              <button
+                className="btn btn-primary btn-xs"
+                style={{ padding: '2px 6px', fontSize: 8, height: 16, flexShrink: 0 }}
+                onClick={() => aplicarAjustePrecioIA(1, 52)}
+              >
+                Aplicar ($52)
+              </button>
+            </div>
+
+            {/* Sugerencia 2: Promoción por rotación baja */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '4px 6px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.04)' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 0.5, flex: 1, marginRight: 8 }}>
+                <span style={{ fontSize: 9, color: 'var(--bronze-light)', fontWeight: 700 }}>ROTACIÓN BAJA (Nachos Gigantes)</span>
+                <span style={{ fontSize: 8, color: 'var(--text-secondary)', lineHeight: 1.1 }}>Nulo movimiento. Lanzar promo Nachos + Bebida $80.</span>
+              </div>
+              <button
+                className="btn btn-secondary btn-xs"
+                style={{ padding: '2px 6px', fontSize: 8, height: 16, borderColor: 'var(--border-bronze)', color: 'var(--bronze-light)', flexShrink: 0 }}
+                onClick={() => showToast('Promoción cargada al módulo de Caja ✓', 'success')}
+              >
+                Promo POS
+              </button>
+            </div>
+
+            {/* Sugerencia 3: Cruce Concurrente en Vivo */}
+            {inconsistenciasEnVivo.length === 0 ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(34,197,94,0.04)', padding: '4px 6px', borderRadius: 6, border: '1px solid rgba(34,197,94,0.12)' }}>
+                <i className="ri-checkbox-circle-line" style={{ fontSize: 9, color: 'var(--success)' }} />
+                <span style={{ fontSize: 9, color: 'var(--success)', fontWeight: 700 }}>CRUCE OK:</span>
+                <span style={{ fontSize: 8, color: 'var(--text-secondary)' }}>Sin discrepancias detectadas entre mesas y barra.</span>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2, background: 'rgba(239,68,68,0.04)', padding: '4px 6px', borderRadius: 6, border: '1px solid rgba(239,68,68,0.12)' }}>
+                <div style={{ fontSize: 9, color: 'var(--danger)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 3 }}>
+                  <i className="ri-error-warning-line" style={{ fontSize: 10 }} /> DISCREPANCIAS EN VIVO ({inconsistenciasEnVivo.length})
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  {inconsistenciasEnVivo.map((inc, index) => (
+                    <div key={index} style={{ fontSize: 8, color: 'var(--text-primary)' }}>
+                      · {inc.nombre} ({inc.cliente}): <span style={{ color: 'var(--danger)' }}>{inc.motivo}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
           {/* Fila de Botones */}
           <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
@@ -988,6 +1075,21 @@ export default function BarPanel({ showToast }) {
         @keyframes slideDown {
           from { opacity: 0; transform: translateY(-10px); }
           to { opacity: 1; transform: translateY(0); }
+        }
+        .custom-scroll::-webkit-scrollbar {
+          width: 5px !important;
+          display: block !important;
+        }
+        .custom-scroll::-webkit-scrollbar-track {
+          background: rgba(255, 255, 255, 0.02) !important;
+          border-radius: 4px !important;
+        }
+        .custom-scroll::-webkit-scrollbar-thumb {
+          background: var(--bronze-light, #cd7f32) !important;
+          border-radius: 4px !important;
+        }
+        .custom-scroll::-webkit-scrollbar-thumb:hover {
+          background: #e59848 !important;
         }
       `}</style>
 
@@ -1353,69 +1455,6 @@ export default function BarPanel({ showToast }) {
             </div>
           </div>
 
-          {/* Panel IA: Optimización de Precios e Inteligencia de Margen */}
-          <div className="card" style={{ padding: densidadVista === 'compact' ? 12 : 16 }}>
-            <h3 style={{ fontSize: densidadVista === 'compact' ? 11 : 12, textTransform: 'uppercase', color: 'var(--bronze-light)', marginBottom: densidadVista === 'compact' ? 8 : 12, display: 'flex', alignItems: 'center', gap: 4, fontWeight: 800 }}>
-              <i className="ri-line-chart-line" />
-              Inteligencia de Margen
-            </h3>
-            <p style={{ fontSize: densidadVista === 'compact' ? 10 : 11, color: 'var(--text-secondary)', marginBottom: densidadVista === 'compact' ? 10 : 14, lineHeight: 1.3 }}>Sugerencias autónomas en tiempo real para optimizar márgenes e incentivar rotación.</p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: densidadVista === 'compact' ? 8 : 10 }}>
-              
-              {/* Sugerencia 1: Aumento por alta demanda */}
-              <div style={{ padding: densidadVista === 'compact' ? 8 : 12, background: 'var(--bg-elevated)', borderRadius: 8, border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <div style={{ fontSize: densidadVista === 'compact' ? 9 : 10, color: 'var(--success)', fontWeight: 700 }}>ALTA VELOCIDAD DE VENTA (Coronas)</div>
-                <div style={{ fontSize: densidadVista === 'compact' ? 11 : 12, fontWeight: 600 }}>Cerveza Corona tiene demanda 120% superior al promedio.</div>
-                <div style={{ fontSize: densidadVista === 'compact' ? 10 : 11, color: 'var(--text-muted)' }}>Sugerencia: Incrementar venta a $52 MXN para optimizar utilidades.</div>
-                <button
-                  className={densidadVista === 'compact' ? 'btn btn-secondary btn-xs' : 'btn btn-secondary btn-sm'}
-                  style={{ alignSelf: 'flex-start', marginTop: 2, padding: densidadVista === 'compact' ? '2px 6px' : '4px 10px', fontSize: densidadVista === 'compact' ? 9 : 10 }}
-                  onClick={() => aplicarAjustePrecioIA(1, 52)}
-                >
-                  Aplicar ($52 MXN)
-                </button>
-              </div>
-
-              {/* Sugerencia 2: Promoción por rotación baja */}
-              <div style={{ padding: densidadVista === 'compact' ? 8 : 12, background: 'var(--bg-elevated)', borderRadius: 8, border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <div style={{ fontSize: densidadVista === 'compact' ? 9 : 10, color: 'var(--bronze-light)', fontWeight: 700 }}>ROTACIÓN BAJA (Nachos Gigantes)</div>
-                <div style={{ fontSize: densidadVista === 'compact' ? 11 : 12, fontWeight: 600 }}>Nachos Gigantes registran nulo movimiento esta semana.</div>
-                <div style={{ fontSize: densidadVista === 'compact' ? 10 : 11, color: 'var(--text-muted)' }}>{"Sugerencia: Lanzar promoción \"Nachos + Bebida por $80\"."}</div>
-                <button
-                  className={densidadVista === 'compact' ? 'btn btn-secondary btn-xs' : 'btn btn-secondary btn-sm'}
-                  style={{ alignSelf: 'flex-start', marginTop: 2, padding: densidadVista === 'compact' ? '2px 6px' : '4px 10px', fontSize: densidadVista === 'compact' ? 9 : 10 }}
-                  onClick={() => showToast('Promoción cargada al módulo de Caja ✓', 'success')}
-                >
-                  Generar Promo POS
-                </button>
-              </div>
-
-              {/* Sugerencia 3: Cruce Concurrente en Vivo */}
-              {inconsistenciasEnVivo.length === 0 ? (
-                <div style={{ padding: densidadVista === 'compact' ? 8 : 12, background: 'rgba(34,197,94,0.04)', borderRadius: 8, border: '1px solid rgba(34,197,94,0.12)', display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  <div style={{ fontSize: densidadVista === 'compact' ? 9 : 10, color: 'var(--success)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 3 }}>
-                    <i className="ri-checkbox-circle-line" /> AUDITORÍA IA: CRUCE OK
-                  </div>
-                  <div style={{ fontSize: densidadVista === 'compact' ? 10 : 11, color: 'var(--text-primary)' }}>Sin discrepancias detectadas entre mesas y consumo.</div>
-                </div>
-              ) : (
-                <div style={{ padding: densidadVista === 'compact' ? 8 : 12, background: 'rgba(239,68,68,0.04)', borderRadius: 8, border: '1px solid rgba(239,68,68,0.12)', display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <div style={{ fontSize: densidadVista === 'compact' ? 9 : 10, color: 'var(--danger)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 3 }}>
-                    <i className="ri-error-warning-line" style={{ fontSize: densidadVista === 'compact' ? 11 : 13 }} /> CRUCE IA: DISCREPANCIAS ({inconsistenciasEnVivo.length})
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: densidadVista === 'compact' ? 4 : 6, maxHeight: densidadVista === 'compact' ? 110 : 140, overflowY: 'auto' }}>
-                    {inconsistenciasEnVivo.map((inc, index) => (
-                      <div key={index} style={{ fontSize: densidadVista === 'compact' ? 10 : 11, color: 'var(--text-primary)', borderBottom: index < inconsistenciasEnVivo.length - 1 ? '1px dashed rgba(255,255,255,0.05)' : 'none', paddingBottom: densidadVista === 'compact' ? 2 : 4 }}>
-                        <strong>{inc.nombre} ({inc.cliente})</strong>
-                        <div style={{ fontSize: densidadVista === 'compact' ? 9 : 10, color: 'var(--danger)', marginTop: 1 }}>{inc.motivo}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-            </div>
-          </div>
         </div>
       </div>
 
