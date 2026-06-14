@@ -683,9 +683,9 @@ export default function ReportesPanel({ showToast }) {
         </div>
 
         {/* Fila 2: Widget de Sugerencias IA */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16, width: '100%', justifyContent: 'flex-end' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, width: '100%', justifyContent: 'space-between' }}>
             <div className="card" style={{ 
-              width: '480px', 
+              flex: 1, 
               padding: '8px 12px',
               height: '92px',
               display: 'flex',
@@ -697,7 +697,8 @@ export default function ReportesPanel({ showToast }) {
               boxShadow: hasAlerts ? '0 0 15px rgba(239, 68, 68, 0.2)' : '0 0 15px rgba(205,127,50,0.08)',
               animation: hasAlerts ? 'widgetGlow 2.5s infinite ease-in-out' : 'none',
               borderRadius: 10,
-              flexShrink: 0
+              flexShrink: 1,
+              minWidth: 0
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                 <span style={{ fontSize: 9, textTransform: 'uppercase', color: hasAlerts ? '#f87171' : 'var(--bronze-light)', fontWeight: 800, letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -810,7 +811,7 @@ export default function ReportesPanel({ showToast }) {
       {tabActiva === 'dashboard' && (
         <>
           {/* KPIs Principales */}
-          <div className="stat-grid" style={{ marginBottom: 24 }}>
+          <div className="stat-grid-compact" style={{ marginBottom: 24 }}>
             {getKPIs().map((s, i) => (
               <div key={i} className="stat-card">
                 <div className={`stat-card-icon ${s.color}`}><i className={s.icon} /></div>
