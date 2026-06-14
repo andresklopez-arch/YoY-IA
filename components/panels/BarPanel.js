@@ -694,143 +694,143 @@ export default function BarPanel({ showToast }) {
 
       {/* Tarjeta de Resumen de Stock Única y Compacta */}
       <div className="card" style={{
-        padding: '12px 20px',
-        marginBottom: 20,
+        padding: '8px 16px',
+        marginBottom: 14,
         background: 'linear-gradient(135deg, rgba(205,127,50,0.05) 0%, rgba(0,0,0,0.15) 100%)',
         border: '1px solid var(--border-bronze)',
-        borderRadius: 14,
+        borderRadius: 10,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        gap: 16,
+        gap: 12,
         flexWrap: 'wrap',
-        marginTop: 12
+        marginTop: 8
       }}>
         {/* Lado izquierdo: Título / Icono */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <div style={{
-            width: 36,
-            height: 36,
-            borderRadius: 8,
+            width: 28,
+            height: 28,
+            borderRadius: 6,
             background: 'var(--bronze-subtle, rgba(205,127,50,0.1))',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             color: 'var(--bronze-light)'
           }}>
-            <i className="ri-database-2-line" style={{ fontSize: 18 }} />
+            <i className="ri-database-2-line" style={{ fontSize: 14 }} />
           </div>
           <div>
-            <h3 style={{ fontSize: 12, fontWeight: 800, color: '#fff', margin: 0, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Resumen de Existencias</h3>
-            <p style={{ fontSize: 9, color: 'var(--text-secondary)', margin: 0 }}>Auditoría física y métricas generales</p>
+            <h3 style={{ fontSize: 11, fontWeight: 800, color: '#fff', margin: 0, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Resumen de Existencias</h3>
+            <p style={{ fontSize: 8, color: 'var(--text-secondary)', margin: 0 }}>Auditoría física y métricas generales</p>
           </div>
         </div>
 
         {/* Lado derecho: Métricas compactas */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
           {/* Métrica 1 */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-            <span style={{ fontSize: 9, textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.05em' }}>Productos Totales</span>
-            <div style={{ fontSize: 15, fontWeight: 900, color: 'var(--blue-light)', fontFamily: 'var(--font-display)' }}>
-              {productos.length} <span style={{ fontSize: 9, fontWeight: 500, color: 'var(--text-muted)' }}>pz</span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+            <span style={{ fontSize: 8, textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.05em' }}>Productos Totales</span>
+            <div style={{ fontSize: 13, fontWeight: 900, color: 'var(--blue-light)', fontFamily: 'var(--font-display)' }}>
+              {productos.length} <span style={{ fontSize: 8, fontWeight: 500, color: 'var(--text-muted)' }}>pz</span>
             </div>
           </div>
 
-          <div style={{ width: 1, height: 24, background: 'var(--border)' }} />
+          <div style={{ width: 1, height: 18, background: 'var(--border)' }} />
 
           {/* Métrica 2 */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-            <span style={{ fontSize: 9, textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.05em' }}>Alertas de Stock</span>
-            <div style={{ fontSize: 15, fontWeight: 900, color: stockCritico.length > 0 ? 'var(--danger)' : 'var(--success)', fontFamily: 'var(--font-display)', display: 'flex', alignItems: 'center' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+            <span style={{ fontSize: 8, textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.05em' }}>Alertas de Stock</span>
+            <div style={{ fontSize: 13, fontWeight: 900, color: stockCritico.length > 0 ? 'var(--danger)' : 'var(--success)', fontFamily: 'var(--font-display)', display: 'flex', alignItems: 'center' }}>
               {stockCritico.length > 0 && (
-                <i className="ri-alert-fill pulse-alert-icon" style={{ fontSize: 12, color: 'var(--danger)', marginRight: 5 }} />
+                <i className="ri-alert-fill pulse-alert-icon" style={{ fontSize: 10, color: 'var(--danger)', marginRight: 3 }} />
               )}
               {stockCritico.length}
             </div>
           </div>
 
-          <div style={{ width: 1, height: 24, background: 'var(--border)' }} />
+          <div style={{ width: 1, height: 18, background: 'var(--border)' }} />
 
           {/* Métrica 3 */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-            <span style={{ fontSize: 9, textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.05em' }}>Valor Inversión</span>
-            <div style={{ fontSize: 15, fontWeight: 900, color: 'var(--bronze-light)', fontFamily: 'var(--font-display)' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+            <span style={{ fontSize: 8, textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.05em' }}>Valor Inversión</span>
+            <div style={{ fontSize: 13, fontWeight: 900, color: 'var(--bronze-light)', fontFamily: 'var(--font-display)' }}>
               ${costoTotalVal.toLocaleString()}
             </div>
           </div>
 
-          <div style={{ width: 1, height: 24, background: 'var(--border)' }} />
+          <div style={{ width: 1, height: 18, background: 'var(--border)' }} />
 
           {/* Métrica 4 */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-            <span style={{ fontSize: 9, textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.05em' }}>Valor Venta</span>
-            <div style={{ fontSize: 15, fontWeight: 900, color: 'var(--success)', fontFamily: 'var(--font-display)' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+            <span style={{ fontSize: 8, textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.05em' }}>Valor Venta</span>
+            <div style={{ fontSize: 13, fontWeight: 900, color: 'var(--success)', fontFamily: 'var(--font-display)', display: 'flex', alignItems: 'baseline', gap: 4 }}>
               ${ventaTotalVal.toLocaleString()}
+              <span style={{ fontSize: 8, color: 'var(--text-muted)', fontWeight: 500 }}>
+                ({margenGlobalPct}%)
+              </span>
             </div>
-            <span style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 1, fontWeight: 500 }}>
-              Margen: <strong style={{ color: parseFloat(margenGlobalPct) > 50 ? 'var(--success)' : 'var(--bronze-light)' }}>{margenGlobalPct}%</strong>
-            </span>
           </div>
         </div>
       </div>
 
       {/* Alerta stock crítico */}
       {stockCritico.length > 0 && (
-        <div style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 12, padding: 16, marginBottom: 24, display: 'flex', gap: 12, alignItems: 'center' }}>
-          <i className="ri-error-warning-line" style={{ fontSize: 24, color: 'var(--danger)', flexShrink: 0 }} />
-          <div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--danger)', marginBottom: 4 }}>⚠️ Alerta de Stock Crítico ({stockCritico.length} productos)</div>
-            <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-              Los siguientes productos están por debajo del stock mínimo: {stockCritico.map(p => `${p.nombre} (${p.stock} pz)`).join(' · ')}. Se recomienda lanzar el motor de reorden IA.
+        <div style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.15)', borderRadius: 8, padding: '8px 12px', marginBottom: 14, display: 'flex', gap: 10, alignItems: 'center' }}>
+          <i className="ri-error-warning-line" style={{ fontSize: 18, color: 'var(--danger)', flexShrink: 0 }} />
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 10px', alignItems: 'center' }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--danger)' }}>⚠️ Stock Crítico ({stockCritico.length} pz):</div>
+            <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+              {stockCritico.map(p => `${p.nombre} (${p.stock} pz)`).join(' · ')}
             </div>
           </div>
         </div>
       )}
 
       {/* Main Layout: Stock & Predictor */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 20, alignItems: 'start' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 290px', gap: 14, alignItems: 'start' }}>
         
         {/* Lado Izquierdo: Catálogo y Stock */}
         <div>
           {/* Filtros */}
-          <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
-            <input className="form-input" style={{ width: 220, padding: '8px 12px', fontSize: 13 }} placeholder="Buscar producto..." value={busqueda} onChange={e => setBusqueda(e.target.value)} />
+          <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+            <input className="form-input" style={{ width: 180, padding: '4px 10px', fontSize: 11, height: 26 }} placeholder="Buscar producto..." value={busqueda} onChange={e => setBusqueda(e.target.value)} />
             {CATEGORIAS.map(c => (
-              <button key={c} onClick={() => setFiltro(c)} className={`btn btn-sm ${filtro === c ? 'btn-primary' : 'btn-secondary'}`}>{c}</button>
+              <button key={c} onClick={() => setFiltro(c)} className={`btn btn-xs ${filtro === c ? 'btn-primary' : 'btn-secondary'}`} style={{ padding: '3px 8px', fontSize: 10, height: 26 }}>{c}</button>
             ))}
           </div>
 
           {/* Tabla de existencias */}
-          <div className="card" style={{ padding: 16, overflowX: 'auto' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <h3 style={{ fontSize: 14, textTransform: 'uppercase', color: 'var(--text-secondary)', fontWeight: 700, margin: 0 }}>Inventario Físico de Existencias</h3>
+          <div className="card" style={{ padding: 12, overflowX: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <h3 style={{ fontSize: 12, textTransform: 'uppercase', color: 'var(--text-secondary)', fontWeight: 700, margin: 0 }}>Inventario Físico de Existencias</h3>
               <button
-                className="btn btn-secondary btn-sm"
+                className="btn btn-secondary btn-xs"
                 style={{
-                  fontSize: 11,
+                  fontSize: 10,
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 6,
+                  gap: 4,
                   color: 'var(--bronze-light)',
                   borderColor: 'var(--border-bronze)',
-                  padding: '6px 12px'
+                  padding: '4px 8px'
                 }}
                 onClick={() => setModalExportar(true)}
               >
                 <i className="ri-file-pdf-line" /> Exportar Reporte IA
               </button>
             </div>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, textAlign: 'left' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, textAlign: 'left' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--border)', color: 'var(--text-muted)' }}>
-                  <th style={{ padding: '10px 8px' }}>Producto</th>
-                  <th style={{ padding: '10px 8px' }}>Categoría</th>
-                  <th style={{ padding: '10px 8px', textAlign: 'center' }}>Stock</th>
-                  <th style={{ padding: '10px 8px', textAlign: 'center' }}>Mínimo</th>
-                  <th style={{ padding: '10px 8px', textAlign: 'right' }}>Costo</th>
-                  <th style={{ padding: '10px 8px', textAlign: 'right' }}>Venta</th>
-                  <th style={{ padding: '10px 8px', textAlign: 'center' }}>Margen</th>
-                  <th style={{ padding: '10px 8px', textAlign: 'center' }}>Acciones</th>
+                  <th style={{ padding: '6px 8px' }}>Producto</th>
+                  <th style={{ padding: '6px 8px' }}>Categoría</th>
+                  <th style={{ padding: '6px 8px', textAlign: 'center' }}>Stock</th>
+                  <th style={{ padding: '6px 8px', textAlign: 'center' }}>Mínimo</th>
+                  <th style={{ padding: '6px 8px', textAlign: 'right' }}>Costo</th>
+                  <th style={{ padding: '6px 8px', textAlign: 'right' }}>Venta</th>
+                  <th style={{ padding: '6px 8px', textAlign: 'center' }}>Margen</th>
+                  <th style={{ padding: '6px 8px', textAlign: 'center' }}>Acciones</th>
                 </tr>
               </thead>
               <tbody>
@@ -838,28 +838,28 @@ export default function BarPanel({ showToast }) {
                   const esCritico = p.stock <= p.stockMin;
                   return (
                     <tr key={p.id} style={{ borderBottom: '1px solid var(--border)', background: esCritico ? 'rgba(239,68,68,0.02)' : 'none' }}>
-                      <td style={{ padding: '12px 8px', fontWeight: 600 }}>
+                      <td style={{ padding: '6px 8px', fontWeight: 600 }}>
                         {p.nombre}
                         {p.activoIA === false && (
-                          <span style={{ fontSize: 9, color: 'var(--text-muted)', marginLeft: 6, fontWeight: 400, border: '1px solid rgba(255,255,255,0.1)', padding: '2px 5px', borderRadius: 4, background: 'rgba(255,255,255,0.02)', display: 'inline-block' }}>
-                            IA Desactivada
+                          <span style={{ fontSize: 8, color: 'var(--text-muted)', marginLeft: 6, fontWeight: 400, border: '1px solid rgba(255,255,255,0.1)', padding: '1px 3px', borderRadius: 3, background: 'rgba(255,255,255,0.02)', display: 'inline-block' }}>
+                            IA Off
                           </span>
                         )}
                       </td>
-                      <td style={{ padding: '12px 8px', color: 'var(--text-secondary)' }}>{p.categoria}</td>
-                      <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 700, color: esCritico ? 'var(--danger)' : 'var(--text-primary)' }}>
-                        {p.stock} <span style={{ fontSize: 10, fontWeight: 400, color: 'var(--text-muted)' }}>{p.unidad}</span>
+                      <td style={{ padding: '6px 8px', color: 'var(--text-secondary)' }}>{p.categoria}</td>
+                      <td style={{ padding: '6px 8px', textAlign: 'center', fontWeight: 700, color: esCritico ? 'var(--danger)' : 'var(--text-primary)' }}>
+                        {p.stock} <span style={{ fontSize: 9, fontWeight: 400, color: 'var(--text-muted)' }}>{p.unidad}</span>
                       </td>
-                      <td style={{ padding: '12px 8px', textAlign: 'center', color: 'var(--text-muted)' }}>{p.stockMin}</td>
-                      <td style={{ padding: '12px 8px', textAlign: 'right', color: 'var(--text-muted)' }}>${p.precioCosto}</td>
-                      <td style={{ padding: '12px 8px', textAlign: 'right', fontWeight: 700 }}>${p.precioVenta}</td>
-                      <td style={{ padding: '12px 8px', textAlign: 'center' }}>
-                        <span className={`badge ${parseFloat(calcMargen(p)) > 50 ? 'badge-success' : 'badge-bronze'}`}>{calcMargen(p)}%</span>
+                      <td style={{ padding: '6px 8px', textAlign: 'center', color: 'var(--text-muted)' }}>{p.stockMin}</td>
+                      <td style={{ padding: '6px 8px', textAlign: 'right', color: 'var(--text-muted)' }}>${p.precioCosto}</td>
+                      <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 700 }}>${p.precioVenta}</td>
+                      <td style={{ padding: '6px 8px', textAlign: 'center' }}>
+                        <span className={`badge ${parseFloat(calcMargen(p)) > 50 ? 'badge-success' : 'badge-bronze'}`} style={{ padding: '2px 6px', fontSize: 10 }}>{calcMargen(p)}%</span>
                       </td>
-                      <td style={{ padding: '12px 8px', textAlign: 'center' }}>
+                      <td style={{ padding: '6px 8px', textAlign: 'center' }}>
                         <button
-                          className="btn btn-secondary btn-sm"
-                          style={{ padding: '4px 8px', fontSize: 11 }}
+                          className="btn btn-secondary btn-xs"
+                          style={{ padding: '3px 6px', fontSize: 10 }}
                           onClick={() => setModalAjuste(p)}
                         >
                           Ajustar
@@ -876,25 +876,25 @@ export default function BarPanel({ showToast }) {
           <div style={{
             background: 'var(--bg-elevated)',
             border: '1px solid var(--border)',
-            borderRadius: 12,
-            padding: '10px 14px',
-            marginTop: 16,
+            borderRadius: 10,
+            padding: '8px 12px',
+            marginTop: 12,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            gap: 12,
+            gap: 10,
             flexWrap: 'wrap'
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--bronze-light)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--bronze-light)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: 4 }}>
                 <i className="ri-survey-line" /> Modalidad Auditoría IA
               </div>
-              <span className="badge badge-bronze" style={{ fontSize: 8, padding: '1px 5px' }}>Motor IA Activo</span>
+              <span className="badge badge-bronze" style={{ fontSize: 8, padding: '1px 4px' }}>Motor IA Activo</span>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               <select
                 className="form-select"
-                style={{ padding: '4px 8px', fontSize: 12, minWidth: 160, background: 'var(--bg-base)', border: '1px solid var(--border)', color: 'var(--text-primary)', borderRadius: 6 }}
+                style={{ padding: '3px 6px', fontSize: 11, minWidth: 150, background: 'var(--bg-base)', border: '1px solid var(--border)', color: 'var(--text-primary)', borderRadius: 5 }}
                 value={modoInventario}
                 onChange={e => {
                   const m = e.target.value;
@@ -914,7 +914,7 @@ export default function BarPanel({ showToast }) {
               {modoInventario === 'producto' && (
                 <select
                   className="form-select"
-                  style={{ padding: '4px 8px', fontSize: 12, width: 180, background: 'var(--bg-base)', border: '1px solid var(--border)', color: 'var(--text-primary)', borderRadius: 6 }}
+                  style={{ padding: '3px 6px', fontSize: 11, width: 150, background: 'var(--bg-base)', border: '1px solid var(--border)', color: 'var(--text-primary)', borderRadius: 5 }}
                   value={productoSelId}
                   onChange={e => setProductoSelId(e.target.value)}
                 >
@@ -928,7 +928,7 @@ export default function BarPanel({ showToast }) {
               {modoInventario === 'azar' && (
                 <button
                   className="btn btn-secondary btn-xs"
-                  style={{ display: 'flex', alignItems: 'center', gap: 4 }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 6px' }}
                   onClick={() => generarConteoCiego()}
                 >
                   <i className="ri-refresh-line" /> Regenerar
@@ -939,25 +939,25 @@ export default function BarPanel({ showToast }) {
         </div>
 
         {/* Lado Derecho: Inteligencia IA */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           
           {/* Módulo IA: Sincronización en la Nube Supabase (Sugerencia 2) */}
-          <div className="card" style={{ padding: 16, border: '1px solid var(--border-bronze)', background: 'rgba(205,127,50,0.02)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-              <h3 style={{ fontSize: 12, textTransform: 'uppercase', color: 'var(--bronze-light)', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 800, margin: 0 }}>
+          <div className="card" style={{ padding: 12, border: '1px solid var(--border-bronze)', background: 'rgba(205,127,50,0.02)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <h3 style={{ fontSize: 11, textTransform: 'uppercase', color: 'var(--bronze-light)', display: 'flex', alignItems: 'center', gap: 4, fontWeight: 800, margin: 0 }}>
                 <i className="ri-cloud-line" />
-                Sincronización en la Nube
+                Sincronización Nube
               </h3>
-              <span className="dot-live" style={{ background: 'var(--success)', width: 6, height: 6, borderRadius: '50%' }} />
+              <span className="dot-live" style={{ background: 'var(--success)', width: 5, height: 5, borderRadius: '50%' }} />
             </div>
-            <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 12 }}>
-              Estado: <span style={{ color: 'var(--success)', fontWeight: 700 }}>Conectado (Supabase DB)</span>
+            <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginBottom: 8, lineHeight: 1.3 }}>
+              Supabase DB: <span style={{ color: 'var(--success)', fontWeight: 700 }}>Conectado</span>
               <br />
-              Última Sincronización: {new Date().toLocaleTimeString('es-MX')} (Hace 0m)
+              Última Sinc: {new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })} (Hace 0m)
             </div>
             <button
-              className="btn btn-secondary btn-sm"
-              style={{ width: '100%', fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+              className="btn btn-secondary btn-xs"
+              style={{ width: '100%', fontSize: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, padding: '4px 8px' }}
               onClick={() => {
                 showToast('Forzando actualización de bases de datos remotas...', 'info');
                 setTimeout(() => {
@@ -970,25 +970,25 @@ export default function BarPanel({ showToast }) {
           </div>
 
           {/* Panel IA: Predicción de Consumo */}
-          <div className="card card-bronze" style={{ padding: 16 }}>
-            <h3 style={{ fontSize: 13, textTransform: 'uppercase', color: 'var(--bronze-light)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6, fontWeight: 800 }}>
+          <div className="card card-bronze" style={{ padding: 12 }}>
+            <h3 style={{ fontSize: 11, textTransform: 'uppercase', color: 'var(--bronze-light)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 4, fontWeight: 800 }}>
               <i className="ri-robot-line" />
-              IA Predictor de Demanda
+              Demanda Proyectada
             </h3>
-            <p style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 14 }}>Análisis proyectado de velocidad de consumo de inventario diario en base a ventas de mesa y barra.</p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <p style={{ fontSize: 10, color: 'var(--text-secondary)', marginBottom: 10, lineHeight: 1.3 }}>Consumo proyectado y stock restante en base a tendencias de ventas de mesas/barra.</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {productos.map(p => {
                 const vel = getVelocidadConsumo(p.id);
                 const esBajo = p.stock <= p.stockMin;
                 return (
-                  <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', background: 'var(--bg-elevated)', borderRadius: 8, border: `1px solid ${esBajo ? 'rgba(239,68,68,0.2)' : 'var(--border)'}`, fontSize: 12 }}>
+                  <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 8px', background: 'var(--bg-elevated)', borderRadius: 6, border: `1px solid ${esBajo ? 'rgba(239,68,68,0.2)' : 'var(--border)'}`, fontSize: 11 }}>
                     <div>
                       <span style={{ fontWeight: 700 }}>{p.nombre}</span>
-                      <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>Demanda: {vel} {p.unidad}/día</div>
+                      <div style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 1 }}>Demanda: {vel} {p.unidad}/d</div>
                     </div>
                     <div style={{ textAlign: 'right' }}>
                       <div style={{ fontWeight: 800, color: esBajo ? 'var(--danger)' : 'var(--success)' }}>{calcDiasRestantes(p)}</div>
-                      <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>Stock restante</div>
+                      <div style={{ fontSize: 8, color: 'var(--text-muted)' }}>restantes</div>
                     </div>
                   </div>
                 );
@@ -997,64 +997,63 @@ export default function BarPanel({ showToast }) {
           </div>
 
           {/* Panel IA: Optimización de Precios e Inteligencia de Margen */}
-          <div className="card" style={{ padding: 16 }}>
-            <h3 style={{ fontSize: 13, textTransform: 'uppercase', color: 'var(--bronze-light)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6, fontWeight: 800 }}>
+          <div className="card" style={{ padding: 12 }}>
+            <h3 style={{ fontSize: 11, textTransform: 'uppercase', color: 'var(--bronze-light)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 4, fontWeight: 800 }}>
               <i className="ri-line-chart-line" />
-              IA Inteligencia de Margen
+              Inteligencia de Margen
             </h3>
-            <p style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 14 }}>Sugerencias autónomas de precios en tiempo real para optimizar márgenes e incentivar rotación.</p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <p style={{ fontSize: 10, color: 'var(--text-secondary)', marginBottom: 10, lineHeight: 1.3 }}>Sugerencias autónomas en tiempo real para optimizar márgenes e incentivar rotación.</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               
               {/* Sugerencia 1: Aumento por alta demanda */}
-              <div style={{ padding: 12, background: 'var(--bg-elevated)', borderRadius: 10, border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <div style={{ fontSize: 10, color: 'var(--success)', fontWeight: 700 }}>ALTA VELOCIDAD DE VENTA (Coronas)</div>
-                <div style={{ fontSize: 12, fontWeight: 600 }}>Cerveza Corona tiene demanda 120% superior al promedio de stock.</div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Sugerencia: Incrementar precio de venta a $52 MXN para optimizar utilidades.</div>
+              <div style={{ padding: 8, background: 'var(--bg-elevated)', borderRadius: 8, border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <div style={{ fontSize: 9, color: 'var(--success)', fontWeight: 700 }}>ALTA VELOCIDAD DE VENTA (Coronas)</div>
+                <div style={{ fontSize: 11, fontWeight: 600 }}>Cerveza Corona tiene demanda 120% superior al promedio.</div>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Sugerencia: Incrementar venta a $52 MXN para optimizar utilidades.</div>
                 <button
-                  className="btn btn-secondary btn-sm"
-                  style={{ alignSelf: 'flex-start', marginTop: 4, padding: '3px 8px', fontSize: 10 }}
+                  className="btn btn-secondary btn-xs"
+                  style={{ alignSelf: 'flex-start', marginTop: 2, padding: '2px 6px', fontSize: 9 }}
                   onClick={() => aplicarAjustePrecioIA(1, 52)}
                 >
-                  Aplicar sugerencia ($52 MXN)
+                  Aplicar ($52 MXN)
                 </button>
               </div>
 
               {/* Sugerencia 2: Promoción por rotación baja */}
-              <div style={{ padding: 12, background: 'var(--bg-elevated)', borderRadius: 10, border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <div style={{ fontSize: 10, color: 'var(--bronze-light)', fontWeight: 700 }}>ROTACIÓN BAJA (Nachos Gigantes)</div>
-                <div style={{ fontSize: 12, fontWeight: 600 }}>Nachos Gigantes registran nulo movimiento esta semana.</div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{"Sugerencia: Lanzar promoción \"Nachos + Bebida por $80\" para liquidar existencias."}</div>
+              <div style={{ padding: 8, background: 'var(--bg-elevated)', borderRadius: 8, border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <div style={{ fontSize: 9, color: 'var(--bronze-light)', fontWeight: 700 }}>ROTACIÓN BAJA (Nachos Gigantes)</div>
+                <div style={{ fontSize: 11, fontWeight: 600 }}>Nachos Gigantes registran nulo movimiento esta semana.</div>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{"Sugerencia: Lanzar promoción \"Nachos + Bebida por $80\"."}</div>
                 <button
-                  className="btn btn-secondary btn-sm"
-                  style={{ alignSelf: 'flex-start', marginTop: 4, padding: '3px 8px', fontSize: 10 }}
+                  className="btn btn-secondary btn-xs"
+                  style={{ alignSelf: 'flex-start', marginTop: 2, padding: '2px 6px', fontSize: 9 }}
                   onClick={() => showToast('Promoción cargada al módulo de Caja ✓', 'success')}
                 >
-                  Generar Promoción en POS
+                  Generar Promo POS
                 </button>
               </div>
 
               {/* Sugerencia 3: Cruce Concurrente en Vivo */}
               {inconsistenciasEnVivo.length === 0 ? (
-                <div style={{ padding: 12, background: 'rgba(34,197,94,0.04)', borderRadius: 10, border: '1px solid rgba(34,197,94,0.15)', display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <div style={{ fontSize: 10, color: 'var(--success)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <i className="ri-checkbox-circle-line" /> AUDITORÍA IA: CRUCE CONCURRENTE OK
+                <div style={{ padding: 8, background: 'rgba(34,197,94,0.04)', borderRadius: 8, border: '1px solid rgba(34,197,94,0.12)', display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <div style={{ fontSize: 9, color: 'var(--success)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 3 }}>
+                    <i className="ri-checkbox-circle-line" /> AUDITORÍA IA: CRUCE OK
                   </div>
-                  <div style={{ fontSize: 11, color: 'var(--text-primary)' }}>No se detectan discrepancias entre mesas ocupadas y consumo registrado. Todo en orden.</div>
+                  <div style={{ fontSize: 10, color: 'var(--text-primary)' }}>Sin discrepancias detectadas entre mesas y consumo.</div>
                 </div>
               ) : (
-                <div style={{ padding: 12, background: 'rgba(239,68,68,0.04)', borderRadius: 10, border: '1px solid rgba(239,68,68,0.15)', display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <div style={{ fontSize: 10, color: 'var(--danger)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <i className="ri-error-warning-line" style={{ fontSize: 13 }} /> CRUCE IA: DISCREPANCIA EN MESAS ({inconsistenciasEnVivo.length})
+                <div style={{ padding: 8, background: 'rgba(239,68,68,0.04)', borderRadius: 8, border: '1px solid rgba(239,68,68,0.12)', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <div style={{ fontSize: 9, color: 'var(--danger)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 3 }}>
+                    <i className="ri-error-warning-line" style={{ fontSize: 11 }} /> CRUCE IA: DISCREPANCIAS ({inconsistenciasEnVivo.length})
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxH: 140, overflowY: 'auto' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 110, overflowY: 'auto' }}>
                     {inconsistenciasEnVivo.map((inc, index) => (
-                      <div key={index} style={{ fontSize: 11, color: 'var(--text-primary)', borderBottom: index < inconsistenciasEnVivo.length - 1 ? '1px dashed rgba(255,255,255,0.05)' : 'none', paddingBottom: 4 }}>
+                      <div key={index} style={{ fontSize: 10, color: 'var(--text-primary)', borderBottom: index < inconsistenciasEnVivo.length - 1 ? '1px dashed rgba(255,255,255,0.05)' : 'none', paddingBottom: 2 }}>
                         <strong>{inc.nombre} ({inc.cliente})</strong>
-                        <div style={{ fontSize: 10, color: 'var(--danger)', marginTop: 2 }}>{inc.motivo}</div>
+                        <div style={{ fontSize: 9, color: 'var(--danger)', marginTop: 1 }}>{inc.motivo}</div>
                       </div>
                     ))}
                   </div>
-                  <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>Cruce en vivo: Mesas ocupadas con consumo de barra en $0. Se sugiere auditoría de comanda.</div>
                 </div>
               )}
 
@@ -1063,22 +1062,22 @@ export default function BarPanel({ showToast }) {
         </div>
       </div>
 
-      {/* ── GRÁFICA DE TENDENCIAS SEMANALES IA (RECOMENDACIÓN 2) ── */}
-      <div className="card" style={{ padding: 20, marginTop: 20, border: '1px solid var(--border)', borderRadius: 12, background: 'var(--bg-elevated)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+      {/* ── GRÁFICA DE TENDENCIAS SEMANALES IA ── */}
+      <div className="card" style={{ padding: 12, marginTop: 14, border: '1px solid var(--border)', borderRadius: 10, background: 'var(--bg-elevated)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
           <div>
-            <h3 style={{ fontSize: 14, textTransform: 'uppercase', color: 'var(--bronze-light)', fontWeight: 800, display: 'flex', alignItems: 'center', gap: 6, margin: 0 }}>
+            <h3 style={{ fontSize: 12, textTransform: 'uppercase', color: 'var(--bronze-light)', fontWeight: 800, display: 'flex', alignItems: 'center', gap: 4, margin: 0 }}>
               <i className="ri-area-chart-line" />
-              Tendencias Semanales de Consumo IA
+              Tendencias Semanales IA
             </h3>
-            <p style={{ fontSize: 11, color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>Gráfico de área de consumo acumulado por categoría (Cervezas, Refrescos y Snacks) durante la última semana.</p>
+            <p style={{ fontSize: 9, color: 'var(--text-secondary)', margin: '2px 0 0 0' }}>Consumo acumulado por categoría (Cervezas, Refrescos y Snacks) durante la última semana.</p>
           </div>
-          <span className="badge badge-bronze" style={{ padding: '4px 8px', fontSize: 10 }}>Auditoría Visual Activa</span>
+          <span className="badge badge-bronze" style={{ padding: '3px 6px', fontSize: 8 }}>Auditoría Visual Activa</span>
         </div>
         
-        <div style={{ width: '100%', height: 260 }}>
+        <div style={{ width: '100%', height: 180 }}>
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={HISTORICO_DATA} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+            <AreaChart data={HISTORICO_DATA} margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
               <defs>
                 <linearGradient id="colorCerveza" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="var(--bronze-light)" stopOpacity={0.3}/>
@@ -1094,19 +1093,21 @@ export default function BarPanel({ showToast }) {
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-              <XAxis dataKey="name" stroke="var(--text-muted)" fontSize={11} tickLine={false} />
-              <YAxis stroke="var(--text-muted)" fontSize={11} tickLine={false} />
+              <XAxis dataKey="name" stroke="var(--text-muted)" fontSize={9} tickLine={false} />
+              <YAxis stroke="var(--text-muted)" fontSize={9} tickLine={false} />
               <Tooltip 
                 contentStyle={{ 
                   background: 'var(--bg-elevated)', 
                   border: '1px solid var(--border)', 
-                  borderRadius: 10,
-                  fontSize: 12,
-                  color: 'var(--text-primary)'
+                  borderRadius: 8,
+                  fontSize: 10,
+                  color: 'var(--text-primary)',
+                  padding: '5px 8px'
                 }} 
               />
-              <Area type="monotone" dataKey="Cerveza" stroke="var(--bronze-light)" fillOpacity={1} fill="url(#colorCerveza)" strokeWidth={2} />
-              <Area type="monotone" dataKey="Refrescos" stroke="var(--success)" fillOpacity={1} fill="url(#colorRefrescos)" strokeWidth={2} />
+              <Area type="monotone" dataKey="Cerveza" stroke="var(--bronze-light)" fillOpacity={1} fill="url(#colorCerveza)" strokeWidth={1.5} />
+              <Area type="monotone" dataKey="Refrescos" stroke="var(--success)" fillOpacity={1} fill="url(#colorRefrescos)" strokeWidth={1.5} />
+              <Area type="monotone" dataKey="Snacks" stroke="var(--blue-light)" fillOpacity={1} fill="url(#colorSnacks)" strokeWidth={1.5} />scos" stroke="var(--success)" fillOpacity={1} fill="url(#colorRefrescos)" strokeWidth={2} />
               <Area type="monotone" dataKey="Snacks" stroke="var(--blue-light)" fillOpacity={1} fill="url(#colorSnacks)" strokeWidth={2} />
             </AreaChart>
           </ResponsiveContainer>
