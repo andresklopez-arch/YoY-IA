@@ -1107,8 +1107,7 @@ export default function BarPanel({ showToast }) {
               />
               <Area type="monotone" dataKey="Cerveza" stroke="var(--bronze-light)" fillOpacity={1} fill="url(#colorCerveza)" strokeWidth={1.5} />
               <Area type="monotone" dataKey="Refrescos" stroke="var(--success)" fillOpacity={1} fill="url(#colorRefrescos)" strokeWidth={1.5} />
-              <Area type="monotone" dataKey="Snacks" stroke="var(--blue-light)" fillOpacity={1} fill="url(#colorSnacks)" strokeWidth={1.5} />scos" stroke="var(--success)" fillOpacity={1} fill="url(#colorRefrescos)" strokeWidth={2} />
-              <Area type="monotone" dataKey="Snacks" stroke="var(--blue-light)" fillOpacity={1} fill="url(#colorSnacks)" strokeWidth={2} />
+              <Area type="monotone" dataKey="Snacks" stroke="var(--blue-light)" fillOpacity={1} fill="url(#colorSnacks)" strokeWidth={1.5} />
             </AreaChart>
           </ResponsiveContainer>
         </div>
