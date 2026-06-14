@@ -264,17 +264,18 @@ function StatCardMini({ icon, label, value, color, tooltip, id }) {
             fontWeight: 600,
             whiteSpace: 'nowrap',
             zIndex: 100,
-            boxShadow: '0 4px 20px rgba(0,0,0,0.6)',
+            boxShadow: `0 4px 20px ${color}20, 0 10px 30px rgba(0,0,0,0.5)`,
             pointerEvents: 'none',
             borderTop: `2px solid ${color}`,
             
-            // Transición premium de entrada/salida (fade-out incluido)
+            // Transición premium de entrada/salida (fade-out incluido, optimizado para GPU sin visibility)
             opacity: hovered ? 1 : 0,
-            visibility: hovered ? 'visible' : 'hidden',
             transform: hovered 
               ? 'translateX(-50%) translateY(-8px) scale(1)' 
               : 'translateX(-50%) translateY(0px) scale(0.95)',
-            transition: 'opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1), transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.2s'
+            transition: hovered
+              ? 'opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1) 150ms, transform 0.2s cubic-bezier(0.16, 1, 0.3, 1) 150ms'
+              : 'opacity 0.15s ease, transform 0.15s ease'
           }}
         >
           {tooltip}
