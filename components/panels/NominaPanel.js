@@ -198,8 +198,9 @@ export function useAlertasNomina() {
 // ─────────────────────────────────────────────
 // COMPONENTES AUXILIARES
 // ─────────────────────────────────────────────
-function StatCardMini({ icon, label, value, color, tooltip }) {
+function StatCardMini({ icon, label, value, color, tooltip, id }) {
   const [hovered, setHovered] = useState(false);
+  const tooltipId = id ? `tooltip-${id}` : undefined;
 
   return (
     <div 
@@ -208,6 +209,7 @@ function StatCardMini({ icon, label, value, color, tooltip }) {
       tabIndex={tooltip ? 0 : undefined}
       onFocus={() => tooltip && setHovered(true)}
       onBlur={() => setHovered(false)}
+      aria-describedby={hovered && tooltipId ? tooltipId : undefined}
       style={{
         background: 'var(--bg-card)',
         border: '1px solid var(--border)',
@@ -227,12 +229,6 @@ function StatCardMini({ icon, label, value, color, tooltip }) {
         boxShadow: hovered && tooltip ? `0 6px 16px ${color}10` : 'none'
       }}
     >
-      <style dangerouslySetInnerHTML={{ __html: `
-        @keyframes tooltipFadeIn {
-          from { opacity: 0; transform: translateX(-50%) translateY(0px) scale(0.95); }
-          to { opacity: 1; transform: translateX(-50%) translateY(-8px) scale(1); }
-        }
-      `}} />
       <div style={{
         width: 32, height: 32, borderRadius: 8,
         background: `${color}15`, border: `1px solid ${color}30`,
@@ -248,28 +244,39 @@ function StatCardMini({ icon, label, value, color, tooltip }) {
         <div style={{ fontSize: 16, fontWeight: 800, color: '#fff', marginTop: 2 }}>{value}</div>
       </div>
 
-      {/* Burbuja de Tooltip Personalizada */}
-      {hovered && tooltip && (
-        <div style={{
-          position: 'absolute',
-          bottom: '100%',
-          left: '50%',
-          transform: 'translateX(-50%) translateY(-8px)',
-          background: 'rgba(15, 23, 42, 0.95)',
-          backdropFilter: 'blur(8px)',
-          border: '1px solid var(--border)',
-          borderRadius: 8,
-          padding: '6px 12px',
-          color: '#fff',
-          fontSize: 10,
-          fontWeight: 600,
-          whiteSpace: 'nowrap',
-          zIndex: 100,
-          boxShadow: '0 4px 20px rgba(0,0,0,0.6)',
-          animation: 'tooltipFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards',
-          pointerEvents: 'none',
-          borderTop: `2px solid ${color}`
-        }}>
+      {/* Burbuja de Tooltip Personalizada con Desvanecimiento de Entrada y Salida */}
+      {tooltip && (
+        <div 
+          id={tooltipId}
+          role="tooltip"
+          aria-hidden={!hovered}
+          style={{
+            position: 'absolute',
+            bottom: '100%',
+            left: '50%',
+            background: 'rgba(15, 23, 42, 0.95)',
+            backdropFilter: 'blur(8px)',
+            border: '1px solid var(--border)',
+            borderRadius: 8,
+            padding: '6px 12px',
+            color: '#fff',
+            fontSize: 10,
+            fontWeight: 600,
+            whiteSpace: 'nowrap',
+            zIndex: 100,
+            boxShadow: '0 4px 20px rgba(0,0,0,0.6)',
+            pointerEvents: 'none',
+            borderTop: `2px solid ${color}`,
+            
+            // Transición premium de entrada/salida (fade-out incluido)
+            opacity: hovered ? 1 : 0,
+            visibility: hovered ? 'visible' : 'hidden',
+            transform: hovered 
+              ? 'translateX(-50%) translateY(-8px) scale(1)' 
+              : 'translateX(-50%) translateY(0px) scale(0.95)',
+            transition: 'opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1), transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.2s'
+          }}
+        >
           {tooltip}
           {/* Pequeño indicador de flecha */}
           <div style={{
@@ -651,10 +658,10 @@ export default function NominaPanel({ showToast }) {
           <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>Control unificado de personal, asistencia diaria, liquidación de nóminas y egresos.</p>
         </div>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          <StatCardMini icon="ri-shopping-bag-3-line" label="Gastos Mes" value={fmt(totalGastosMes)} color="var(--danger)" tooltip="Gastos acumulados registrados este mes" />
-          <StatCardMini icon="ri-money-dollar-circle-line" label="Nómina Mes" value={fmt(totalNomina)} color="var(--warning)" tooltip="Nómina total pagada y liquidada este mes" />
-          <StatCardMini icon="ri-add-circle-line" label="Total Egresos" value={fmt(totalEgresos)} color="var(--bronze-light)" tooltip={`Nómina (${fmt(totalNomina)}) + Gastos (${fmt(totalGastosMes)})`} />
-          <StatCardMini icon="ri-group-line" label="Activos" value={empleados.filter(e => e.estado === 'activo').length} color="var(--success)" tooltip="Total de personal activo en el sistema" />
+          <StatCardMini id="gastos-mes" icon="ri-shopping-bag-3-line" label="Gastos Mes" value={fmt(totalGastosMes)} color="var(--danger)" tooltip="Gastos acumulados registrados este mes" />
+          <StatCardMini id="nomina-mes" icon="ri-money-dollar-circle-line" label="Nómina Mes" value={fmt(totalNomina)} color="var(--warning)" tooltip="Nómina total pagada y liquidada este mes" />
+          <StatCardMini id="total-egresos" icon="ri-add-circle-line" label="Total Egresos" value={fmt(totalEgresos)} color="var(--bronze-light)" tooltip={`Nómina (${fmt(totalNomina)}) + Gastos (${fmt(totalGastosMes)})`} />
+          <StatCardMini id="empleados-activos" icon="ri-group-line" label="Activos" value={empleados.filter(e => e.estado === 'activo').length} color="var(--success)" tooltip="Total de personal activo en el sistema" />
         </div>
       </div>
 
