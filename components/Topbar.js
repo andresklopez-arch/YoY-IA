@@ -848,23 +848,24 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
                           onClick={async (e) => {
                             e.stopPropagation(); // Evitar registrar asistencia al hacer clic en ver QR
                             
-                            // Generar token dinámico único con validez de 5 minutos (Sugerencia 2)
-                            const token = Math.random().toString(36).substring(2, 10) + Date.now().toString(36);
-                            const expires = Date.now() + 5 * 60 * 1000;
-                            
                             try {
-                              await updateDoc(doc(db, 'nomina_empleados', emp.id), {
-                                qrToken: token,
-                                qrTokenExpires: expires
+                              const res = await fetch('/api/nomina/generate-qr-token', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ empleadoId: emp.id })
                               });
+                              const data = await res.json();
+                              if (!res.ok || !data.success) {
+                                throw new Error(data.error || 'Error en servidor');
+                              }
                               setFocusedEmpleadoQR({
                                 ...emp,
-                                qrToken: token
+                                qrToken: data.token,
+                                qrTokenExpires: data.expires
                               });
                             } catch (err) {
-                              console.error("Error al registrar token QR en Firestore:", err);
-                              // Fallback sin token
-                              setFocusedEmpleadoQR(emp);
+                              console.error("Error al generar token QR:", err);
+                              showToast('Error al generar token QR: ' + err.message, 'error');
                             }
                           }}
                           style={{
@@ -975,8 +976,8 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
                 <div style={{ background: '#fff', padding: 16, borderRadius: 16, boxShadow: '0 8px 24px rgba(0,0,0,0.2)' }}>
                   <QRCodeSVG 
                     value={typeof window !== 'undefined' ? 
-                      `${window.location.origin}/?scanId=${focusedEmpleadoQR.id}${focusedEmpleadoQR.qrToken ? `&token=${focusedEmpleadoQR.qrToken}` : ''}` : 
-                      `https://yoy-ia-billar.vercel.app/?scanId=${focusedEmpleadoQR.id}${focusedEmpleadoQR.qrToken ? `&token=${focusedEmpleadoQR.qrToken}` : ''}`} 
+                      `${window.location.origin}/?scanId=${focusedEmpleadoQR.id}${focusedEmpleadoQR.qrToken ? `&token=${focusedEmpleadoQR.qrToken}&expires=${focusedEmpleadoQR.qrTokenExpires}` : ''}` : 
+                      `https://yoy-ia-billar.vercel.app/?scanId=${focusedEmpleadoQR.id}${focusedEmpleadoQR.qrToken ? `&token=${focusedEmpleadoQR.qrToken}&expires=${focusedEmpleadoQR.qrTokenExpires}` : ''}`} 
                     size={180} 
                     bgColor="#fff" 
                     fgColor="#000" 
