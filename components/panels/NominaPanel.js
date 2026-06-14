@@ -328,6 +328,7 @@ export default function NominaPanel({ showToast }) {
   const totalGastosAnterior = gastosAnterior.reduce((s, g) => s + (Number(g.monto) || 0), 0);
   const totalNomina = pagos.filter(p => p.fecha?.startsWith(mesActual)).reduce((s, p) => s + (Number(p.total) || 0), 0);
   const totalPresupuesto = Object.values(presupuestos).reduce((s, p) => s + (Number(p.montoMensual) || 0), 0);
+  const totalEgresos = totalGastosMes + totalNomina;
 
   const calcularNomina = useCallback(() => {
     if (!fechaInicio || !fechaFin) return;
