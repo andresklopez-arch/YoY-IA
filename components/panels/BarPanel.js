@@ -676,15 +676,80 @@ export default function BarPanel({ showToast }) {
           </button>
         </div>
       </div>
-      {/* Barra de KPIs compacta y premium */}
-      <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', marginTop: 12, marginBottom: 20, padding: '8px 12px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 10, fontSize: 12 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><i className="ri-archive-line" style={{ color: 'var(--blue-light)', fontSize: 14 }} /> <span>Productos: <strong>{productos.length}</strong></span></div>
-        <div style={{ width: 1, height: 12, background: 'var(--border)' }} />
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><i className="ri-alert-line" style={{ color: stockCritico.length > 0 ? 'var(--danger)' : 'var(--success)', fontSize: 14 }} /> <span>Alertas: <strong style={{ color: stockCritico.length > 0 ? 'var(--danger)' : 'var(--success)' }}>{stockCritico.length}</strong></span></div>
-        <div style={{ width: 1, height: 12, background: 'var(--border)' }} />
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><i className="ri-money-dollar-box-line" style={{ color: 'var(--bronze-light)', fontSize: 14 }} /> <span>Inversión: <strong style={{ color: 'var(--bronze-light)' }}>${productos.reduce((s,p)=>s+(p.stock*p.precioCosto), 0)}</strong></span></div>
-        <div style={{ width: 1, height: 12, background: 'var(--border)' }} />
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><i className="ri-coins-line" style={{ color: 'var(--success)', fontSize: 14 }} /> <span>Valor Venta: <strong style={{ color: 'var(--success)' }}>${productos.reduce((s,p)=>s+(p.stock*p.precioVenta), 0)}</strong></span></div>
+      {/* Tarjeta de Resumen de Stock Única y Compacta */}
+      <div className="card" style={{
+        padding: '12px 20px',
+        marginBottom: 20,
+        background: 'linear-gradient(135deg, rgba(205,127,50,0.05) 0%, rgba(0,0,0,0.15) 100%)',
+        border: '1px solid var(--border-bronze)',
+        borderRadius: 14,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 16,
+        flexWrap: 'wrap',
+        marginTop: 12
+      }}>
+        {/* Lado izquierdo: Título / Icono */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{
+            width: 36,
+            height: 36,
+            borderRadius: 8,
+            background: 'var(--bronze-subtle, rgba(205,127,50,0.1))',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: 'var(--bronze-light)'
+          }}>
+            <i className="ri-database-2-line" style={{ fontSize: 18 }} />
+          </div>
+          <div>
+            <h3 style={{ fontSize: 12, fontWeight: 800, color: '#fff', margin: 0, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Resumen de Existencias</h3>
+            <p style={{ fontSize: 9, color: 'var(--text-secondary)', margin: 0 }}>Auditoría física y métricas generales</p>
+          </div>
+        </div>
+
+        {/* Lado derecho: Métricas compactas */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
+          {/* Métrica 1 */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+            <span style={{ fontSize: 9, textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.05em' }}>Productos Totales</span>
+            <div style={{ fontSize: 15, fontWeight: 900, color: 'var(--blue-light)', fontFamily: 'var(--font-display)' }}>
+              {productos.length} <span style={{ fontSize: 9, fontWeight: 500, color: 'var(--text-muted)' }}>pz</span>
+            </div>
+          </div>
+
+          <div style={{ width: 1, height: 24, background: 'var(--border)' }} />
+
+          {/* Métrica 2 */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+            <span style={{ fontSize: 9, textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.05em' }}>Alertas de Stock</span>
+            <div style={{ fontSize: 15, fontWeight: 900, color: stockCritico.length > 0 ? 'var(--danger)' : 'var(--success)', fontFamily: 'var(--font-display)' }}>
+              {stockCritico.length}
+            </div>
+          </div>
+
+          <div style={{ width: 1, height: 24, background: 'var(--border)' }} />
+
+          {/* Métrica 3 */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+            <span style={{ fontSize: 9, textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.05em' }}>Valor Inversión</span>
+            <div style={{ fontSize: 15, fontWeight: 900, color: 'var(--bronze-light)', fontFamily: 'var(--font-display)' }}>
+              ${productos.reduce((s,p)=>s+(p.stock*p.precioCosto), 0).toLocaleString()}
+            </div>
+          </div>
+
+          <div style={{ width: 1, height: 24, background: 'var(--border)' }} />
+
+          {/* Métrica 4 */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+            <span style={{ fontSize: 9, textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.05em' }}>Valor Venta</span>
+            <div style={{ fontSize: 15, fontWeight: 900, color: 'var(--success)', fontFamily: 'var(--font-display)' }}>
+              ${productos.reduce((s,p)=>s+(p.stock*p.precioVenta), 0).toLocaleString()}
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Alerta stock crítico */}
