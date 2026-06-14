@@ -361,16 +361,18 @@ export default function NominaPanel({ showToast }) {
 
   const generarTokenQR = async (empleadoId) => {
     try {
-      const tokenRandom = Math.random().toString(36).substring(2, 10).toUpperCase();
-      const expires = Date.now() + 5 * 60 * 1000; // 5 minutos
-      
-      await updateDoc(doc(db, 'nomina_empleados', empleadoId), {
-        qrToken: tokenRandom,
-        qrTokenExpires: expires
+      const res = await fetch('/api/nomina/generate-qr-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ empleadoId })
       });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Error en servidor');
+      }
       
-      setActiveQrToken(tokenRandom);
-      setActiveQrExpires(expires);
+      setActiveQrToken(data.token);
+      setActiveQrExpires(data.expires);
       showToast('Código QR dinámico generado con éxito (Válido por 5 minutos) 🔑', 'success');
     } catch (err) {
       console.error("Error al generar token QR:", err);
@@ -1483,7 +1485,7 @@ export default function NominaPanel({ showToast }) {
                   {activeQrToken ? (
                     <>
                       <div style={{ background: '#fff', padding: 10, borderRadius: 8 }}>
-                        <QRCodeSVG value={typeof window !== 'undefined' ? `${window.location.origin}/?scanId=${editandoEmpleado}&token=${activeQrToken}` : `https://yoy-ia-billar.vercel.app/?scanId=${editandoEmpleado}&token=${activeQrToken}`} size={120} />
+                        <QRCodeSVG value={typeof window !== 'undefined' ? `${window.location.origin}/?scanId=${editandoEmpleado}&token=${activeQrToken}&expires=${activeQrExpires}` : `https://yoy-ia-billar.vercel.app/?scanId=${editandoEmpleado}&token=${activeQrToken}&expires=${activeQrExpires}`} size={120} />
                       </div>
                       <div style={{ fontSize: 10, color: 'var(--text-secondary)', textAlign: 'center', fontWeight: 600 }}>
                         Token: <span style={{ color: 'var(--bronze-light)' }}>{activeQrToken}</span> · Válido por 5 minutos

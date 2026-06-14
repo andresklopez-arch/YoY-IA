@@ -96,6 +96,9 @@ service cloud.firestore {
     match /nomina_asistencia/{document} {
       allow read, write: if true;
     }
+    match /nomina_asistencia_log/{document} {
+      allow read, write: if true;
+    }
     match /presupuestos/{document} {
       allow read, write: if true;
     }

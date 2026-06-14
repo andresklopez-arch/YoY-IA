@@ -181,26 +181,7 @@ function AppContent() {
 
     const procesarLoginQR = async () => {
       try {
-        // 1. Obtener datos del empleado desde Firestore
-        const docRef = doc(db, 'nomina_empleados', scanId);
-        const empDoc = await getDoc(docRef);
-        if (!empDoc.exists()) {
-          showToast('Empleado no encontrado', 'error');
-          setIsProcessingQR(false);
-          return;
-        }
-        const emp = { id: empDoc.id, ...empDoc.data() };
-
-        // Sugerencia 2: Validar el token temporal de acceso si está configurado en la base de datos
-        if (emp.qrToken) {
-          if (emp.qrToken !== token || Date.now() > (emp.qrTokenExpires || 0)) {
-            showToast('Código de acceso QR vencido o inválido. Solicite al administrador abrir el modal nuevamente.', 'error');
-            setIsProcessingQR(false);
-            return;
-          }
-        }
-
-        // Sugerencia 3: Obtener geolocalización para registrar coordenadas en la asistencia y auditoría de la bitácora
+        // 1. Obtener geolocalización para registrar coordenadas en la asistencia
         let geoData = { lat: null, lng: null, precision: null, status: 'No disponible' };
         if (typeof navigator !== 'undefined' && navigator.geolocation) {
           try {
@@ -227,155 +208,33 @@ function AppContent() {
           }
         }
 
-        // Obtener el tipo de dispositivo y fecha de hoy
+        // Obtener el tipo de dispositivo que escanea
         const ua = navigator.userAgent;
         let dispositivo = 'PC/Terminal';
         if (/Mobi|Android|iPhone/i.test(ua)) dispositivo = 'Móvil';
         else if (/Tablet|iPad/i.test(ua)) dispositivo = 'Tablet';
 
-        const fechaHoy = new Date().toISOString().slice(0, 10);
+        // 2. Llamar a la API del servidor para validar de forma segura
+        const res = await fetch('/api/nomina/verify-attendance', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            empleadoId: scanId,
+            token,
+            expires: new URLSearchParams(window.location.search).get('expires') || Date.now(),
+            coordenadas: geoData,
+            dispositivo
+          })
+        });
 
-        // Validación estricta de geolocalización y geocerca (200 metros)
-        if (geoData.status !== 'Obtenido') {
-          try {
-            await addDoc(collection(db, 'nomina_asistencia_log'), {
-              empleadoId: emp.id,
-              nombre: `${emp.nombre} ${emp.apellido || ''}`.trim(),
-              rol: emp.rol || 'Mesero',
-              fecha: fechaHoy,
-              tipo: 'intento_fallido_gps',
-              coordenadas: geoData,
-              dispositivo,
-              createdAt: serverTimestamp()
-            });
-          } catch (logErr) {
-            console.error("Error al registrar auditoría de GPS fallido:", logErr);
-          }
-
-          showToast('Geolocalización requerida. Por favor, activa el GPS y otorga permisos de ubicación en tu navegador para registrar asistencia.', 'error');
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          showToast(data.error || 'Error al procesar asistencia', 'error');
           setIsProcessingQR(false);
           return;
         }
 
-        let sucursalCoords = { lat: 20.659698, lng: -103.349609 }; // Sucursal por defecto
-        try {
-          const sucDoc = await getDoc(doc(db, 'config', 'sucursal'));
-          if (sucDoc.exists() && sucDoc.data().lat && sucDoc.data().lng) {
-            sucursalCoords.lat = Number(sucDoc.data().lat);
-            sucursalCoords.lng = Number(sucDoc.data().lng);
-          }
-        } catch (err) {
-          console.warn("Error cargando coordenadas de sucursal, usando por defecto:", err);
-        }
-
-        const getDistanceInMeters = (lat1, lon1, lat2, lon2) => {
-          const R = 6371e3; // Radio de la Tierra en metros
-          const φ1 = lat1 * Math.PI / 180;
-          const φ2 = lat2 * Math.PI / 180;
-          const Δφ = (lat2 - lat1) * Math.PI / 180;
-          const Δλ = (lon2 - lon1) * Math.PI / 180;
-
-          const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-                    Math.cos(φ1) * Math.cos(φ2) *
-                    Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
-          const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-          return R * c;
-        };
-
-        const distancia = getDistanceInMeters(geoData.lat, geoData.lng, sucursalCoords.lat, sucursalCoords.lng);
-        if (distancia > 200) {
-          try {
-            await addDoc(collection(db, 'nomina_asistencia_log'), {
-              empleadoId: emp.id,
-              nombre: `${emp.nombre} ${emp.apellido || ''}`.trim(),
-              rol: emp.rol || 'Mesero',
-              fecha: fechaHoy,
-              tipo: 'intento_fallido_geocerca',
-              coordenadas: {
-                ...geoData,
-                distanciaCalculada: Math.round(distancia),
-                sucursalLat: sucursalCoords.lat,
-                sucursalLng: sucursalCoords.lng
-              },
-              dispositivo,
-              createdAt: serverTimestamp()
-            });
-          } catch (logErr) {
-            console.error("Error al registrar auditoría de geovalla fallida:", logErr);
-          }
-
-          showToast(`Estás fuera del rango permitido del establecimiento para pasar lista (Distancia: ${Math.round(distancia)}m). Debes estar a menos de 200m.`, 'error');
-          setIsProcessingQR(false);
-          return;
-        }
-
-        // 2. Determinar si es Entrada o Salida consultando en memoria los logs de hoy
-        const qLogs = query(
-          collection(db, 'nomina_asistencia_log'),
-          where('empleadoId', '==', emp.id),
-          where('fecha', '==', fechaHoy)
-        );
-        const logsSnap = await getDocs(qLogs);
-        let tipoRegistro = 'entrada';
-        if (!logsSnap.empty) {
-          const logsList = logsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-          logsList.sort((a, b) => {
-            const tA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : (a.createdAt || 0);
-            const tB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : (b.createdAt || 0);
-            return tB - tA;
-          });
-          const lastLog = logsList[0];
-          tipoRegistro = lastLog.tipo === 'entrada' ? 'salida' : 'entrada';
-        }
-
-        // Registrar log de asistencia en nomina_asistencia_log
-        await addDoc(collection(db, 'nomina_asistencia_log'), {
-          empleadoId: emp.id,
-          nombre: `${emp.nombre} ${emp.apellido || ''}`.trim(),
-          rol: emp.rol || 'Mesero',
-          fecha: fechaHoy,
-          tipo: tipoRegistro,
-          coordenadas: geoData,
-          dispositivo,
-          createdAt: serverTimestamp()
-        });
-
-        // Si es Entrada, marcar también en nomina_asistencia (asistencia diaria legacy)
-        if (tipoRegistro === 'entrada') {
-          const hour = new Date().getHours();
-          let turnoActual = 'noche';
-          if (hour >= 6 && hour < 14) turnoActual = 'manana';
-          else if (hour >= 14 && hour < 22) turnoActual = 'tarde';
-
-          const qAsist = query(
-            collection(db, 'nomina_asistencia'),
-            where('empleadoId', '==', emp.id),
-            where('fecha', '==', fechaHoy),
-            where('turno', '==', turnoActual)
-          );
-          const snapAsist = await getDocs(qAsist);
-          if (snapAsist.empty) {
-            await addDoc(collection(db, 'nomina_asistencia'), {
-              empleadoId: emp.id,
-              fecha: fechaHoy,
-              turno: turnoActual,
-              estado: 'presente',
-              coordenadas: geoData,
-              createdAt: serverTimestamp()
-            });
-          }
-        }
-
-        // Registrar en la bitácora general para Reportes
-        await addDoc(collection(db, 'bitacora'), {
-          fecha: new Date().toISOString(),
-          accion: `Fichaje QR ${tipoRegistro === 'entrada' ? 'Entrada' : 'Salida'}`,
-          detalle: `Fichaje QR: ${emp.nombre} (${emp.rol || 'Mesero'}) marcó ${tipoRegistro === 'entrada' ? 'entrada' : 'salida'} desde ${dispositivo}. Ubicación: ${geoData.status}`,
-          monto: 0,
-          operador: emp.nombre,
-          rolOperador: (emp.rol || 'mesero').toLowerCase()
-        });
+        const { tipoRegistro, emp } = data;
 
         // 3. Determinar comportamiento según el rol (Mesero/Cocina loguea, Soporte solo ficha)
         const rolLower = (emp.rol || '').toLowerCase();
