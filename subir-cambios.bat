@@ -7,6 +7,17 @@ echo  Creando copia de seguridad local (Backup)...
 powershell -Command "$dateStr = Get-Date -Format 'yyyyMMdd_HHmmss'; Get-ChildItem -Path . -Exclude 'node_modules', '.next', '.git', 'backups', '.vercel' | Compress-Archive -DestinationPath \"..\yoy-ia-billar-backup-$dateStr.zip\" -Force; Copy-Item \"..\yoy-ia-billar-backup-$dateStr.zip\" \"..\yoy-ia-billar-backup-latest.zip\" -Force"
 echo  Backup local guardado.
 
+echo  Validando compilación local (npm run build)...
+call npm run build
+if %ERRORLEVEL% NEQ 0 (
+  echo ====================================================
+  echo  ERROR: La compilación ha fallado. Abortando despliegue.
+  echo ====================================================
+  goto end
+)
+echo  Compilación local verificada con éxito.
+echo.
+
 echo  Desplegando reglas de seguridad de Firestore...
 call npx firebase deploy --only firestore:rules
 echo.

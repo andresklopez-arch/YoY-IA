@@ -29,6 +29,21 @@ export default function BarPanel({ showToast }) {
   const [filtro, setFiltro] = useState('Todas');
   const [busqueda, setBusqueda] = useState('');
   
+  // Densidad de vista (Modo compacto vs clásico)
+  const [densidadVista, setDensidadVista] = useState('compact');
+
+  useEffect(() => {
+    const saved = localStorage.getItem('yoy_bar_density');
+    if (saved) {
+      setDensidadVista(saved);
+    }
+  }, []);
+
+  const changeDensity = (newDensity) => {
+    setDensidadVista(newDensity);
+    localStorage.setItem('yoy_bar_density', newDensity);
+  };
+  
   // Auditoría y logs
   const [logs, setLogs] = useState([]);
   const [dbLogs, setDbLogs] = useState([]);
@@ -667,7 +682,51 @@ export default function BarPanel({ showToast }) {
           <h1 className="page-title gradient-bronze">Inventario Inteligente IA</h1>
           <p className="page-subtitle">Monitoreo de stock, auditoría física y motor predictivo de compras</p>
         </div>
-        <div style={{ display: 'flex', gap: 10 }}>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          {/* Selector de Densidad de Vista */}
+          <div style={{ display: 'flex', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)', borderRadius: 8, padding: 2, marginRight: 6 }}>
+            <button 
+              className="btn btn-xs" 
+              style={{ 
+                padding: '4px 8px', 
+                fontSize: 10, 
+                borderRadius: 6, 
+                background: densidadVista === 'compact' ? 'var(--bronze-subtle)' : 'transparent',
+                border: 'none',
+                color: densidadVista === 'compact' ? 'var(--bronze-light)' : 'var(--text-secondary)',
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4
+              }}
+              onClick={() => changeDensity('compact')}
+              title="Vista Compacta"
+            >
+              <i className="ri-grid-fill" /> Compacto
+            </button>
+            <button 
+              className="btn btn-xs" 
+              style={{ 
+                padding: '4px 8px', 
+                fontSize: 10, 
+                borderRadius: 6, 
+                background: densidadVista === 'classic' ? 'var(--bronze-subtle)' : 'transparent',
+                border: 'none',
+                color: densidadVista === 'classic' ? 'var(--bronze-light)' : 'var(--text-secondary)',
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4
+              }}
+              onClick={() => changeDensity('classic')}
+              title="Vista Clásica (Espaciosa)"
+            >
+              <i className="ri-layout-grid-fill" /> Clásico
+            </button>
+          </div>
+
           <button className="btn btn-secondary btn-sm" onClick={optimizarStockConIA} style={{ color: 'var(--bronze-light)', borderColor: 'var(--border-bronze)' }}>
             <i className="ri-magic-line" style={{ marginRight: 6 }} /> Optimizar Stock con IA
           </button>
@@ -692,87 +751,108 @@ export default function BarPanel({ showToast }) {
         }
       `}</style>
 
-      {/* Tarjeta de Resumen de Stock Única y Compacta */}
-      <div className="card" style={{
-        padding: '8px 16px',
-        marginBottom: 14,
-        background: 'linear-gradient(135deg, rgba(205,127,50,0.05) 0%, rgba(0,0,0,0.15) 100%)',
-        border: '1px solid var(--border-bronze)',
-        borderRadius: 10,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: 12,
-        flexWrap: 'wrap',
-        marginTop: 8
-      }}>
-        {/* Lado izquierdo: Título / Icono */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{
-            width: 28,
-            height: 28,
-            borderRadius: 6,
-            background: 'var(--bronze-subtle, rgba(205,127,50,0.1))',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: 'var(--bronze-light)'
-          }}>
-            <i className="ri-database-2-line" style={{ fontSize: 14 }} />
+      {/* Condicional según Densidad de Vista */}
+      {densidadVista === 'compact' ? (
+        /* Tarjeta de Resumen de Stock Única y Compacta */
+        <div className="card" style={{
+          padding: '8px 16px',
+          marginBottom: 14,
+          background: 'linear-gradient(135deg, rgba(205,127,50,0.05) 0%, rgba(0,0,0,0.15) 100%)',
+          border: '1px solid var(--border-bronze)',
+          borderRadius: 10,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 12,
+          flexWrap: 'wrap',
+          marginTop: 8
+        }}>
+          {/* Lado izquierdo: Título / Icono */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{
+              width: 28,
+              height: 28,
+              borderRadius: 6,
+              background: 'var(--bronze-subtle, rgba(205,127,50,0.1))',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'var(--bronze-light)'
+            }}>
+              <i className="ri-database-2-line" style={{ fontSize: 14 }} />
+            </div>
+            <div>
+              <h3 style={{ fontSize: 11, fontWeight: 800, color: '#fff', margin: 0, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Resumen de Existencias</h3>
+              <p style={{ fontSize: 8, color: 'var(--text-secondary)', margin: 0 }}>Auditoría física y métricas generales</p>
+            </div>
           </div>
-          <div>
-            <h3 style={{ fontSize: 11, fontWeight: 800, color: '#fff', margin: 0, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Resumen de Existencias</h3>
-            <p style={{ fontSize: 8, color: 'var(--text-secondary)', margin: 0 }}>Auditoría física y métricas generales</p>
+
+          {/* Lado derecho: Métricas compactas */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+            {/* Métrica 1 */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+              <span style={{ fontSize: 8, textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.05em' }}>Productos Totales</span>
+              <div style={{ fontSize: 13, fontWeight: 900, color: 'var(--blue-light)', fontFamily: 'var(--font-display)' }}>
+                {productos.length} <span style={{ fontSize: 8, fontWeight: 500, color: 'var(--text-muted)' }}>pz</span>
+              </div>
+            </div>
+
+            <div style={{ width: 1, height: 18, background: 'var(--border)' }} />
+
+            {/* Métrica 2 */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+              <span style={{ fontSize: 8, textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.05em' }}>Alertas de Stock</span>
+              <div style={{ fontSize: 13, fontWeight: 900, color: stockCritico.length > 0 ? 'var(--danger)' : 'var(--success)', fontFamily: 'var(--font-display)', display: 'flex', alignItems: 'center' }}>
+                {stockCritico.length > 0 && (
+                  <i className="ri-alert-fill pulse-alert-icon" style={{ fontSize: 10, color: 'var(--danger)', marginRight: 3 }} />
+                )}
+                {stockCritico.length}
+              </div>
+            </div>
+
+            <div style={{ width: 1, height: 18, background: 'var(--border)' }} />
+
+            {/* Métrica 3 */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+              <span style={{ fontSize: 8, textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.05em' }}>Valor Inversión</span>
+              <div style={{ fontSize: 13, fontWeight: 900, color: 'var(--bronze-light)', fontFamily: 'var(--font-display)' }}>
+                ${costoTotalVal.toLocaleString()}
+              </div>
+            </div>
+
+            <div style={{ width: 1, height: 18, background: 'var(--border)' }} />
+
+            {/* Métrica 4 */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+              <span style={{ fontSize: 8, textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.05em' }}>Valor Venta</span>
+              <div style={{ fontSize: 13, fontWeight: 900, color: 'var(--success)', fontFamily: 'var(--font-display)', display: 'flex', alignItems: 'baseline', gap: 4 }}>
+                ${ventaTotalVal.toLocaleString()}
+                <span style={{ fontSize: 8, color: 'var(--text-muted)', fontWeight: 500 }}>
+                  ({margenGlobalPct}%)
+                </span>
+              </div>
+            </div>
           </div>
         </div>
-
-        {/* Lado derecho: Métricas compactas */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
-          {/* Métrica 1 */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-            <span style={{ fontSize: 8, textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.05em' }}>Productos Totales</span>
-            <div style={{ fontSize: 13, fontWeight: 900, color: 'var(--blue-light)', fontFamily: 'var(--font-display)' }}>
-              {productos.length} <span style={{ fontSize: 8, fontWeight: 500, color: 'var(--text-muted)' }}>pz</span>
+      ) : (
+        /* Grid de KPIs de Inventario Clásico (Spacious) */
+        <div className="stat-grid" style={{ marginBottom: 20, marginTop: 12 }}>
+          {[
+            { label: 'Productos Totales', value: productos.length, icon: 'ri-archive-line', color: 'icon-blue', accent: 'var(--blue-light)', unit: 'pz' },
+            { label: 'Alertas de Stock', value: stockCritico.length, icon: 'ri-alert-line', color: stockCritico.length > 0 ? 'icon-danger' : 'icon-success', accent: stockCritico.length > 0 ? 'var(--danger)' : 'var(--success)', unit: '' },
+            { label: 'Valor de Inversión', value: `$${costoTotalVal.toLocaleString()}`, icon: 'ri-money-dollar-box-line', color: 'icon-bronze', accent: 'var(--bronze-light)', unit: '' },
+            { label: 'Valor de Venta', value: `$${ventaTotalVal.toLocaleString()}`, icon: 'ri-coins-line', color: 'icon-success', accent: 'var(--success)', unit: `(${margenGlobalPct}%)` },
+          ].map((s, i) => (
+            <div key={i} className="stat-card" style={{ padding: '16px 20px', borderRadius: 12 }}>
+              <div className={`stat-card-icon ${s.color}`}><i className={s.icon} /></div>
+              <div className="stat-card-value" style={{ color: s.accent, fontSize: 24, display: 'flex', alignItems: 'baseline', gap: 4 }}>
+                {s.value} {s.unit && <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--text-muted)' }}>{s.unit}</span>}
+              </div>
+              <div className="stat-card-label" style={{ fontSize: 11 }}>{s.label}</div>
             </div>
-          </div>
-
-          <div style={{ width: 1, height: 18, background: 'var(--border)' }} />
-
-          {/* Métrica 2 */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-            <span style={{ fontSize: 8, textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.05em' }}>Alertas de Stock</span>
-            <div style={{ fontSize: 13, fontWeight: 900, color: stockCritico.length > 0 ? 'var(--danger)' : 'var(--success)', fontFamily: 'var(--font-display)', display: 'flex', alignItems: 'center' }}>
-              {stockCritico.length > 0 && (
-                <i className="ri-alert-fill pulse-alert-icon" style={{ fontSize: 10, color: 'var(--danger)', marginRight: 3 }} />
-              )}
-              {stockCritico.length}
-            </div>
-          </div>
-
-          <div style={{ width: 1, height: 18, background: 'var(--border)' }} />
-
-          {/* Métrica 3 */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-            <span style={{ fontSize: 8, textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.05em' }}>Valor Inversión</span>
-            <div style={{ fontSize: 13, fontWeight: 900, color: 'var(--bronze-light)', fontFamily: 'var(--font-display)' }}>
-              ${costoTotalVal.toLocaleString()}
-            </div>
-          </div>
-
-          <div style={{ width: 1, height: 18, background: 'var(--border)' }} />
-
-          {/* Métrica 4 */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-            <span style={{ fontSize: 8, textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.05em' }}>Valor Venta</span>
-            <div style={{ fontSize: 13, fontWeight: 900, color: 'var(--success)', fontFamily: 'var(--font-display)', display: 'flex', alignItems: 'baseline', gap: 4 }}>
-              ${ventaTotalVal.toLocaleString()}
-              <span style={{ fontSize: 8, color: 'var(--text-muted)', fontWeight: 500 }}>
-                ({margenGlobalPct}%)
-              </span>
-            </div>
-          </div>
+          ))}
         </div>
-      </div>
+      )}
 
       {/* Alerta stock crítico */}
       {stockCritico.length > 0 && (
@@ -788,49 +868,71 @@ export default function BarPanel({ showToast }) {
       )}
 
       {/* Main Layout: Stock & Predictor */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 290px', gap: 14, alignItems: 'start' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: densidadVista === 'compact' ? '1fr 290px' : '1fr 340px', gap: densidadVista === 'compact' ? 14 : 20, alignItems: 'start' }}>
         
         {/* Lado Izquierdo: Catálogo y Stock */}
         <div>
           {/* Filtros */}
-          <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
-            <input className="form-input" style={{ width: 180, padding: '4px 10px', fontSize: 11, height: 26 }} placeholder="Buscar producto..." value={busqueda} onChange={e => setBusqueda(e.target.value)} />
+          <div style={{ display: 'flex', gap: densidadVista === 'compact' ? 6 : 8, marginBottom: densidadVista === 'compact' ? 12 : 16, flexWrap: 'wrap', alignItems: 'center' }}>
+            <input 
+              className="form-input" 
+              style={{ 
+                width: densidadVista === 'compact' ? 180 : 220, 
+                padding: densidadVista === 'compact' ? '4px 10px' : '8px 12px', 
+                fontSize: densidadVista === 'compact' ? 11 : 13, 
+                height: densidadVista === 'compact' ? 26 : 32 
+              }} 
+              placeholder="Buscar producto..." 
+              value={busqueda} 
+              onChange={e => setBusqueda(e.target.value)} 
+            />
             {CATEGORIAS.map(c => (
-              <button key={c} onClick={() => setFiltro(c)} className={`btn btn-xs ${filtro === c ? 'btn-primary' : 'btn-secondary'}`} style={{ padding: '3px 8px', fontSize: 10, height: 26 }}>{c}</button>
+              <button 
+                key={c} 
+                onClick={() => setFiltro(c)} 
+                className={densidadVista === 'compact' ? 'btn btn-xs' : 'btn btn-sm'} 
+                style={{ 
+                  padding: densidadVista === 'compact' ? '3px 8px' : '6px 12px', 
+                  fontSize: densidadVista === 'compact' ? 10 : 12, 
+                  height: densidadVista === 'compact' ? 26 : 32 
+                }}
+              >
+                {c}
+              </button>
             ))}
           </div>
 
           {/* Tabla de existencias */}
-          <div className="card" style={{ padding: 12, overflowX: 'auto' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-              <h3 style={{ fontSize: 12, textTransform: 'uppercase', color: 'var(--text-secondary)', fontWeight: 700, margin: 0 }}>Inventario Físico de Existencias</h3>
+          <div className="card" style={{ padding: densidadVista === 'compact' ? 12 : 16, overflowX: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: densidadVista === 'compact' ? 10 : 16 }}>
+              <h3 style={{ fontSize: densidadVista === 'compact' ? 12 : 14, textTransform: 'uppercase', color: 'var(--text-secondary)', fontWeight: 700, margin: 0 }}>Inventario Físico de Existencias</h3>
               <button
-                className="btn btn-secondary btn-xs"
+                className={densidadVista === 'compact' ? 'btn btn-secondary btn-xs' : 'btn btn-secondary btn-sm'}
                 style={{
-                  fontSize: 10,
+                  fontSize: densidadVista === 'compact' ? 10 : 11,
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 4,
+                  gap: densidadVista === 'compact' ? 4 : 6,
                   color: 'var(--bronze-light)',
                   borderColor: 'var(--border-bronze)',
-                  padding: '4px 8px'
+                  padding: densidadVista === 'compact' ? '4px 8px' : '6px 12px'
                 }}
                 onClick={() => setModalExportar(true)}
               >
                 <i className="ri-file-pdf-line" /> Exportar Reporte IA
               </button>
             </div>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, textAlign: 'left' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: densidadVista === 'compact' ? 12 : 13, textAlign: 'left' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--border)', color: 'var(--text-muted)' }}>
-                  <th style={{ padding: '6px 8px' }}>Producto</th>
-                  <th style={{ padding: '6px 8px' }}>Categoría</th>
-                  <th style={{ padding: '6px 8px', textAlign: 'center' }}>Stock</th>
-                  <th style={{ padding: '6px 8px', textAlign: 'center' }}>Mínimo</th>
-                  <th style={{ padding: '6px 8px', textAlign: 'right' }}>Costo</th>
-                  <th style={{ padding: '6px 8px', textAlign: 'right' }}>Venta</th>
-                  <th style={{ padding: '6px 8px', textAlign: 'center' }}>Margen</th>
-                  <th style={{ padding: '6px 8px', textAlign: 'center' }}>Acciones</th>
+                  <th style={{ padding: densidadVista === 'compact' ? '6px 8px' : '12px 8px' }}>Producto</th>
+                  <th style={{ padding: densidadVista === 'compact' ? '6px 8px' : '12px 8px' }}>Categoría</th>
+                  <th style={{ padding: densidadVista === 'compact' ? '6px 8px' : '12px 8px', textAlign: 'center' }}>Stock</th>
+                  <th style={{ padding: densidadVista === 'compact' ? '6px 8px' : '12px 8px', textAlign: 'center' }}>Mínimo</th>
+                  <th style={{ padding: densidadVista === 'compact' ? '6px 8px' : '12px 8px', textAlign: 'right' }}>Costo</th>
+                  <th style={{ padding: densidadVista === 'compact' ? '6px 8px' : '12px 8px', textAlign: 'right' }}>Venta</th>
+                  <th style={{ padding: densidadVista === 'compact' ? '6px 8px' : '12px 8px', textAlign: 'center' }}>Margen</th>
+                  <th style={{ padding: densidadVista === 'compact' ? '6px 8px' : '12px 8px', textAlign: 'center' }}>Acciones</th>
                 </tr>
               </thead>
               <tbody>
@@ -838,28 +940,38 @@ export default function BarPanel({ showToast }) {
                   const esCritico = p.stock <= p.stockMin;
                   return (
                     <tr key={p.id} style={{ borderBottom: '1px solid var(--border)', background: esCritico ? 'rgba(239,68,68,0.02)' : 'none' }}>
-                      <td style={{ padding: '6px 8px', fontWeight: 600 }}>
+                      <td style={{ padding: densidadVista === 'compact' ? '6px 8px' : '12px 8px', fontWeight: 600 }}>
                         {p.nombre}
                         {p.activoIA === false && (
-                          <span style={{ fontSize: 8, color: 'var(--text-muted)', marginLeft: 6, fontWeight: 400, border: '1px solid rgba(255,255,255,0.1)', padding: '1px 3px', borderRadius: 3, background: 'rgba(255,255,255,0.02)', display: 'inline-block' }}>
+                          <span style={{ 
+                            fontSize: densidadVista === 'compact' ? 8 : 9, 
+                            color: 'var(--text-muted)', 
+                            marginLeft: 6, 
+                            fontWeight: 400, 
+                            border: '1px solid rgba(255,255,255,0.1)', 
+                            padding: densidadVista === 'compact' ? '1px 3px' : '2px 5px', 
+                            borderRadius: densidadVista === 'compact' ? 3 : 4, 
+                            background: 'rgba(255,255,255,0.02)', 
+                            display: 'inline-block' 
+                          }}>
                             IA Off
                           </span>
                         )}
                       </td>
-                      <td style={{ padding: '6px 8px', color: 'var(--text-secondary)' }}>{p.categoria}</td>
-                      <td style={{ padding: '6px 8px', textAlign: 'center', fontWeight: 700, color: esCritico ? 'var(--danger)' : 'var(--text-primary)' }}>
-                        {p.stock} <span style={{ fontSize: 9, fontWeight: 400, color: 'var(--text-muted)' }}>{p.unidad}</span>
+                      <td style={{ padding: densidadVista === 'compact' ? '6px 8px' : '12px 8px', color: 'var(--text-secondary)' }}>{p.categoria}</td>
+                      <td style={{ padding: densidadVista === 'compact' ? '6px 8px' : '12px 8px', textAlign: 'center', fontWeight: 700, color: esCritico ? 'var(--danger)' : 'var(--text-primary)' }}>
+                        {p.stock} <span style={{ fontSize: densidadVista === 'compact' ? 9 : 10, fontWeight: 400, color: 'var(--text-muted)' }}>{p.unidad}</span>
                       </td>
-                      <td style={{ padding: '6px 8px', textAlign: 'center', color: 'var(--text-muted)' }}>{p.stockMin}</td>
-                      <td style={{ padding: '6px 8px', textAlign: 'right', color: 'var(--text-muted)' }}>${p.precioCosto}</td>
-                      <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 700 }}>${p.precioVenta}</td>
-                      <td style={{ padding: '6px 8px', textAlign: 'center' }}>
-                        <span className={`badge ${parseFloat(calcMargen(p)) > 50 ? 'badge-success' : 'badge-bronze'}`} style={{ padding: '2px 6px', fontSize: 10 }}>{calcMargen(p)}%</span>
+                      <td style={{ padding: densidadVista === 'compact' ? '6px 8px' : '12px 8px', textAlign: 'center', color: 'var(--text-muted)' }}>{p.stockMin}</td>
+                      <td style={{ padding: densidadVista === 'compact' ? '6px 8px' : '12px 8px', textAlign: 'right', color: 'var(--text-muted)' }}>${p.precioCosto}</td>
+                      <td style={{ padding: densidadVista === 'compact' ? '6px 8px' : '12px 8px', textAlign: 'right', fontWeight: 700 }}>${p.precioVenta}</td>
+                      <td style={{ padding: densidadVista === 'compact' ? '6px 8px' : '12px 8px', textAlign: 'center' }}>
+                        <span className={`badge ${parseFloat(calcMargen(p)) > 50 ? 'badge-success' : 'badge-bronze'}`} style={{ padding: densidadVista === 'compact' ? '2px 6px' : '4px 8px', fontSize: densidadVista === 'compact' ? 10 : 11 }}>{calcMargen(p)}%</span>
                       </td>
-                      <td style={{ padding: '6px 8px', textAlign: 'center' }}>
+                      <td style={{ padding: densidadVista === 'compact' ? '6px 8px' : '12px 8px', textAlign: 'center' }}>
                         <button
                           className="btn btn-secondary btn-xs"
-                          style={{ padding: '3px 6px', fontSize: 10 }}
+                          style={{ padding: densidadVista === 'compact' ? '3px 6px' : '6px 10px', fontSize: densidadVista === 'compact' ? 10 : 11 }}
                           onClick={() => setModalAjuste(p)}
                         >
                           Ajustar
@@ -939,25 +1051,25 @@ export default function BarPanel({ showToast }) {
         </div>
 
         {/* Lado Derecho: Inteligencia IA */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: densidadVista === 'compact' ? 14 : 20 }}>
           
           {/* Módulo IA: Sincronización en la Nube Supabase (Sugerencia 2) */}
-          <div className="card" style={{ padding: 12, border: '1px solid var(--border-bronze)', background: 'rgba(205,127,50,0.02)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <h3 style={{ fontSize: 11, textTransform: 'uppercase', color: 'var(--bronze-light)', display: 'flex', alignItems: 'center', gap: 4, fontWeight: 800, margin: 0 }}>
+          <div className="card" style={{ padding: densidadVista === 'compact' ? 12 : 16, border: '1px solid var(--border-bronze)', background: 'rgba(205,127,50,0.02)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: densidadVista === 'compact' ? 8 : 12 }}>
+              <h3 style={{ fontSize: densidadVista === 'compact' ? 11 : 12, textTransform: 'uppercase', color: 'var(--bronze-light)', display: 'flex', alignItems: 'center', gap: 4, fontWeight: 800, margin: 0 }}>
                 <i className="ri-cloud-line" />
                 Sincronización Nube
               </h3>
               <span className="dot-live" style={{ background: 'var(--success)', width: 5, height: 5, borderRadius: '50%' }} />
             </div>
-            <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginBottom: 8, lineHeight: 1.3 }}>
+            <div style={{ fontSize: densidadVista === 'compact' ? 10 : 11, color: 'var(--text-secondary)', marginBottom: densidadVista === 'compact' ? 8 : 12, lineHeight: 1.3 }}>
               Supabase DB: <span style={{ color: 'var(--success)', fontWeight: 700 }}>Conectado</span>
               <br />
               Última Sinc: {new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })} (Hace 0m)
             </div>
             <button
-              className="btn btn-secondary btn-xs"
-              style={{ width: '100%', fontSize: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, padding: '4px 8px' }}
+              className={densidadVista === 'compact' ? 'btn btn-secondary btn-xs' : 'btn btn-secondary btn-sm'}
+              style={{ width: '100%', fontSize: densidadVista === 'compact' ? 10 : 11, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, padding: densidadVista === 'compact' ? '4px 8px' : '6px 12px' }}
               onClick={() => {
                 showToast('Forzando actualización de bases de datos remotas...', 'info');
                 setTimeout(() => {
@@ -970,25 +1082,25 @@ export default function BarPanel({ showToast }) {
           </div>
 
           {/* Panel IA: Predicción de Consumo */}
-          <div className="card card-bronze" style={{ padding: 12 }}>
-            <h3 style={{ fontSize: 11, textTransform: 'uppercase', color: 'var(--bronze-light)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 4, fontWeight: 800 }}>
+          <div className="card card-bronze" style={{ padding: densidadVista === 'compact' ? 12 : 16 }}>
+            <h3 style={{ fontSize: densidadVista === 'compact' ? 11 : 12, textTransform: 'uppercase', color: 'var(--bronze-light)', marginBottom: densidadVista === 'compact' ? 8 : 12, display: 'flex', alignItems: 'center', gap: 4, fontWeight: 800 }}>
               <i className="ri-robot-line" />
               Demanda Proyectada
             </h3>
-            <p style={{ fontSize: 10, color: 'var(--text-secondary)', marginBottom: 10, lineHeight: 1.3 }}>Consumo proyectado y stock restante en base a tendencias de ventas de mesas/barra.</p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <p style={{ fontSize: densidadVista === 'compact' ? 10 : 11, color: 'var(--text-secondary)', marginBottom: densidadVista === 'compact' ? 10 : 14, lineHeight: 1.3 }}>Consumo proyectado y stock restante en base a tendencias de ventas de mesas/barra.</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: densidadVista === 'compact' ? 6 : 8 }}>
               {productos.map(p => {
                 const vel = getVelocidadConsumo(p.id);
                 const esBajo = p.stock <= p.stockMin;
                 return (
-                  <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 8px', background: 'var(--bg-elevated)', borderRadius: 6, border: `1px solid ${esBajo ? 'rgba(239,68,68,0.2)' : 'var(--border)'}`, fontSize: 11 }}>
+                  <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: densidadVista === 'compact' ? '6px 8px' : '8px 12px', background: 'var(--bg-elevated)', borderRadius: 6, border: `1px solid ${esBajo ? 'rgba(239,68,68,0.2)' : 'var(--border)'}`, fontSize: densidadVista === 'compact' ? 11 : 12 }}>
                     <div>
                       <span style={{ fontWeight: 700 }}>{p.nombre}</span>
-                      <div style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 1 }}>Demanda: {vel} {p.unidad}/d</div>
+                      <div style={{ fontSize: densidadVista === 'compact' ? 9 : 10, color: 'var(--text-muted)', marginTop: 1 }}>Demanda: {vel} {p.unidad}/d</div>
                     </div>
                     <div style={{ textAlign: 'right' }}>
                       <div style={{ fontWeight: 800, color: esBajo ? 'var(--danger)' : 'var(--success)' }}>{calcDiasRestantes(p)}</div>
-                      <div style={{ fontSize: 8, color: 'var(--text-muted)' }}>restantes</div>
+                      <div style={{ fontSize: densidadVista === 'compact' ? 8 : 9, color: 'var(--text-muted)' }}>restantes</div>
                     </div>
                   </div>
                 );
@@ -997,22 +1109,22 @@ export default function BarPanel({ showToast }) {
           </div>
 
           {/* Panel IA: Optimización de Precios e Inteligencia de Margen */}
-          <div className="card" style={{ padding: 12 }}>
-            <h3 style={{ fontSize: 11, textTransform: 'uppercase', color: 'var(--bronze-light)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 4, fontWeight: 800 }}>
+          <div className="card" style={{ padding: densidadVista === 'compact' ? 12 : 16 }}>
+            <h3 style={{ fontSize: densidadVista === 'compact' ? 11 : 12, textTransform: 'uppercase', color: 'var(--bronze-light)', marginBottom: densidadVista === 'compact' ? 8 : 12, display: 'flex', alignItems: 'center', gap: 4, fontWeight: 800 }}>
               <i className="ri-line-chart-line" />
               Inteligencia de Margen
             </h3>
-            <p style={{ fontSize: 10, color: 'var(--text-secondary)', marginBottom: 10, lineHeight: 1.3 }}>Sugerencias autónomas en tiempo real para optimizar márgenes e incentivar rotación.</p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <p style={{ fontSize: densidadVista === 'compact' ? 10 : 11, color: 'var(--text-secondary)', marginBottom: densidadVista === 'compact' ? 10 : 14, lineHeight: 1.3 }}>Sugerencias autónomas en tiempo real para optimizar márgenes e incentivar rotación.</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: densidadVista === 'compact' ? 8 : 10 }}>
               
               {/* Sugerencia 1: Aumento por alta demanda */}
-              <div style={{ padding: 8, background: 'var(--bg-elevated)', borderRadius: 8, border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <div style={{ fontSize: 9, color: 'var(--success)', fontWeight: 700 }}>ALTA VELOCIDAD DE VENTA (Coronas)</div>
-                <div style={{ fontSize: 11, fontWeight: 600 }}>Cerveza Corona tiene demanda 120% superior al promedio.</div>
-                <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Sugerencia: Incrementar venta a $52 MXN para optimizar utilidades.</div>
+              <div style={{ padding: densidadVista === 'compact' ? 8 : 12, background: 'var(--bg-elevated)', borderRadius: 8, border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <div style={{ fontSize: densidadVista === 'compact' ? 9 : 10, color: 'var(--success)', fontWeight: 700 }}>ALTA VELOCIDAD DE VENTA (Coronas)</div>
+                <div style={{ fontSize: densidadVista === 'compact' ? 11 : 12, fontWeight: 600 }}>Cerveza Corona tiene demanda 120% superior al promedio.</div>
+                <div style={{ fontSize: densidadVista === 'compact' ? 10 : 11, color: 'var(--text-muted)' }}>Sugerencia: Incrementar venta a $52 MXN para optimizar utilidades.</div>
                 <button
-                  className="btn btn-secondary btn-xs"
-                  style={{ alignSelf: 'flex-start', marginTop: 2, padding: '2px 6px', fontSize: 9 }}
+                  className={densidadVista === 'compact' ? 'btn btn-secondary btn-xs' : 'btn btn-secondary btn-sm'}
+                  style={{ alignSelf: 'flex-start', marginTop: 2, padding: densidadVista === 'compact' ? '2px 6px' : '4px 10px', fontSize: densidadVista === 'compact' ? 9 : 10 }}
                   onClick={() => aplicarAjustePrecioIA(1, 52)}
                 >
                   Aplicar ($52 MXN)
@@ -1020,13 +1132,13 @@ export default function BarPanel({ showToast }) {
               </div>
 
               {/* Sugerencia 2: Promoción por rotación baja */}
-              <div style={{ padding: 8, background: 'var(--bg-elevated)', borderRadius: 8, border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <div style={{ fontSize: 9, color: 'var(--bronze-light)', fontWeight: 700 }}>ROTACIÓN BAJA (Nachos Gigantes)</div>
-                <div style={{ fontSize: 11, fontWeight: 600 }}>Nachos Gigantes registran nulo movimiento esta semana.</div>
-                <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{"Sugerencia: Lanzar promoción \"Nachos + Bebida por $80\"."}</div>
+              <div style={{ padding: densidadVista === 'compact' ? 8 : 12, background: 'var(--bg-elevated)', borderRadius: 8, border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <div style={{ fontSize: densidadVista === 'compact' ? 9 : 10, color: 'var(--bronze-light)', fontWeight: 700 }}>ROTACIÓN BAJA (Nachos Gigantes)</div>
+                <div style={{ fontSize: densidadVista === 'compact' ? 11 : 12, fontWeight: 600 }}>Nachos Gigantes registran nulo movimiento esta semana.</div>
+                <div style={{ fontSize: densidadVista === 'compact' ? 10 : 11, color: 'var(--text-muted)' }}>{"Sugerencia: Lanzar promoción \"Nachos + Bebida por $80\"."}</div>
                 <button
-                  className="btn btn-secondary btn-xs"
-                  style={{ alignSelf: 'flex-start', marginTop: 2, padding: '2px 6px', fontSize: 9 }}
+                  className={densidadVista === 'compact' ? 'btn btn-secondary btn-xs' : 'btn btn-secondary btn-sm'}
+                  style={{ alignSelf: 'flex-start', marginTop: 2, padding: densidadVista === 'compact' ? '2px 6px' : '4px 10px', fontSize: densidadVista === 'compact' ? 9 : 10 }}
                   onClick={() => showToast('Promoción cargada al módulo de Caja ✓', 'success')}
                 >
                   Generar Promo POS
@@ -1035,22 +1147,22 @@ export default function BarPanel({ showToast }) {
 
               {/* Sugerencia 3: Cruce Concurrente en Vivo */}
               {inconsistenciasEnVivo.length === 0 ? (
-                <div style={{ padding: 8, background: 'rgba(34,197,94,0.04)', borderRadius: 8, border: '1px solid rgba(34,197,94,0.12)', display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  <div style={{ fontSize: 9, color: 'var(--success)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 3 }}>
+                <div style={{ padding: densidadVista === 'compact' ? 8 : 12, background: 'rgba(34,197,94,0.04)', borderRadius: 8, border: '1px solid rgba(34,197,94,0.12)', display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <div style={{ fontSize: densidadVista === 'compact' ? 9 : 10, color: 'var(--success)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 3 }}>
                     <i className="ri-checkbox-circle-line" /> AUDITORÍA IA: CRUCE OK
                   </div>
-                  <div style={{ fontSize: 10, color: 'var(--text-primary)' }}>Sin discrepancias detectadas entre mesas y consumo.</div>
+                  <div style={{ fontSize: densidadVista === 'compact' ? 10 : 11, color: 'var(--text-primary)' }}>Sin discrepancias detectadas entre mesas y consumo.</div>
                 </div>
               ) : (
-                <div style={{ padding: 8, background: 'rgba(239,68,68,0.04)', borderRadius: 8, border: '1px solid rgba(239,68,68,0.12)', display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <div style={{ fontSize: 9, color: 'var(--danger)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 3 }}>
-                    <i className="ri-error-warning-line" style={{ fontSize: 11 }} /> CRUCE IA: DISCREPANCIAS ({inconsistenciasEnVivo.length})
+                <div style={{ padding: densidadVista === 'compact' ? 8 : 12, background: 'rgba(239,68,68,0.04)', borderRadius: 8, border: '1px solid rgba(239,68,68,0.12)', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <div style={{ fontSize: densidadVista === 'compact' ? 9 : 10, color: 'var(--danger)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 3 }}>
+                    <i className="ri-error-warning-line" style={{ fontSize: densidadVista === 'compact' ? 11 : 13 }} /> CRUCE IA: DISCREPANCIAS ({inconsistenciasEnVivo.length})
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 110, overflowY: 'auto' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: densidadVista === 'compact' ? 4 : 6, maxHeight: densidadVista === 'compact' ? 110 : 140, overflowY: 'auto' }}>
                     {inconsistenciasEnVivo.map((inc, index) => (
-                      <div key={index} style={{ fontSize: 10, color: 'var(--text-primary)', borderBottom: index < inconsistenciasEnVivo.length - 1 ? '1px dashed rgba(255,255,255,0.05)' : 'none', paddingBottom: 2 }}>
+                      <div key={index} style={{ fontSize: densidadVista === 'compact' ? 10 : 11, color: 'var(--text-primary)', borderBottom: index < inconsistenciasEnVivo.length - 1 ? '1px dashed rgba(255,255,255,0.05)' : 'none', paddingBottom: densidadVista === 'compact' ? 2 : 4 }}>
                         <strong>{inc.nombre} ({inc.cliente})</strong>
-                        <div style={{ fontSize: 9, color: 'var(--danger)', marginTop: 1 }}>{inc.motivo}</div>
+                        <div style={{ fontSize: densidadVista === 'compact' ? 9 : 10, color: 'var(--danger)', marginTop: 1 }}>{inc.motivo}</div>
                       </div>
                     ))}
                   </div>
@@ -1063,21 +1175,21 @@ export default function BarPanel({ showToast }) {
       </div>
 
       {/* ── GRÁFICA DE TENDENCIAS SEMANALES IA ── */}
-      <div className="card" style={{ padding: 12, marginTop: 14, border: '1px solid var(--border)', borderRadius: 10, background: 'var(--bg-elevated)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+      <div className="card" style={{ padding: densidadVista === 'compact' ? 12 : 20, marginTop: densidadVista === 'compact' ? 14 : 20, border: '1px solid var(--border)', borderRadius: densidadVista === 'compact' ? 10 : 12, background: 'var(--bg-elevated)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: densidadVista === 'compact' ? 10 : 16 }}>
           <div>
-            <h3 style={{ fontSize: 12, textTransform: 'uppercase', color: 'var(--bronze-light)', fontWeight: 800, display: 'flex', alignItems: 'center', gap: 4, margin: 0 }}>
+            <h3 style={{ fontSize: densidadVista === 'compact' ? 12 : 14, textTransform: 'uppercase', color: 'var(--bronze-light)', fontWeight: 800, display: 'flex', alignItems: 'center', gap: densidadVista === 'compact' ? 4 : 6, margin: 0 }}>
               <i className="ri-area-chart-line" />
               Tendencias Semanales IA
             </h3>
-            <p style={{ fontSize: 9, color: 'var(--text-secondary)', margin: '2px 0 0 0' }}>Consumo acumulado por categoría (Cervezas, Refrescos y Snacks) durante la última semana.</p>
+            <p style={{ fontSize: densidadVista === 'compact' ? 9 : 11, color: 'var(--text-secondary)', margin: densidadVista === 'compact' ? '2px 0 0 0' : '4px 0 0 0' }}>Consumo acumulado por categoría (Cervezas, Refrescos y Snacks) durante la última semana.</p>
           </div>
-          <span className="badge badge-bronze" style={{ padding: '3px 6px', fontSize: 8 }}>Auditoría Visual Activa</span>
+          <span className="badge badge-bronze" style={{ padding: densidadVista === 'compact' ? '3px 6px' : '4px 8px', fontSize: densidadVista === 'compact' ? 8 : 10 }}>Auditoría Visual Activa</span>
         </div>
         
-        <div style={{ width: '100%', height: 180 }}>
+        <div style={{ width: '100%', height: densidadVista === 'compact' ? 180 : 260 }}>
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={HISTORICO_DATA} margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
+            <AreaChart data={HISTORICO_DATA} margin={{ top: densidadVista === 'compact' ? 5 : 10, right: densidadVista === 'compact' ? 5 : 10, left: densidadVista === 'compact' ? -25 : -20, bottom: 0 }}>
               <defs>
                 <linearGradient id="colorCerveza" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="var(--bronze-light)" stopOpacity={0.3}/>
@@ -1093,16 +1205,16 @@ export default function BarPanel({ showToast }) {
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-              <XAxis dataKey="name" stroke="var(--text-muted)" fontSize={9} tickLine={false} />
-              <YAxis stroke="var(--text-muted)" fontSize={9} tickLine={false} />
+              <XAxis dataKey="name" stroke="var(--text-muted)" fontSize={densidadVista === 'compact' ? 9 : 11} tickLine={false} />
+              <YAxis stroke="var(--text-muted)" fontSize={densidadVista === 'compact' ? 9 : 11} tickLine={false} />
               <Tooltip 
                 contentStyle={{ 
                   background: 'var(--bg-elevated)', 
                   border: '1px solid var(--border)', 
-                  borderRadius: 8,
-                  fontSize: 10,
+                  borderRadius: densidadVista === 'compact' ? 8 : 10,
+                  fontSize: densidadVista === 'compact' ? 10 : 12,
                   color: 'var(--text-primary)',
-                  padding: '5px 8px'
+                  padding: densidadVista === 'compact' ? '5px 8px' : '8px 12px'
                 }} 
               />
               <Area type="monotone" dataKey="Cerveza" stroke="var(--bronze-light)" fillOpacity={1} fill="url(#colorCerveza)" strokeWidth={1.5} />
