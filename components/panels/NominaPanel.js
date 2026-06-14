@@ -19,7 +19,7 @@ const F = ({ label, children, col }) => (
 // CONSTANTES
 // ─────────────────────────────────────────────
 const DEPARTAMENTOS = ['Mesas', 'Bar', 'Caja', 'Limpieza', 'Seguridad', 'Administración', 'Mantenimiento'];
-const ROLES = ['Mesero', 'Bartender', 'Cajero', 'Limpieza', 'Guardia', 'Gerente', 'Técnico'];
+const ROLES = ['Mesero', 'Bartender/Cocina', 'Cajero', 'Limpieza', 'Guardia', 'Gerente', 'Técnico'];
 const TURNOS = [
   { id: 'manana',  label: 'Mañana',  icon: '🌅', hora: '08:00 - 14:00' },
   { id: 'tarde',   label: 'Tarde',   icon: '🌤', hora: '14:00 - 20:00' },
@@ -508,8 +508,18 @@ export default function NominaPanel({ showToast }) {
         finalNip = await hashNip(finalNip);
       }
       
+      // Sanitizar permisos para roles que no sean Gerente o Cajero
+      const rolSeleccionado = formEmpleado.rol || '';
+      const esRolConPermisos = rolSeleccionado === 'Gerente' || rolSeleccionado === 'Cajero';
+      const permisosFinal = esRolConPermisos ? (formEmpleado.permisos || {}) : {};
+
       // Sanitizar datos para eliminar cualquier valor 'undefined' que Firestore no admita
-      const dataRaw = { ...formEmpleado, nip: finalNip, updatedAt: serverTimestamp() };
+      const dataRaw = { 
+        ...formEmpleado, 
+        nip: finalNip, 
+        permisos: permisosFinal,
+        updatedAt: serverTimestamp() 
+      };
       const data = {};
       Object.entries(dataRaw).forEach(([key, val]) => {
         if (val !== undefined) {
@@ -1091,44 +1101,46 @@ export default function NominaPanel({ showToast }) {
                 <F label="Código NIP (Ingreso Cajero)"><input className="form-input" type="text" maxLength={6} value={formEmpleado.nip} onChange={e => setFormEmpleado(p => ({ ...p, nip: e.target.value }))} placeholder="Código numérico (4-6 dígitos)" /></F>
               </div>
 
-              {/* Permisos */}
-              <div style={{ marginTop: 20, padding: 16, background: 'var(--bg-elevated)', borderRadius: 12, border: '1px solid var(--border)' }}>
-                <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--bronze-light)', marginBottom: 14 }}>
-                  <i className="ri-shield-keyhole-line" /> Permisos de Acceso a Módulos
+              {/* Permisos (Solo visibles para Gerente y Cajero) */}
+              {(formEmpleado.rol === 'Gerente' || formEmpleado.rol === 'Cajero') && (
+                <div style={{ marginTop: 20, padding: 16, background: 'var(--bg-elevated)', borderRadius: 12, border: '1px solid var(--border)' }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--bronze-light)', marginBottom: 14 }}>
+                    <i className="ri-shield-keyhole-line" /> Permisos de Acceso a Módulos
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+                    {[
+                      { id: 'dashboard', label: 'Dashboard' },
+                      { id: 'mesas', label: 'Mesas' },
+                      { id: 'caja', label: 'Caja / POS' },
+                      { id: 'bar', label: 'Inventario IA' },
+                      { id: 'clientes', label: 'Clientes' },
+                      { id: 'torneos', label: 'Torneos' },
+                      { id: 'nomina', label: 'Nómina & Gastos' },
+                      { id: 'reportes', label: 'Reportes' },
+                      { id: 'config', label: 'Configuración' },
+                    ].map(p => (
+                      <label key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={!!formEmpleado.permisos?.[p.id]}
+                          onChange={e => {
+                            const prevPermisos = formEmpleado.permisos || {};
+                            setFormEmpleado(prev => ({
+                              ...prev,
+                              permisos: {
+                                ...prevPermisos,
+                                [p.id]: e.target.checked
+                              }
+                            }));
+                          }}
+                          style={{ accentColor: 'var(--bronze)' }}
+                        />
+                        <span>{p.label}</span>
+                      </label>
+                    ))}
+                  </div>
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
-                  {[
-                    { id: 'dashboard', label: 'Dashboard' },
-                    { id: 'mesas', label: 'Mesas' },
-                    { id: 'caja', label: 'Caja / POS' },
-                    { id: 'bar', label: 'Inventario IA' },
-                    { id: 'clientes', label: 'Clientes' },
-                    { id: 'torneos', label: 'Torneos' },
-                    { id: 'nomina', label: 'Nómina & Gastos' },
-                    { id: 'reportes', label: 'Reportes' },
-                    { id: 'config', label: 'Configuración' },
-                  ].map(p => (
-                    <label key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, cursor: 'pointer' }}>
-                      <input
-                        type="checkbox"
-                        checked={!!formEmpleado.permisos?.[p.id]}
-                        onChange={e => {
-                          const prevPermisos = formEmpleado.permisos || {};
-                          setFormEmpleado(prev => ({
-                            ...prev,
-                            permisos: {
-                              ...prevPermisos,
-                              [p.id]: e.target.checked
-                            }
-                          }));
-                        }}
-                        style={{ accentColor: 'var(--bronze)' }}
-                      />
-                      <span>{p.label}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
+              )}
 
               {/* Comisiones */}
               <div style={{ marginTop: 20, padding: 16, background: 'var(--bg-elevated)', borderRadius: 12, border: '1px solid var(--border)' }}>
