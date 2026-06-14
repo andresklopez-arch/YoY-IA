@@ -123,6 +123,18 @@ function AppContent() {
     }
   }, [user, activePanel]);
 
+  // Auto-redireccionar si el usuario es mesero o cocina y accede al panel principal (Sugerencia 3)
+  useEffect(() => {
+    if (user) {
+      const rolLower = (user.role || '').toLowerCase();
+      if (rolLower.includes('mesero')) {
+        window.location.href = '/mesero';
+      } else if (rolLower.includes('cocina')) {
+        window.location.href = '/cocina';
+      }
+    }
+  }, [user]);
+
   // 1. Escuchar capturas de venta del mesero
   useEffect(() => {
     if (!user) return;
