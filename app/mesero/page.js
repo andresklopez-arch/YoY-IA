@@ -17,7 +17,14 @@ const normalizeText = (str) => {
 // VISTA MESERO — Dashboard de pedidos y asistencias en tiempo real
 // ═══════════════════════════════════════════════════════════
 function MeseroContent() {
-  const { user, loading } = useAuth();
+  const { user, loading, logout } = useAuth();
+
+  const handleLogout = async () => {
+    if (window.confirm('¿Estás seguro de que deseas cerrar sesión de mesero?')) {
+      await logout();
+      window.location.href = '/';
+    }
+  };
 
   useEffect(() => {
     if (loading) return;
@@ -836,6 +843,30 @@ function MeseroContent() {
             >
               <i className={sonido ? 'ri-volume-up-line' : 'ri-volume-mute-line'} />
               {sonido ? 'Sonido ON' : 'Silencio'}
+            </button>
+
+            {/* Botón Cerrar Sesión */}
+            <button
+              onClick={handleLogout}
+              title="Cerrar Sesión"
+              style={{
+                background: 'var(--bg-elevated)',
+                border: '1px solid rgba(239,68,68,0.3)',
+                borderRadius: 10,
+                padding: '8px 12px',
+                cursor: 'pointer',
+                color: '#ef4444',
+                fontSize: 13,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                transition: 'all 0.2s'
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.08)'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-elevated)'; }}
+            >
+              <i className="ri-logout-box-r-line" />
+              Salir
             </button>
 
             {/* Botón X — cerrar y volver a Mesas */}

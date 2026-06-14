@@ -150,6 +150,25 @@ export async function POST(request) {
           return tB - tA;
         });
         const lastLog = logsList[0];
+
+        // Protección Anti-Fake GPS: En celulares, las coordenadas nunca son 100% exactas entre lecturas consecutivas debido a interferencias físicas.
+        // Si las coordenadas son exactamente idénticas, se trata de una simulación/mock.
+        const esCelular = (dispositivo || 'Móvil') === 'Móvil';
+        const eraCelular = (lastLog.dispositivo || 'Móvil') === 'Móvil';
+        if (esCelular && eraCelular && lastLog.coordenadas && lastLog.coordenadas.lat === coordenadas.lat && lastLog.coordenadas.lng === coordenadas.lng) {
+          await addDoc(collection(db, 'nomina_asistencia_log'), {
+            empleadoId: emp.id,
+            nombre: `${emp.nombre} ${emp.apellido || ''}`.trim(),
+            rol: emp.rol || 'Mesero',
+            fecha: fechaHoy,
+            tipo: 'intento_fallido_gps_estatico',
+            coordenadas,
+            dispositivo: dispositivo || 'Móvil',
+            createdAt: serverTimestamp()
+          });
+          return NextResponse.json({ success: false, error: 'Coordenadas estáticas detectadas. Por favor desactiva simuladores de GPS y vuelve a intentar.' }, { status: 400 });
+        }
+
         tipoRegistro = lastLog.tipo === 'entrada' ? 'salida' : 'entrada';
       }
     }

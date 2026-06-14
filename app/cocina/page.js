@@ -28,7 +28,14 @@ const DEFAULT_INSUMOS = [
 ];
 
 function CocinaContent() {
-  const { user, loading } = useAuth();
+  const { user, loading, logout } = useAuth();
+
+  const handleLogout = async () => {
+    if (window.confirm('¿Estás seguro de que deseas cerrar sesión de cocina/barra?')) {
+      await logout();
+      window.location.href = '/';
+    }
+  };
 
   useEffect(() => {
     if (loading) return;
@@ -452,6 +459,30 @@ function CocinaContent() {
             >
               <i className={sonido ? 'ri-volume-up-line' : 'ri-volume-mute-line'} />
               {sonido ? 'Sonido ON' : 'Silencio'}
+            </button>
+
+            {/* Botón Cerrar Sesión */}
+            <button
+              onClick={handleLogout}
+              title="Cerrar Sesión"
+              style={{
+                background: 'var(--bg-elevated)',
+                border: '1px solid rgba(239,68,68,0.3)',
+                borderRadius: 10,
+                padding: '8px 14px',
+                cursor: 'pointer',
+                color: '#ef4444',
+                fontSize: 13,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                transition: 'all 0.2s'
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.08)'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-elevated)'; }}
+            >
+              <i className="ri-logout-box-r-line" />
+              Salir
             </button>
 
             {/* Volver a Inicio */}

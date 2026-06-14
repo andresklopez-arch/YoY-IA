@@ -84,6 +84,7 @@ function AppContent() {
 
   const [fichajeSoporteExitoso, setFichajeSoporteExitoso] = useState(null);
   const [fichajeError, setFichajeError] = useState(null);
+  const [scanParams, setScanParams] = useState(null);
   const processedRef = useRef(false);
 
   // Removido el autocierre automático del error de asistencia para evitar redirigir al login admin
@@ -156,125 +157,132 @@ function AppContent() {
     }
   }, [user, isProcessingQR]);
 
+  const procesarLoginQR = async (params) => {
+    if (!params) return;
+    try {
+      setIsProcessingQR(true);
+      setFichajeError(null);
+      
+      // Sugerencia 1: Limpieza explícita inmediata de la sesión previa en localStorage, Firebase y Contexto
+      await logout();
+
+      // 1. Obtener geolocalización para registrar coordenadas en la asistencia
+      let geoData = { lat: null, lng: null, precision: null, status: 'No disponible' };
+      if (typeof navigator !== 'undefined' && navigator.geolocation) {
+        try {
+          const getCoords = () => new Promise((resolve) => {
+            navigator.geolocation.getCurrentPosition(
+              (pos) => resolve({
+                lat: pos.coords.latitude,
+                lng: pos.coords.longitude,
+                precision: pos.coords.accuracy,
+                status: 'Obtenido'
+              }),
+              (err) => resolve({
+                lat: null,
+                lng: null,
+                precision: null,
+                status: `Error: ${err.message}`
+              }),
+              { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+            );
+          });
+          geoData = await getCoords();
+        } catch (geoErr) {
+          console.warn("Error obteniendo geolocalización:", geoErr);
+        }
+      }
+
+      // Obtener el tipo de dispositivo que escanea
+      const ua = navigator.userAgent;
+      let dispositivo = 'PC/Terminal';
+      if (/Mobi|Android|iPhone/i.test(ua)) dispositivo = 'Móvil';
+      else if (/Tablet|iPad/i.test(ua)) dispositivo = 'Tablet';
+
+      const rawPayload = {
+        empleadoId: params.scanId,
+        expires: params.expires || Date.now(),
+        coordenadas: geoData,
+        dispositivo
+      };
+      const obfuscatedPayload = obfuscateWithKey(params.token, rawPayload);
+
+      // 2. Llamar a la API del servidor para validar de forma segura
+      const res = await fetch('/api/nomina/verify-attendance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token: params.token,
+          payload: obfuscatedPayload
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setFichajeError(data.error || 'Error al procesar asistencia');
+        setIsProcessingQR(false);
+        return;
+      }
+
+      const { tipoRegistro, emp } = data;
+
+      // 3. Determinar comportamiento según el rol (Mesero/Cocina loguea, Soporte solo ficha)
+      const rolLower = (emp.rol || '').toLowerCase();
+      const esMeseroOKitchen = rolLower.includes('mesero') ||
+                               rolLower.includes('cocina') ||
+                               rolLower.includes('bartender') ||
+                               rolLower.includes('barman') ||
+                               rolLower.includes('cocinero');
+
+      if (esMeseroOKitchen) {
+        // Loguear al empleado en el dispositivo escaneador
+        await loginWithEmpleadoId(emp.id);
+        showToast(`Sesión iniciada como ${emp.nombre} ✓`, 'success');
+
+        // Redireccionar de inmediato a su área de trabajo
+        if (rolLower.includes('mesero')) {
+          window.location.href = '/mesero';
+        } else {
+          window.location.href = '/cocina';
+        }
+      } else {
+        // Personal de soporte: no inician sesión. Mostrar pantalla visual de éxito
+        setFichajeSoporteExitoso({
+          nombre: `${emp.nombre} ${emp.apellido || ''}`.trim(),
+          rol: emp.rol || 'Soporte',
+          tipo: tipoRegistro
+        });
+        setIsProcessingQR(false);
+        showToast(`Asistencia de ${emp.nombre} registrada ✅`, 'success');
+      }
+    } catch (err) {
+      console.error(err);
+      setFichajeError('Error al registrar asistencia con QR: ' + err.message);
+      setIsProcessingQR(false);
+    }
+  };
+
   // Escuchar si se abre la app escaneando un código QR con ?scanId=xxx (Para iniciar sesión en el dispositivo del empleado)
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const urlParams = new URLSearchParams(window.location.search);
     const scanId = urlParams.get('scanId');
-    const token = urlParams.get('token'); // Sugerencia 2: Leer token temporal de la URL
-    const expires = urlParams.get('expires'); // Hoisted expires query parameter
+    const token = urlParams.get('token');
+    const expires = urlParams.get('expires');
     
     if (!scanId || processedRef.current) {
       return;
     }
     processedRef.current = true;
 
+    const params = { scanId, token, expires };
+    setScanParams(params);
+
     // Limpiar el parámetro de la URL inmediatamente para evitar ejecuciones repetidas al recargar
     const newUrl = window.location.pathname;
     window.history.replaceState({}, document.title, newUrl);
 
-    const procesarLoginQR = async () => {
-      try {
-        // Sugerencia 1: Limpieza explícita inmediata de la sesión previa en localStorage, Firebase y Contexto
-        await logout();
-
-        // 1. Obtener geolocalización para registrar coordenadas en la asistencia
-        let geoData = { lat: null, lng: null, precision: null, status: 'No disponible' };
-        if (typeof navigator !== 'undefined' && navigator.geolocation) {
-          try {
-            const getCoords = () => new Promise((resolve) => {
-              navigator.geolocation.getCurrentPosition(
-                (pos) => resolve({
-                  lat: pos.coords.latitude,
-                  lng: pos.coords.longitude,
-                  precision: pos.coords.accuracy,
-                  status: 'Obtenido'
-                }),
-                (err) => resolve({
-                  lat: null,
-                  lng: null,
-                  precision: null,
-                  status: `Error: ${err.message}`
-                }),
-                { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
-              );
-            });
-            geoData = await getCoords();
-          } catch (geoErr) {
-            console.warn("Error obteniendo geolocalización:", geoErr);
-          }
-        }
-
-        // Obtener el tipo de dispositivo que escanea
-        const ua = navigator.userAgent;
-        let dispositivo = 'PC/Terminal';
-        if (/Mobi|Android|iPhone/i.test(ua)) dispositivo = 'Móvil';
-        else if (/Tablet|iPad/i.test(ua)) dispositivo = 'Tablet';
-
-        const rawPayload = {
-          empleadoId: scanId,
-          expires: expires || Date.now(),
-          coordenadas: geoData,
-          dispositivo
-        };
-        const obfuscatedPayload = obfuscateWithKey(token, rawPayload);
-
-        // 2. Llamar a la API del servidor para validar de forma segura
-        const res = await fetch('/api/nomina/verify-attendance', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            token,
-            payload: obfuscatedPayload
-          })
-        });
-
-        const data = await res.json();
-        if (!res.ok || !data.success) {
-          setFichajeError(data.error || 'Error al procesar asistencia');
-          setIsProcessingQR(false);
-          return;
-        }
-
-        const { tipoRegistro, emp } = data;
-
-        // 3. Determinar comportamiento según el rol (Mesero/Cocina loguea, Soporte solo ficha)
-        const rolLower = (emp.rol || '').toLowerCase();
-        const esMeseroOKitchen = rolLower.includes('mesero') ||
-                                 rolLower.includes('cocina') ||
-                                 rolLower.includes('bartender') ||
-                                 rolLower.includes('barman') ||
-                                 rolLower.includes('cocinero');
-
-        if (esMeseroOKitchen) {
-          // Loguear al empleado en el dispositivo escaneador
-          await loginWithEmpleadoId(emp.id);
-          showToast(`Sesión iniciada como ${emp.nombre} ✓`, 'success');
-
-          // Redireccionar de inmediato a su área de trabajo
-          if (rolLower.includes('mesero')) {
-            window.location.href = '/mesero';
-          } else {
-            window.location.href = '/cocina';
-          }
-        } else {
-          // Personal de soporte: no inician sesión. Mostrar pantalla visual de éxito
-          setFichajeSoporteExitoso({
-            nombre: `${emp.nombre} ${emp.apellido || ''}`.trim(),
-            rol: emp.rol || 'Soporte',
-            tipo: tipoRegistro
-          });
-          setIsProcessingQR(false);
-          showToast(`Asistencia de ${emp.nombre} registrada ✅`, 'success');
-        }
-      } catch (err) {
-        console.error(err);
-        setFichajeError('Error al registrar asistencia con QR: ' + err.message);
-        setIsProcessingQR(false);
-      }
-    };
-
-    procesarLoginQR();
+    procesarLoginQR(params);
   }, [loginWithEmpleadoId, logout]);
 
   // 1. Escuchar capturas de venta del mesero
@@ -677,24 +685,44 @@ function AppContent() {
           </p>
           
           <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 24 }}>
-            Por favor, cierra esta pestaña y vuelve a escanear el código QR.
+            Puedes intentar obtener tu ubicación nuevamente o cerrar esta pestaña.
           </p>
 
-          <button
-            onClick={() => {
-              if (typeof window !== 'undefined') {
-                window.close();
-              }
-            }}
-            style={{
-              background: 'linear-gradient(135deg, var(--danger), #f87171)',
-              color: '#fff', border: 'none', borderRadius: 12, padding: '12px 32px',
-              fontWeight: 800, fontSize: 13, cursor: 'pointer', width: '100%',
-              textTransform: 'uppercase', letterSpacing: '0.05em', transition: 'transform 0.15s'
-            }}
-          >
-            Cerrar Ventana
-          </button>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <button
+              onClick={() => procesarLoginQR(scanParams)}
+              style={{
+                background: 'linear-gradient(135deg, var(--bronze), var(--bronze-light))',
+                color: '#fff', border: 'none', borderRadius: 12, padding: '12px 32px',
+                fontWeight: 800, fontSize: 13, cursor: 'pointer', width: '100%',
+                textTransform: 'uppercase', letterSpacing: '0.05em', transition: 'transform 0.15s'
+              }}
+              onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.02)'; }}
+              onMouseLeave={e => { e.currentTarget.style.transform = 'none'; }}
+            >
+              🔄 Reintentar Geolocalización
+            </button>
+
+            <button
+              onClick={() => {
+                if (typeof window !== 'undefined') {
+                  window.close();
+                }
+              }}
+              style={{
+                background: 'var(--bg-elevated)',
+                border: '1px solid var(--border)',
+                borderRadius: 12, padding: '12px 32px',
+                color: 'var(--text-primary)',
+                fontWeight: 800, fontSize: 13, cursor: 'pointer', width: '100%',
+                textTransform: 'uppercase', letterSpacing: '0.05em', transition: 'transform 0.15s'
+              }}
+              onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.02)'; }}
+              onMouseLeave={e => { e.currentTarget.style.transform = 'none'; }}
+            >
+              Cerrar Ventana
+            </button>
+          </div>
         </div>
       </div>
     );
