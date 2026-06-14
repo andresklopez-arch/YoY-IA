@@ -82,6 +82,7 @@ export default function BarPanel({ showToast }) {
   const [editingCatValue, setEditingCatValue] = useState('');
   const [deletingCatName, setDeletingCatName] = useState(null);
   const [reassignCatTarget, setReassignCatTarget] = useState('Bebida');
+  const [showCriticoDropdown, setShowCriticoDropdown] = useState(false);
 
   // Estados para Auditoría e Inventarios IA seleccionables
   const [modoInventario, setModoInventario] = useState('general'); // general, periodico, azar, producto, inconsistencia, mas_vendidos, menos_vendidos
@@ -371,6 +372,11 @@ export default function BarPanel({ showToast }) {
 
     const prod = productos.find(p => p.id === modalAjuste.id);
     if (!prod) return;
+
+    if ((ajusteTipo === 'salida' || ajusteTipo === 'merma') && (!ajusteMotivo || !ajusteMotivo.trim())) {
+      showToast('Por favor ingrese el motivo del ajuste (salida o merma) para continuar.', 'warning');
+      return;
+    }
 
     let nuevoStock = prod.stock;
     if (ajusteTipo === 'entrada') {
@@ -774,7 +780,8 @@ export default function BarPanel({ showToast }) {
               border: '1px solid var(--border-bronze)',
               borderRadius: 8, 
               padding: '6px 12px',
-              marginTop: 2
+              marginTop: 2,
+              position: 'relative'
             }}>
               {/* Métrica 1 */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
@@ -786,9 +793,25 @@ export default function BarPanel({ showToast }) {
 
               <div style={{ width: 1, height: 16, background: 'var(--border)' }} />
 
-              {/* Métrica 2 */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-                <span style={{ fontSize: 8, textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.05em' }}>Alertas de Stock</span>
+              {/* Métrica 2 (Stock Crítico Clickable con Animación) */}
+              <div 
+                className={stockCritico.length > 0 ? 'compact-pulse' : ''}
+                style={{ 
+                  display: 'flex', 
+                  flexDirection: 'column', 
+                  gap: 0,
+                  cursor: stockCritico.length > 0 ? 'pointer' : 'default',
+                  padding: '2px 6px'
+                }}
+                onClick={() => {
+                  if (stockCritico.length > 0) {
+                    setShowCriticoDropdown(!showCriticoDropdown);
+                  }
+                }}
+              >
+                <span style={{ fontSize: 8, textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: 2 }}>
+                  Alertas Stock {stockCritico.length > 0 && <i className="ri-arrow-down-s-line" style={{ fontSize: 8 }} />}
+                </span>
                 <div style={{ fontSize: 13, fontWeight: 900, color: stockCritico.length > 0 ? 'var(--danger)' : 'var(--success)', fontFamily: 'var(--font-display)', display: 'flex', alignItems: 'center' }}>
                   {stockCritico.length > 0 && (
                     <i className="ri-alert-fill pulse-alert-icon" style={{ fontSize: 10, color: 'var(--danger)', marginRight: 3 }} />
@@ -819,6 +842,76 @@ export default function BarPanel({ showToast }) {
                   </span>
                 </div>
               </div>
+
+              {/* Dropdown de Alertas de Stock Crítico */}
+              {showCriticoDropdown && stockCritico.length > 0 && (
+                <div style={{
+                  position: 'absolute',
+                  top: '100%',
+                  right: 0,
+                  width: 320,
+                  zIndex: 100,
+                  marginTop: 6,
+                  background: 'var(--bg-elevated, #1a1a1a)',
+                  border: '1px solid rgba(239, 68, 68, 0.4)',
+                  borderRadius: 10,
+                  padding: '10px 12px',
+                  boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5)',
+                  animation: 'slideDown 0.2s ease-out forwards',
+                }} onClick={e => e.stopPropagation()}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: 4 }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--danger, #ef4444)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <i className="ri-error-warning-line" /> Alertas de Stock Crítico ({stockCritico.length})
+                    </span>
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowCriticoDropdown(false);
+                      }}
+                      style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 0 }}
+                    >
+                      <i className="ri-close-line" style={{ fontSize: 14 }} />
+                    </button>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 5, maxHeight: 150, overflowY: 'auto', paddingRight: 2 }}>
+                    {stockCritico.map(p => (
+                      <div 
+                        key={p.id} 
+                        style={{ 
+                          display: 'flex', 
+                          justifyContent: 'space-between', 
+                          alignItems: 'center', 
+                          padding: '4px 6px', 
+                          background: 'rgba(239, 68, 68, 0.03)', 
+                          borderRadius: 6,
+                          border: '1px solid rgba(239, 68, 68, 0.08)'
+                        }}
+                      >
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                          <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 150 }}>{p.nombre}</span>
+                          <span style={{ fontSize: 8, color: 'var(--text-muted)' }}>Mín: {p.stockMin} {p.unidad}</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--danger, #ef4444)' }}>
+                            {p.stock} {p.unidad}
+                          </span>
+                          <button
+                            className="btn btn-xs btn-primary"
+                            style={{ padding: '1px 5px', fontSize: 8, height: 16, display: 'flex', alignItems: 'center' }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setModalAjuste(p);
+                              setShowCriticoDropdown(false);
+                            }}
+                          >
+                            Ajustar
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -834,39 +927,142 @@ export default function BarPanel({ showToast }) {
           filter: drop-shadow(0 0 4px var(--danger));
           display: inline-block;
         }
+        @keyframes invitePulse {
+          0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+          70% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
+          100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+        .invite-pulse {
+          animation: invitePulse 2s infinite !important;
+          cursor: pointer;
+          transition: transform 0.2s, border-color 0.2s;
+        }
+        .invite-pulse:hover {
+          transform: translateY(-2px);
+          border-color: rgba(239, 68, 68, 0.5) !important;
+        }
+        .compact-pulse {
+          animation: invitePulse 2s infinite !important;
+          border-radius: 6px;
+          transition: background-color 0.2s;
+        }
+        .compact-pulse:hover {
+          background-color: rgba(239, 68, 68, 0.1);
+        }
+        @keyframes slideDown {
+          from { opacity: 0; transform: translateY(-10px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
       `}</style>
 
       {/* Condicional según Densidad de Vista */}
+      {/* Condicional según Densidad de Vista */}
       {densidadVista === 'classic' && (
         /* Grid de KPIs de Inventario Clásico (Spacious) */
-        <div className="stat-grid" style={{ marginBottom: 20, marginTop: 12 }}>
+        <div className="stat-grid" style={{ marginBottom: 20, marginTop: 12, position: 'relative' }}>
           {[
             { label: 'Productos Totales', value: productos.length, icon: 'ri-archive-line', color: 'icon-blue', accent: 'var(--blue-light)', unit: 'pz' },
             { label: 'Alertas de Stock', value: stockCritico.length, icon: 'ri-alert-line', color: stockCritico.length > 0 ? 'icon-danger' : 'icon-success', accent: stockCritico.length > 0 ? 'var(--danger)' : 'var(--success)', unit: '' },
             { label: 'Valor de Inversión', value: `$${costoTotalVal.toLocaleString()}`, icon: 'ri-money-dollar-box-line', color: 'icon-bronze', accent: 'var(--bronze-light)', unit: '' },
             { label: 'Valor de Venta', value: `$${ventaTotalVal.toLocaleString()}`, icon: 'ri-coins-line', color: 'icon-success', accent: 'var(--success)', unit: `(${margenGlobalPct}%)` },
           ].map((s, i) => (
-            <div key={i} className="stat-card" style={{ padding: '16px 20px', borderRadius: 12 }}>
+            <div 
+              key={i} 
+              className={`stat-card ${s.label === 'Alertas de Stock' && stockCritico.length > 0 ? 'invite-pulse' : ''}`}
+              style={{ 
+                padding: '16px 20px', 
+                borderRadius: 12,
+                cursor: s.label === 'Alertas de Stock' && stockCritico.length > 0 ? 'pointer' : 'default',
+                ...(s.label === 'Alertas de Stock' && stockCritico.length > 0 ? { border: '1px solid rgba(239, 68, 68, 0.2)' } : {})
+              }}
+              onClick={() => {
+                if (s.label === 'Alertas de Stock' && stockCritico.length > 0) {
+                  setShowCriticoDropdown(!showCriticoDropdown);
+                }
+              }}
+            >
               <div className={`stat-card-icon ${s.color}`}><i className={s.icon} /></div>
               <div className="stat-card-value" style={{ color: s.accent, fontSize: 24, display: 'flex', alignItems: 'baseline', gap: 4 }}>
                 {s.value} {s.unit && <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--text-muted)' }}>{s.unit}</span>}
               </div>
-              <div className="stat-card-label" style={{ fontSize: 11 }}>{s.label}</div>
+              <div className="stat-card-label" style={{ fontSize: 11 }}>
+                {s.label}
+                {s.label === 'Alertas de Stock' && stockCritico.length > 0 && (
+                  <span style={{ fontSize: 9, color: 'var(--text-muted)', marginLeft: 6 }}>(Ver detalles)</span>
+                )}
+              </div>
             </div>
           ))}
-        </div>
-      )}
 
-      {/* Alerta stock crítico */}
-      {stockCritico.length > 0 && (
-        <div style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.15)', borderRadius: 8, padding: '8px 12px', marginBottom: 14, display: 'flex', gap: 10, alignItems: 'center' }}>
-          <i className="ri-error-warning-line" style={{ fontSize: 18, color: 'var(--danger)', flexShrink: 0 }} />
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 10px', alignItems: 'center' }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--danger)' }}>⚠️ Stock Crítico ({stockCritico.length} pz):</div>
-            <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
-              {stockCritico.map(p => `${p.nombre} (${p.stock} pz)`).join(' · ')}
+          {/* Dropdown de Alertas de Stock Crítico para Modo Clásico */}
+          {showCriticoDropdown && stockCritico.length > 0 && (
+            <div style={{
+              position: 'absolute',
+              top: '100%',
+              left: 0,
+              width: 360,
+              zIndex: 100,
+              marginTop: 6,
+              background: 'var(--bg-elevated, #1a1a1a)',
+              border: '1px solid rgba(239, 68, 68, 0.4)',
+              borderRadius: 10,
+              padding: '12px 14px',
+              boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5)',
+              animation: 'slideDown 0.2s ease-out forwards',
+            }} onClick={e => e.stopPropagation()}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: 6 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--danger, #ef4444)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <i className="ri-error-warning-line" /> Alertas de Stock Crítico ({stockCritico.length})
+                </span>
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowCriticoDropdown(false);
+                  }}
+                  style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 0 }}
+                >
+                  <i className="ri-close-line" style={{ fontSize: 16 }} />
+                </button>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 200, overflowY: 'auto', paddingRight: 4 }}>
+                {stockCritico.map(p => (
+                  <div 
+                    key={p.id} 
+                    style={{ 
+                      display: 'flex', 
+                      justifyContent: 'space-between', 
+                      alignItems: 'center', 
+                      padding: '6px 10px', 
+                      background: 'rgba(239, 68, 68, 0.03)', 
+                      borderRadius: 6,
+                      border: '1px solid rgba(239, 68, 68, 0.08)'
+                    }}
+                  >
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>{p.nombre}</span>
+                      <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Mín: {p.stockMin} {p.unidad}</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--danger, #ef4444)' }}>
+                        {p.stock} {p.unidad}
+                      </span>
+                      <button
+                        className="btn btn-xs btn-primary"
+                        style={{ padding: '2px 8px', fontSize: 10, height: 22, display: 'flex', alignItems: 'center' }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setModalAjuste(p);
+                          setShowCriticoDropdown(false);
+                        }}
+                      >
+                        Ajustar
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
         </div>
       )}
 
@@ -889,20 +1085,26 @@ export default function BarPanel({ showToast }) {
               value={busqueda} 
               onChange={e => setBusqueda(e.target.value)} 
             />
-            {categorias.map(c => (
-              <button 
-                key={c} 
-                onClick={() => setFiltro(c)} 
-                className={densidadVista === 'compact' ? 'btn btn-xs' : 'btn btn-sm'} 
-                style={{ 
-                  padding: densidadVista === 'compact' ? '3px 8px' : '6px 12px', 
-                  fontSize: densidadVista === 'compact' ? 10 : 12, 
-                  height: densidadVista === 'compact' ? 26 : 32 
-                }}
-              >
-                {c}
-              </button>
-            ))}
+            {/* Selector de Categorías Desplegable */}
+            <select
+              className="form-select"
+              style={{ 
+                width: densidadVista === 'compact' ? 140 : 180, 
+                padding: densidadVista === 'compact' ? '3px 10px' : '6px 12px', 
+                fontSize: densidadVista === 'compact' ? 11 : 13, 
+                height: densidadVista === 'compact' ? 26 : 32,
+                cursor: 'pointer',
+                borderColor: filtro !== 'Todas' ? 'var(--bronze-light)' : 'var(--border)'
+              }}
+              value={filtro}
+              onChange={e => setFiltro(e.target.value)}
+            >
+              {categorias.map(c => (
+                <option key={c} value={c}>
+                  {c === 'Todas' ? 'Todas las Categorías' : `Categoría: ${c}`}
+                </option>
+              ))}
+            </select>
           </div>
 
           {/* Tabla de existencias */}
