@@ -656,20 +656,23 @@ export default function BarPanel({ showToast }) {
     setShowModalOptimizacion(false);
   };
 
-  // Impresion de faltantes para stock optimo
+  // Impresion de faltantes para stock optimo con costos
   const imprimirFaltantesStockIA = () => {
     const itemsFaltantes = productos.map(p => {
       const sug = productosSugeridosOpt.find(s => s.id === p.id);
       const optimoTarget = sug ? sug.optimoSugerido : p.stockOptimo;
       const faltante = optimoTarget - p.stock;
+      const cantFaltante = faltante > 0 ? faltante : 0;
       
       return {
         nombre: p.nombre,
         categoria: p.categoria,
         stock: p.stock,
         optimo: optimoTarget,
-        faltante: faltante > 0 ? faltante : 0,
-        unidad: p.unidad || 'pz'
+        faltante: cantFaltante,
+        unidad: p.unidad || 'pz',
+        costoUnitario: p.precioCosto || 0,
+        costoTotalFaltante: cantFaltante * (p.precioCosto || 0)
       };
     }).filter(item => item.faltante > 0);
 
@@ -677,6 +680,8 @@ export default function BarPanel({ showToast }) {
       showToast('Todos los productos están en su nivel óptimo de stock 👍', 'info');
       return;
     }
+
+    const granTotalCostoFaltante = itemsFaltantes.reduce((sum, item) => sum + item.costoTotalFaltante, 0);
 
     const printWindow = window.open('', '_blank', 'width=600,height=600');
     if (!printWindow) {
@@ -696,10 +701,12 @@ export default function BarPanel({ showToast }) {
       <tr style="border-bottom: 1px dashed #000;">
         <td style="padding: 6px 0; font-size: 11px;">
           <b>${item.nombre}</b><br>
-          <span style="font-size: 10px; color: #555;">En Almacén: ${item.stock} ${item.unidad} / Óptimo: ${item.optimo} ${item.unidad}</span>
+          <span style="font-size: 10px; color: #555;">En Almacén: ${item.stock} ${item.unidad} / Óptimo: ${item.optimo} ${item.unidad}</span><br>
+          <span style="font-size: 9px; color: #777;">Costo unitario: $${item.costoUnitario.toFixed(2)}</span>
         </td>
-        <td style="text-align: right; padding: 6px 0; font-size: 12px; font-weight: bold; vertical-align: bottom;">
-          Falta: ${item.faltante} ${item.unidad}
+        <td style="text-align: right; padding: 6px 0; font-size: 11px; vertical-align: bottom;">
+          <b>Falta: ${item.faltante} ${item.unidad}</b><br>
+          <span style="font-size: 10px; color: #000; font-weight: bold;">Costo: $${item.costoTotalFaltante.toFixed(2)}</span>
         </td>
       </tr>
     `).join('');
@@ -733,6 +740,12 @@ export default function BarPanel({ showToast }) {
               width: 100%;
               border-collapse: collapse;
             }
+            .total-row {
+              width: 100%;
+              margin-top: 6px;
+              font-size: 11px;
+              font-weight: bold;
+            }
           </style>
         </head>
         <body>
@@ -747,12 +760,21 @@ export default function BarPanel({ showToast }) {
             <thead>
               <tr style="border-bottom: 1px solid #000;">
                 <th style="text-align: left; font-size: 10px; padding-bottom: 4px;">Producto (Almacén)</th>
-                <th style="text-align: right; font-size: 10px; padding-bottom: 4px;">Faltante</th>
+                <th style="text-align: right; font-size: 10px; padding-bottom: 4px;">Faltante / Costo</th>
               </tr>
             </thead>
             <tbody>
               ${itemsHtml}
             </tbody>
+          </table>
+          
+          <div class="divider"></div>
+          
+          <table style="width: 100%; font-size: 11px; font-weight: bold;">
+            <tr>
+              <td>COSTO TOTAL ESTIMADO:</td>
+              <td style="text-align: right;">$${granTotalCostoFaltante.toFixed(2)} MXN</td>
+            </tr>
           </table>
           
           <div class="divider"></div>
