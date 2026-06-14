@@ -722,6 +722,7 @@ export default function NominaPanel({ showToast }) {
     `${c.emp.nombre} ${c.emp.apellido} ${c.emp.rol} ${c.emp.departamento}`.toLowerCase().includes(busqueda.toLowerCase())
   );
 
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const fichajesFiltrados = useMemo(() => {
     return fichajesLogs.filter(log => {
       const matchFecha = (!fichajeFechaInicio || log.fecha >= fichajeFechaInicio) &&

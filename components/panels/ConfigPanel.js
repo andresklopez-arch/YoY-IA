@@ -1206,7 +1206,7 @@ export default function ConfigPanel({ showToast }) {
                 />
               </div>
               <div className="form-group" style={{ flex: 1, minWidth: 200, margin: 0 }}>
-                <label className="form-label">Escriba "RESTABLECER" para confirmar</label>
+                <label className="form-label">Escriba RESTABLECER para confirmar</label>
                 <input
                   type="text"
                   className="form-input"

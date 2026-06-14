@@ -85,16 +85,6 @@ function AppContent() {
   const [fichajeSoporteExitoso, setFichajeSoporteExitoso] = useState(null);
   const [fichajeError, setFichajeError] = useState(null);
 
-  // Autocierre de confirmación de asistencia para personal de soporte (3 segundos)
-  useEffect(() => {
-    if (fichajeSoporteExitoso) {
-      const timer = setTimeout(() => {
-        setFichajeSoporteExitoso(null);
-      }, 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [fichajeSoporteExitoso]);
-
   // Autocierre de la pantalla de error de asistencia (3 segundos)
   useEffect(() => {
     if (fichajeError) {
@@ -689,13 +679,17 @@ function AppContent() {
           
           <div style={{
             background: 'var(--bg-card)', border: '1px solid var(--border)',
-            borderRadius: 12, padding: '16px 20px', marginBottom: 32, fontSize: 13,
+            borderRadius: 12, padding: '16px 20px', marginBottom: 24, fontSize: 13,
             color: 'var(--text-secondary)', lineHeight: 1.6
           }}>
             {fichajeSoporteExitoso.tipo === 'entrada' 
               ? '¡Tu pase de lista de entrada ha sido registrado exitosamente!' 
               : '¡Tu registro de salida ha sido guardado exitosamente!'}
           </div>
+
+          <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 24 }}>
+            Ya puedes cerrar esta pestaña del navegador.
+          </p>
 
           <button
             onClick={() => setFichajeSoporteExitoso(null)}
@@ -708,14 +702,8 @@ function AppContent() {
             onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.02)'; }}
             onMouseLeave={e => { e.currentTarget.style.transform = 'none'; }}
           >
-            Aceptar
+            Entendido
           </button>
-
-          {/* Barra de progreso de auto-cierre (3 segundos) */}
-          <div style={{
-            position: 'absolute', bottom: 0, left: 0, height: 4, background: 'var(--bronze-light)',
-            width: '100%', animation: 'shrinkWidth 3s linear forwards'
-          }} />
         </div>
       </div>
     );
