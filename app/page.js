@@ -167,8 +167,8 @@ function AppContent() {
     }
   }, [user, isProcessingQR]);
 
-  const procesarLoginQR = async (params) => {
-    if (!params || isProcessingQR) return;
+  const procesarLoginQR = async (params, isRetry = false) => {
+    if (!params || (isRetry && isProcessingQR)) return;
     try {
       setIsProcessingQR(true);
       setFichajeError(null);
@@ -723,7 +723,7 @@ function AppContent() {
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <button
-              onClick={() => procesarLoginQR(scanParams)}
+              onClick={() => procesarLoginQR(scanParams, true)}
               style={{
                 background: 'linear-gradient(135deg, var(--bronze), var(--bronze-light))',
                 color: '#fff', border: 'none', borderRadius: 12, padding: '12px 32px',
