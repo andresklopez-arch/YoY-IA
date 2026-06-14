@@ -103,33 +103,59 @@ function useVentasReales(fechaInicio, fechaFin) {
 // Exporta alertas para uso en el Topbar (badge)
 // ─────────────────────────────────────────────
 export function useAlertasNomina() {
+  const [empleados, setEmpleados] = useState([]);
+  const [asistencias, setAsistencias] = useState([]);
   const [alertas, setAlertas] = useState([]);
 
   useEffect(() => {
-    const q = query(collection(db, 'nomina_asistencia'));
-    const unsub = onSnapshot(q, snap => {
-      const asistencias = snap.docs.map(d => d.data());
-      const mesActual = new Date().toISOString().slice(0, 7);
-      const nuevas = [];
+    // Escuchar empleados para saber quiénes están activos
+    const unsubEmp = onSnapshot(collection(db, 'nomina_empleados'), snap => {
+      setEmpleados(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    }, err => console.error("Error al obtener empleados para alertas:", err));
 
-      // Detectar empleados con 3+ ausencias este mes
-      const porEmpleado = {};
-      asistencias.filter(a => a.fecha?.startsWith(mesActual)).forEach(a => {
-        if (!porEmpleado[a.empleadoId]) porEmpleado[a.empleadoId] = [];
-        porEmpleado[a.empleadoId].push(a);
-      });
+    // Escuchar asistencias limitando al mes actual para optimizar lecturas
+    const primerDiaMes = new Date().toISOString().slice(0, 7) + '-01';
+    const q = query(
+      collection(db, 'nomina_asistencia'),
+      where('fecha', '>=', primerDiaMes)
+    );
+    const unsubAsist = onSnapshot(q, snap => {
+      setAsistencias(snap.docs.map(d => d.data()));
+    }, err => console.error("Error al obtener asistencias para alertas:", err));
 
-      Object.entries(porEmpleado).forEach(([empId, registros]) => {
-        const ausencias = registros.filter(r => r.estado === 'ausente').length;
-        if (ausencias >= 3) {
-          nuevas.push({ tipo: 'ausencia', empId, ausencias, mensaje: `${ausencias} ausencias este mes` });
-        }
-      });
-
-      setAlertas(nuevas);
-    });
-    return unsub;
+    return () => {
+      unsubEmp();
+      unsubAsist();
+    };
   }, []);
+
+  useEffect(() => {
+    const mesActual = new Date().toISOString().slice(0, 7);
+    const activosIds = new Set(empleados.filter(e => e.estado === 'activo').map(e => e.id));
+    const nuevas = [];
+
+    const porEmpleado = {};
+    asistencias.filter(a => a.fecha?.startsWith(mesActual) && activosIds.has(a.empleadoId)).forEach(a => {
+      if (!porEmpleado[a.empleadoId]) porEmpleado[a.empleadoId] = [];
+      porEmpleado[a.empleadoId].push(a);
+    });
+
+    Object.entries(porEmpleado).forEach(([empId, registros]) => {
+      const ausencias = registros.filter(r => r.estado === 'ausente').length;
+      if (ausencias >= 3) {
+        const emp = empleados.find(e => e.id === empId);
+        const nombre = emp ? `${emp.nombre} ${emp.apellido || ''}`.trim() : 'Empleado';
+        nuevas.push({
+          tipo: 'ausencia',
+          empId,
+          ausencias,
+          mensaje: `${nombre}: ${ausencias} ausencias este mes`
+        });
+      }
+    });
+
+    setAlertas(nuevas);
+  }, [empleados, asistencias]);
 
   return alertas;
 }
