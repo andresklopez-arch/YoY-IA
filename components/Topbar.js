@@ -63,6 +63,74 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
   const [empleadosPaseLista, setEmpleadosPaseLista] = useState([]);
   const [busquedaPaseLista, setBusquedaPaseLista] = useState('');
   const [focusedEmpleadoQR, setFocusedEmpleadoQR] = useState(null);
+  const [qrCountdown, setQrCountdown] = useState(0);
+  const [recentFichajes, setRecentFichajes] = useState([]);
+
+  const regenerarQROnTimeout = async () => {
+    if (!focusedEmpleadoQR) return;
+    try {
+      const res = await fetch('/api/nomina/generate-qr-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ empleadoId: focusedEmpleadoQR.id })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Error en servidor');
+      }
+      setFocusedEmpleadoQR(prev => prev ? {
+        ...prev,
+        qrToken: data.token,
+        qrTokenExpires: data.expires
+      } : null);
+      showToast('Código QR regenerado automáticamente por seguridad ✓', 'success');
+    } catch (err) {
+      console.error("Error al regenerar token QR:", err);
+    }
+  };
+
+  // Sugerencia 1: Cuenta regresiva de 5 minutos y regeneración automática
+  useEffect(() => {
+    if (!focusedEmpleadoQR) {
+      setQrCountdown(0);
+      return;
+    }
+    const updateCountdown = () => {
+      const remaining = Math.max(0, Math.round((focusedEmpleadoQR.qrTokenExpires - Date.now()) / 1000));
+      setQrCountdown(remaining);
+      if (remaining <= 0) {
+        regenerarQROnTimeout();
+      }
+    };
+    updateCountdown();
+    const timer = setInterval(updateCountdown, 1000);
+    return () => clearInterval(timer);
+  }, [focusedEmpleadoQR]);
+
+  // Sugerencia 3: Mostrar los últimos 3 fichajes exitosos en tiempo real
+  useEffect(() => {
+    if (!focusedEmpleadoQR) {
+      setRecentFichajes([]);
+      return;
+    }
+    const q = query(
+      collection(db, 'nomina_asistencia_log'),
+      where('empleadoId', '==', focusedEmpleadoQR.id)
+    );
+    const unsub = onSnapshot(q, snap => {
+      const logs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const successfulLogs = logs.filter(log => log.tipo === 'entrada' || log.tipo === 'salida');
+      successfulLogs.sort((a, b) => {
+        const tA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : (a.createdAt || 0);
+        const tB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : (b.createdAt || 0);
+        return tB - tA;
+      });
+      setRecentFichajes(successfulLogs.slice(0, 3));
+    }, err => {
+      console.warn("Error listening to recent logs:", err);
+    });
+    return unsub;
+  }, [focusedEmpleadoQR]);
 
   useEffect(() => {
     if (!showModalPaseLista) return;
@@ -392,7 +460,7 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
           <span style={{ fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--bronze-light)' }}>
             {PANEL_LABELS[activePanel] || activePanel}
           </span>
-          {activePanel === 'mesas' && (
+          {activePanel === 'mesas' && (user?.permisos?.nomina === true || user?.role === 'admin') && (
             <button
               onClick={() => setShowModalPaseLista(true)}
               className="btn btn-secondary btn-xs"
@@ -984,6 +1052,31 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
                   />
                 </div>
 
+                {/* Sugerencia 1: Countdown Timer UI */}
+                {qrCountdown > 0 ? (
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 6,
+                    fontSize: 12,
+                    color: qrCountdown <= 60 ? 'var(--danger)' : 'var(--bronze-light)',
+                    fontWeight: 700,
+                    background: qrCountdown <= 60 ? 'rgba(239,68,68,0.1)' : 'rgba(205,127,50,0.08)',
+                    padding: '4px 12px',
+                    borderRadius: 8,
+                    border: `1px solid ${qrCountdown <= 60 ? 'rgba(239,68,68,0.2)' : 'rgba(205,127,50,0.2)'}`
+                  }}>
+                    <i className="ri-time-line" style={{ animation: qrCountdown <= 60 ? 'pulse 1s infinite' : 'none' }} />
+                    <span>Expira en: {Math.floor(qrCountdown / 60)}:{(qrCountdown % 60).toString().padStart(2, '0')}</span>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 12, color: 'var(--danger)', fontWeight: 700 }}>
+                    <i className="ri-error-warning-line" />
+                    <span>Token expirado. Regenerando...</span>
+                  </div>
+                )}
+
                 <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.5, padding: '0 10px' }}>
                   Escanea este código con tu celular para registrar asistencia e ingresar a tu área de trabajo.
                 </div>
@@ -1002,6 +1095,38 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
                     <strong>Aviso de Red Local:</strong> Estás ejecutando en localhost. Para que el celular se conecte, usa la URL de producción o tu dirección IP local (ej. http://192.168.X.X:3000).
                   </div>
                 )}
+
+                {/* Sugerencia 3: Panel de Fichajes Recientes */}
+                <div style={{ width: '100%', borderTop: '1px solid var(--border)', paddingTop: 16, textAlign: 'left' }}>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 800, letterSpacing: '0.08em', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <i className="ri-history-line" /> Últimos 3 Fichajes
+                  </div>
+                  {recentFichajes.length === 0 ? (
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic', padding: '4px 0' }}>
+                      Sin registros para el día de hoy
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {recentFichajes.map(log => {
+                        const dateObj = log.createdAt?.toDate ? log.createdAt.toDate() : new Date(log.createdAt);
+                        const timeStr = isNaN(dateObj.getTime()) ? '-' : dateObj.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+                        const dateStr = isNaN(dateObj.getTime()) ? '-' : dateObj.toLocaleDateString('es-MX', { day: '2-digit', month: 'short' });
+                        const isEntrada = log.tipo === 'entrada';
+                        return (
+                          <div key={log.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '6px 10px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.03)' }}>
+                            <span style={{ fontSize: 11, fontWeight: 700, color: isEntrada ? 'var(--success)' : 'var(--bronze-light)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                              <i className={isEntrada ? 'ri-login-box-line' : 'ri-logout-box-line'} />
+                              {isEntrada ? 'Entrada' : 'Salida'}
+                            </span>
+                            <span style={{ fontSize: 10, color: 'var(--text-secondary)' }}>
+                              {dateStr} - {timeStr}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
 
                 <button
                   onClick={() => setFocusedEmpleadoQR(null)}
