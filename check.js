@@ -1,5 +1,5 @@
 const { initializeApp } = require('firebase/app');
-const { getFirestore, doc, getDoc, collection, getDocs, query, where } = require('firebase/firestore');
+const { getFirestore, doc, getDoc, collection, getDocs, query, orderBy, limit } = require('firebase/firestore');
 const fs = require('fs');
 
 // Leer .env.local manualmente
@@ -26,10 +26,19 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 async function run() {
-  const snap = await getDocs(query(collection(db, 'mesa_pedidos'), where('mesaId', '==', 10)));
-  console.log("=== PEDIDOS MESA 10 ===");
+  console.log("=== EMPLEADOS IN NOMINA_EMPLEADOS ===");
+  const empSnap = await getDocs(collection(db, 'nomina_empleados'));
+  empSnap.forEach(d => {
+    console.log(`id=${d.id} nombre=${d.data().nombre} rol=${d.data().rol} estado=${d.data().estado}`);
+  });
+
+  const q = query(collection(db, 'nomina_asistencia_log'), orderBy('createdAt', 'desc'), limit(15));
+  const snap = await getDocs(q);
+  console.log("\n=== LATEST ATTENDANCE LOGS ===");
   snap.forEach(d => {
-    console.log(d.id, JSON.stringify(d.data(), null, 2));
+    const data = d.data();
+    const dateStr = data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : data.createdAt;
+    console.log(`[${dateStr}] id=${d.id} emp=${data.nombre} rol=${data.rol} tipo=${data.tipo} disp=${data.dispositivo} coords=${JSON.stringify(data.coordenadas)}`);
   });
   process.exit(0);
 }

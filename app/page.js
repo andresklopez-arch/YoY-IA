@@ -86,15 +86,8 @@ function AppContent() {
   const [fichajeError, setFichajeError] = useState(null);
   const processedRef = useRef(false);
 
-  // Autocierre de la pantalla de error de asistencia (3 segundos)
-  useEffect(() => {
-    if (fichajeError) {
-      const timer = setTimeout(() => {
-        setFichajeError(null);
-      }, 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [fichajeError]);
+  // Removido el autocierre automático del error de asistencia para evitar redirigir al login admin
+
 
   // Medir y establecer el ancho de la barra de desplazamiento como una variable CSS
   useEffect(() => {
@@ -618,7 +611,7 @@ function AppContent() {
             {fichajeSoporteExitoso.tipo === 'entrada' ? '🌅' : '🌙'}
           </div>
           <h2 style={{ fontSize: 22, fontWeight: 900, color: '#fff', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-            {fichajeSoporteExitoso.tipo === 'entrada' ? 'Pase de Lista OK' : 'Registro de Salida OK'}
+            {fichajeSoporteExitoso.tipo === 'entrada' ? 'Asistencia aplicada correctamente' : 'Salida registrada correctamente'}
           </h2>
           <p style={{ fontSize: 16, color: 'var(--bronze-light)', fontWeight: 700, marginBottom: 4 }}>
             {fichajeSoporteExitoso.nombre}
@@ -642,7 +635,11 @@ function AppContent() {
           </p>
 
           <button
-            onClick={() => setFichajeSoporteExitoso(null)}
+            onClick={() => {
+              if (typeof window !== 'undefined') {
+                window.close();
+              }
+            }}
             style={{
               background: 'linear-gradient(135deg, var(--bronze), var(--bronze-light))',
               color: '#fff', border: 'none', borderRadius: 12, padding: '12px 32px',
@@ -652,7 +649,7 @@ function AppContent() {
             onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.02)'; }}
             onMouseLeave={e => { e.currentTarget.style.transform = 'none'; }}
           >
-            Entendido
+            Cerrar Ventana
           </button>
         </div>
       </div>
@@ -678,10 +675,16 @@ function AppContent() {
           <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 24, lineHeight: 1.6 }}>
             {fichajeError}
           </p>
+          
+          <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 24 }}>
+            Por favor, cierra esta pestaña y vuelve a escanear el código QR.
+          </p>
+
           <button
             onClick={() => {
-              setFichajeError(null);
-              window.location.href = '/';
+              if (typeof window !== 'undefined') {
+                window.close();
+              }
             }}
             style={{
               background: 'linear-gradient(135deg, var(--danger), #f87171)',
@@ -690,14 +693,8 @@ function AppContent() {
               textTransform: 'uppercase', letterSpacing: '0.05em', transition: 'transform 0.15s'
             }}
           >
-            Reintentar / Volver
+            Cerrar Ventana
           </button>
-
-          {/* Barra de progreso de auto-cierre (3 segundos) */}
-          <div style={{
-            position: 'absolute', bottom: 0, left: 0, height: 4, background: 'var(--danger)',
-            width: '100%', animation: 'shrinkWidth 3s linear forwards'
-          }} />
         </div>
       </div>
     );
