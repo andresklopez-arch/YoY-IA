@@ -48,20 +48,8 @@ export default function BarPanel({ showToast }) {
     setCategorias(uniqueCats);
   }, [productos]);
   
-  // Densidad de vista (Modo compacto vs clásico)
-  const [densidadVista, setDensidadVista] = useState('compact');
-
-  useEffect(() => {
-    const saved = localStorage.getItem('yoy_bar_density');
-    if (saved) {
-      setDensidadVista(saved);
-    }
-  }, []);
-
-  const changeDensity = (newDensity) => {
-    setDensidadVista(newDensity);
-    localStorage.setItem('yoy_bar_density', newDensity);
-  };
+  // Densidad de vista (Modo compacto fijo)
+  const densidadVista = 'compact';
   
   // Auditoría y logs
   const [logs, setLogs] = useState([]);
@@ -865,150 +853,15 @@ export default function BarPanel({ showToast }) {
 
   return (
     <div>
-      <div className="page-header" style={{ marginBottom: densidadVista === 'compact' ? 14 : 24, alignItems: 'center' }}>
+      <div className="page-header" style={{ marginBottom: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <h1 className="page-title gradient-bronze">Inventario Inteligente IA</h1>
-          <p className="page-subtitle" style={{ margin: 0 }}>Monitoreo de stock, auditoría física y motor predictivo de compras</p>
+          <h1 className="page-title gradient-bronze" style={{ margin: 0, lineHeight: 1.1 }}>Inventario Inteligente IA</h1>
+          <p className="page-subtitle" style={{ margin: '4px 0 0 0', fontSize: 11 }}>Monitoreo de stock, auditoría física y motor predictivo de compras</p>
         </div>
 
-        {/* Inteligencia de Margen Widget (Compacto y Prominente en el Centro del Header) */}
-        <div className="card" style={{ 
-          flex: '1', 
-          maxWidth: '460px', 
-          margin: '0 20px', 
-          padding: '8px 12px',
-          height: '76px',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'center',
-          borderColor: hasAlerts ? 'rgba(239, 68, 68, 0.4)' : 'var(--border-bronze)',
-          background: 'linear-gradient(135deg, rgba(205,127,50,0.05) 0%, rgba(0,0,0,0.2) 100%)',
-          position: 'relative',
-          boxShadow: hasAlerts ? '0 0 15px rgba(239, 68, 68, 0.2)' : '0 0 15px rgba(205,127,50,0.08)',
-          animation: hasAlerts ? 'widgetGlow 2.5s infinite ease-in-out' : 'none',
-          borderRadius: 10
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-            <span style={{ fontSize: 9, textTransform: 'uppercase', color: hasAlerts ? '#f87171' : 'var(--bronze-light)', fontWeight: 800, letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: 4 }}>
-              <i className="ri-line-chart-line" /> Inteligencia de Margen IA
-            </span>
-            <span style={{ fontSize: 8, color: 'var(--text-muted)' }}>Desliza para ver sugerencias</span>
-          </div>
-          
-          {/* Scrollable Container with Custom visible scrollbar */}
-          <div className="custom-scroll" style={{ 
-            overflowY: 'auto', 
-            flex: 1, 
-            display: 'flex', 
-            flexDirection: 'column', 
-            gap: 4,
-            paddingRight: 4
-          }}>
-            {/* Sugerencias de Margen con Filtro de Descartadas y Botón Descartar */}
-            {obtenerSugerenciasIA().filter(sug => {
-              const ts = descartadas[sug.id];
-              if (!ts) return true;
-              return (Date.now() - ts) > 15 * 24 * 60 * 60 * 1000; // 15 días
-            }).map(sug => (
-              <div key={sug.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '4px 6px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.04)', gap: 6 }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 0.5, flex: 1, marginRight: 8, overflow: 'hidden' }}>
-                  <span style={{ fontSize: 9, color: sug.type === 'success' ? 'var(--success)' : 'var(--bronze-light)', fontWeight: 700 }}>{sug.tag}</span>
-                  <span style={{ fontSize: 8, color: 'var(--text-secondary)', lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{sug.desc}</span>
-                </div>
-                <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexShrink: 0 }}>
-                  <button
-                    className="btn btn-primary btn-xs"
-                    style={{ padding: '2px 6px', fontSize: 8, height: 16 }}
-                    onClick={sug.onAction}
-                  >
-                    {sug.label}
-                  </button>
-                  <button
-                    type="button"
-                    style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 2, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                    title="Descartar sugerencia por 15 días"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      descartarSugerencia(sug.id);
-                    }}
-                  >
-                    <i className="ri-close-line" style={{ fontSize: 12 }} />
-                  </button>
-                </div>
-              </div>
-            ))}
-
-            {/* Sugerencia 3: Cruce Concurrente en Vivo */}
-            {inconsistenciasEnVivo.length === 0 ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(34,197,94,0.04)', padding: '4px 6px', borderRadius: 6, border: '1px solid rgba(34,197,94,0.12)' }}>
-                <i className="ri-checkbox-circle-line" style={{ fontSize: 9, color: 'var(--success)' }} />
-                <span style={{ fontSize: 9, color: 'var(--success)', fontWeight: 700 }}>CRUCE OK:</span>
-                <span style={{ fontSize: 8, color: 'var(--text-secondary)' }}>Sin discrepancias detectadas entre mesas y barra.</span>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 2, background: 'rgba(239,68,68,0.04)', padding: '4px 6px', borderRadius: 6, border: '1px solid rgba(239,68,68,0.12)' }}>
-                <div style={{ fontSize: 9, color: 'var(--danger)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 3 }}>
-                  <i className="ri-error-warning-line" style={{ fontSize: 10 }} /> DISCREPANCIAS EN VIVO ({inconsistenciasEnVivo.length})
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  {inconsistenciasEnVivo.map((inc, index) => (
-                    <div key={index} style={{ fontSize: 8, color: 'var(--text-primary)' }}>
-                      · {inc.nombre} ({inc.cliente}): <span style={{ color: 'var(--danger)' }}>{inc.motivo}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
-          {/* Fila de Botones */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 10, flex: 1, marginLeft: 20 }}>
+          {/* Fila 1: Botones de Acción (Sin selector de densidad) */}
           <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-            {/* Selector de Densidad de Vista */}
-            <div style={{ display: 'flex', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)', borderRadius: 8, padding: 2, marginRight: 6 }}>
-              <button 
-                className="btn btn-xs" 
-                style={{ 
-                  padding: '4px 8px', 
-                  fontSize: 10, 
-                  borderRadius: 6, 
-                  background: densidadVista === 'compact' ? 'var(--bronze-subtle)' : 'transparent',
-                  border: 'none',
-                  color: densidadVista === 'compact' ? 'var(--bronze-light)' : 'var(--text-secondary)',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 4
-                }}
-                onClick={() => changeDensity('compact')}
-                title="Vista Compacta"
-              >
-                <i className="ri-grid-fill" /> Compacto
-              </button>
-              <button 
-                className="btn btn-xs" 
-                style={{ 
-                  padding: '4px 8px', 
-                  fontSize: 10, 
-                  borderRadius: 6, 
-                  background: densidadVista === 'classic' ? 'var(--bronze-subtle)' : 'transparent',
-                  border: 'none',
-                  color: densidadVista === 'classic' ? 'var(--bronze-light)' : 'var(--text-secondary)',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 4
-                }}
-                onClick={() => changeDensity('classic')}
-                title="Vista Clásica (Espaciosa)"
-              >
-                <i className="ri-layout-grid-fill" /> Clásico
-              </button>
-            </div>
-
             <button className="btn btn-secondary btn-sm" onClick={optimizarStockConIA} style={{ color: 'var(--bronze-light)', borderColor: 'var(--border-bronze)' }}>
               <i className="ri-magic-line" style={{ marginRight: 6 }} /> Optimizar Stock con IA
             </button>
@@ -1020,8 +873,100 @@ export default function BarPanel({ showToast }) {
             </button>
           </div>
 
-          {/* Fila de Métricas en Modo Compacto (Subida cerca de los botones, sin texto de Resumen) */}
-          {densidadVista === 'compact' && (
+          {/* Fila 2: Widget de Sugerencias IA (Más grande, abajo y a la derecha en el espacio vacío) + KPIs */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16, width: '100%', justifyContent: 'flex-end' }}>
+            
+            {/* Inteligencia de Margen Widget */}
+            <div className="card" style={{ 
+              width: '480px', 
+              padding: '8px 12px',
+              height: '92px',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'center',
+              borderColor: hasAlerts ? 'rgba(239, 68, 68, 0.4)' : 'var(--border-bronze)',
+              background: 'linear-gradient(135deg, rgba(205,127,50,0.05) 0%, rgba(0,0,0,0.2) 100%)',
+              position: 'relative',
+              boxShadow: hasAlerts ? '0 0 15px rgba(239, 68, 68, 0.2)' : '0 0 15px rgba(205,127,50,0.08)',
+              animation: hasAlerts ? 'widgetGlow 2.5s infinite ease-in-out' : 'none',
+              borderRadius: 10,
+              flexShrink: 0
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                <span style={{ fontSize: 9, textTransform: 'uppercase', color: hasAlerts ? '#f87171' : 'var(--bronze-light)', fontWeight: 800, letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <i className="ri-line-chart-line" /> Inteligencia de Margen IA
+                </span>
+                <span style={{ fontSize: 8, color: 'var(--text-muted)' }}>Desliza para ver sugerencias</span>
+              </div>
+              
+              {/* Scrollable Container with Custom visible scrollbar */}
+              <div className="custom-scroll" style={{ 
+                overflowY: 'auto', 
+                flex: 1, 
+                display: 'flex', 
+                flexDirection: 'column', 
+                gap: 4,
+                paddingRight: 4
+              }}>
+                {/* Sugerencias de Margen con Filtro de Descartadas y Botón Descartar */}
+                {obtenerSugerenciasIA().filter(sug => {
+                  const ts = descartadas[sug.id];
+                  if (!ts) return true;
+                  return (Date.now() - ts) > 15 * 24 * 60 * 60 * 1000; // 15 días
+                }).map(sug => (
+                  <div key={sug.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '4px 6px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.04)', gap: 6 }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 0.5, flex: 1, marginRight: 8, overflow: 'hidden' }}>
+                      <span style={{ fontSize: 9, color: sug.type === 'success' ? 'var(--success)' : 'var(--bronze-light)', fontWeight: 700 }}>{sug.tag}</span>
+                      <span style={{ fontSize: 8, color: 'var(--text-secondary)', lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{sug.desc}</span>
+                    </div>
+                    <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexShrink: 0 }}>
+                      <button
+                        className="btn btn-primary btn-xs"
+                        style={{ padding: '2px 6px', fontSize: 8, height: 16 }}
+                        onClick={sug.onAction}
+                      >
+                        {sug.label}
+                      </button>
+                      <button
+                        type="button"
+                        style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 2, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        title="Descartar sugerencia por 15 días"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          descartarSugerencia(sug.id);
+                        }}
+                      >
+                        <i className="ri-close-line" style={{ fontSize: 12 }} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+
+                {/* Sugerencia 3: Cruce Concurrente en Vivo */}
+                {inconsistenciasEnVivo.length === 0 ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(34,197,94,0.04)', padding: '4px 6px', borderRadius: 6, border: '1px solid rgba(34,197,94,0.12)' }}>
+                    <i className="ri-checkbox-circle-line" style={{ fontSize: 9, color: 'var(--success)' }} />
+                    <span style={{ fontSize: 9, color: 'var(--success)', fontWeight: 700 }}>CRUCE OK:</span>
+                    <span style={{ fontSize: 8, color: 'var(--text-secondary)' }}>Sin discrepancias detectadas entre mesas y barra.</span>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2, background: 'rgba(239,68,68,0.04)', padding: '4px 6px', borderRadius: 6, border: '1px solid rgba(239,68,68,0.12)' }}>
+                    <div style={{ fontSize: 9, color: 'var(--danger)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 3 }}>
+                      <i className="ri-error-warning-line" style={{ fontSize: 10 }} /> DISCREPANCIAS EN VIVO ({inconsistenciasEnVivo.length})
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      {inconsistenciasEnVivo.map((inc, index) => (
+                        <div key={index} style={{ fontSize: 8, color: 'var(--text-primary)' }}>
+                          · {inc.nombre} ({inc.cliente}): <span style={{ color: 'var(--danger)' }}>{inc.motivo}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Fila de Métricas en Modo Compacto */}
             <div style={{ 
               display: 'flex', 
               alignItems: 'center', 
@@ -1030,8 +975,9 @@ export default function BarPanel({ showToast }) {
               border: '1px solid var(--border-bronze)',
               borderRadius: 8, 
               padding: '6px 12px',
-              marginTop: 2,
-              position: 'relative'
+              height: '48px',
+              position: 'relative',
+              flexShrink: 0
             }}>
               {/* Métrica 1 */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
@@ -1086,10 +1032,7 @@ export default function BarPanel({ showToast }) {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
                 <span style={{ fontSize: 8, textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.05em' }}>Valor Venta</span>
                 <div style={{ fontSize: 13, fontWeight: 900, color: 'var(--success)', fontFamily: 'var(--font-display)', display: 'flex', alignItems: 'baseline', gap: 4 }}>
-                  ${ventaTotalVal.toLocaleString()}
-                  <span style={{ fontSize: 8, color: 'var(--text-muted)', fontWeight: 500 }}>
-                    ({margenGlobalPct}%)
-                  </span>
+                  ${ventaTotalVal.toLocaleString()} <span style={{ fontSize: 8, color: 'var(--text-muted)', fontWeight: 500 }}>({margenGlobalPct}%)</span>
                 </div>
               </div>
 
@@ -1163,7 +1106,8 @@ export default function BarPanel({ showToast }) {
                 </div>
               )}
             </div>
-          )}
+
+          </div>
         </div>
       </div>
       <style>{`

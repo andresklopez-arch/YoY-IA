@@ -642,130 +642,134 @@ export default function ReportesPanel({ showToast }) {
     <div>
       <div className="page-header" style={{ alignItems: 'center', display: 'flex', justifyContent: 'space-between', marginBottom: 24 }}>
         <div>
-          <h1 className="page-title gradient-bronze">Reportes e Inteligencia</h1>
-          <p className="page-subtitle" style={{ margin: 0 }}>Análisis de negocio en tiempo real, filtros financieros y predicción IA</p>
+          <h1 className="page-title gradient-bronze" style={{ margin: 0, lineHeight: 1.1 }}>Reportes e Inteligencia</h1>
+          <p className="page-subtitle" style={{ margin: '4px 0 0 0', fontSize: 11 }}>Análisis de negocio en tiempo real, filtros financieros y predicción IA</p>
         </div>
 
-        {/* Inteligencia de Margen Widget (Duplicado en Reportes con Indicador de Descartes) */}
-        <div className="card" style={{ 
-          flex: '1', 
-          maxWidth: '460px', 
-          margin: '0 20px', 
-          padding: '8px 12px',
-          height: '76px',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'center',
-          borderColor: hasAlerts ? 'rgba(239, 68, 68, 0.4)' : 'var(--border-bronze)',
-          background: 'linear-gradient(135deg, rgba(205,127,50,0.05) 0%, rgba(0,0,0,0.2) 100%)',
-          position: 'relative',
-          boxShadow: hasAlerts ? '0 0 15px rgba(239, 68, 68, 0.2)' : '0 0 15px rgba(205,127,50,0.08)',
-          animation: hasAlerts ? 'widgetGlow 2.5s infinite ease-in-out' : 'none',
-          borderRadius: 10
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-            <span style={{ fontSize: 9, textTransform: 'uppercase', color: hasAlerts ? '#f87171' : 'var(--bronze-light)', fontWeight: 800, letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: 4 }}>
-              <i className="ri-line-chart-line" /> Inteligencia de Margen IA
-            </span>
-            <span style={{ fontSize: 8, color: 'var(--text-muted)' }}>Vista de Almacén y Administración</span>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 10, flex: 1, marginLeft: 20 }}>
+          {/* Fila 1: Selector y Exportar */}
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            {/* Selector de periodo general */}
+            <div style={{ display: 'flex', background: 'var(--bg-elevated)', borderRadius: 10, padding: 2, border: '1px solid var(--border)' }}>
+              {[
+                { id: 'semana', label: 'Semana' },
+                { id: 'mes', label: 'Mes' },
+                { id: 'anio', label: 'Año' },
+              ].map(p => (
+                <button
+                  key={p.id}
+                  onClick={() => setFiltroGrafico(p.id)}
+                  style={{
+                    background: filtroGrafico === p.id ? 'var(--bronze)' : 'transparent',
+                    color: filtroGrafico === p.id ? '#fff' : 'var(--text-secondary)',
+                    border: 'none',
+                    borderRadius: 8,
+                    padding: '6px 12px',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+
+            <button className="btn btn-secondary btn-sm" onClick={() => showToast('Exportando PDF...', 'info')}>
+              <i className="ri-file-pdf-line" /> Exportar
+            </button>
           </div>
-          
-          {/* Scrollable Container with Custom visible scrollbar */}
-          <div className="custom-scroll" style={{ 
-            overflowY: 'auto', 
-            flex: 1, 
-            display: 'flex', 
-            flexDirection: 'column', 
-            gap: 4,
-            paddingRight: 4
-          }}>
-            {/* Sugerencias de Margen con Filtro de Descartadas e Indicador de Descartes */}
-            {obtenerSugerenciasIA().map(sug => {
-              const ts = descartadas[sug.id];
-              const isDescartada = ts && (Date.now() - ts) <= 15 * 24 * 60 * 60 * 1000;
-              const diasRestantes = isDescartada ? (15 - (Date.now() - ts) / (24 * 60 * 60 * 1000)).toFixed(1) : 0;
+
+          {/* Fila 2: Widget de Sugerencias IA (Más grande, abajo y a la derecha en el espacio vacío) */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16, width: '100%', justifyContent: 'flex-end' }}>
+            <div className="card" style={{ 
+              width: '480px', 
+              padding: '8px 12px',
+              height: '92px',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'center',
+              borderColor: hasAlerts ? 'rgba(239, 68, 68, 0.4)' : 'var(--border-bronze)',
+              background: 'linear-gradient(135deg, rgba(205,127,50,0.05) 0%, rgba(0,0,0,0.2) 100%)',
+              position: 'relative',
+              boxShadow: hasAlerts ? '0 0 15px rgba(239, 68, 68, 0.2)' : '0 0 15px rgba(205,127,50,0.08)',
+              animation: hasAlerts ? 'widgetGlow 2.5s infinite ease-in-out' : 'none',
+              borderRadius: 10,
+              flexShrink: 0
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                <span style={{ fontSize: 9, textTransform: 'uppercase', color: hasAlerts ? '#f87171' : 'var(--bronze-light)', fontWeight: 800, letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <i className="ri-line-chart-line" /> Inteligencia de Margen IA
+                </span>
+                <span style={{ fontSize: 8, color: 'var(--text-muted)' }}>Vista de Almacén y Administración</span>
+              </div>
               
-              return (
-                <div key={sug.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: isDescartada ? 'rgba(239,68,68,0.02)' : 'rgba(255,255,255,0.02)', padding: '4px 6px', borderRadius: 6, border: isDescartada ? '1px solid rgba(239,68,68,0.08)' : '1px solid rgba(255,255,255,0.04)', gap: 6 }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 0.5, flex: 1, marginRight: 8, overflow: 'hidden' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <span style={{ fontSize: 9, color: sug.type === 'success' ? 'var(--success)' : sug.type === 'danger' ? 'var(--danger)' : 'var(--bronze-light)', fontWeight: 700 }}>{sug.tag}</span>
-                      {isDescartada && (
-                        <span style={{ fontSize: 7, background: 'rgba(239, 68, 68, 0.12)', color: 'var(--danger)', padding: '1px 4px', borderRadius: 4, fontWeight: 700 }}>
-                          Descartada en Bar ({diasRestantes}d)
-                        </span>
-                      )}
+              {/* Scrollable Container with Custom visible scrollbar */}
+              <div className="custom-scroll" style={{ 
+                overflowY: 'auto', 
+                flex: 1, 
+                display: 'flex', 
+                flexDirection: 'column', 
+                gap: 4,
+                paddingRight: 4
+              }}>
+                {/* Sugerencias de Margen con Filtro de Descartadas e Indicador de Descartes */}
+                {obtenerSugerenciasIA().map(sug => {
+                  const ts = descartadas[sug.id];
+                  const isDescartada = ts && (Date.now() - ts) <= 15 * 24 * 60 * 60 * 1000;
+                  const diasRestantes = isDescartada ? (15 - (Date.now() - ts) / (24 * 60 * 60 * 1000)).toFixed(1) : 0;
+                  
+                  return (
+                    <div key={sug.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: isDescartada ? 'rgba(239,68,68,0.02)' : 'rgba(255,255,255,0.02)', padding: '4px 6px', borderRadius: 6, border: isDescartada ? '1px solid rgba(239,68,68,0.08)' : '1px solid rgba(255,255,255,0.04)', gap: 6 }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 0.5, flex: 1, marginRight: 8, overflow: 'hidden' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <span style={{ fontSize: 9, color: sug.type === 'success' ? 'var(--success)' : sug.type === 'danger' ? 'var(--danger)' : 'var(--bronze-light)', fontWeight: 700 }}>{sug.tag}</span>
+                          {isDescartada && (
+                            <span style={{ fontSize: 7, background: 'rgba(239, 68, 68, 0.12)', color: 'var(--danger)', padding: '1px 4px', borderRadius: 4, fontWeight: 700 }}>
+                              Descartada en Bar ({diasRestantes}d)
+                            </span>
+                          )}
+                        </div>
+                        <span style={{ fontSize: 8, color: 'var(--text-secondary)', lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{sug.desc}</span>
+                      </div>
+                      <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexShrink: 0 }}>
+                        <button
+                          className="btn btn-primary btn-xs"
+                          style={{ padding: '2px 6px', fontSize: 8, height: 16 }}
+                          onClick={sug.onAction}
+                        >
+                          {sug.label}
+                        </button>
+                      </div>
                     </div>
-                    <span style={{ fontSize: 8, color: 'var(--text-secondary)', lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{sug.desc}</span>
-                  </div>
-                  <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexShrink: 0 }}>
-                    <button
-                      className="btn btn-primary btn-xs"
-                      style={{ padding: '2px 6px', fontSize: 8, height: 16 }}
-                      onClick={sug.onAction}
-                    >
-                      {sug.label}
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
+                  );
+                })}
 
-            {/* Sugerencia 3: Cruce Concurrente en Vivo */}
-            {inconsistenciasEnVivo.length === 0 ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(34,197,94,0.04)', padding: '4px 6px', borderRadius: 6, border: '1px solid rgba(34,197,94,0.12)' }}>
-                <i className="ri-checkbox-circle-line" style={{ fontSize: 9, color: 'var(--success)' }} />
-                <span style={{ fontSize: 9, color: 'var(--success)', fontWeight: 700 }}>CRUCE OK:</span>
-                <span style={{ fontSize: 8, color: 'var(--text-secondary)' }}>Sin discrepancias detectadas entre mesas y barra.</span>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 2, background: 'rgba(239,68,68,0.04)', padding: '4px 6px', borderRadius: 6, border: '1px solid rgba(239,68,68,0.12)' }}>
-                <div style={{ fontSize: 9, color: 'var(--danger)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 3 }}>
-                  <i className="ri-error-warning-line" style={{ fontSize: 10 }} /> DISCREPANCIAS EN VIVO ({inconsistenciasEnVivo.length})
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  {inconsistenciasEnVivo.map((inc, index) => (
-                    <div key={index} style={{ fontSize: 8, color: 'var(--text-primary)' }}>
-                      · {inc.nombre} ({inc.cliente}): <span style={{ color: 'var(--danger)' }}>{inc.motivo}</span>
+                {/* Sugerencia 3: Cruce Concurrente en Vivo */}
+                {inconsistenciasEnVivo.length === 0 ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(34,197,94,0.04)', padding: '4px 6px', borderRadius: 6, border: '1px solid rgba(34,197,94,0.12)' }}>
+                    <i className="ri-checkbox-circle-line" style={{ fontSize: 9, color: 'var(--success)' }} />
+                    <span style={{ fontSize: 9, color: 'var(--success)', fontWeight: 700 }}>CRUCE OK:</span>
+                    <span style={{ fontSize: 8, color: 'var(--text-secondary)' }}>Sin discrepancias detectadas entre mesas y barra.</span>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2, background: 'rgba(239,68,68,0.04)', padding: '4px 6px', borderRadius: 6, border: '1px solid rgba(239,68,68,0.12)' }}>
+                    <div style={{ fontSize: 9, color: 'var(--danger)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 3 }}>
+                      <i className="ri-error-warning-line" style={{ fontSize: 10 }} /> DISCREPANCIAS EN VIVO ({inconsistenciasEnVivo.length})
                     </div>
-                  ))}
-                </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      {inconsistenciasEnVivo.map((inc, index) => (
+                        <div key={index} style={{ fontSize: 8, color: 'var(--text-primary)' }}>
+                          · {inc.nombre} ({inc.cliente}): <span style={{ color: 'var(--danger)' }}>{inc.motivo}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
-            )}
+            </div>
           </div>
-        </div>
-
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          {/* Selector de periodo general */}
-          <div style={{ display: 'flex', background: 'var(--bg-elevated)', borderRadius: 10, padding: 2, border: '1px solid var(--border)' }}>
-            {[
-              { id: 'semana', label: 'Semana' },
-              { id: 'mes', label: 'Mes' },
-              { id: 'anio', label: 'Año' },
-            ].map(p => (
-              <button
-                key={p.id}
-                onClick={() => setFiltroGrafico(p.id)}
-                style={{
-                  background: filtroGrafico === p.id ? 'var(--bronze)' : 'transparent',
-                  color: filtroGrafico === p.id ? '#fff' : 'var(--text-secondary)',
-                  border: 'none',
-                  borderRadius: 8,
-                  padding: '6px 12px',
-                  fontSize: 12,
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  transition: 'all 0.2s'
-                }}
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
-
-          <button className="btn btn-secondary btn-sm" onClick={() => showToast('Exportando PDF...', 'info')}>
-            <i className="ri-file-pdf-line" /> Exportar
-          </button>
         </div>
       </div>
 
