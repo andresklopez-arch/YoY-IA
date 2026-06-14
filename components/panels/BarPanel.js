@@ -1483,10 +1483,10 @@ export default function BarPanel({ showToast }) {
             <input 
               className="form-input" 
               style={{ 
-                width: 150, 
-                padding: '4px 8px', 
-                fontSize: 11, 
-                height: 26 
+                width: 130, 
+                padding: '3px 7px', 
+                fontSize: 10, 
+                height: 24 
               }} 
               placeholder="Buscar producto..." 
               value={busqueda} 
@@ -1496,10 +1496,10 @@ export default function BarPanel({ showToast }) {
             <select
               className="form-select"
               style={{ 
-                width: 120, 
-                padding: '3px 8px', 
-                fontSize: 11, 
-                height: 26,
+                width: 105, 
+                padding: '2px 6px', 
+                fontSize: 10, 
+                height: 24,
                 cursor: 'pointer',
                 borderColor: filtro !== 'Todas' ? 'var(--bronze-light)' : 'var(--border)'
               }}
@@ -1508,36 +1508,36 @@ export default function BarPanel({ showToast }) {
             >
               {categorias.map(c => (
                 <option key={c} value={c}>
-                  {c === 'Todas' ? 'Todas las Categorias' : `Categoria: ${c}`}
+                  {c === 'Todas' ? 'Todas las Categorias' : `Categ: ${c}`}
                 </option>
               ))}
             </select>
 
-            <div style={{ flex: 1 }} />
+
 
             {/* Botones de Accion */}
-            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexShrink: 0 }}>
               {ultimaOrdenDiaria && ultimaOrdenDiaria.fecha === new Date().toLocaleDateString('en-CA') && ultimaOrdenDiaria.items?.length > 0 && (
-                <button 
+              <button 
                   className="btn btn-secondary btn-xs" 
                   onClick={() => {
                     imprimirOrdenCompraTFT(ultimaOrdenDiaria.items);
                     showToast('Re-imprimiendo ticket de orden de compra diaria ✓', 'success');
                   }} 
-                  style={{ color: 'var(--bronze-light)', borderColor: 'var(--border-bronze)', height: 26, fontSize: 9.5, padding: '0 8px', display: 'flex', alignItems: 'center' }}
+                  style={{ color: 'var(--bronze-light)', borderColor: 'var(--border-bronze)', height: 24, fontSize: 9, padding: '0 6px', display: 'flex', alignItems: 'center', gap: 3 }}
                   title="Reimprimir el ticket de orden de compra automatica generado hoy al iniciar sesion"
                 >
-                  <i className="ri-printer-line" style={{ marginRight: 4 }} /> Reimprimir Ticket Diario
+                  <i className="ri-printer-line" /> Ticket Diario
                 </button>
               )}
-              <button className="btn btn-secondary btn-xs" onClick={optimizarStockConIA} style={{ color: 'var(--bronze-light)', borderColor: 'var(--border-bronze)', height: 26, fontSize: 9.5, padding: '0 8px', display: 'flex', alignItems: 'center' }}>
-                <i className="ri-magic-line" style={{ marginRight: 4 }} /> Optimizar Stock con IA
+              <button className="btn btn-secondary btn-xs" onClick={optimizarStockConIA} style={{ color: 'var(--bronze-light)', borderColor: 'var(--border-bronze)', height: 24, fontSize: 9, padding: '0 6px', display: 'flex', alignItems: 'center', gap: 3 }}>
+                <i className="ri-magic-line" /> Stock IA
               </button>
-              <button className="btn btn-secondary btn-xs" onClick={generarOrdenCompraIA} style={{ color: 'var(--bronze-light)', borderColor: 'var(--border-bronze)', height: 26, fontSize: 9.5, padding: '0 8px', display: 'flex', alignItems: 'center' }}>
-                <i className="ri-robot-line" style={{ marginRight: 4 }} /> Orden de Compra IA
+              <button className="btn btn-secondary btn-xs" onClick={generarOrdenCompraIA} style={{ color: 'var(--bronze-light)', borderColor: 'var(--border-bronze)', height: 24, fontSize: 9, padding: '0 6px', display: 'flex', alignItems: 'center', gap: 3 }}>
+                <i className="ri-robot-line" /> Orden Compra
               </button>
-              <button className="btn btn-primary btn-xs" onClick={() => setShowNuevoProducto(true)} style={{ height: 26, fontSize: 9.5, padding: '0 8px', display: 'flex', alignItems: 'center' }}>
-                <i className="ri-add-line" style={{ marginRight: 4 }} /> Registrar Producto
+              <button className="btn btn-primary btn-xs" onClick={() => setShowNuevoProducto(true)} style={{ height: 24, fontSize: 9, padding: '0 6px', display: 'flex', alignItems: 'center', gap: 3 }}>
+                <i className="ri-add-line" /> Registrar
               </button>
             </div>
           </div>
