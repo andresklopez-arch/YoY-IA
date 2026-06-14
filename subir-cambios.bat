@@ -18,17 +18,17 @@ git commit -m "Actualizacion: %date% %time%"
 git push
 if %ERRORLEVEL% EQU 0 (
   echo ================================
-  echo  Cambios subidos correctamente (GitHub)
+  echo  Cambios subidos correctamente a GitHub
   echo ================================
   goto end
 )
 
 echo.
 echo  Git push no disponible. Desplegando en segundo plano con Vercel...
-npx vercel --prod --no-wait --yes
+call npx vercel --prod --no-wait --yes
 if %ERRORLEVEL% EQU 0 (
   echo ================================
-  echo  Despliegue iniciado en Vercel (En segundo plano)
+  echo  Despliegue iniciado en Vercel
   echo ================================
 ) else (
   echo ================================
