@@ -1196,6 +1196,14 @@ export default function BarPanel({ showToast }) {
                             <span className="badge badge-success">Pedir: {o.cantidadAPedir} pz</span>
                             <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>Costo: ${o.costoTotal} MXN</div>
                           </div>
+                          <button
+                            onClick={() => setOrdenSugerida(prev => prev.filter(item => item.id !== o.id))}
+                            className="btn btn-secondary btn-icon"
+                            style={{ width: 24, height: 24, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--danger)', borderColor: 'rgba(239,68,68,0.2)', background: 'rgba(239,68,68,0.05)', borderRadius: 6, cursor: 'pointer' }}
+                            title="Excluir de la orden"
+                          >
+                            <i className="ri-delete-bin-line" style={{ fontSize: 13 }} />
+                          </button>
                         </div>
                       </div>
                     ))}
