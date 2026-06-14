@@ -656,6 +656,124 @@ export default function BarPanel({ showToast }) {
     setShowModalOptimizacion(false);
   };
 
+  // Impresion de faltantes para stock optimo
+  const imprimirFaltantesStockIA = () => {
+    const itemsFaltantes = productos.map(p => {
+      const sug = productosSugeridosOpt.find(s => s.id === p.id);
+      const optimoTarget = sug ? sug.optimoSugerido : p.stockOptimo;
+      const faltante = optimoTarget - p.stock;
+      
+      return {
+        nombre: p.nombre,
+        categoria: p.categoria,
+        stock: p.stock,
+        optimo: optimoTarget,
+        faltante: faltante > 0 ? faltante : 0,
+        unidad: p.unidad || 'pz'
+      };
+    }).filter(item => item.faltante > 0);
+
+    if (itemsFaltantes.length === 0) {
+      showToast('Todos los productos están en su nivel óptimo de stock 👍', 'info');
+      return;
+    }
+
+    const printWindow = window.open('', '_blank', 'width=600,height=600');
+    if (!printWindow) {
+      setPopupsBloqueados(true);
+      localStorage.setItem('yoy_popups_blocked_warning', 'true');
+      showToast('Permita las ventanas emergentes para imprimir el reporte', 'warning');
+      return;
+    } else {
+      setPopupsBloqueados(false);
+      localStorage.removeItem('yoy_popups_blocked_warning');
+    }
+
+    const dateStr = new Date().toLocaleDateString('es-MX', { year: 'numeric', month: '2-digit', day: '2-digit' });
+    const timeStr = new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+
+    const itemsHtml = itemsFaltantes.map(item => `
+      <tr style="border-bottom: 1px dashed #000;">
+        <td style="padding: 6px 0; font-size: 11px;">
+          <b>${item.nombre}</b><br>
+          <span style="font-size: 10px; color: #555;">En Almacén: ${item.stock} ${item.unidad} / Óptimo: ${item.optimo} ${item.unidad}</span>
+        </td>
+        <td style="text-align: right; padding: 6px 0; font-size: 12px; font-weight: bold; vertical-align: bottom;">
+          Falta: ${item.faltante} ${item.unidad}
+        </td>
+      </tr>
+    `).join('');
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Reporte de Faltantes IA</title>
+          <style>
+            @page {
+              size: 80mm auto;
+              margin: 0;
+            }
+            body {
+              font-family: 'Courier New', Courier, monospace;
+              width: 72mm;
+              margin: 0;
+              padding: 10px;
+              color: #000;
+              background: #fff;
+            }
+            h3, p {
+              margin: 4px 0;
+              text-align: center;
+            }
+            .divider {
+              border-top: 1px dashed #000;
+              margin: 8px 0;
+            }
+            .table-data {
+              width: 100%;
+              border-collapse: collapse;
+            }
+          </style>
+        </head>
+        <body>
+          <h3>YOY IA BILLAR</h3>
+          <p style="font-size: 10px; font-weight: bold;">REPORTE DE FALTANTES IA</p>
+          <p style="font-size: 9px; font-weight: bold;">(ESTADO ÓPTIMO SUGERIDO)</p>
+          <div class="divider"></div>
+          <p style="font-size: 9px; text-align: left;">Fecha: ${dateStr} - Hora: ${timeStr}</p>
+          <div class="divider"></div>
+          
+          <table class="table-data">
+            <thead>
+              <tr style="border-bottom: 1px solid #000;">
+                <th style="text-align: left; font-size: 10px; padding-bottom: 4px;">Producto (Almacén)</th>
+                <th style="text-align: right; font-size: 10px; padding-bottom: 4px;">Faltante</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${itemsHtml}
+            </tbody>
+          </table>
+          
+          <div class="divider"></div>
+          
+          <p style="font-size: 8px; text-align: center; margin-top: 15px;">
+            Yoy IA Billar - Alfonso Iturbide<br>
+            * REPORTADO POR MOTOR IA *
+          </p>
+          <br><br>
+          <script>
+            window.onload = function() {
+              window.print();
+              setTimeout(function() { window.close(); }, 500);
+            };
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
   // Impresion de Ticket Termico para Orden de Compra
   const imprimirOrdenCompraTFT = (ordenItems) => {
     if (!ordenItems || ordenItems.length === 0) return;
@@ -2011,6 +2129,9 @@ export default function BarPanel({ showToast }) {
               </div>
             </div>
             <div className="modal-footer">
+              <button className="btn btn-secondary" onClick={imprimirFaltantesStockIA} style={{ color: 'var(--bronze-light)', borderColor: 'var(--border-bronze)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <i className="ri-printer-line" /> Imprimir Faltantes
+              </button>
               <button className="btn btn-secondary" onClick={() => setShowModalOptimizacion(false)}>Ignorar Recomendaciones</button>
               <button className="btn btn-primary" onClick={aplicarOptimizacionStock}>
                 <i className="ri-check-line" style={{ marginRight: 6 }} /> Aplicar Ajustes IA
