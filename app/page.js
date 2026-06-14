@@ -84,7 +84,17 @@ function AppContent() {
 
   const [fichajeSoporteExitoso, setFichajeSoporteExitoso] = useState(null);
   const [fichajeError, setFichajeError] = useState(null);
-  const [scanParams, setScanParams] = useState(null);
+  const [scanParams, setScanParams] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem('temp_scan_params');
+        return stored ? JSON.parse(stored) : null;
+      } catch (e) {
+        return null;
+      }
+    }
+    return null;
+  });
   const processedRef = useRef(false);
 
   // Removido el autocierre automático del error de asistencia para evitar redirigir al login admin
@@ -158,10 +168,20 @@ function AppContent() {
   }, [user, isProcessingQR]);
 
   const procesarLoginQR = async (params) => {
-    if (!params) return;
+    if (!params || isProcessingQR) return;
     try {
       setIsProcessingQR(true);
       setFichajeError(null);
+      
+      // Forzar un retraso artificial de 1 segundo para permitir que React pinte la pantalla de carga
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
+      // Validación previa de contexto seguro para Geolocalización
+      if (typeof window !== 'undefined' && window.location.protocol !== 'https:' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+        if (!navigator.geolocation) {
+          throw new Error('El navegador de tu celular bloquea el GPS sobre HTTP (conexión no segura). Para permitirlo:\n1. Abre chrome://flags en Google Chrome de tu celular.\n2. Busca "Insecure origins treated as secure".\n3. Agrega "http://' + window.location.host + '" y cámbialo a Enabled.\n4. Presiona "Relaunch" para reiniciar Chrome.');
+        }
+      }
       
       // Sugerencia 1: Limpieza explícita inmediata de la sesión previa en localStorage, Firebase y Contexto
       await logout();
@@ -226,6 +246,14 @@ function AppContent() {
 
       const { tipoRegistro, emp } = data;
 
+      // Limpiar parámetros de escaneo tras registro exitoso
+      setScanParams(null);
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.removeItem('temp_scan_params');
+        } catch (e) {}
+      }
+
       // 3. Determinar comportamiento según el rol (Mesero/Cocina loguea, Soporte solo ficha)
       const rolLower = (emp.rol || '').toLowerCase();
       const esMeseroOKitchen = rolLower.includes('mesero') ||
@@ -277,6 +305,11 @@ function AppContent() {
 
     const params = { scanId, token, expires };
     setScanParams(params);
+    try {
+      localStorage.setItem('temp_scan_params', JSON.stringify(params));
+    } catch (e) {
+      console.error('Error saving scan params to localStorage:', e);
+    }
 
     // Limpiar el parámetro de la URL inmediatamente para evitar ejecuciones repetidas al recargar
     const newUrl = window.location.pathname;
@@ -705,7 +738,11 @@ function AppContent() {
 
             <button
               onClick={() => {
+                setScanParams(null);
                 if (typeof window !== 'undefined') {
+                  try {
+                    localStorage.removeItem('temp_scan_params');
+                  } catch (e) {}
                   window.close();
                 }
               }}
