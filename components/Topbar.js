@@ -717,19 +717,23 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
               right: 0,
               bottom: 0,
               display: 'flex',
-              alignItems: 'center',
+              alignItems: 'flex-start',
               justifyContent: 'center',
               zIndex: 3000,
-              padding: '20px',
+              paddingTop: '5vh',
+              paddingLeft: '20px',
+              paddingRight: '20px',
+              paddingBottom: '20px',
+              overflowY: 'auto',
               pointerEvents: 'none',
             }}
           >
             <div
               className="modal"
               style={{
-                width: '90%',
+                width: '100%',
                 maxWidth: 700,
-                maxHeight: 'calc(100vh - 130px)',
+                maxHeight: 'calc(90vh - 70px)',
                 display: 'flex',
                 flexDirection: 'column',
                 background: 'var(--bg-card)',
@@ -738,6 +742,7 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
                 borderRadius: 20,
                 pointerEvents: 'all',
                 animation: 'slideUp 0.25s ease',
+                flexShrink: 0,
               }}
               onClick={e => e.stopPropagation()}
             >
