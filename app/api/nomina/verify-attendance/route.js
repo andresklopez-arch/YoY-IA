@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/firebase';
-import { doc, getDoc, getDocs, addDoc, collection, query, where, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, getDocs, addDoc, setDoc, collection, query, where, serverTimestamp } from 'firebase/firestore';
 import crypto from 'crypto';
 
 const SECRET = process.env.QR_SECRET || 'yoy_billar_secret_key_2026_io';
@@ -43,7 +43,14 @@ export async function POST(request) {
       return NextResponse.json({ success: false, error: 'El código QR ha expirado' }, { status: 401 });
     }
 
-    // 3. Obtener datos del empleado
+    // 3. Protección Anti-Replay: Verificar si el token ya fue consumido
+    const tokenRef = doc(db, 'used_qr_tokens', token);
+    const tokenSnap = await getDoc(tokenRef);
+    if (tokenSnap.exists()) {
+      return NextResponse.json({ success: false, error: 'Este código QR ya ha sido utilizado para registrar asistencia.' }, { status: 401 });
+    }
+
+    // 4. Obtener datos del empleado
     const empRef = doc(db, 'nomina_empleados', empleadoId);
     const empSnap = await getDoc(empRef);
     if (!empSnap.exists()) {
@@ -52,7 +59,7 @@ export async function POST(request) {
     const emp = { id: empSnap.id, ...empSnap.data() };
     const fechaHoy = new Date().toISOString().slice(0, 10);
 
-    // 4. Validar geolocalización
+    // 5. Validar geolocalización activa
     if (!coordenadas || coordenadas.status !== 'Obtenido') {
       await addDoc(collection(db, 'nomina_asistencia_log'), {
         empleadoId: emp.id,
@@ -67,7 +74,18 @@ export async function POST(request) {
       return NextResponse.json({ success: false, error: 'Geolocalización requerida. Por favor, activa el GPS y otorga permisos de ubicación.' }, { status: 400 });
     }
 
-    // 5. Validar geocerca (200 metros)
+    // 6. Validar precisión del GPS (Evita simulaciones de GPS y mala calidad de señal)
+    const precision = coordenadas.precision;
+    if (precision !== null && precision !== undefined) {
+      if (precision > 50) {
+        return NextResponse.json({ success: false, error: `Precisión de GPS insuficiente (${Math.round(precision)}m). Intenta salir a una zona más abierta.` }, { status: 400 });
+      }
+      if (precision === 0) {
+        return NextResponse.json({ success: false, error: 'Señal de ubicación inválida detectada. Favor de no usar simuladores de GPS.' }, { status: 400 });
+      }
+    }
+
+    // 7. Validar geocerca (200 metros)
     let sucursalCoords = { lat: 20.659698, lng: -103.349609 }; // Guadalajara por defecto
     try {
       const sucSnap = await getDoc(doc(db, 'config', 'sucursal'));
@@ -99,7 +117,7 @@ export async function POST(request) {
       return NextResponse.json({ success: false, error: `Estás fuera del rango permitido del establecimiento (Distancia: ${Math.round(distancia)}m). Debes estar a menos de 200m.` }, { status: 400 });
     }
 
-    // 6. Determinar tipo de registro (Entrada o Salida)
+    // 8. Determinar tipo de registro (Entrada o Salida)
     const qLogs = query(
       collection(db, 'nomina_asistencia_log'),
       where('empleadoId', '==', emp.id),
@@ -118,7 +136,14 @@ export async function POST(request) {
       tipoRegistro = lastLog.tipo === 'entrada' ? 'salida' : 'entrada';
     }
 
-    // 7. Registrar log de asistencia en Firestore
+    // 9. Registrar token como consumido para evitar re-uso
+    await setDoc(tokenRef, {
+      empleadoId,
+      usedAt: serverTimestamp(),
+      expiresAt: Number(expires)
+    });
+
+    // 10. Registrar log de asistencia en Firestore
     await addDoc(collection(db, 'nomina_asistencia_log'), {
       empleadoId: emp.id,
       nombre: `${emp.nombre} ${emp.apellido || ''}`.trim(),
@@ -130,7 +155,7 @@ export async function POST(request) {
       createdAt: serverTimestamp()
     });
 
-    // 8. Registrar asistencia diaria legacy (solo Entrada)
+    // 11. Registrar asistencia diaria legacy (solo Entrada)
     if (tipoRegistro === 'entrada') {
       const hour = new Date().getHours();
       let turnoActual = 'noche';
@@ -156,7 +181,7 @@ export async function POST(request) {
       }
     }
 
-    // 9. Registrar bitácora general de actividades
+    // 12. Registrar bitácora general de actividades
     await addDoc(collection(db, 'bitacora'), {
       fecha: new Date().toISOString(),
       accion: `Fichaje QR ${tipoRegistro === 'entrada' ? 'Entrada' : 'Salida'}`,
