@@ -20,14 +20,24 @@ const HISTORICO_DATA = [
 // ── PRODUCTOS INICIALES DEL INVENTARIO ────────────────────
 const DEFAULT_PRODUCTOS = [];
 
-const CATEGORIAS = ['Todas', 'Cerveza', 'Refresco', 'Snack', 'Comida', 'Bebida'];
-
 
 export default function BarPanel({ showToast }) {
   const { user } = useAuth();
   const [productos, setProductos] = useState([]);
   const [filtro, setFiltro] = useState('Todas');
   const [busqueda, setBusqueda] = useState('');
+  
+  // Categorías dinámicas (Soporte para añadir nuevas)
+  const [categorias, setCategorias] = useState(['Todas', 'Cerveza', 'Refresco', 'Snack', 'Comida', 'Bebida']);
+
+  useEffect(() => {
+    const defaultCats = ['Todas', 'Cerveza', 'Refresco', 'Snack', 'Comida', 'Bebida'];
+    const extraCats = productos
+      .map(p => p.categoria)
+      .filter(cat => cat && !defaultCats.includes(cat));
+    const uniqueCats = [...defaultCats, ...new Set(extraCats)];
+    setCategorias(uniqueCats);
+  }, [productos]);
   
   // Densidad de vista (Modo compacto vs clásico)
   const [densidadVista, setDensidadVista] = useState('compact');
@@ -865,7 +875,7 @@ export default function BarPanel({ showToast }) {
               value={busqueda} 
               onChange={e => setBusqueda(e.target.value)} 
             />
-            {CATEGORIAS.map(c => (
+            {categorias.map(c => (
               <button 
                 key={c} 
                 onClick={() => setFiltro(c)} 
@@ -1613,15 +1623,48 @@ export default function BarPanel({ showToast }) {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                   <div className="form-group">
                     <label className="form-label">Categoría</label>
-                    <select
-                      className="form-select"
-                      value={formNuevo.categoria}
-                      onChange={e => setFormNuevo({ ...formNuevo, categoria: e.target.value })}
-                    >
-                      {CATEGORIAS.filter(c => c !== 'Todas').map(c => (
-                        <option key={c} value={c}>{c}</option>
-                      ))}
-                    </select>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <select
+                        className="form-select"
+                        style={{ flex: 1 }}
+                        value={formNuevo.categoria}
+                        onChange={e => setFormNuevo({ ...formNuevo, categoria: e.target.value })}
+                      >
+                        {categorias.filter(c => c !== 'Todas').map(c => (
+                          <option key={c} value={c}>{c}</option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        style={{ 
+                          padding: '0 12px', 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          justifyContent: 'center', 
+                          borderColor: 'var(--border-bronze)',
+                          color: 'var(--bronze-light)',
+                          fontWeight: 600,
+                          cursor: 'pointer'
+                        }}
+                        title="Agregar Nueva Categoría"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          const nuevaCat = prompt("Ingrese el nombre de la nueva categoría:");
+                          if (nuevaCat && nuevaCat.trim()) {
+                            const trimName = nuevaCat.trim();
+                            const catName = trimName.charAt(0).toUpperCase() + trimName.slice(1).toLowerCase();
+                            if (!categorias.includes(catName)) {
+                              setCategorias(prev => [...prev, catName]);
+                            }
+                            setFormNuevo(prev => ({ ...prev, categoria: catName }));
+                            showToast(`Categoría "${catName}" añadida ✓`, 'success');
+                          }
+                        }}
+                      >
+                        <i className="ri-add-line" style={{ fontSize: 16 }} />
+                      </button>
+                    </div>
                   </div>
                   <div className="form-group">
                     <label className="form-label">Unidad de Medida</label>
