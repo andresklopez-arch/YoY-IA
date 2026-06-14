@@ -100,9 +100,27 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
         showToast(`${emp.nombre} ya tiene asistencia registrada para este turno.`, 'info');
       }
 
+      // Registrar de inmediato en la bitácora general para que aparezca en el panel de Reportes
+      await addDoc(collection(db, 'bitacora'), {
+        fecha: new Date().toISOString(),
+        accion: 'Asistencia QR',
+        detalle: `Pase de lista y login QR: ${emp.nombre} (${emp.rol || 'Mesero'})`,
+        monto: 0,
+        operador: emp.nombre,
+        rolOperador: (emp.rol || 'mesero').toLowerCase()
+      });
+
       await loginWithEmpleadoId(emp.id);
       showToast(`Sesión iniciada como ${emp.nombre} ✓`, 'success');
       setShowModalPaseLista(false);
+
+      // Redireccionar al módulo correspondiente de inmediato
+      const rolLower = (emp.rol || '').toLowerCase();
+      if (rolLower.includes('mesero')) {
+        window.location.href = '/mesero';
+      } else if (rolLower.includes('cocina')) {
+        window.location.href = '/cocina';
+      }
     } catch (err) {
       console.error(err);
       showToast('Error al procesar el pase de lista: ' + err.message, 'error');
