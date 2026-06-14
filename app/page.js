@@ -16,6 +16,7 @@ import LoginScreen from '@/components/LoginScreen';
 import { AuthProvider, useAuth } from '@/lib/auth-context';
 import { collection, query, where, orderBy, limit, onSnapshot, doc, updateDoc, serverTimestamp, getDoc, addDoc, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { obfuscateWithKey } from '@/lib/crypto';
 
 // ── ERROR BOUNDARY: captura crashes en paneles sin matar la app ──
 class ErrorBoundary extends Component {
@@ -214,16 +215,21 @@ function AppContent() {
         if (/Mobi|Android|iPhone/i.test(ua)) dispositivo = 'Móvil';
         else if (/Tablet|iPad/i.test(ua)) dispositivo = 'Tablet';
 
+        const rawPayload = {
+          empleadoId: scanId,
+          expires: new URLSearchParams(window.location.search).get('expires') || Date.now(),
+          coordenadas: geoData,
+          dispositivo
+        };
+        const obfuscatedPayload = obfuscateWithKey(token, rawPayload);
+
         // 2. Llamar a la API del servidor para validar de forma segura
         const res = await fetch('/api/nomina/verify-attendance', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            empleadoId: scanId,
             token,
-            expires: new URLSearchParams(window.location.search).get('expires') || Date.now(),
-            coordenadas: geoData,
-            dispositivo
+            payload: obfuscatedPayload
           })
         });
 

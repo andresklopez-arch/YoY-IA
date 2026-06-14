@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@/lib/firebase';
 import { doc, getDoc, getDocs, addDoc, setDoc, collection, query, where, serverTimestamp } from 'firebase/firestore';
 import crypto from 'crypto';
+import { deobfuscateWithKey } from '@/lib/crypto';
 
 const SECRET = process.env.QR_SECRET || 'yoy_billar_secret_key_2026_io';
 
@@ -22,10 +23,22 @@ const getDistanceInMeters = (lat1, lon1, lat2, lon2) => {
 
 export async function POST(request) {
   try {
-    const { empleadoId, token, expires, coordenadas, dispositivo } = await request.json();
+    const { token, payload } = await request.json();
 
-    if (!empleadoId || !token || !expires) {
-      return NextResponse.json({ success: false, error: 'Parámetros incompletos' }, { status: 400 });
+    if (!token || !payload) {
+      return NextResponse.json({ success: false, error: 'Parámetros incompletos o payload inválido' }, { status: 400 });
+    }
+
+    // Desofuscar el payload utilizando el token dinámico como clave RC4
+    const decryptedPayload = deobfuscateWithKey(token, payload);
+    if (!decryptedPayload) {
+      return NextResponse.json({ success: false, error: 'Petición corrupta o clave incorrecta' }, { status: 400 });
+    }
+
+    const { empleadoId, expires, coordenadas, dispositivo } = decryptedPayload;
+
+    if (!empleadoId || !expires) {
+      return NextResponse.json({ success: false, error: 'Datos de payload incompletos' }, { status: 400 });
     }
 
     // 1. Validar firma criptográfica
