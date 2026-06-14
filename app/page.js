@@ -74,6 +74,12 @@ function AppContent() {
   const [activePanel, setActivePanel] = useState('mesas');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [toasts, setToasts] = useState([]);
+  const [isProcessingQR, setIsProcessingQR] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return !!new URLSearchParams(window.location.search).get('scanId');
+    }
+    return false;
+  });
 
   // Medir y establecer el ancho de la barra de desplazamiento como una variable CSS
   useEffect(() => {
@@ -112,6 +118,7 @@ function AppContent() {
 
   // Redirigir si no tiene permisos para el panel activo
   useEffect(() => {
+    if (isProcessingQR) return;
     if (user && user.permisos) {
       if (user.permisos[activePanel] !== true) {
         const primerPermitido = ['dashboard', 'mesas', 'caja', 'bar', 'clientes', 'torneos', 'nomina', 'reportes', 'config']
@@ -121,10 +128,11 @@ function AppContent() {
         }
       }
     }
-  }, [user, activePanel]);
+  }, [user, activePanel, isProcessingQR]);
 
   // Auto-redireccionar si el usuario es mesero, cocina o bartender y accede al panel principal (Sugerencia 3)
   useEffect(() => {
+    if (isProcessingQR) return;
     if (user) {
       const rolLower = (user.role || '').toLowerCase();
       if (rolLower.includes('mesero')) {
@@ -138,14 +146,17 @@ function AppContent() {
         window.location.href = '/cocina';
       }
     }
-  }, [user]);
+  }, [user, isProcessingQR]);
 
   // Escuchar si se abre la app escaneando un código QR con ?scanId=xxx (Para iniciar sesión en el dispositivo del empleado)
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const urlParams = new URLSearchParams(window.location.search);
     const scanId = urlParams.get('scanId');
-    if (!scanId) return;
+    if (!scanId) {
+      setIsProcessingQR(false);
+      return;
+    }
 
     // Limpiar el parámetro de la URL inmediatamente para evitar ejecuciones repetidas al recargar
     const newUrl = window.location.pathname;
@@ -158,6 +169,7 @@ function AppContent() {
         const empDoc = await getDoc(docRef);
         if (!empDoc.exists()) {
           showToast('Empleado no encontrado', 'error');
+          setIsProcessingQR(false);
           return;
         }
         const emp = { id: empDoc.id, ...empDoc.data() };
@@ -220,10 +232,12 @@ function AppContent() {
           window.location.href = '/cocina';
         } else {
           window.location.href = '/';
+          setIsProcessingQR(false);
         }
       } catch (err) {
         console.error(err);
         showToast('Error al iniciar sesión con QR: ' + err.message, 'error');
+        setIsProcessingQR(false);
       }
     };
 
@@ -548,7 +562,7 @@ function AppContent() {
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 4000);
   };
 
-  if (loading || !minLoadingDone) {
+  if (loading || !minLoadingDone || isProcessingQR) {
     return (
       <div style={{ display:'flex', alignItems:'center', justifyContent:'center', minHeight:'100vh', background:'var(--bg-base)' }}>
         <div style={{ textAlign:'center', padding: '24px' }}>
@@ -576,7 +590,9 @@ function AppContent() {
               <span style={{ color: 'var(--bronze-light)', fontSize: 14, fontWeight: 700, marginTop: 8, letterSpacing: '0.1em' }}>YoY IA Billar</span>
             </div>
           )}
-          <p style={{ color:'var(--text-secondary)', fontSize: 10, letterSpacing:'0.2em', textTransform:'uppercase', fontWeight: 600 }}>Iniciando sistema...</p>
+          <p style={{ color:'var(--text-secondary)', fontSize: 10, letterSpacing:'0.2em', textTransform:'uppercase', fontWeight: 600 }}>
+            {isProcessingQR ? 'Procesando código de acceso...' : 'Iniciando sistema...'}
+          </p>
         </div>
         
         <style>{`
