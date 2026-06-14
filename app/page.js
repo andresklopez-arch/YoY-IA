@@ -85,15 +85,25 @@ function AppContent() {
   const [fichajeSoporteExitoso, setFichajeSoporteExitoso] = useState(null);
   const [fichajeError, setFichajeError] = useState(null);
 
-  // Autocierre de confirmación de asistencia para personal de soporte
+  // Autocierre de confirmación de asistencia para personal de soporte (3 segundos)
   useEffect(() => {
     if (fichajeSoporteExitoso) {
       const timer = setTimeout(() => {
         setFichajeSoporteExitoso(null);
-      }, 10000);
+      }, 3000);
       return () => clearTimeout(timer);
     }
   }, [fichajeSoporteExitoso]);
+
+  // Autocierre de la pantalla de error de asistencia (3 segundos)
+  useEffect(() => {
+    if (fichajeError) {
+      const timer = setTimeout(() => {
+        setFichajeError(null);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [fichajeError]);
 
   // Medir y establecer el ancho de la barra de desplazamiento como una variable CSS
   useEffect(() => {
