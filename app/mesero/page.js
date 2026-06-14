@@ -769,8 +769,8 @@ function MeseroContent() {
       <div style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border-bronze)', padding: '16px 20px', position: 'sticky', top: 0, zIndex: 10 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', maxWidth: 900, margin: '0 auto' }}>
           <div>
-            <h1 style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--bronze-light)', lineHeight: 1 }}>
-              🎱 Vista Mesero
+            <h1 style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--bronze-light)', lineHeight: 1 }}>
+              🎱 Vista Mesero {user?.name ? `· ${user.alias || user.name.split(' ')[0]}` : ''}
               {isOffline && (
                 <span style={{ fontSize: 10, background: 'var(--danger)', color: '#fff', padding: '3px 8px', borderRadius: 10, fontWeight: 700, letterSpacing: 'normal' }}>
                   OFFLINE

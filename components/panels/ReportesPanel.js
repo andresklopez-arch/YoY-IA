@@ -1549,6 +1549,74 @@ export default function ReportesPanel({ showToast }) {
               </div>
             )}
           </div>
+
+          {/* Historial de Escaneos QR de Asistencia (Módulo de Reportes) */}
+          <div className="card" style={{ marginTop: 20 }}>
+            <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
+              <div>
+                <h3 className="card-title"><i className="ri-qr-code-line" style={{ marginRight: 6, color: 'var(--bronze-light)' }} />⏱️ Registro Histórico de Asistencias y Inicios QR</h3>
+                <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0 }}>Historial en tiempo real de cuándo y desde qué dispositivos el personal registró su asistencia por QR o consola</p>
+              </div>
+              <span className="badge badge-bronze" style={{ fontSize: 10 }}>Historial QR</span>
+            </div>
+            {bitacora.filter(e => e.accion && e.accion.startsWith('Asistencia')).length === 0 ? (
+              <div style={{ padding: '30px 0', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
+                <i className="ri-calendar-check-line" style={{ fontSize: 28, color: 'var(--text-muted)', display: 'block', marginBottom: 8 }} />
+                No se han registrado eventos de asistencia QR en el periodo.
+              </div>
+            ) : (
+              <div className="table-container">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Fecha y Hora</th>
+                      <th>Empleado</th>
+                      <th>Rol</th>
+                      <th>Método / Detalle</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {bitacora
+                      .filter(e => e.accion && e.accion.startsWith('Asistencia'))
+                      .slice(0, 50)
+                      .map((log, idx) => {
+                        const fechaFormat = log.fecha ? new Date(log.fecha).toLocaleString('es-MX', {
+                          day: '2-digit', month: '2-digit', year: 'numeric',
+                          hour: '2-digit', minute: '2-digit', second: '2-digit'
+                        }) : '—';
+                        const isScan = log.accion.includes('Escaneado');
+                        return (
+                          <tr key={idx}>
+                            <td style={{ fontWeight: 600, fontSize: 12 }}>{fechaFormat}</td>
+                            <td style={{ fontWeight: 700, color: '#fff' }}>{log.operador}</td>
+                            <td>
+                              <span className="badge badge-secondary" style={{ textTransform: 'capitalize', fontSize: 10 }}>
+                                {log.rolOperador || 'Personal'}
+                              </span>
+                            </td>
+                            <td>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
+                                <span style={{
+                                  fontSize: 9,
+                                  background: isScan ? 'rgba(34,197,94,0.12)' : 'rgba(205,127,50,0.12)',
+                                  color: isScan ? 'var(--success)' : 'var(--bronze-light)',
+                                  padding: '1px 5px',
+                                  borderRadius: 4,
+                                  fontWeight: 800
+                                }}>
+                                  {isScan ? 'QR SCAN' : 'CONSOLA'}
+                                </span>
+                                <span style={{ color: 'var(--text-secondary)' }}>{log.detalle}</span>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </>
       )}
 

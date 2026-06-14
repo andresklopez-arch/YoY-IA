@@ -411,8 +411,8 @@ function CocinaContent() {
       <div style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border-bronze)', padding: '16px 24px', position: 'sticky', top: 0, zIndex: 100 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', maxWidth: 1000, margin: '0 auto' }}>
           <div>
-            <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--bronze-light)', display: 'flex', alignItems: 'center', gap: 10 }}>
-              🍳 Pantalla de Cocina
+            <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--bronze-light)', display: 'flex', alignItems: 'center', gap: 10 }}>
+              🍳 Pantalla de Cocina {user?.name ? `· ${user.alias || user.name.split(' ')[0]}` : ''}
             </h1>
             <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>
               Monitoreo de comandas en tiempo real, insumos críticos e inventario general
