@@ -108,6 +108,66 @@ export async function POST(request) {
       expiresAt: Number(expires)
     });
 
+    // Detección de Celular Inusual y Alerta por Telegram (sin bloquear)
+    try {
+      const qAllLogs = query(
+        collection(db, 'nomina_asistencia_log'),
+        where('empleadoId', '==', emp.id)
+      );
+      const allLogsSnap = await getDocs(qAllLogs);
+      const allLogs = allLogsSnap.docs.map(d => d.data());
+      const phoneLogs = allLogs.filter(l => l.dispositivo && l.dispositivo !== 'PC/Terminal');
+
+      const phoneCounts = {};
+      phoneLogs.forEach(l => {
+        phoneCounts[l.dispositivo] = (phoneCounts[l.dispositivo] || 0) + 1;
+      });
+
+      let mostFrequentPhone = '';
+      let maxPhoneCount = 0;
+      Object.keys(phoneCounts).forEach(phone => {
+        if (phoneCounts[phone] > maxPhoneCount) {
+          maxPhoneCount = phoneCounts[phone];
+          mostFrequentPhone = phone;
+        }
+      });
+
+      const currentDevice = dispositivo || 'Móvil';
+      const isCelularInusual = phoneLogs.length >= 3 && 
+                               currentDevice !== 'PC/Terminal' && 
+                               currentDevice !== mostFrequentPhone;
+
+      if (isCelularInusual) {
+        const tgRef = doc(db, 'config', 'telegram');
+        const tgSnap = await getDoc(tgRef);
+        if (tgSnap.exists()) {
+          const tgData = tgSnap.data();
+          if (tgData.enabled && tgData.botToken && tgData.chatId) {
+            const messageText = `⚠️ *Alerta de Fichaje Inusual*\n\n` +
+                                `👤 *Empleado:* ${emp.nombre} ${emp.apellido || ''}\n` +
+                                `🏷️ *Rol:* ${emp.rol || 'Mesero'}\n` +
+                                `📥 *Evento:* ${tipoRegistro === 'entrada' ? 'ENTRADA' : 'SALIDA'}\n` +
+                                `📱 *Celular Utilizado:* \`${currentDevice}\`\n` +
+                                `🔄 *Celular Habitual:* \`${mostFrequentPhone}\`\n` +
+                                `📅 *Fecha/Hora:* ${new Date().toLocaleString('es-MX', { timeZone: 'America/Mexico_City' })}`;
+            
+            const telegramUrl = `https://api.telegram.org/bot${tgData.botToken}/sendMessage`;
+            await fetch(telegramUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                chat_id: tgData.chatId,
+                text: messageText,
+                parse_mode: 'Markdown'
+              })
+            });
+          }
+        }
+      }
+    } catch (tgErr) {
+      console.error("Error al evaluar celular inusual o enviar a Telegram:", tgErr);
+    }
+
     // 10. Registrar log de asistencia en Firestore
     await addDoc(collection(db, 'nomina_asistencia_log'), {
       empleadoId: emp.id,

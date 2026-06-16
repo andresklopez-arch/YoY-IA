@@ -102,6 +102,10 @@ export default function ConfigPanel({ showToast }) {
   const [maxCortesiasPorTurno, setMaxCortesiasPorTurno] = useState(3);
   const [savingLimiteCortesias, setSavingLimiteCortesias] = useState(false);
 
+  // --- Telegram config state ---
+  const [telegramConfig, setTelegramConfig] = useState({ enabled: false, botToken: '', chatId: '' });
+  const [savingTelegram, setSavingTelegram] = useState(false);
+
   // --- Estados de Recetario y Costeo ---
   const [productos, setProductos] = useState([]);
   const [recetas, setRecetas] = useState([]);
@@ -246,6 +250,18 @@ export default function ConfigPanel({ showToast }) {
         }).catch(() => {})
       )
     );
+
+    // Cargar config de Telegram desde Firestore
+    getDoc(doc(db, 'config', 'telegram')).then(snap => {
+      if (snap.exists()) {
+        const d = snap.data();
+        setTelegramConfig({
+          enabled: d.enabled || false,
+          botToken: d.botToken || '',
+          chatId: d.chatId || '',
+        });
+      }
+    }).catch(err => console.error("Error al cargar configuración de Telegram:", err));
     // Escuchar mesas de Firestore en tiempo real como fuente única de verdad
     const docRef = doc(db, 'config', 'mesas_estado');
     const unsubMesas = onSnapshot(docRef, snap => {
@@ -426,6 +442,51 @@ export default function ConfigPanel({ showToast }) {
     } catch (err) {
       console.error("Error al guardar configuración de sucursal:", err);
       showToast('Error al guardar configuración: ' + err.message, 'error');
+    }
+  };
+
+  const handleSaveTelegram = async () => {
+    setSavingTelegram(true);
+    try {
+      await setDoc(doc(db, 'config', 'telegram'), {
+        ...telegramConfig,
+        updatedAt: serverTimestamp()
+      });
+      showToast('Configuración de Telegram guardada correctamente ✓', 'success');
+    } catch (err) {
+      console.error("Error al guardar configuración de Telegram:", err);
+      showToast('Error al guardar configuración de Telegram: ' + err.message, 'danger');
+    } finally {
+      setSavingTelegram(false);
+    }
+  };
+
+  const handleTestTelegram = async () => {
+    if (!telegramConfig.botToken || !telegramConfig.chatId) {
+      showToast('Ingresa el Token y Chat ID para enviar un mensaje de prueba', 'warning');
+      return;
+    }
+    try {
+      const text = `🔔 *YoY Billar - Prueba de Notificaciones*\n\nSi estás viendo este mensaje, la integración con Telegram se ha configurado correctamente.`;
+      const url = `https://api.telegram.org/bot${telegramConfig.botToken}/sendMessage`;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: telegramConfig.chatId,
+          text: text,
+          parse_mode: 'Markdown'
+        })
+      });
+      if (res.ok) {
+        showToast('Mensaje de prueba enviado con éxito ✓', 'success');
+      } else {
+        const data = await res.json();
+        throw new Error(data.description || 'Error de Telegram');
+      }
+    } catch (err) {
+      console.error("Error al enviar mensaje de prueba:", err);
+      showToast('Error al enviar prueba: ' + err.message, 'danger');
     }
   };
 
@@ -1123,6 +1184,75 @@ export default function ConfigPanel({ showToast }) {
                   <i className="ri-lock-unlock-line" /> Guardar Nuevo PIN
                 </button>
               </form>
+            </div>
+
+            {/* Configuración de Telegram */}
+            <div className="card">
+              <div className="card-header" style={{ marginBottom: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h3 className="card-title">
+                  <i className="ri-telegram-line" style={{ marginRight: 6, color: '#24A1DE' }} />
+                  Alertas Telegram
+                </h3>
+                <div
+                  onClick={() => setTelegramConfig(p => ({ ...p, enabled: !p.enabled }))}
+                  style={{
+                    width: 44, height: 24, borderRadius: 12, cursor: 'pointer', transition: 'all 0.2s',
+                    background: telegramConfig.enabled ? '#24A1DE' : 'var(--bg-elevated)',
+                    border: `1px solid ${telegramConfig.enabled ? '#24A1DE' : 'var(--border)'}`,
+                    position: 'relative',
+                  }}
+                >
+                  <div style={{ width: 18, height: 18, borderRadius: '50%', background: '#fff', position: 'absolute', top: 2, left: telegramConfig.enabled ? 22 : 2, transition: 'left 0.2s' }} />
+                </div>
+              </div>
+              
+              <p style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 14 }}>
+                Envía alertas en tiempo real al grupo o chat de la gerencia cuando ocurra un fichaje sospechoso (ej. celular inusual).
+              </p>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div className="form-group">
+                  <label className="form-label">Token de Bot de Telegram</label>
+                  <input
+                    type="password"
+                    className="form-input"
+                    placeholder="1234567890:ABCDefGhIJK..."
+                    value={telegramConfig.botToken}
+                    onChange={e => setTelegramConfig(p => ({ ...p, botToken: e.target.value }))}
+                    style={{ fontSize: 11 }}
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">ID del Chat o Canal</label>
+                  <input
+                    className="form-input"
+                    placeholder="Ej: -100123456789 o 123456789"
+                    value={telegramConfig.chatId}
+                    onChange={e => setTelegramConfig(p => ({ ...p, chatId: e.target.value }))}
+                    style={{ fontSize: 11 }}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                  <button 
+                    type="button" 
+                    className="btn btn-secondary" 
+                    onClick={handleTestTelegram} 
+                    style={{ flex: 1, height: 36, fontSize: 11 }}
+                  >
+                    <i className="ri-send-plane-line" /> Probar
+                  </button>
+                  <button 
+                    type="button" 
+                    className="btn btn-primary" 
+                    onClick={handleSaveTelegram} 
+                    disabled={savingTelegram} 
+                    style={{ flex: 2, height: 36, fontSize: 11 }}
+                  >
+                    <i className="ri-save-line" /> {savingTelegram ? 'Guardando...' : 'Guardar Telegram'}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
 
