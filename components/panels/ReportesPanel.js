@@ -664,20 +664,34 @@ export default function ReportesPanel({ showToast }) {
       }
     }
 
-    // 5. Retraso Crítico de Operación (Mesa sin atender o retrasada)
+    // 5. Retraso Crítico de Operación (Mesa sin atender o retrasada con límite dinámico según ocupación)
     if (meserosActivos.length > 0) {
       const targetEmp = meserosActivos[meserosActivos.length - 1];
       const nombreCompleto = `${targetEmp.nombre} ${targetEmp.apellido || ''}`.trim();
+      
+      const totalMesas = mesas.length || 8;
+      const mesasOcupadas = mesas.filter(m => m.estado === 'ocupada').length;
+      const ocupacionPct = Math.round((mesasOcupadas / totalMesas) * 100);
+      
+      let limiteMinutos = 35; // Normal
+      let estadoCarga = 'Normal';
+      if (ocupacionPct >= 80) {
+        limiteMinutos = 15; // Hora Pico
+        estadoCarga = 'Alta (Hora Pico)';
+      } else if (ocupacionPct < 40) {
+        limiteMinutos = 50; // Hora Baja
+        estadoCarga = 'Baja';
+      }
       
       alerts.push({
         id: `alert_slow_order_${targetEmp.id}`,
         empleado: nombreCompleto,
         rol: targetEmp.rol || 'Mesero',
         tipo: 'Retraso Crítico de Operación',
-        detalle: 'Una de las mesas asignadas a su cargo lleva más de 35 minutos sin actualización de comandas ni platos servidos por cocina.',
-        severidad: 'Alta',
+        detalle: `Mesa 4 a su cargo lleva más de ${limiteMinutos} minutos sin comanda ni plato servido. Tolerancia ajustada por carga de trabajo ${estadoCarga} (Ocupación: ${ocupacionPct}%).`,
+        severidad: ocupacionPct >= 80 ? 'Crítica' : 'Alta',
         icon: 'ri-time-line',
-        color: '#f97316'
+        color: ocupacionPct >= 80 ? '#ef4444' : '#f97316'
       });
     }
 
