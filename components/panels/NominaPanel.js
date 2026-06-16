@@ -561,7 +561,20 @@ export default function NominaPanel({ showToast }) {
 
   const [showGastoModal, setShowGastoModal] = useState(false);
   const [editandoGasto, setEditandoGasto] = useState(null);
-  const [formGasto, setFormGasto] = useState({ categoria: 'mesas', subcategoria: '', descripcion: '', monto: '', fecha: today(), proveedor: '', recurrente: false, frecuencia: 'mensual', notas: '' });
+  const [formGasto, setFormGasto] = useState({ 
+    categoria: 'mesas', 
+    subcategoria: '', 
+    descripcion: '', 
+    monto: '', 
+    fecha: today(), 
+    proveedor: '', 
+    recurrente: false, 
+    frecuencia: 'mensual', 
+    notas: '',
+    empleadoId: '',
+    empleadoNombre: '',
+    conceptoNomina: 'adelanto_nomina'
+  });
 
   const [showPagarModal, setShowPagarModal] = useState(null);
   const [descontarCaja, setDescontarCaja] = useState(false);
@@ -685,6 +698,24 @@ export default function NominaPanel({ showToast }) {
   useEffect(() => {
     calcularNomina();
   }, [calcularNomina]);
+
+  // Auto-completar descripción de gastos de nómina en base a empleado y concepto
+  useEffect(() => {
+    if (formGasto.categoria === 'nomina') {
+      const emp = empleados.find(e => e.id === formGasto.empleadoId);
+      const empNombre = emp ? `${emp.nombre} ${emp.apellido || ''}`.trim() : '';
+      let conceptLabel = '';
+      if (formGasto.conceptoNomina === 'adelanto_nomina') conceptLabel = 'Adelanto de nómina';
+      else if (formGasto.conceptoNomina === 'prestamo') conceptLabel = 'Préstamo';
+      else if (formGasto.conceptoNomina === 'faltante') conceptLabel = 'Faltante';
+      
+      if (empNombre && conceptLabel) {
+        setFormGasto(p => ({ ...p, descripcion: `${conceptLabel} - ${empNombre}` }));
+      } else {
+        setFormGasto(p => ({ ...p, descripcion: '' }));
+      }
+    }
+  }, [formGasto.categoria, formGasto.empleadoId, formGasto.conceptoNomina, empleados]);
 
   // IA Insights Motor
   const generarInsights = useCallback(() => {
@@ -820,7 +851,20 @@ export default function NominaPanel({ showToast }) {
         showToast('Gasto registrado ✅', 'success');
       }
       setShowGastoModal(false);
-      setFormGasto({ categoria: 'mesas', subcategoria: '', descripcion: '', monto: '', fecha: today(), proveedor: '', recurrente: false, frecuencia: 'mensual', notas: '' });
+      setFormGasto({ 
+        categoria: 'mesas', 
+        subcategoria: '', 
+        descripcion: '', 
+        monto: '', 
+        fecha: today(), 
+        proveedor: '', 
+        recurrente: false, 
+        frecuencia: 'mensual', 
+        notas: '',
+        empleadoId: '',
+        empleadoNombre: '',
+        conceptoNomina: 'adelanto_nomina'
+      });
       setEditandoGasto(null);
     } catch (e) { showToast('Error: ' + e.message, 'error'); }
   };
@@ -1167,10 +1211,33 @@ export default function NominaPanel({ showToast }) {
                               <span style={{ color: 'var(--text-muted)' }}>Ganado:</span>
                               <strong style={{ color: '#fff' }}>${calc.total.toFixed(2)}</strong>
                             </div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                              <span style={{ color: 'var(--text-muted)' }}>Adelantos:</span>
-                              <strong style={{ color: 'var(--bronze-light)' }}>${calc.gastoAdelantos.toFixed(2)}</strong>
-                            </div>
+                            {calc.gastoAdelantos === 0 && calc.gastoPrestamos === 0 && calc.gastoFaltantes === 0 ? (
+                              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                <span style={{ color: 'var(--text-muted)' }}>Adelantos:</span>
+                                <strong style={{ color: 'var(--bronze-light)' }}>$0.00</strong>
+                              </div>
+                            ) : (
+                              <>
+                                {calc.gastoAdelantos > 0 && (
+                                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                    <span style={{ color: 'var(--text-muted)' }}>Adelantos:</span>
+                                    <strong style={{ color: 'var(--bronze-light)' }}>${calc.gastoAdelantos.toFixed(2)}</strong>
+                                  </div>
+                                )}
+                                {calc.gastoPrestamos > 0 && (
+                                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                    <span style={{ color: 'var(--text-muted)' }}>Préstamos:</span>
+                                    <strong style={{ color: 'var(--danger)' }}>${calc.gastoPrestamos.toFixed(2)}</strong>
+                                  </div>
+                                )}
+                                {calc.gastoFaltantes > 0 && (
+                                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                    <span style={{ color: 'var(--text-muted)' }}>Faltantes:</span>
+                                    <strong style={{ color: 'var(--danger)' }}>${calc.gastoFaltantes.toFixed(2)}</strong>
+                                  </div>
+                                )}
+                              </>
+                            )}
                             <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px dashed rgba(255,255,255,0.08)', paddingTop: 2, marginTop: 2 }}>
                               <span style={{ color: 'var(--text-muted)' }}>Pendiente:</span>
                               <strong style={{ color: calc.pendiente > 0 ? 'var(--warning)' : 'var(--success)' }}>
@@ -1247,7 +1314,20 @@ export default function NominaPanel({ showToast }) {
                 <button className="btn btn-secondary btn-sm" onClick={() => setShowCalendario(true)} style={{ height: 30, fontSize: 11 }}><i className="ri-calendar-line" /> Calendario</button>
                 <button className="btn btn-secondary btn-sm" onClick={() => setShowPresupModal(true)} style={{ height: 30, fontSize: 11 }}><i className="ri-pie-chart-line" /> Presupuestos</button>
                 <button className="btn btn-primary btn-sm" onClick={() => {
-                  setFormGasto({ categoria: 'mesas', subcategoria: '', descripcion: '', monto: '', fecha: today(), proveedor: '', recurrente: false, frecuencia: 'mensual', notas: '' });
+                  setFormGasto({ 
+                    categoria: 'mesas', 
+                    subcategoria: '', 
+                    descripcion: '', 
+                    monto: '', 
+                    fecha: today(), 
+                    proveedor: '', 
+                    recurrente: false, 
+                    frecuencia: 'mensual', 
+                    notas: '',
+                    empleadoId: '',
+                    empleadoNombre: '',
+                    conceptoNomina: 'adelanto_nomina'
+                  });
                   setEditandoGasto(null);
                   setShowGastoModal(true);
                 }} style={{ height: 30, fontSize: 11 }}>
@@ -2004,10 +2084,63 @@ export default function NominaPanel({ showToast }) {
             <div className="modal-body">
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 <F label="Categoría">
-                  <select className="form-select" value={formGasto.categoria} onChange={e => setFormGasto(p => ({ ...p, categoria: e.target.value }))}>
+                  <select 
+                    className="form-select" 
+                    value={formGasto.categoria} 
+                    onChange={e => {
+                      const cat = e.target.value;
+                      setFormGasto(p => ({ 
+                        ...p, 
+                        categoria: cat,
+                        empleadoId: cat === 'nomina' ? p.empleadoId || '' : '',
+                        empleadoNombre: cat === 'nomina' ? p.empleadoNombre || '' : '',
+                        conceptoNomina: cat === 'nomina' ? p.conceptoNomina || 'adelanto_nomina' : '',
+                        descripcion: cat === 'nomina' ? p.descripcion : ''
+                      }));
+                    }}
+                  >
                     {CATEGORIAS_GASTO.map(c => <option key={c.id} value={c.id}>{c.icon} {c.label}</option>)}
                   </select>
                 </F>
+
+                {formGasto.categoria === 'nomina' && (
+                  <>
+                    <F label="Empleado *">
+                      <select 
+                        className="form-select" 
+                        value={formGasto.empleadoId} 
+                        onChange={e => {
+                          const empId = e.target.value;
+                          const emp = empleados.find(x => x.id === empId);
+                          const nombreCompleto = emp ? `${emp.nombre} ${emp.apellido || ''}`.trim() : '';
+                          setFormGasto(p => ({ ...p, empleadoId: empId, empleadoNombre: nombreCompleto }));
+                        }}
+                        required
+                        style={{ width: '100%', padding: '10px 12px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 10, color: 'var(--text-main)', outline: 'none' }}
+                      >
+                        <option value="">-- Seleccionar Empleado --</option>
+                        {empleados.filter(e => e.estado === 'activo').map(e => (
+                          <option key={e.id} value={e.id}>
+                            {e.nombre} {e.apellido || ''} ({e.rol})
+                          </option>
+                        ))}
+                      </select>
+                    </F>
+                    <F label="Concepto de Nómina *">
+                      <select 
+                        className="form-select" 
+                        value={formGasto.conceptoNomina} 
+                        onChange={e => setFormGasto(p => ({ ...p, conceptoNomina: e.target.value }))}
+                        required
+                        style={{ width: '100%', padding: '10px 12px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 10, color: 'var(--text-main)', outline: 'none' }}
+                      >
+                        <option value="adelanto_nomina">Adelanto de Nómina</option>
+                        <option value="prestamo">Préstamo</option>
+                        <option value="faltante">Faltante</option>
+                      </select>
+                    </F>
+                  </>
+                )}
                 <F label="Subcategoría"><input className="form-input" value={formGasto.subcategoria} onChange={e => setFormGasto(p => ({ ...p, subcategoria: e.target.value }))} placeholder="Opcional (Ej. luz, tacos, paños)" /></F>
                 <F label="Descripción *"><input className="form-input" value={formGasto.descripcion} onChange={e => setFormGasto(p => ({ ...p, descripcion: e.target.value }))} placeholder="Compra de tacos para personal" /></F>
                 <F label="Proveedor"><input className="form-input" value={formGasto.proveedor} onChange={e => setFormGasto(p => ({ ...p, proveedor: e.target.value }))} placeholder="Nombre del proveedor" /></F>
