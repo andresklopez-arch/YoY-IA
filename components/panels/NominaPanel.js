@@ -888,6 +888,7 @@ export default function NominaPanel({ showToast }) {
                     const logs = fichajesLogs.filter(log => log.empleadoId === emp.id && (log.tipo === 'entrada' || log.tipo === 'salida'));
                     const estaTrabajando = logs.length > 0 && logs[0].tipo === 'entrada';
                     const ultimos5 = logs.slice(0, 5);
+                    const calc = calculos.find(c => c.emp.id === emp.id);
 
                     // 1. Detección de Celular Inusual
                     const phoneLogs = fichajesLogs.filter(log => 
@@ -989,6 +990,35 @@ export default function NominaPanel({ showToast }) {
                             display: 'flex', alignItems: 'center', gap: 4, marginTop: -2
                           }}>
                             <i className="ri-error-warning-line" /> Celular inusual ({latestLog?.dispositivo})
+                          </div>
+                        )}
+
+                        {calc && (
+                          <div className="animate-fadeIn" style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 2,
+                            padding: '6px 8px',
+                            background: 'rgba(255,255,255,0.02)',
+                            border: '1px solid var(--border)',
+                            borderRadius: 8,
+                            fontSize: 8,
+                            marginTop: 4
+                          }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                              <span style={{ color: 'var(--text-muted)' }}>Ganado:</span>
+                              <strong style={{ color: '#fff' }}>${calc.total.toFixed(2)}</strong>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                              <span style={{ color: 'var(--text-muted)' }}>Adelantos:</span>
+                              <strong style={{ color: 'var(--bronze-light)' }}>${calc.gastoAdelantos.toFixed(2)}</strong>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px dashed rgba(255,255,255,0.08)', paddingTop: 2, marginTop: 2 }}>
+                              <span style={{ color: 'var(--text-muted)' }}>Pendiente:</span>
+                              <strong style={{ color: calc.pendiente > 0 ? 'var(--warning)' : 'var(--success)' }}>
+                                ${calc.pendiente.toFixed(2)}
+                              </strong>
+                            </div>
                           </div>
                         )}
                         
@@ -1556,6 +1586,8 @@ export default function NominaPanel({ showToast }) {
           }
         });
 
+        const calcResumen = calculos.find(c => c.emp.id === fichajeResumenEmpleado.id);
+
         return (
           <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setFichajeResumenEmpleado(null)}>
             <div className="modal" style={{ maxWidth: 580, background: 'rgba(25, 20, 20, 0.95)', border: '1px solid var(--border-bronze)', boxShadow: '0 20px 50px rgba(0,0,0,0.8)' }}>
@@ -1579,6 +1611,51 @@ export default function NominaPanel({ showToast }) {
                     <input className="form-input" type="date" value={fichajeResumenFin} onChange={e => setFichajeResumenFin(e.target.value)} style={{ flex: 1, height: 32, fontSize: 11 }} />
                   </div>
                 </div>
+
+                {/* Resumen Financiero de Nómina en el Periodo Activo */}
+                {calcResumen && (
+                  <div className="animate-fadeIn" style={{
+                    background: 'rgba(16,185,129,0.05)',
+                    border: '1px solid rgba(16,185,129,0.2)',
+                    borderRadius: 12,
+                    padding: 14,
+                    fontSize: 11,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 8,
+                    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)'
+                  }}>
+                    <div style={{ color: 'var(--text-muted)', fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>
+                      Resumen de Nómina y Adelantos (Período de Pago Activo)
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                      <div>
+                        <span style={{ color: 'var(--text-muted)' }}>Ganado Neto:</span>{' '}
+                        <strong style={{ color: 'var(--text-main)' }}>${calcResumen.total.toFixed(2)}</strong>
+                      </div>
+                      <div>
+                        <span style={{ color: 'var(--text-muted)' }}>Adelantos Recibidos:</span>{' '}
+                        <strong style={{ color: 'var(--bronze-light)' }}>${calcResumen.gastoAdelantos.toFixed(2)}</strong>
+                      </div>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                      <div>
+                        <span style={{ color: 'var(--text-muted)' }}>Préstamos / Faltantes:</span>{' '}
+                        <strong style={{ color: 'var(--danger)' }}>${(calcResumen.gastoPrestamos + calcResumen.gastoFaltantes).toFixed(2)}</strong>
+                      </div>
+                      <div>
+                        <span style={{ color: 'var(--text-muted)' }}>Comisiones / Bonos:</span>{' '}
+                        <strong style={{ color: 'var(--info)' }}>${(calcResumen.comisionMesas + calcResumen.comisionBar + calcResumen.bonoTurno).toFixed(2)}</strong>
+                      </div>
+                    </div>
+                    <div style={{ borderTop: '1px dashed rgba(255,255,255,0.1)', paddingTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 2 }}>
+                      <span style={{ color: 'var(--text-muted)' }}>Saldo Pendiente Neto:</span>
+                      <strong style={{ color: calcResumen.pendiente > 0 ? 'var(--warning)' : 'var(--success)', fontSize: 13 }}>
+                        ${calcResumen.pendiente.toFixed(2)}
+                      </strong>
+                    </div>
+                  </div>
+                )}
 
                 {/* Métricas Acumuladas */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
