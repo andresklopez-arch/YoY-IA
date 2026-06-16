@@ -720,23 +720,29 @@ export default function NominaPanel({ showToast }) {
   // IA Insights Motor
   const generarInsights = useCallback(() => {
     const nuevosInsights = [];
+    const mesActualStr = new Date().toISOString().slice(0, 7);
+    const mesAnteriorStr = (() => { const d = new Date(); d.setMonth(d.getMonth() - 1); return d.toISOString().slice(0, 7); })();
+
+    const gMes = gastos.filter(g => g.fecha?.startsWith(mesActualStr));
+    const gAnterior = gastos.filter(g => g.fecha?.startsWith(mesAnteriorStr));
+    const tGastosMes = gMes.reduce((s, g) => s + (Number(g.monto) || 0), 0);
+    const tGastosAnterior = gAnterior.reduce((s, g) => s + (Number(g.monto) || 0), 0);
 
     // Variación de gastos
-    if (totalGastosAnterior > 0) {
-      const variacion = ((totalGastosMes - totalGastosAnterior) / totalGastosAnterior) * 100;
+    if (tGastosAnterior > 0) {
+      const variacion = ((tGastosMes - tGastosAnterior) / tGastosAnterior) * 100;
       if (Math.abs(variacion) >= 10) {
         nuevosInsights.push({
           id: 'var_gastos',
           tipo: variacion > 0 ? 'alerta' : 'positivo',
           titulo: variacion > 0 ? `Gastos +${variacion.toFixed(0)}%` : `Gastos -${Math.abs(variacion).toFixed(0)}%`,
-          desc: `Egresos de este mes: ${fmt(totalGastosMes)} vs anterior: ${fmt(totalGastosAnterior)}.`,
+          desc: `Egresos de este mes: ${fmt(tGastosMes)} vs anterior: ${fmt(tGastosAnterior)}.`,
           prioridad: variacion > 30 ? 'alta' : 'media'
         });
       }
     }
 
     // Ausencia de personal
-    const mesActualStr = new Date().toISOString().slice(0, 7);
     empleados.filter(e => e.estado === 'activo').forEach(emp => {
       const ausencias = asistencias.filter(a => a.empleadoId === emp.id && a.estado === 'ausente' && a.fecha?.startsWith(mesActualStr)).length;
       if (ausencias >= 3) {
@@ -752,7 +758,7 @@ export default function NominaPanel({ showToast }) {
 
     // Desviación de presupuestos
     CATEGORIAS_GASTO.forEach(cat => {
-      const gastosMesCat = gastosMes.filter(g => g.categoria === cat.id).reduce((s, g) => s + (Number(g.monto) || 0), 0);
+      const gastosMesCat = gMes.filter(g => g.categoria === cat.id).reduce((s, g) => s + (Number(g.monto) || 0), 0);
       const presupVal = Number(presupuestos[cat.id]?.montoMensual) || 0;
       if (presupVal > 0 && gastosMesCat > presupVal) {
         nuevosInsights.push({
@@ -766,7 +772,7 @@ export default function NominaPanel({ showToast }) {
     });
 
     setInsights(nuevosInsights);
-  }, [empleados, gastos, pagos, asistencias, totalGastosMes, totalGastosAnterior, totalNomina, presupuestos]);
+  }, [presupuestos, empleados, asistencias, gastos]);
 
   useEffect(() => {
     if (empleados.length || gastos.length) generarInsights();
