@@ -463,54 +463,85 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
           {activePanel === 'mesas' && (user?.permisos?.nomina === true || user?.role === 'admin') && (
             <button
               onClick={() => setShowModalPaseLista(true)}
-              className="btn btn-secondary btn-xs"
+              className="btn btn-secondary btn-xs btn-pase-lista-glow"
               style={{
                 height: 28,
-                padding: '4px 12px',
+                padding: '4px 14px',
                 fontSize: 11,
                 display: 'flex',
                 alignItems: 'center',
-                gap: 6,
-                background: 'linear-gradient(135deg, rgba(205, 127, 50, 0.1) 0%, rgba(139, 94, 30, 0.25) 100%)',
-                border: '1px solid var(--border-bronze)',
+                gap: 8,
+                border: '1px solid rgba(227, 168, 105, 0.45)',
                 borderRadius: 8,
-                color: 'var(--bronze-light)',
+                color: '#fff',
                 fontFamily: 'var(--font-display)',
                 fontWeight: 700,
                 textTransform: 'uppercase',
                 letterSpacing: '0.05em',
                 cursor: 'pointer',
                 marginLeft: 12,
-                boxShadow: '0 0 10px rgba(205, 127, 50, 0.15)',
-                transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                 position: 'relative',
-                overflow: 'hidden'
+                overflow: 'hidden',
+                textShadow: '0 0 4px rgba(227, 168, 105, 0.5)'
               }}
               onMouseEnter={e => {
-                e.currentTarget.style.border = '1px solid var(--bronze-light)';
-                e.currentTarget.style.boxShadow = '0 0 16px rgba(227, 168, 105, 0.35)';
-                e.currentTarget.style.transform = 'translateY(-1px) scale(1.02)';
-                e.currentTarget.style.background = 'linear-gradient(135deg, rgba(205, 127, 50, 0.2) 0%, rgba(139, 94, 30, 0.35) 100%)';
+                e.currentTarget.style.border = '1px solid #e3a869';
+                e.currentTarget.style.boxShadow = '0 0 25px rgba(227, 168, 105, 0.9)';
+                e.currentTarget.style.transform = 'translateY(-1px) scale(1.05)';
+                e.currentTarget.style.background = 'linear-gradient(135deg, rgba(227, 168, 105, 0.3) 0%, rgba(205, 127, 50, 0.5) 100%)';
               }}
               onMouseLeave={e => {
-                e.currentTarget.style.border = '1px solid var(--border-bronze)';
-                e.currentTarget.style.boxShadow = '0 0 10px rgba(205, 127, 50, 0.15)';
+                e.currentTarget.style.border = '1px solid rgba(227, 168, 105, 0.45)';
+                e.currentTarget.style.boxShadow = '';
                 e.currentTarget.style.transform = 'translateY(0) scale(1)';
-                e.currentTarget.style.background = 'linear-gradient(135deg, rgba(205, 127, 50, 0.1) 0%, rgba(139, 94, 30, 0.25) 100%)';
+                e.currentTarget.style.background = '';
               }}
               title="Pase de Lista / Código QR"
             >
-              {/* Led indicador pulsante */}
-              <span style={{
-                width: 6,
-                height: 6,
+              {/* CSS Embebido para efectos dinámicos premium */}
+              <style>{`
+                @keyframes pulse-glow-gold {
+                  0%, 100% {
+                    box-shadow: 0 0 8px rgba(227, 168, 105, 0.2);
+                    border-color: rgba(227, 168, 105, 0.4);
+                    background: linear-gradient(135deg, rgba(227, 168, 105, 0.12) 0%, rgba(205, 127, 50, 0.22) 100%);
+                  }
+                  50% {
+                    box-shadow: 0 0 18px rgba(227, 168, 105, 0.65);
+                    border-color: rgba(227, 168, 105, 0.95);
+                    background: linear-gradient(135deg, rgba(227, 168, 105, 0.22) 0%, rgba(205, 127, 50, 0.4) 100%);
+                  }
+                }
+                .btn-pase-lista-glow {
+                  animation: pulse-glow-gold 2s infinite ease-in-out;
+                }
+                @keyframes pulse-green-led {
+                  0%, 100% {
+                    transform: scale(1);
+                    box-shadow: 0 0 4px #10b981;
+                    opacity: 1;
+                  }
+                  50% {
+                    transform: scale(1.3);
+                    box-shadow: 0 0 12px #10b981, 0 0 20px #10b981;
+                    opacity: 0.7;
+                  }
+                }
+                .led-green-pulse {
+                  animation: pulse-green-led 1.2s infinite ease-in-out;
+                }
+              `}</style>
+              {/* Led indicador pulsante verde para denotar acción de fichaje activa */}
+              <span className="led-green-pulse" style={{
+                width: 7,
+                height: 7,
                 borderRadius: '50%',
-                background: 'var(--bronze-light)',
-                boxShadow: '0 0 6px var(--bronze-light)',
-                animation: 'pulse 1.4s infinite'
+                background: '#10b981',
+                display: 'inline-block'
               }} />
-              <i className="ri-qr-code-line" style={{ fontSize: 13, marginLeft: 2 }} />
-              <span>Pase de Lista</span>
+              <i className="ri-qr-code-line" style={{ fontSize: 13, color: '#e3a869' }} />
+              <span style={{ letterSpacing: '0.03em' }}>Pase de Lista</span>
             </button>
           )}
         </div>
