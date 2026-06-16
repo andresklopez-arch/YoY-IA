@@ -8,7 +8,6 @@ import CajaPanel from '@/components/panels/CajaPanel';
 import BarPanel from '@/components/panels/BarPanel';
 import ClientesPanel from '@/components/panels/ClientesPanel';
 import TorneosPanel from '@/components/panels/TorneosPanel';
-import ReportesPanel from '@/components/panels/ReportesPanel';
 import DashboardPanel from '@/components/panels/DashboardPanel';
 import ConfigPanel from '@/components/panels/ConfigPanel';
 import NominaPanel from '@/components/panels/NominaPanel';
@@ -813,7 +812,7 @@ function AppContent() {
     clientes:  <ClientesPanel showToast={showToast} />,
     torneos:   <TorneosPanel showToast={showToast} />,
     nomina:    <NominaPanel showToast={showToast} />,
-    reportes:  <ReportesPanel showToast={showToast} />,
+    reportes:  <CajaPanel showToast={showToast} />,
     config:    <ConfigPanel showToast={showToast} />,
   };
 

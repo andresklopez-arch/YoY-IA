@@ -4,12 +4,11 @@ import { useAuth } from '@/lib/auth-context';
 const NAV_ITEMS = [
   { id: 'dashboard', label: 'Dashboard', icon: 'ri-dashboard-3-line',   roles: ['admin','gerente','cajero'] },
   { id: 'mesas',     label: 'Mesas',     icon: 'ri-billiards-line',      roles: ['admin','gerente','cajero','mesero'],  badge: null },
-  { id: 'caja',      label: 'Caja / POS',icon: 'ri-money-dollar-box-line', roles: ['admin','gerente','cajero'] },
+  { id: 'caja',      label: 'Caja y Reportes IA', icon: 'ri-money-dollar-box-line', roles: ['admin','gerente','cajero'] },
   { id: 'bar',       label: 'Inventario IA', icon: 'ri-archive-line',    roles: ['admin','gerente','mesero'] },
   { id: 'clientes',  label: 'Clientes',  icon: 'ri-group-line',          roles: ['admin','gerente','cajero'] },
   { id: 'torneos',   label: 'Torneos',   icon: 'ri-trophy-line',         roles: ['admin','gerente','arbitro'] },
   { id: 'nomina',    label: 'Nómina & Gastos', icon: 'ri-briefcase-4-line',   roles: ['admin','gerente'] },
-  { id: 'reportes',  label: 'Reportes',  icon: 'ri-bar-chart-2-line',    roles: ['admin','gerente'] },
   { id: 'config',    label: 'Configuración', icon: 'ri-settings-4-line', roles: ['admin'] },
 ];
 
@@ -32,8 +31,13 @@ const ROLE_LABELS = {
 export default function Sidebar({ activePanel, onNavigate, open, onMouseEnter, onMouseLeave, user }) {
   const { logout } = useAuth();
   const visibleItems = NAV_ITEMS.filter(item => {
-    if (user && user.permisos && typeof user.permisos[item.id] !== 'undefined') {
-      return user.permisos[item.id] === true;
+    if (user && user.permisos) {
+      if (item.id === 'caja') {
+        return user.permisos.caja === true || user.permisos.reportes === true;
+      }
+      if (typeof user.permisos[item.id] !== 'undefined') {
+        return user.permisos[item.id] === true;
+      }
     }
     return item.roles.includes(user?.role || 'cajero');
   });
