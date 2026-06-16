@@ -334,6 +334,7 @@ export default function NominaPanel({ showToast }) {
 
   // Estados del Fichaje / Pase de Lista
   const [subSeccion, setSubSeccion] = useState('resumen');
+  const [mostrarInactivos, setMostrarInactivos] = useState(false);
   const [fichajesLogs, setFichajesLogs] = useState([]);
   const [fichajeFechaInicio, setFichajeFechaInicio] = useState(() => {
     const d = new Date();
@@ -426,6 +427,43 @@ export default function NominaPanel({ showToast }) {
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
     link.setAttribute("download", `reporte_fichajes_${fichajeFechaInicio}_a_${fichajeFechaFin}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast('Reporte CSV descargado con éxito ✅', 'success');
+  };
+
+  const exportarCSVEmpleado = (emp, logs) => {
+    if (logs.length === 0) {
+      showToast('No hay registros para exportar', 'warning');
+      return;
+    }
+    let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
+    csvContent += "Fecha,Hora,Empleado,Rol,Evento,Dispositivo,Latitud,Longitud,Precision,Estado GPS\r\n";
+    logs.forEach(log => {
+      const date = log.createdAt?.toDate ? log.createdAt.toDate() : new Date(log.createdAt || Date.now());
+      const fechaFmt = date.toLocaleDateString('es-MX');
+      const horaFmt = date.toLocaleTimeString('es-MX');
+      const nombre = `"${emp.nombre} ${emp.apellido || ''}"`;
+      const rol = `"${emp.rol}"`;
+      
+      let tipoText = log.tipo;
+      if (log.tipo === 'entrada') tipoText = 'Entrada (QR)';
+      else if (log.tipo === 'salida') tipoText = 'Salida (QR)';
+      
+      const dispositivo = log.dispositivo || 'PC/Terminal';
+      const lat = log.coordenadas?.lat || 'N/D';
+      const lng = log.coordenadas?.lng || 'N/D';
+      const precision = log.coordenadas?.precision ? `${Math.round(log.coordenadas.precision)}m` : 'N/D';
+      const statusGps = log.coordenadas?.status || 'N/D';
+      
+      csvContent += `${fechaFmt},${horaFmt},${nombre},${rol},${tipoText},${dispositivo},${lat},${lng},${precision},${statusGps}\r\n`;
+    });
+    
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `reporte_fichajes_${emp.nombre}_${fichajeResumenInicio}_a_${fichajeResumenFin}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -810,39 +848,8 @@ export default function NominaPanel({ showToast }) {
         </div>
       </div>
 
-      {/* ── SELECTOR DE SUB-SECCIÓN / MENU DE PANTALLA ── */}
-      <div style={{
-        display: 'flex', gap: 12, marginBottom: 20, borderBottom: '1px solid var(--border)',
-        paddingBottom: 10
-      }}>
-        <button
-          onClick={() => setSubSeccion('resumen')}
-          style={{
-            background: subSeccion === 'resumen' ? 'var(--bronze-subtle)' : 'transparent',
-            border: subSeccion === 'resumen' ? '1px solid var(--border-bronze)' : '1px solid transparent',
-            color: subSeccion === 'resumen' ? 'var(--bronze-light)' : 'var(--text-secondary)',
-            borderRadius: 8, padding: '8px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
-            transition: 'all 0.25s', display: 'flex', alignItems: 'center', gap: 6
-          }}
-        >
-          <i className="ri-dashboard-line" /> Resumen de Nómina & Gastos
-        </button>
-        <button
-          onClick={() => setSubSeccion('fichajes')}
-          style={{
-            background: subSeccion === 'fichajes' ? 'var(--bronze-subtle)' : 'transparent',
-            border: subSeccion === 'fichajes' ? '1px solid var(--border-bronze)' : '1px solid transparent',
-            color: subSeccion === 'fichajes' ? 'var(--bronze-light)' : 'var(--text-secondary)',
-            borderRadius: 8, padding: '8px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
-            transition: 'all 0.25s', display: 'flex', alignItems: 'center', gap: 6
-          }}
-        >
-          <i className="ri-qr-code-line" /> Historial de Fichajes (Pase de Lista)
-        </button>
-      </div>
-
       {/* ── BANNER DE ALERTAS E INSIGHTS DE IA ── */}
-      {insights.length > 0 && subSeccion === 'resumen' && (
+      {insights.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
           {insights.map(ins => (
             <div key={ins.id} style={{
@@ -860,27 +867,60 @@ export default function NominaPanel({ showToast }) {
         </div>
       )}
 
-      {subSeccion === 'resumen' ? (
-        /* ── DISTRIBUCION SPLIT GRID (70% / 30%) ── */
-        <div style={{ display: 'grid', gridTemplateColumns: '7fr 3fr', gap: 20, alignItems: 'start' }}>
+      {/* ── DISTRIBUCION SPLIT GRID (70% / 30%) ── */}
+      <div style={{ display: 'grid', gridTemplateColumns: '7fr 3fr', gap: 20, alignItems: 'start' }}>
           
           {/* COLUMNA IZQUIERDA (70%) */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             
             {/* SECCION 1: PASE DE LISTA RÁPIDO */}
             <div className="card">
-              <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 15, flexWrap: 'wrap', gap: 12 }}>
                 <div>
                   <h3 className="card-title"><i className="ri-calendar-check-line" style={{ marginRight: 6 }} />Pase de Lista del Día</h3>
-                  <p style={{ fontSize: 10, color: 'var(--text-muted)', margin: 0 }}>Historial y estado de ingresos del personal. Haz clic en la tarjeta para ver resumen detallado.</p>
+                  <p style={{ fontSize: 10, color: 'var(--text-muted)', margin: 0 }}>Fichajes y nómina en tiempo real. Haz clic en una tarjeta para abrir la ficha de perfil.</p>
+                </div>
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                  {/* Periodo de Pago */}
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)', borderRadius: 10, padding: '4px 8px' }}>
+                    <span style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Periodo:</span>
+                    <input className="form-input" type="date" value={fechaInicio} onChange={e => setFechaInicio(e.target.value)} style={{ width: 110, height: 26, fontSize: 10, padding: '2px 6px', background: 'transparent', border: 'none' }} />
+                    <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>al</span>
+                    <input className="form-input" type="date" value={fechaFin} onChange={e => setFechaFin(e.target.value)} style={{ width: 110, height: 26, fontSize: 10, padding: '2px 6px', background: 'transparent', border: 'none' }} />
+                  </div>
+
+                  {/* Mostrar Inactivos Checkbox */}
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, color: 'var(--text-secondary)', cursor: 'pointer', userSelect: 'none' }}>
+                    <input 
+                      type="checkbox" 
+                      checked={mostrarInactivos} 
+                      onChange={e => setMostrarInactivos(e.target.checked)}
+                      style={{ accentColor: 'var(--bronze-light)', cursor: 'pointer' }}
+                    />
+                    Ver Inactivos
+                  </label>
+
+                  {/* + Empleado */}
+                  <button 
+                    className="btn btn-primary btn-sm" 
+                    onClick={() => {
+                      setFormEmpleado({ nombre: '', apellido: '', telefono: '', email: '', departamento: 'Mesas', rol: 'Mesero', fechaIngreso: today(), estado: 'activo', frecuenciaPago: 'quincenal', sueldoBase: '', comisionMesas: '', comisionMesasTipo: 'porcentaje', comisionBar: '', comisionBarTipo: 'porcentaje', comisionTurno: '', comisionTurnoTipo: 'porcentaje', bonoTurno: '', notas: '', nip: '', permisos: { dashboard: true, mesas: true, caja: true, bar: true, clientes: true, torneos: false, nomina: false, reportes: false, config: false } });
+                      setEditandoEmpleado(null);
+                      setShowEmpModal(true);
+                    }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 4, height: 28, fontSize: 10 }}
+                  >
+                    <i className="ri-user-add-line" /> + Empleado
+                  </button>
                 </div>
               </div>
 
               <div style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 6 }}>
-                {empleados.filter(e => e.estado === 'activo').length === 0 ? (
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: 12 }}>No hay empleados activos registrados</div>
+                {empleados.filter(e => mostrarInactivos ? true : e.estado === 'activo').length === 0 ? (
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', padding: 12 }}>No hay empleados registrados para mostrar</div>
                 ) : (
-                  empleados.filter(e => e.estado === 'activo').map(emp => {
+                  empleados.filter(e => mostrarInactivos ? true : e.estado === 'activo').map(emp => {
+                    const esInactivo = emp.estado === 'inactivo';
                     const asistHoy = asistencias.find(a => a.empleadoId === emp.id && a.fecha === today());
                     const est = asistHoy?.estado || '';
                     
@@ -954,27 +994,28 @@ export default function NominaPanel({ showToast }) {
                           setFichajeResumenFin(today());
                         }}
                         style={{
-                          background: 'var(--bg-elevated)', border: '1px solid var(--border)',
+                          background: 'var(--bg-elevated)', border: esInactivo ? '1px dashed var(--border)' : '1px solid var(--border)',
                           borderRadius: 12, padding: 12, minWidth: 200, cursor: 'pointer',
                           display: 'flex', flexDirection: 'column', gap: 8, transition: 'all 0.2s',
-                          position: 'relative'
+                          position: 'relative',
+                          opacity: esInactivo ? 0.6 : 1
                         }}
-                        onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--border-bronze)'; }}
-                        onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; }}
+                        onMouseEnter={e => { if(!esInactivo) e.currentTarget.style.borderColor = 'var(--border-bronze)'; }}
+                        onMouseLeave={e => { if(!esInactivo) e.currentTarget.style.borderColor = 'var(--border)'; }}
                       >
                         {/* Estado y Nombre */}
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                           <span style={{ fontSize: 12, fontWeight: 700, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 110 }}>
-                            {emp.nombre}
+                            {emp.nombre} {emp.apellido || ''}
                           </span>
                           <span style={{ 
                             fontSize: 9, fontWeight: 800, padding: '2px 6px', borderRadius: 4,
-                            background: estaTrabajando ? 'rgba(34,197,94,0.12)' : 'rgba(107,114,128,0.12)',
-                            color: estaTrabajando ? 'var(--success)' : 'var(--text-muted)',
+                            background: esInactivo ? 'rgba(239,68,68,0.12)' : (estaTrabajando ? 'rgba(34,197,94,0.12)' : 'rgba(107,114,128,0.12)'),
+                            color: esInactivo ? 'var(--danger)' : (estaTrabajando ? 'var(--success)' : 'var(--text-muted)'),
                             display: 'flex', alignItems: 'center', gap: 3
                           }}>
-                            <span style={{ width: 6, height: 6, borderRadius: '50%', background: estaTrabajando ? 'var(--success)' : '#6b7280', display: 'inline-block' }} />
-                            {estaTrabajando ? 'TRABAJANDO' : 'NO FICHADO'}
+                            <span style={{ width: 6, height: 6, borderRadius: '50%', background: esInactivo ? 'var(--danger)' : (estaTrabajando ? 'var(--success)' : '#6b7280'), display: 'inline-block' }} />
+                            {esInactivo ? 'INACTIVO' : (estaTrabajando ? 'TRABAJANDO' : 'NO FICHADO')}
                           </span>
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: -4 }}>
@@ -1072,115 +1113,6 @@ export default function NominaPanel({ showToast }) {
                 )}
               </div>
             </div>
-
-          {/* SECCION 2: TABLA DE PERSONAL & NÓMINA */}
-          <div className="card">
-            <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 15, flexWrap: 'wrap', gap: 12 }}>
-              <div>
-                <h3 className="card-title"><i className="ri-team-line" style={{ marginRight: 6 }} />Personal & Nómina Actual</h3>
-                <p style={{ fontSize: 10, color: 'var(--text-muted)', margin: 0 }}>Cálculo automatizado de comisiones y saldos según días laborados</p>
-              </div>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                <input className="form-input" type="date" value={fechaInicio} onChange={e => setFechaInicio(e.target.value)} style={{ width: 120, height: 30, fontSize: 11, padding: '2px 8px' }} />
-                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>al</span>
-                <input className="form-input" type="date" value={fechaFin} onChange={e => setFechaFin(e.target.value)} style={{ width: 120, height: 30, fontSize: 11, padding: '2px 8px' }} />
-                <button className="btn btn-primary btn-sm" onClick={() => {
-                  setFormEmpleado({ nombre: '', apellido: '', telefono: '', email: '', departamento: 'Mesas', rol: 'Mesero', fechaIngreso: today(), estado: 'activo', frecuenciaPago: 'quincenal', sueldoBase: '', comisionMesas: '', comisionMesasTipo: 'porcentaje', comisionBar: '', comisionBarTipo: 'porcentaje', comisionTurno: '', comisionTurnoTipo: 'porcentaje', bonoTurno: '', notas: '', nip: '', permisos: { dashboard: true, mesas: true, caja: true, bar: true, clientes: true, torneos: false, nomina: false, reportes: false, config: false } });
-                  setEditandoEmpleado(null);
-                  setShowEmpModal(true);
-                }} style={{ height: 30, padding: '0 10px', fontSize: 11 }}>
-                  <i className="ri-add-line" /> Empleado
-                </button>
-              </div>
-            </div>
-
-            {/* Buscador de Empleados */}
-            <div style={{ marginBottom: 12, position: 'relative' }}>
-              <input
-                className="form-input" type="text" placeholder="Buscar empleado por nombre, rol..."
-                value={busqueda} onChange={e => setBusqueda(e.target.value)}
-                style={{ paddingLeft: 32, fontSize: 12, height: 32 }}
-              />
-              <i className="ri-search-line" style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-            </div>
-
-            <div className="table-container">
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>Empleado</th>
-                    <th style={{ textAlign: 'center' }}>Asist / Tard</th>
-                    <th style={{ textAlign: 'right' }}>Base Prop</th>
-                    <th style={{ textAlign: 'right' }}>Comisiones</th>
-                    <th style={{ textAlign: 'right' }}>Total</th>
-                    <th style={{ textAlign: 'right' }}>Pendiente</th>
-                    <th style={{ width: 130, textAlign: 'center' }}>Acciones</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {empleadosFiltrados.length === 0 ? (
-                    <tr>
-                      <td colSpan={7} style={{ textAlign: 'center', padding: 30, color: 'var(--text-muted)', fontSize: 12 }}>
-                        Sin registros encontrados
-                      </td>
-                    </tr>
-                  ) : (
-                    empleadosFiltrados.map(c => (
-                      <tr key={c.emp.id}>
-                        <td>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <div style={{ width: 28, height: 28, borderRadius: 6, background: 'var(--bg-elevated)', border: '1px solid var(--border-bronze)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: 'var(--bronze-light)' }}>
-                              {c.emp.nombre[0]}{c.emp.apellido?.[0] || ''}
-                            </div>
-                            <div>
-                              <div style={{ fontWeight: 700, fontSize: 12 }}>{c.emp.nombre} {c.emp.apellido}</div>
-                              <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>{c.emp.rol} · {c.emp.departamento}</div>
-                              {(c.gastoAdelantos > 0 || c.gastoPrestamos > 0 || c.gastoFaltantes > 0) && (
-                                <div style={{ display: 'flex', gap: 6, fontSize: 8, marginTop: 2, flexWrap: 'wrap' }}>
-                                  {c.gastoAdelantos > 0 && <span style={{ color: 'var(--bronze-light)', background: 'rgba(197,168,128,0.1)', padding: '1px 4px', borderRadius: 3 }}>💸 Adelanto: {fmt(c.gastoAdelantos)}</span>}
-                                  {c.gastoPrestamos > 0 && <span style={{ color: 'var(--info)', background: 'rgba(59,130,246,0.1)', padding: '1px 4px', borderRadius: 3 }}>🤝 Préstamo: {fmt(c.gastoPrestamos)}</span>}
-                                  {c.gastoFaltantes > 0 && <span style={{ color: 'var(--danger)', background: 'rgba(239,68,68,0.1)', padding: '1px 4px', borderRadius: 3 }}>⚠️ Faltante: {fmt(c.gastoFaltantes)}</span>}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </td>
-                        <td style={{ textAlign: 'center', fontSize: 11 }}>
-                          <span style={{ color: 'var(--success)', fontWeight: 600 }}>{c.diasTrabajados}d</span>
-                          {c.tardanzas > 0 && <span style={{ color: 'var(--warning)', marginLeft: 4 }}>({c.tardanzas}t)</span>}
-                        </td>
-                        <td style={{ textAlign: 'right', fontSize: 11 }}>{fmt(c.sueldoProp)}</td>
-                        <td style={{ textAlign: 'right', fontSize: 11, color: 'var(--info)' }}>{fmt(c.comisionMesas + c.comisionBar)}</td>
-                        <td style={{ textAlign: 'right', fontSize: 11, fontWeight: 700 }}>{fmt(c.total)}</td>
-                        <td style={{ textAlign: 'right', fontSize: 11, fontWeight: 700, color: c.pendiente > 0 ? 'var(--warning)' : 'var(--success)' }}>
-                          {c.pendiente > 0 ? fmt(c.pendiente) : 'Pagado'}
-                        </td>
-                        <td>
-                          <div style={{ display: 'flex', gap: 4, justifyContent: 'center' }}>
-                            {c.pendiente > 0 ? (
-                              <button className="btn btn-success btn-xs" onClick={() => { setShowPagarModal(c); setDescontarCaja(false); }} title="Pagar nómina">
-                                Pagar
-                              </button>
-                            ) : (
-                              <span style={{ fontSize: 10, color: 'var(--success)', fontWeight: 700, padding: '2px 6px' }}>✓ Listo</span>
-                            )}
-                            <button className="btn btn-secondary btn-xs btn-icon" onClick={() => {
-                              setEditandoEmpleado(c.emp.id);
-                              setFormEmpleado({ nip: '', ...c.emp });
-                              setActiveQrToken('');
-                              setActiveQrExpires(0);
-                              setShowEmpModal(true);
-                            }} title="Editar datos"><i className="ri-pencil-line" /></button>
-                            <button className="btn btn-danger btn-xs btn-icon" onClick={() => eliminarEmpleado(c.emp.id)} title="Eliminar"><i className="ri-delete-bin-line" /></button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
 
           {/* SECCION 3: HISTORIAL DE GASTOS Y EGRESOS */}
           <div className="card">
@@ -1368,167 +1300,7 @@ export default function NominaPanel({ showToast }) {
         </div>
 
       </div>
-      ) : (
-        /* ── HISTORIAL DE FICHAJES (PASE DE LISTA DETALLADO) ── */
-        <div className="card">
-          <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 15, flexWrap: 'wrap', gap: 12 }}>
-            <div>
-              <h3 className="card-title"><i className="ri-qr-code-line" style={{ marginRight: 6 }} />Historial de Pase de Lista y Fichajes</h3>
-              <p style={{ fontSize: 10, color: 'var(--text-muted)', margin: 0 }}>Registro detallado de accesos por QR (entrada/salida) y sesiones de administrador (login/logout)</p>
-            </div>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-              <input className="form-input" type="date" value={fichajeFechaInicio} onChange={e => setFichajeFechaInicio(e.target.value)} style={{ width: 120, height: 30, fontSize: 11, padding: '2px 8px' }} />
-              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>al</span>
-              <input className="form-input" type="date" value={fichajeFechaFin} onChange={e => setFichajeFechaFin(e.target.value)} style={{ width: 120, height: 30, fontSize: 11, padding: '2px 8px' }} />
-              
-              <select className="form-select" value={fichajeFiltroTipo} onChange={e => setFiltroTipo(e.target.value)} style={{ width: 130, height: 30, fontSize: 11, padding: '2px 8px' }}>
-                <option value="">Todos los eventos</option>
-                <option value="entrada">🌅 Entrada (QR)</option>
-                <option value="salida">🌙 Salida (QR)</option>
-                <option value="login">🔑 Login (Sesión)</option>
-                <option value="logout">🔒 Logout (Sesión)</option>
-              </select>
 
-              <button className="btn btn-secondary btn-sm" onClick={exportarCSV} style={{ height: 30, fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}>
-                <i className="ri-file-excel-2-line" style={{ color: '#22c55e' }} /> Exportar Excel
-              </button>
-            </div>
-          </div>
-
-          {/* Buscador */}
-          <div style={{ marginBottom: 15, position: 'relative' }}>
-            <input
-              className="form-input" type="text" placeholder="Buscar por nombre o rol..."
-              value={fichajeFiltroBusqueda} onChange={e => setFichajeFiltroBusqueda(e.target.value)}
-              style={{ paddingLeft: 32, fontSize: 12, height: 32 }}
-            />
-            <i className="ri-search-line" style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-          </div>
-
-          {/* Tabla de Resultados */}
-          <div className="table-container">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Fecha y Hora</th>
-                  <th>Empleado</th>
-                  <th>Rol</th>
-                  <th style={{ textAlign: 'center' }}>Evento</th>
-                  <th style={{ textAlign: 'center' }}>Dispositivo</th>
-                  <th style={{ textAlign: 'center' }}>Ubicación / Coordenadas</th>
-                </tr>
-              </thead>
-              <tbody>
-                {fichajesFiltrados.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)', fontSize: 12 }}>
-                      No se encontraron registros de fichaje para este periodo
-                    </td>
-                  </tr>
-                ) : (
-                  fichajesFiltrados.map(log => {
-                    let badgeColor = '#6b7280';
-                    let badgeBg = 'rgba(107,114,128,0.15)';
-                    let badgeText = log.tipo;
-                    let badgeIcon = 'ri-question-line';
-
-                    if (log.tipo === 'entrada') {
-                      badgeColor = '#22c55e';
-                      badgeBg = 'rgba(34,197,94,0.15)';
-                      badgeText = 'Entrada (QR)';
-                      badgeIcon = 'ri-login-box-line';
-                    } else if (log.tipo === 'salida') {
-                      badgeColor = '#ef4444';
-                      badgeBg = 'rgba(239,68,68,0.15)';
-                      badgeText = 'Salida (QR)';
-                      badgeIcon = 'ri-logout-box-line';
-                    } else if (log.tipo === 'login') {
-                      badgeColor = '#3b82f6';
-                      badgeBg = 'rgba(59,130,246,0.15)';
-                      badgeText = 'Login (NIP/Pass)';
-                      badgeIcon = 'ri-key-line';
-                    } else if (log.tipo === 'logout') {
-                      badgeColor = '#b0b8c8';
-                      badgeBg = 'rgba(176,184,200,0.15)';
-                      badgeText = 'Logout (Sesión)';
-                      badgeIcon = 'ri-lock-line';
-                    } else if (log.tipo === 'intento_fallido_geocerca') {
-                      badgeColor = '#f97316'; // Naranja
-                      badgeBg = 'rgba(249,115,22,0.15)';
-                      badgeText = `Geocerca Fallida (${log.coordenadas?.distanciaCalculada ? log.coordenadas.distanciaCalculada + 'm' : 'Lejos'})`;
-                      badgeIcon = 'ri-road-map-line';
-                    } else if (log.tipo === 'intento_fallido_gps') {
-                      badgeColor = '#ec4899'; // Rosa
-                      badgeBg = 'rgba(236,72,153,0.15)';
-                      badgeText = 'GPS Bloqueado';
-                      badgeIcon = 'ri-gps-line';
-                    }
-
-                    const formatHora = (ts) => {
-                      if (!ts) return '—';
-                      const date = ts.toDate ? ts.toDate() : new Date(ts);
-                      return date.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-                    };
-
-                    const formatFecha = (ts) => {
-                      if (!ts) return log.fecha || '—';
-                      const date = ts.toDate ? ts.toDate() : new Date(ts);
-                      return date.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' });
-                    };
-
-                    const coords = log.coordenadas;
-                    const hasCoords = coords && coords.lat && coords.lng;
-
-                    return (
-                      <tr key={log.id}>
-                        <td style={{ fontSize: 12 }}>
-                          <strong>{formatFecha(log.createdAt)}</strong>
-                          <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{formatHora(log.createdAt)}</div>
-                        </td>
-                        <td style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>
-                          {log.nombre}
-                        </td>
-                        <td style={{ fontSize: 11, textTransform: 'uppercase', color: 'var(--text-secondary)' }}>
-                          {log.rol}
-                        </td>
-                        <td style={{ textAlign: 'center' }}>
-                          <span style={{
-                            display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 700,
-                            padding: '2px 8px', borderRadius: 6, color: badgeColor, background: badgeBg,
-                            border: `1px solid ${badgeColor}30`, textTransform: 'uppercase'
-                          }}>
-                            <i className={badgeIcon} /> {badgeText}
-                          </span>
-                        </td>
-                        <td style={{ textAlign: 'center', fontSize: 11 }}>
-                          <i className={log.dispositivo === 'Móvil' ? 'ri-smartphone-line' : log.dispositivo === 'Tablet' ? 'ri-tablet-line' : 'ri-computer-line'} style={{ marginRight: 4, color: 'var(--text-muted)' }} />
-                          {log.dispositivo || 'PC/Terminal'}
-                        </td>
-                        <td style={{ textAlign: 'center', fontSize: 11 }}>
-                          {hasCoords ? (
-                            <a
-                              href={`https://www.google.com/maps?q=${coords.lat},${coords.lng}`}
-                              target="_blank" rel="noopener noreferrer"
-                              style={{
-                                color: 'var(--bronze-light)', display: 'inline-flex', alignItems: 'center',
-                                gap: 4, textDecoration: 'underline', fontWeight: 600
-                              }}
-                            >
-                              <i className="ri-map-pin-line" /> Ver en Google Maps
-                            </a>
-                          ) : (
-                            <span style={{ color: 'var(--text-muted)' }}>Sin coordenadas ({coords?.status || 'N/D'})</span>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
 
       {/* ── MODALES DEL SISTEMA ── */}
 
@@ -1590,149 +1362,283 @@ export default function NominaPanel({ showToast }) {
 
         return (
           <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setFichajeResumenEmpleado(null)}>
-            <div className="modal" style={{ maxWidth: 580, background: 'rgba(25, 20, 20, 0.95)', border: '1px solid var(--border-bronze)', boxShadow: '0 20px 50px rgba(0,0,0,0.8)' }}>
+            <div className="modal" style={{ maxWidth: 900, background: 'rgba(25, 20, 20, 0.98)', border: '1px solid var(--border-bronze)', boxShadow: '0 20px 50px rgba(0,0,0,0.9)' }}>
               <div className="modal-header" style={{ borderBottom: '1px solid var(--border)' }}>
-                <span className="modal-title" style={{ color: 'var(--bronze-light)' }}>
-                  <i className="ri-file-user-line" style={{ marginRight: 6 }} />
-                  Resumen de Fichajes: {fichajeResumenEmpleado.nombre} {fichajeResumenEmpleado.apellido || ''}
+                <span className="modal-title" style={{ color: 'var(--bronze-light)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <i className="ri-file-user-line" />
+                  Perfil & Ficha Completa del Trabajador: {fichajeResumenEmpleado.nombre} {fichajeResumenEmpleado.apellido || ''}
                 </span>
                 <button onClick={() => setFichajeResumenEmpleado(null)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 20, cursor: 'pointer' }}>
                   <i className="ri-close-line" />
                 </button>
               </div>
-              <div className="modal-body" style={{ maxHeight: 'calc(100vh - 200px)', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div className="modal-body" style={{ maxHeight: 'calc(100vh - 200px)', overflowY: 'auto', display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 20, padding: 20 }}>
                 
-                {/* Modificador de Fechas */}
-                <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 12, padding: 12 }}>
-                  <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 8 }}>Intervalo de Fechas del Reporte</div>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                    <input className="form-input" type="date" value={fichajeResumenInicio} onChange={e => setFichajeResumenInicio(e.target.value)} style={{ flex: 1, height: 32, fontSize: 11 }} />
-                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>al</span>
-                    <input className="form-input" type="date" value={fichajeResumenFin} onChange={e => setFichajeResumenFin(e.target.value)} style={{ flex: 1, height: 32, fontSize: 11 }} />
-                  </div>
-                </div>
-
-                {/* Resumen Financiero de Nómina en el Periodo Activo */}
-                {calcResumen && (
-                  <div className="animate-fadeIn" style={{
-                    background: 'rgba(16,185,129,0.05)',
-                    border: '1px solid rgba(16,185,129,0.2)',
-                    borderRadius: 12,
-                    padding: 14,
-                    fontSize: 11,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 8,
-                    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)'
-                  }}>
-                    <div style={{ color: 'var(--text-muted)', fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>
-                      Resumen de Nómina y Adelantos (Período de Pago Activo)
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                      <div>
-                        <span style={{ color: 'var(--text-muted)' }}>Ganado Neto:</span>{' '}
-                        <strong style={{ color: 'var(--text-main)' }}>${calcResumen.total.toFixed(2)}</strong>
+                {/* COLUMNA 1: PERFIL Y DETALLE FINANCIERO */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16, borderRight: '1px solid var(--border)', paddingRight: 20 }}>
+                  
+                  {/* Datos del Trabajador */}
+                  <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 12, padding: 14 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
+                      <div style={{ width: 44, height: 44, borderRadius: 8, background: 'rgba(197,168,128,0.15)', border: '1px solid var(--border-bronze)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 700, color: 'var(--bronze-light)' }}>
+                        {fichajeResumenEmpleado.nombre[0]}{fichajeResumenEmpleado.apellido?.[0] || ''}
                       </div>
                       <div>
-                        <span style={{ color: 'var(--text-muted)' }}>Adelantos Recibidos:</span>{' '}
-                        <strong style={{ color: 'var(--bronze-light)' }}>${calcResumen.gastoAdelantos.toFixed(2)}</strong>
+                        <h4 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#fff' }}>{fichajeResumenEmpleado.nombre} {fichajeResumenEmpleado.apellido || ''}</h4>
+                        <div style={{ fontSize: 11, color: 'var(--text-secondary)', textTransform: 'uppercase', marginTop: 2 }}>
+                          {fichajeResumenEmpleado.rol} · {fichajeResumenEmpleado.departamento}
+                        </div>
                       </div>
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, fontSize: 11, color: 'var(--text-secondary)', marginTop: 8 }}>
+                      <div><strong>Teléfono:</strong> {fichajeResumenEmpleado.telefono || '—'}</div>
+                      <div><strong>Frecuencia:</strong> {fichajeResumenEmpleado.frecuenciaPago || 'Quincenal'}</div>
+                      <div><strong>Ingreso:</strong> {fichajeResumenEmpleado.fechaIngreso || '—'}</div>
                       <div>
-                        <span style={{ color: 'var(--text-muted)' }}>Préstamos / Faltantes:</span>{' '}
-                        <strong style={{ color: 'var(--danger)' }}>${(calcResumen.gastoPrestamos + calcResumen.gastoFaltantes).toFixed(2)}</strong>
-                      </div>
-                      <div>
-                        <span style={{ color: 'var(--text-muted)' }}>Comisiones / Bonos:</span>{' '}
-                        <strong style={{ color: 'var(--info)' }}>${(calcResumen.comisionMesas + calcResumen.comisionBar + calcResumen.bonoTurno).toFixed(2)}</strong>
-                      </div>
-                    </div>
-                    <div style={{ borderTop: '1px dashed rgba(255,255,255,0.1)', paddingTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 2 }}>
-                      <span style={{ color: 'var(--text-muted)' }}>Saldo Pendiente Neto:</span>
-                      <strong style={{ color: calcResumen.pendiente > 0 ? 'var(--warning)' : 'var(--success)', fontSize: 13 }}>
-                        ${calcResumen.pendiente.toFixed(2)}
-                      </strong>
-                    </div>
-                  </div>
-                )}
-
-                {/* Métricas Acumuladas */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                  <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)', borderRadius: 12, padding: 12, textAlign: 'center' }}>
-                    <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Sesiones Completas</div>
-                    <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--bronze-light)', marginTop: 4 }}>{sesionesCompletas}</div>
-                  </div>
-                  <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)', borderRadius: 12, padding: 12, textAlign: 'center' }}>
-                    <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Total Horas Calculadas</div>
-                    <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--success)', marginTop: 4 }}>{totalHoras.toFixed(1)} hrs</div>
-                  </div>
-                </div>
-
-                {/* Historial de Fichajes Detallado */}
-                <div>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: '#fff', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Registros Encontrados ({empLogs.length})</div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {empLogs.map(log => {
-                      const d = log.createdAt?.toDate ? log.createdAt.toDate() : new Date(log.createdAt || Date.now());
-                      const hora = d.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
-                      const fechaFmt = d.toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' });
-                      const esEntrada = log.tipo === 'entrada';
-                      const isLogCelularInusual = phoneLogs.length >= 3 && 
-                                                  log.dispositivo && 
-                                                  log.dispositivo !== 'PC/Terminal' && 
-                                                  log.dispositivo !== mostFrequentPhone;
-                      return (
-                        <div key={log.id} style={{
-                          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                          background: 'var(--bg-elevated)', border: '1px solid var(--border)',
-                          borderRadius: 10, padding: '8px 12px', fontSize: 11
+                        <strong>Estado:</strong>{' '}
+                        <span style={{ 
+                          color: fichajeResumenEmpleado.estado === 'activo' ? 'var(--success)' : 'var(--danger)',
+                          fontWeight: 700, textTransform: 'uppercase'
                         }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <span style={{ 
-                              width: 20, height: 20, borderRadius: 6,
-                              background: esEntrada ? 'rgba(34,197,94,0.1)' : 'rgba(107,114,128,0.1)',
-                              color: esEntrada ? 'var(--success)' : '#9ca3af',
-                              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10
-                            }}>
-                              {esEntrada ? '📥' : '📤'}
-                            </span>
-                            <div>
-                              <div style={{ fontWeight: 700, color: esEntrada ? 'var(--success)' : '#e5e7eb' }}>
-                                {esEntrada ? 'Entrada' : 'Salida'}
-                              </div>
-                              <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>
-                                Dispositivo: <span style={{ color: 'var(--bronze-light)' }}>{log.dispositivo || 'PC/Terminal'}</span>
-                                {isLogCelularInusual && (
-                                  <span style={{ 
-                                    fontSize: 8, color: 'var(--danger)', fontWeight: 700, 
-                                    background: 'rgba(239,68,68,0.1)', padding: '1px 4px', 
-                                    borderRadius: 3, marginLeft: 4 
-                                  }}>
-                                    ⚠️ Inusual
-                                  </span>
-                                )}
+                          {fichajeResumenEmpleado.estado}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Resumen Financiero del Periodo Activo */}
+                  {calcResumen ? (
+                    <div className="animate-fadeIn" style={{
+                      background: 'rgba(197,168,128,0.04)',
+                      border: '1px solid rgba(197,168,128,0.15)',
+                      borderRadius: 12,
+                      padding: 16,
+                      fontSize: 11,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 8,
+                      boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)'
+                    }}>
+                      <div style={{ color: 'var(--bronze-light)', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700, marginBottom: 4 }}>
+                        Nómina del Periodo ({fechaInicio} al {fechaFin})
+                      </div>
+                      
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ color: 'var(--text-muted)' }}>Sueldo Base Proporcional ({calcResumen.diasTrabajados} días):</span>
+                          <span style={{ fontWeight: 600, color: '#fff' }}>{fmt(calcResumen.sueldoProp)}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ color: 'var(--text-muted)' }}>Comisión Mesas:</span>
+                          <span style={{ fontWeight: 600, color: 'var(--info)' }}>{fmt(calcResumen.comisionMesas)}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ color: 'var(--text-muted)' }}>Comisión Bar:</span>
+                          <span style={{ fontWeight: 600, color: 'var(--info)' }}>{fmt(calcResumen.comisionBar)}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ color: 'var(--text-muted)' }}>Bono por Turno:</span>
+                          <span style={{ fontWeight: 600, color: 'var(--info)' }}>{fmt(calcResumen.bonoTurno)}</span>
+                        </div>
+                        
+                        <div style={{ height: 1, background: 'rgba(255,255,255,0.06)', margin: '4px 0' }} />
+                        
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ color: 'var(--text-muted)' }}>Adelantos Recibidos (Caja):</span>
+                          <span style={{ fontWeight: 600, color: 'var(--bronze-light)' }}>-{fmt(calcResumen.gastoAdelantos)}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ color: 'var(--text-muted)' }}>Préstamos Registrados:</span>
+                          <span style={{ fontWeight: 600, color: 'var(--danger)' }}>-{fmt(calcResumen.gastoPrestamos)}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ color: 'var(--text-muted)' }}>Faltantes de Caja:</span>
+                          <span style={{ fontWeight: 600, color: 'var(--danger)' }}>-{fmt(calcResumen.gastoFaltantes)}</span>
+                        </div>
+                        {calcResumen.tardanzasDeduccion > 0 && (
+                          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <span style={{ color: 'var(--text-muted)' }}>Deducción por Tardanzas ({calcResumen.tardanzas} t):</span>
+                            <span style={{ fontWeight: 600, color: 'var(--danger)' }}>-{fmt(calcResumen.tardanzasDeduccion)}</span>
+                          </div>
+                        )}
+                        
+                        <div style={{ height: 1, background: 'rgba(255,255,255,0.1)', margin: '6px 0' }} />
+                        
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontWeight: 700, color: '#fff', fontSize: 12 }}>Ingresos Brutos:</span>
+                          <span style={{ fontWeight: 700, color: '#fff', fontSize: 12 }}>{fmt(calcResumen.sueldoProp + calcResumen.comisionMesas + calcResumen.comisionBar + calcResumen.bonoTurno)}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontWeight: 700, color: 'var(--bronze-light)', fontSize: 12 }}>Deducciones y Adelantos Totales:</span>
+                          <span style={{ fontWeight: 700, color: 'var(--bronze-light)', fontSize: 12 }}>-{fmt(calcResumen.gastoAdelantos + calcResumen.deducciones)}</span>
+                        </div>
+                        
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6, background: 'rgba(0,0,0,0.15)', padding: '6px 10px', borderRadius: 8 }}>
+                          <span style={{ fontWeight: 700, color: 'var(--warning)', fontSize: 12 }}>Saldo Neto a Pagar:</span>
+                          <strong style={{ color: calcResumen.pendiente > 0 ? 'var(--warning)' : 'var(--success)', fontSize: 14 }}>
+                            {calcResumen.pendiente > 0 ? fmt(calcResumen.pendiente) : 'PAGADO'}
+                          </strong>
+                        </div>
+                      </div>
+
+                      {/* Botones de Acción Internos */}
+                      <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+                        {calcResumen.pendiente > 0 ? (
+                          <button 
+                            className="btn btn-success" 
+                            onClick={() => { 
+                              setShowPagarModal(calcResumen); 
+                              setDescontarCaja(false); 
+                            }}
+                            style={{ flex: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 11, height: 32 }}
+                          >
+                            <i className="ri-money-dollar-circle-line" /> Pagar Nómina
+                          </button>
+                        ) : (
+                          <div style={{ flex: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 11, height: 32, background: 'rgba(34,197,94,0.1)', color: 'var(--success)', borderRadius: 8, fontWeight: 700 }}>
+                            ✓ Nómina Completa
+                          </div>
+                        )}
+                        
+                        <button 
+                          className="btn btn-secondary" 
+                          onClick={() => {
+                            setEditandoEmpleado(fichajeResumenEmpleado.id);
+                            setFormEmpleado({ nip: '', ...fichajeResumenEmpleado });
+                            setActiveQrToken('');
+                            setActiveQrExpires(0);
+                            setShowEmpModal(true);
+                          }}
+                          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, fontSize: 11, padding: '0 10px', height: 32 }}
+                        >
+                          <i className="ri-pencil-line" /> Editar
+                        </button>
+                        
+                        <button 
+                          className="btn btn-danger" 
+                          onClick={() => {
+                            if (confirm(`¿Seguro que deseas eliminar a ${fichajeResumenEmpleado.nombre}? Esta acción es irreversible.`)) {
+                              eliminarEmpleado(fichajeResumenEmpleado.id);
+                              setFichajeResumenEmpleado(null);
+                            }
+                          }}
+                          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, fontSize: 11, padding: '0 10px', height: 32 }}
+                        >
+                          <i className="ri-delete-bin-line" /> Eliminar
+                        </button>
+                      </div>
+
+                    </div>
+                  ) : (
+                    <div style={{ color: 'var(--text-muted)', fontSize: 11, fontStyle: 'italic', padding: 10, textAlign: 'center' }}>
+                      Cargando cálculos de nómina...
+                    </div>
+                  )}
+
+                </div>
+
+                {/* COLUMNA 2: FILTROS E HISTORIAL DE ASISTENCIA */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  
+                  {/* Modificador de Fechas */}
+                  <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 12, padding: 12 }}>
+                    <div style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 8, letterSpacing: '0.04em' }}>Filtrar Historial de Asistencia</div>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <input className="form-input" type="date" value={fichajeResumenInicio} onChange={e => setFichajeResumenInicio(e.target.value)} style={{ flex: 1, height: 28, fontSize: 10, padding: '2px 6px' }} />
+                      <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>al</span>
+                      <input className="form-input" type="date" value={fichajeResumenFin} onChange={e => setFichajeResumenFin(e.target.value)} style={{ flex: 1, height: 28, fontSize: 10, padding: '2px 6px' }} />
+                    </div>
+                  </div>
+
+                  {/* Métricas Acumuladas */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    <div style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid var(--border)', borderRadius: 12, padding: 10, textAlign: 'center' }}>
+                      <div style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Sesiones</div>
+                      <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--bronze-light)', marginTop: 2 }}>{sesionesCompletas}</div>
+                    </div>
+                    <div style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid var(--border)', borderRadius: 12, padding: 10, textAlign: 'center' }}>
+                      <div style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Horas</div>
+                      <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--success)', marginTop: 2 }}>{totalHoras.toFixed(1)} hrs</div>
+                    </div>
+                  </div>
+
+                  {/* Historial de Fichajes Detallado */}
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                      <div style={{ fontSize: 9, fontWeight: 700, color: '#fff', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Registros ({empLogs.length})</div>
+                      <button 
+                        className="btn btn-secondary btn-xs" 
+                        onClick={() => exportarCSVEmpleado(fichajeResumenEmpleado, sortedCron)} 
+                        style={{ fontSize: 9, height: 22, display: 'flex', alignItems: 'center', gap: 4, padding: '2px 6px' }}
+                      >
+                        <i className="ri-file-excel-2-line" style={{ color: '#22c55e', fontSize: 10 }} /> Exportar CSV
+                      </button>
+                    </div>
+                    
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 220, overflowY: 'auto', paddingRight: 4 }}>
+                      {empLogs.map(log => {
+                        const d = log.createdAt?.toDate ? log.createdAt.toDate() : new Date(log.createdAt || Date.now());
+                        const hora = d.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+                        const fechaFmt = d.toLocaleDateString('es-MX', { day: '2-digit', month: 'short' });
+                        const esEntrada = log.tipo === 'entrada';
+                        const isLogCelularInusual = phoneLogs.length >= 3 && 
+                                                    log.dispositivo && 
+                                                    log.dispositivo !== 'PC/Terminal' && 
+                                                    log.dispositivo !== mostFrequentPhone;
+                        return (
+                          <div key={log.id} style={{
+                            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                            background: 'var(--bg-elevated)', border: '1px solid var(--border)',
+                            borderRadius: 8, padding: '6px 10px', fontSize: 11
+                          }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <span style={{ 
+                                width: 18, height: 18, borderRadius: 4,
+                                background: esEntrada ? 'rgba(34,197,94,0.1)' : 'rgba(107,114,128,0.1)',
+                                color: esEntrada ? 'var(--success)' : '#9ca3af',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9
+                              }}>
+                                {esEntrada ? '📥' : '📤'}
+                              </span>
+                              <div>
+                                <div style={{ fontWeight: 700, color: esEntrada ? 'var(--success)' : '#e5e7eb', fontSize: 10 }}>
+                                  {esEntrada ? 'Entrada' : 'Salida'}
+                                </div>
+                                <div style={{ fontSize: 8, color: 'var(--text-muted)' }}>
+                                  Vía: <span style={{ color: 'var(--bronze-light)' }}>{log.dispositivo || 'PC/Terminal'}</span>
+                                  {isLogCelularInusual && (
+                                    <span style={{ 
+                                      fontSize: 7, color: 'var(--danger)', fontWeight: 800, 
+                                      background: 'rgba(239,68,68,0.1)', padding: '1px 3px', 
+                                      borderRadius: 2, marginLeft: 4 
+                                    }}>
+                                      INUSUAL
+                                    </span>
+                                  )}
+                                </div>
                               </div>
                             </div>
+                            <div style={{ textAlign: 'right' }}>
+                              <div style={{ fontWeight: 600, fontSize: 10 }}>{hora}</div>
+                              <div style={{ fontSize: 8, color: 'var(--text-muted)' }}>{fechaFmt}</div>
+                            </div>
                           </div>
-                          <div style={{ textAlign: 'right' }}>
-                            <div style={{ fontWeight: 600 }}>{hora}</div>
-                            <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>{fechaFmt}</div>
-                          </div>
+                        );
+                      })}
+                      {empLogs.length === 0 && (
+                        <div style={{ textAlign: 'center', padding: '20px 0', fontSize: 10, color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                          Sin registros en este periodo
                         </div>
-                      );
-                    })}
-                    {empLogs.length === 0 && (
-                      <div style={{ textAlign: 'center', padding: '24px 0', fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                        No hay registros para este empleado en el rango de fechas seleccionado.
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </div>
+
                 </div>
 
               </div>
               <div className="modal-footer" style={{ borderTop: '1px solid var(--border)', padding: '12px 16px' }}>
-                <button className="btn btn-secondary" onClick={() => setFichajeResumenEmpleado(null)} style={{ padding: '8px 20px', fontSize: 12 }}>
+                <button className="btn btn-secondary" onClick={() => setFichajeResumenEmpleado(null)} style={{ padding: '6px 16px', fontSize: 11 }}>
                   Cerrar
                 </button>
               </div>
