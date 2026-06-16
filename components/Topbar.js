@@ -465,20 +465,52 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
               onClick={() => setShowModalPaseLista(true)}
               className="btn btn-secondary btn-xs"
               style={{
-                height: 24,
-                padding: '2px 8px',
-                fontSize: 10,
+                height: 28,
+                padding: '4px 12px',
+                fontSize: 11,
                 display: 'flex',
                 alignItems: 'center',
-                gap: 5,
-                borderColor: 'var(--border-bronze)',
+                gap: 6,
+                background: 'linear-gradient(135deg, rgba(205, 127, 50, 0.1) 0%, rgba(139, 94, 30, 0.25) 100%)',
+                border: '1px solid var(--border-bronze)',
+                borderRadius: 8,
                 color: 'var(--bronze-light)',
+                fontFamily: 'var(--font-display)',
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em',
                 cursor: 'pointer',
-                marginLeft: 12
+                marginLeft: 12,
+                boxShadow: '0 0 10px rgba(205, 127, 50, 0.15)',
+                transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+                position: 'relative',
+                overflow: 'hidden'
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.border = '1px solid var(--bronze-light)';
+                e.currentTarget.style.boxShadow = '0 0 16px rgba(227, 168, 105, 0.35)';
+                e.currentTarget.style.transform = 'translateY(-1px) scale(1.02)';
+                e.currentTarget.style.background = 'linear-gradient(135deg, rgba(205, 127, 50, 0.2) 0%, rgba(139, 94, 30, 0.35) 100%)';
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.border = '1px solid var(--border-bronze)';
+                e.currentTarget.style.boxShadow = '0 0 10px rgba(205, 127, 50, 0.15)';
+                e.currentTarget.style.transform = 'translateY(0) scale(1)';
+                e.currentTarget.style.background = 'linear-gradient(135deg, rgba(205, 127, 50, 0.1) 0%, rgba(139, 94, 30, 0.25) 100%)';
               }}
               title="Pase de Lista / Código QR"
             >
-              <i className="ri-qr-code-line" style={{ fontSize: 12 }} /> Pase de Lista
+              {/* Led indicador pulsante */}
+              <span style={{
+                width: 6,
+                height: 6,
+                borderRadius: '50%',
+                background: 'var(--bronze-light)',
+                boxShadow: '0 0 6px var(--bronze-light)',
+                animation: 'pulse 1.4s infinite'
+              }} />
+              <i className="ri-qr-code-line" style={{ fontSize: 13, marginLeft: 2 }} />
+              <span>Pase de Lista</span>
             </button>
           )}
         </div>
