@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
-import { obfuscate, deobfuscate } from '@/lib/crypto';
+import { obfuscate, deobfuscate, hashNip } from '@/lib/crypto';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth-context';
 import { doc, onSnapshot, setDoc, getDoc, serverTimestamp, collection, query, where, getDocs, writeBatch, updateDoc, runTransaction, addDoc, orderBy, limit } from 'firebase/firestore';
@@ -1746,6 +1746,44 @@ export default function MesasPanel({ showToast }) {
     w.document.close();
   };
 
+  // Enviar notificación a Telegram al registrar un gasto de nómina
+  const enviarNotificacionTelegramGasto = async (gastoData) => {
+    try {
+      const tgSnap = await getDoc(doc(db, 'config', 'telegram'));
+      if (tgSnap.exists()) {
+        const tgData = tgSnap.data();
+        if (tgData.enabled && tgData.botToken && tgData.chatId) {
+          let tipoText = '';
+          if (gastoData.conceptoNomina === 'adelanto_nomina') tipoText = 'Adelanto de Nómina';
+          else if (gastoData.conceptoNomina === 'prestamo') tipoText = 'Préstamo';
+          else if (gastoData.conceptoNomina === 'faltante') tipoText = 'Faltante';
+
+          const text = 
+            `💸 *Nuevo Gasto de Nómina en Caja*\n\n` +
+            `*Empleado:* ${gastoData.empleadoNombre}\n` +
+            `*Concepto:* ${tipoText}\n` +
+            `*Monto:* $${Number(gastoData.monto).toFixed(2)} MXN\n` +
+            `*Fecha:* ${gastoData.fecha}\n` +
+            (gastoData.notas ? `*Notas:* ${gastoData.notas}\n` : '') +
+            `*Registrado por:* Caja / POS`;
+
+          const telegramUrl = `https://api.telegram.org/bot${tgData.botToken}/sendMessage`;
+          await fetch(telegramUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              chat_id: tgData.chatId,
+              text: text,
+              parse_mode: 'Markdown'
+            })
+          });
+        }
+      }
+    } catch (err) {
+      console.error("Error al enviar notificación de gasto a Telegram:", err);
+    }
+  };
+
   // Registro rápido de gasto de caja
   const confirmarRegistroGasto = async (gastoData) => {
     try {
@@ -1766,6 +1804,11 @@ export default function MesasPanel({ showToast }) {
       
       // Imprimir ticket de egreso automáticamente
       imprimirTicketGasto(gastoData);
+
+      // Enviar notificación a Telegram si es de nómina
+      if (gastoData.categoria === 'nomina') {
+        enviarNotificacionTelegramGasto(gastoData);
+      }
     } catch (err) {
       showToast('Error al registrar el gasto: ' + err.message, 'error');
     }
@@ -7464,6 +7507,11 @@ function ModalGasto({ onClose, onConfirm, CATEGORIAS_GASTO }) {
     empleadoNombre: '',
     conceptoNomina: 'adelanto_nomina'
   });
+  const [nip, setNip] = useState('');
+  const [nipError, setNipError] = useState('');
+  const [liveEarnings, setLiveEarnings] = useState(null);
+  const [loadingEarnings, setLoadingEarnings] = useState(false);
+
   useBodyScrollLock(true);
 
   useEffect(() => {
@@ -7496,10 +7544,189 @@ function ModalGasto({ onClose, onConfirm, CATEGORIAS_GASTO }) {
     }
   }, [form.categoria, form.empleadoId, form.conceptoNomina, empleados]);
 
+  // Helper para obtener el periodo quincenal actual para una fecha
+  const getPeriodForDate = (dateStr) => {
+    if (!dateStr) return { start: '', end: '' };
+    const d = new Date(dateStr + 'T12:00:00');
+    const year = d.getFullYear();
+    const month = d.getMonth();
+    const day = d.getDate();
+    
+    let startStr, endStr;
+    if (day <= 15) {
+      const start = new Date(year, month, 1);
+      const end = new Date(year, month, 15);
+      startStr = start.toISOString().slice(0, 10);
+      endStr = end.toISOString().slice(0, 10);
+    } else {
+      const start = new Date(year, month, 16);
+      const end = new Date(year, month + 1, 0);
+      startStr = start.toISOString().slice(0, 10);
+      endStr = end.toISOString().slice(0, 10);
+    }
+    return { start: startStr, end: endStr };
+  };
+
+  // Cargar ingresos acumulados netos en tiempo real
+  useEffect(() => {
+    if (form.categoria !== 'nomina' || !form.empleadoId) {
+      setLiveEarnings(null);
+      return;
+    }
+
+    const loadLiveEarnings = async () => {
+      setLoadingEarnings(true);
+      try {
+        const emp = empleados.find(e => e.id === form.empleadoId);
+        if (!emp) return;
+
+        const { start, end } = getPeriodForDate(form.fecha);
+        const startD = new Date(start + 'T00:00:00');
+        const endD = new Date(end + 'T00:00:00');
+        const dias = Math.max(1, Math.round((endD - startD) / 86400000) + 1);
+
+        // Fetch Asistencias
+        const qAsist = query(collection(db, 'nomina_asistencia'), where('empleadoId', '==', form.empleadoId));
+        const snapAsist = await getDocs(qAsist);
+        const asistEmp = snapAsist.docs.map(doc => doc.data()).filter(a => a.fecha >= start && a.fecha <= end);
+        const diasTrabajados = asistEmp.filter(a => a.estado === 'presente').length;
+        const tardanzas = asistEmp.filter(a => a.estado === 'tardanza').length;
+
+        // Fetch Existing Expenses
+        const qGastos = query(collection(db, 'gastos'), where('empleadoId', '==', form.empleadoId), where('categoria', '==', 'nomina'));
+        const snapGastos = await getDocs(qGastos);
+        const empGastos = snapGastos.docs.map(doc => doc.data()).filter(g => g.fecha >= start && g.fecha <= end);
+        const adelanto = empGastos.filter(g => g.conceptoNomina === 'adelanto_nomina').reduce((s, g) => s + (Number(g.monto) || 0), 0);
+        const prestamo = empGastos.filter(g => g.conceptoNomina === 'prestamo').reduce((s, g) => s + (Number(g.monto) || 0), 0);
+        const faltante = empGastos.filter(g => g.conceptoNomina === 'faltante').reduce((s, g) => s + (Number(g.monto) || 0), 0);
+
+        // Fetch Bitacora Sales
+        const qBit = query(collection(db, 'bitacora'), orderBy('fecha', 'desc'));
+        const snapBit = await getDocs(qBit);
+        const eventos = snapBit.docs.map(doc => doc.data());
+        const fi = new Date(start + 'T00:00:00');
+        const ff = new Date(end + 'T23:59:59');
+        const eventosPeriodo = eventos.filter(e => {
+          const fe = new Date(e.fecha);
+          return fe >= fi && fe <= ff;
+        });
+        const totalMesas = eventosPeriodo
+          .filter(e => e.accion === 'Cierre Directo' || e.accion === 'Mesa a Cuenta')
+          .reduce((s, e) => s + Math.abs(Number(e.monto) || 0), 0);
+
+        // Calculate ventasBar from stock estimate
+        const rawStock = localStorage.getItem('yoy_billar_stock');
+        let totalBar = 0;
+        if (rawStock) {
+          try {
+            let productos = [];
+            if (rawStock.startsWith('[')) {
+              const cb1 = rawStock.indexOf(']');
+              const dateStr2 = rawStock.substring(1, cb1);
+              const rest2 = rawStock.substring(cb1 + 1);
+              const cb2 = rest2.startsWith('[') ? rest2.indexOf(']') : -1;
+              const encPart2 = cb2 > 0 ? rest2.substring(cb2 + 1) : rest2;
+              const xor2 = decodeURIComponent(escape(window.atob(encPart2)));
+              const base64_2 = xor2.split('').map((c, i) => String.fromCharCode(c.charCodeAt(0) ^ dateStr2.charCodeAt(i % dateStr2.length))).join('');
+              productos = JSON.parse(decodeURIComponent(escape(window.atob(base64_2))));
+            } else {
+              productos = JSON.parse(decodeURIComponent(escape(window.atob(rawStock))));
+            }
+            totalBar = productos.reduce((s, p) => {
+              const vendidos = Math.max(0, (p.stockOptimo || 50) - (p.stock || 0));
+              return s + vendidos * (p.precioVenta || 0);
+            }, 0);
+          } catch { totalBar = 0; }
+        }
+
+        // Fetch Nomina Pagos
+        const qPagos = query(collection(db, 'nomina_pagos'), where('empleadoId', '==', form.empleadoId));
+        const snapPagos = await getDocs(qPagos);
+        const pagado = snapPagos.docs.map(doc => doc.data())
+          .filter(p => p.fechaInicio === start && p.fechaFin === end)
+          .reduce((s, p) => s + (p.total || 0), 0);
+
+        // Calculate sueldo, comisiones, etc
+        const sueldoBase = Number(emp.sueldoBase) || 0;
+        const sueldoProp = sueldoBase > 0 ? (sueldoBase / dias) * diasTrabajados : 0;
+        const deduccionesBase = tardanzas * (sueldoBase / dias / 2);
+
+        let comisionMesas = 0;
+        if (emp.comisionMesas > 0 && totalMesas > 0) {
+          comisionMesas = emp.comisionMesasTipo === 'porcentaje'
+            ? (totalMesas * Number(emp.comisionMesas)) / 100
+            : Number(emp.comisionMesas) * diasTrabajados;
+        }
+        let comisionBar = 0;
+        if (emp.comisionBar > 0 && totalBar > 0) {
+          comisionBar = emp.comisionBarTipo === 'porcentaje'
+            ? (totalBar * Number(emp.comisionBar)) / 100
+            : Number(emp.comisionBar) * diasTrabajados;
+        }
+
+        const bonoTurno = (Number(emp.bonoTurno) || 0) * diasTrabajados;
+        const deduccionesNomina = deduccionesBase + prestamo + faltante;
+        const total = Math.max(0, sueldoProp + comisionMesas + comisionBar + bonoTurno - deduccionesNomina);
+        const pagadoPeriodo = pagado + adelanto;
+        const pendiente = Math.max(0, total - pagadoPeriodo);
+
+        setLiveEarnings({
+          total,
+          adelanto,
+          prestamo,
+          faltante,
+          pendiente,
+          periodo: `${start.split('-').reverse().slice(0,2).reverse().join('/')} al ${end.split('-').reverse().slice(0,2).reverse().join('/')}`
+        });
+      } catch (err) {
+        console.error("Error calculating live earnings:", err);
+      } finally {
+        setLoadingEarnings(false);
+      }
+    };
+
+    loadLiveEarnings();
+  }, [form.categoria, form.empleadoId, form.fecha, empleados]);
+
   const sugerencias = SUGERENCIAS_POR_CATEGORIA[form.categoria] || [];
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    setNipError('');
+
+    if (form.categoria === 'nomina') {
+      const emp = empleados.find(x => x.id === form.empleadoId);
+      if (!emp) {
+        setNipError('Debe seleccionar un empleado');
+        return;
+      }
+
+      if (!emp.nip) {
+        setNipError('El empleado seleccionado no tiene un NIP configurado en el sistema.');
+        return;
+      }
+
+      if (!nip) {
+        setNipError('El NIP es obligatorio para autorizar gastos de nómina.');
+        return;
+      }
+
+      const hashed = await hashNip(nip);
+      if (hashed !== emp.nip) {
+        setNipError('NIP incorrecto. Autorización denegada.');
+        return;
+      }
+
+      // Si el concepto es adelanto de nómina, limitar por los ingresos acumulados netos
+      if (form.conceptoNomina === 'adelanto_nomina' && liveEarnings) {
+        const montoIngresado = Number(form.monto);
+        if (montoIngresado > liveEarnings.pendiente) {
+          setNipError(`El adelanto solicitado ($${montoIngresado.toFixed(2)}) supera el límite acumulado disponible ($${liveEarnings.pendiente.toFixed(2)}).`);
+          return;
+        }
+      }
+    }
+
     onConfirm(form);
   };
 
@@ -7571,6 +7798,46 @@ function ModalGasto({ onClose, onConfirm, CATEGORIAS_GASTO }) {
                   <option value="faltante" style={{ background: 'var(--bg-card)' }}>Faltante</option>
                 </select>
               </div>
+
+              {loadingEarnings && (
+                <div style={{ color: 'var(--text-muted)', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6, padding: '4px 0' }}>
+                  <i className="ri-loader-4-line animate-spin" /> Calculando ingresos acumulados en tiempo real...
+                </div>
+              )}
+
+              {!loadingEarnings && liveEarnings && (
+                <div className="animate-fadeIn" style={{
+                  background: 'rgba(16,185,129,0.05)',
+                  border: '1px solid rgba(16,185,129,0.2)',
+                  borderRadius: 12,
+                  padding: 14,
+                  fontSize: 12,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 8,
+                  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)'
+                }}>
+                  <div style={{ color: 'var(--text-muted)', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>
+                    Resumen Periodo ({liveEarnings.periodo})
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                    <div>
+                      <span style={{ color: 'var(--text-muted)' }}>Ganado Neto:</span>{' '}
+                      <strong style={{ color: 'var(--text-main)' }}>${liveEarnings.total.toFixed(2)}</strong>
+                    </div>
+                    <div>
+                      <span style={{ color: 'var(--text-muted)' }}>Adelantos:</span>{' '}
+                      <strong style={{ color: 'var(--text-main)' }}>${liveEarnings.adelanto.toFixed(2)}</strong>
+                    </div>
+                  </div>
+                  <div style={{ borderTop: '1px dashed rgba(255,255,255,0.1)', paddingTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Límite Disponible:</span>
+                    <strong style={{ color: '#10b981', fontSize: 14 }}>
+                      ${liveEarnings.pendiente.toFixed(2)}
+                    </strong>
+                  </div>
+                </div>
+              )}
             </>
           )}
 
@@ -7660,6 +7927,55 @@ function ModalGasto({ onClose, onConfirm, CATEGORIAS_GASTO }) {
               style={{ resize: 'none', padding: '10px 12px' }}
             />
           </div>
+
+          {form.categoria === 'nomina' && form.empleadoId && (
+            <div className="form-group animate-fadeIn" style={{
+              background: 'rgba(212,163,89,0.03)',
+              border: '1px solid rgba(212,163,89,0.15)',
+              borderRadius: 12,
+              padding: 16,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 8,
+              boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+            }}>
+              <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 6, margin: 0, fontSize: 13, color: 'var(--text-main)', fontWeight: 600 }}>
+                <i className="ri-key-2-line" style={{ color: 'var(--bronze-light)' }} />
+                NIP de Autorización del Empleado
+              </label>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                El trabajador debe ingresar su NIP personal para confirmar que recibe el dinero.
+              </span>
+              <input 
+                type="password" 
+                maxLength={6}
+                className="form-input" 
+                placeholder="••••" 
+                value={nip} 
+                onChange={e => {
+                  setNip(e.target.value.replace(/\D/g, ''));
+                  setNipError('');
+                }} 
+                required 
+                style={{
+                  textAlign: 'center',
+                  letterSpacing: '0.5em',
+                  fontSize: 22,
+                  fontWeight: 'bold',
+                  background: 'var(--bg-elevated)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 10,
+                  color: 'var(--text-main)',
+                  padding: '10px'
+                }}
+              />
+              {nipError && (
+                <span style={{ color: '#ef4444', fontSize: 11, marginTop: 4, display: 'block', textAlign: 'center', fontWeight: '500' }}>
+                  ⚠️ {nipError}
+                </span>
+              )}
+            </div>
+          )}
 
           <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
             <button type="button" className="btn btn-secondary" style={{ flex: 1 }} onClick={handleClose}>Cancelar</button>
