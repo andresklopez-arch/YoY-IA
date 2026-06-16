@@ -857,6 +857,59 @@ export default function NominaPanel({ showToast }) {
                     const estaTrabajando = logs.length > 0 && logs[0].tipo === 'entrada';
                     const ultimos5 = logs.slice(0, 5);
 
+                    // 1. Detección de Celular Inusual
+                    const phoneLogs = fichajesLogs.filter(log => 
+                      log.empleadoId === emp.id && 
+                      log.dispositivo && 
+                      log.dispositivo !== 'PC/Terminal'
+                    );
+                    const phoneCounts = {};
+                    phoneLogs.forEach(log => {
+                      phoneCounts[log.dispositivo] = (phoneCounts[log.dispositivo] || 0) + 1;
+                    });
+                    let mostFrequentPhone = '';
+                    let maxPhoneCount = 0;
+                    Object.keys(phoneCounts).forEach(phone => {
+                      if (phoneCounts[phone] > maxPhoneCount) {
+                        maxPhoneCount = phoneCounts[phone];
+                        mostFrequentPhone = phone;
+                      }
+                    });
+                    const latestLog = logs[0];
+                    const isCelularInusual = phoneLogs.length >= 3 && 
+                                             latestLog && 
+                                             latestLog.dispositivo && 
+                                             latestLog.dispositivo !== 'PC/Terminal' && 
+                                             latestLog.dispositivo !== mostFrequentPhone;
+
+                    // 2. Resumen de horas trabajadas hoy
+                    const logsHoy = fichajesLogs.filter(log => 
+                      log.empleadoId === emp.id && 
+                      log.fecha === today() && 
+                      (log.tipo === 'entrada' || log.tipo === 'salida')
+                    );
+                    const logsHoyCron = [...logsHoy].sort((a, b) => {
+                      const tA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : (a.createdAt || 0);
+                      const tB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : (b.createdAt || 0);
+                      return tA - tB;
+                    });
+                    let horasHoy = 0;
+                    let entradaActivaHoy = null;
+                    logsHoyCron.forEach(log => {
+                      if (log.tipo === 'entrada') {
+                        entradaActivaHoy = log.createdAt?.toDate ? log.createdAt.toDate() : new Date(log.createdAt);
+                      } else if (log.tipo === 'salida' && entradaActivaHoy) {
+                        const salidaTime = log.createdAt?.toDate ? log.createdAt.toDate() : new Date(log.createdAt);
+                        const diffMs = Math.max(0, salidaTime - entradaActivaHoy);
+                        horasHoy += diffMs / (1000 * 60 * 60);
+                        entradaActivaHoy = null;
+                      }
+                    });
+                    if (entradaActivaHoy) {
+                      const diffMs = Math.max(0, new Date() - entradaActivaHoy);
+                      horasHoy += diffMs / (1000 * 60 * 60);
+                    }
+
                     return (
                       <div 
                         key={emp.id} 
@@ -891,7 +944,21 @@ export default function NominaPanel({ showToast }) {
                             {estaTrabajando ? 'TRABAJANDO' : 'NO FICHADO'}
                           </span>
                         </div>
-                        <div style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', marginTop: -4 }}>{emp.rol}</div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: -4 }}>
+                          <div style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase' }}>{emp.rol}</div>
+                          <div style={{ fontSize: 9, fontWeight: 600, color: 'var(--bronze-light)' }}>
+                            Horas hoy: {horasHoy.toFixed(1)} hrs
+                          </div>
+                        </div>
+                        {isCelularInusual && (
+                          <div style={{ 
+                            fontSize: 8, color: 'var(--danger)', fontWeight: 700, 
+                            background: 'rgba(239,68,68,0.1)', padding: '2px 6px', borderRadius: 4,
+                            display: 'flex', alignItems: 'center', gap: 4, marginTop: -2
+                          }}>
+                            <i className="ri-error-warning-line" /> Celular inusual ({latestLog?.dispositivo})
+                          </div>
+                        )}
                         
                         {/* Historial rápido (Últimos 5 logs) */}
                         <div style={{ background: 'rgba(0,0,0,0.15)', borderRadius: 8, padding: 6, display: 'flex', flexDirection: 'column', gap: 4 }} onClick={e => e.stopPropagation()}>
@@ -1415,6 +1482,25 @@ export default function NominaPanel({ showToast }) {
           return tA - tB;
         });
 
+        // Calcular patrón de celular para modal
+        const phoneLogs = fichajesLogs.filter(log => 
+          log.empleadoId === fichajeResumenEmpleado.id && 
+          log.dispositivo && 
+          log.dispositivo !== 'PC/Terminal'
+        );
+        const phoneCounts = {};
+        phoneLogs.forEach(log => {
+          phoneCounts[log.dispositivo] = (phoneCounts[log.dispositivo] || 0) + 1;
+        });
+        let mostFrequentPhone = '';
+        let maxPhoneCount = 0;
+        Object.keys(phoneCounts).forEach(phone => {
+          if (phoneCounts[phone] > maxPhoneCount) {
+            maxPhoneCount = phoneCounts[phone];
+            mostFrequentPhone = phone;
+          }
+        });
+
         let totalHoras = 0;
         let sesionesCompletas = 0;
         let entradaActiva = null;
@@ -1476,6 +1562,10 @@ export default function NominaPanel({ showToast }) {
                       const hora = d.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
                       const fechaFmt = d.toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' });
                       const esEntrada = log.tipo === 'entrada';
+                      const isLogCelularInusual = phoneLogs.length >= 3 && 
+                                                  log.dispositivo && 
+                                                  log.dispositivo !== 'PC/Terminal' && 
+                                                  log.dispositivo !== mostFrequentPhone;
                       return (
                         <div key={log.id} style={{
                           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -1487,7 +1577,7 @@ export default function NominaPanel({ showToast }) {
                               width: 20, height: 20, borderRadius: 6,
                               background: esEntrada ? 'rgba(34,197,94,0.1)' : 'rgba(107,114,128,0.1)',
                               color: esEntrada ? 'var(--success)' : '#9ca3af',
-                              display: 'flex', alignItems: 'center', justifyCentent: 'center', fontSize: 10
+                              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10
                             }}>
                               {esEntrada ? '📥' : '📤'}
                             </span>
@@ -1497,6 +1587,15 @@ export default function NominaPanel({ showToast }) {
                               </div>
                               <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>
                                 Dispositivo: <span style={{ color: 'var(--bronze-light)' }}>{log.dispositivo || 'PC/Terminal'}</span>
+                                {isLogCelularInusual && (
+                                  <span style={{ 
+                                    fontSize: 8, color: 'var(--danger)', fontWeight: 700, 
+                                    background: 'rgba(239,68,68,0.1)', padding: '1px 4px', 
+                                    borderRadius: 3, marginLeft: 4 
+                                  }}>
+                                    ⚠️ Inusual
+                                  </span>
+                                )}
                               </div>
                             </div>
                           </div>
