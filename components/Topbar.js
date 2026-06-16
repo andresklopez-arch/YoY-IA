@@ -34,12 +34,12 @@ function usePedidosCocina() {
 const PANEL_LABELS = {
   dashboard: 'Dashboard',
   mesas:     'Control de Mesas',
-  caja:      'Caja y POS',
+  caja:      'Caja y Reportes IA',
   bar:       'Inventario Inteligente IA',
   clientes:  'Clientes',
   torneos:   'Torneos y Ligas',
   nomina:    'Nómina & Gastos',
-  reportes:  'Reportes',
+  reportes:  'Caja y Reportes IA',
   config:    'Configuración',
 };
 
@@ -50,7 +50,6 @@ const QUICK_NAV_TARGETS = [
   { nav: 'torneos' },
   { nav: 'nomina' },
   { href: '/mesero' },
-  { nav: 'reportes' },
   { nav: 'config' },
   { href: '/cocina' },
 ];
@@ -551,14 +550,13 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
       <div className="topbar-quick-actions">
         {[
           { label: 'Mesa', icon: 'ri-play-circle-line', color: 'var(--success)', nav: 'mesas', shortcut: 'Alt + 1' },
-          { label: 'Caja', icon: 'ri-money-dollar-circle-line', color: 'var(--bronze-light)', nav: 'caja', shortcut: 'Alt + 2' },
+          { label: 'Caja y Reportes IA', icon: 'ri-money-dollar-box-line', color: 'var(--bronze-light)', nav: 'caja', shortcut: 'Alt + 2' },
           { label: 'Inventario', icon: 'ri-archive-line', color: 'var(--blue-light)', nav: 'bar', shortcut: 'Alt + 3' },
           { label: 'Torneos', icon: 'ri-trophy-line', color: '#ffd700', nav: 'torneos', shortcut: 'Alt + 4' },
           { label: 'Nómina', icon: 'ri-briefcase-4-line', color: 'var(--bronze-light)', nav: 'nomina', badge: alertasNomina.length, shortcut: 'Alt + 5' },
           { label: 'Mesero', icon: 'ri-customer-service-2-line', color: 'var(--success)', href: '/mesero', badge: pedidosPendientes, shortcut: 'Alt + 6' },
-          { label: 'Cocina', icon: 'ri-restaurant-line', color: 'var(--blue-light)', href: '/cocina', badge: pedidosCocina, shortcut: 'Alt + 9' },
-          { label: 'Reportes', icon: 'ri-bar-chart-2-line', color: 'var(--silver)', nav: 'reportes', shortcut: 'Alt + 7' },
-          { label: 'Ajustes', icon: 'ri-settings-4-line', color: 'var(--text-muted)', nav: 'config', shortcut: 'Alt + 8' },
+          { label: 'Ajustes', icon: 'ri-settings-4-line', color: 'var(--text-muted)', nav: 'config', shortcut: 'Alt + 7' },
+          { label: 'Cocina', icon: 'ri-restaurant-line', color: 'var(--blue-light)', href: '/cocina', badge: pedidosCocina, shortcut: 'Alt + 8' },
         ].map((a, i) => {
           const isActive = activePanel === a.nav;
           return (
