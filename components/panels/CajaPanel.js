@@ -261,9 +261,20 @@ export default function CajaPanel({ showToast }) {
             nombre: m.nombre,
             cliente: m.cliente || 'Desconocido',
             horas: hrsJugadas,
+            tipo: 'alerta',
             motivo: `Mesa activa por ${hrsJugadas} hrs con $0 consumos de barra.`
           });
         }
+      } else if (m.estado === 'libre' && m.id === 4) {
+        // Simular discrepancia IoT (Sugerencia 1)
+        incs.push({
+          mesaId: m.id,
+          nombre: m.nombre,
+          cliente: 'Ninguno (Mesa Libre)',
+          horas: '0',
+          tipo: 'iot_luces',
+          motivo: 'Consumo eléctrico activo (45W) detectado por sensores IoT en Mesa Libre.'
+        });
       }
     });
     setInconsistenciasEnVivo(incs);
@@ -564,15 +575,39 @@ export default function CajaPanel({ showToast }) {
   const anomalidadesAuditor = useMemo(() => {
     const list = [];
 
-    // Inconsistencias en mesas activas en cero
+    // Inconsistencias en mesas activas en cero o luces IoT (Sugerencia 1)
     inconsistenciasEnVivo.forEach(inc => {
-      list.push({
-        id: `inc-mesa-${inc.mesaId}`,
-        tipo: 'alerta',
-        titulo: `Mesa ${inc.mesaId} sin Consumo`,
-        desc: `Mesa activa por ${inc.horas} horas sin registros de venta de bar.`,
-        gravedad: 'alta'
-      });
+      if (inc.tipo === 'iot_luces') {
+        list.push({
+          id: `inc-mesa-${inc.mesaId}-iot`,
+          tipo: 'iot_luces',
+          titulo: `Mesa ${inc.mesaId} - Luz Activa`,
+          desc: inc.motivo,
+          gravedad: 'alta'
+        });
+      } else {
+        list.push({
+          id: `inc-mesa-${inc.mesaId}`,
+          tipo: 'alerta',
+          titulo: `Mesa ${inc.mesaId} sin Consumo`,
+          desc: `Mesa activa por ${inc.horas} horas sin registros de venta de bar.`,
+          gravedad: 'alta'
+        });
+      }
+    });
+
+    // Mantenimiento Preventivo JIT (Sugerencia 3)
+    const horasMesa = { 1: 485, 2: 120, 3: 512, 4: 95, 5: 310, 6: 415, 7: 80, 8: 150 };
+    Object.keys(horasMesa).forEach(mId => {
+      if (horasMesa[mId] >= 500) {
+        list.push({
+          id: `mantenimiento-mesa-${mId}`,
+          tipo: 'mantenimiento',
+          titulo: `Mesa ${mId} requiere Manto.`,
+          desc: `Uso acumulado de ${horasMesa[mId]} hrs (Límite: 500 hrs). Requiere rectificación de paño.`,
+          gravedad: 'media'
+        });
+      }
     });
 
     // Comandas cerradas modificadas (reabiertas, mermas u cancelaciones manuales)

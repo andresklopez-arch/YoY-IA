@@ -1,5 +1,8 @@
 'use client';
 import { useState } from 'react';
+import { db } from '@/lib/firebase';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { useAuth } from '@/lib/auth-context';
 
 function MiniPulse({ value, max, color }) {
   const pct = Math.min(100, (value / max) * 100);
@@ -11,7 +14,60 @@ function MiniPulse({ value, max, color }) {
 }
 
 export default function DashboardPanel({ showToast, onNavigate }) {
+  const { user } = useAuth();
   const [mesasVivas] = useState([]);
+
+  // Estados para Registro de Gasto
+  const [mostrarModalGasto, setMostrarModalGasto] = useState(false);
+  const [tipoGasto, setTipoGasto] = useState('mantenimiento');
+  const [montoGasto, setMontoGasto] = useState('');
+  const [descGasto, setDescGasto] = useState('');
+  const [fechaGasto, setFechaGasto] = useState(new Date().toISOString().substring(0, 10));
+  const [metodoPagoGasto, setMetodoPagoGasto] = useState('efectivo');
+  const [guardandoGasto, setGuardandoGasto] = useState(false);
+
+  const handleGuardarGasto = async (e) => {
+    e.preventDefault();
+    if (!montoGasto || !descGasto) {
+      showToast('Por favor completa los campos obligatorios', 'danger');
+      return;
+    }
+    setGuardandoGasto(true);
+    try {
+      await addDoc(collection(db, 'gastos'), {
+        categoria: tipoGasto,
+        monto: Number(montoGasto),
+        concepto: descGasto,
+        descripcion: descGasto,
+        detalle: descGasto,
+        fecha: new Date(fechaGasto + 'T12:00:00').toISOString(),
+        metodoPago: metodoPagoGasto,
+        operador: user ? (user.name || user.alias || user.email) : 'Sistema',
+        rolOperador: user ? (user.role || 'staff') : 'sistema',
+        createdAt: serverTimestamp()
+      });
+      
+      await addDoc(collection(db, 'bitacora'), {
+        accion: 'Gasto Registrado',
+        detalle: `${tipoGasto.toUpperCase()}: ${descGasto} - Monto: $${montoGasto}`,
+        monto: -Number(montoGasto),
+        operador: user ? (user.name || user.alias || user.email) : 'Sistema',
+        rolOperador: user ? (user.role || 'staff') : 'sistema',
+        fecha: new Date().toISOString(),
+        tipo: 'egreso'
+      });
+
+      showToast('¡Gasto registrado con éxito! 💸', 'success');
+      setMostrarModalGasto(false);
+      setMontoGasto('');
+      setDescGasto('');
+    } catch (err) {
+      console.error(err);
+      showToast('Error al guardar el gasto: ' + err.message, 'danger');
+    } finally {
+      setGuardandoGasto(false);
+    }
+  };
 
   function elapsedStr(inicio) {
     const ms = Date.now() - inicio;
@@ -130,12 +186,12 @@ export default function DashboardPanel({ showToast, onNavigate }) {
             { label: 'Cobro Manual', icon: 'ri-money-dollar-circle-line', color: 'var(--bronze-light)', nav: 'caja' },
             { label: 'Nueva Comanda', icon: 'ri-cup-line', color: 'var(--blue-light)', nav: 'bar' },
             { label: 'Ver Torneos', icon: 'ri-trophy-line', color: '#ffd700', nav: 'torneos' },
-            { label: 'Reportes', icon: 'ri-bar-chart-2-line', color: 'var(--silver)', nav: 'reportes' },
+            { label: 'Registrar Gasto', icon: 'ri-arrow-down-circle-line', color: 'var(--danger)', action: 'gasto' },
             { label: 'Configurar', icon: 'ri-settings-4-line', color: 'var(--text-muted)', nav: 'config' },
           ].map((a, i) => (
             <button
               key={i}
-              onClick={() => onNavigate(a.nav)}
+              onClick={() => a.action === 'gasto' ? setMostrarModalGasto(true) : onNavigate(a.nav)}
               style={{
                 background: 'var(--bg-elevated)', border: '1px solid var(--border)',
                 borderRadius: 12, padding: '14px 10px', cursor: 'pointer',
@@ -151,6 +207,126 @@ export default function DashboardPanel({ showToast, onNavigate }) {
           ))}
         </div>
       </div>
+
+      {/* MODAL REGISTRO DE GASTO OPERATIVO */}
+      {mostrarModalGasto && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999
+        }}>
+          <div className="card animate-fadeIn" style={{ width: 450, padding: 20, background: 'var(--bg-card)', border: '1px solid var(--border-bronze)', boxShadow: 'var(--shadow-bronze)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: 10, marginBottom: 15 }}>
+              <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--bronze-light)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                <i className="ri-arrow-down-circle-line" style={{ marginRight: 6 }} />
+                Registrar Gasto / Mantenimiento
+              </span>
+              <button onClick={() => setMostrarModalGasto(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
+                <i className="ri-close-line" style={{ fontSize: 18 }} />
+              </button>
+            </div>
+            
+            <form onSubmit={handleGuardarGasto} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <label style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Concepto / Tipo de Servicio:</label>
+                <select
+                  value={tipoGasto}
+                  onChange={e => setTipoGasto(e.target.value)}
+                  className="form-select"
+                  style={{ width: '100%', height: 36, background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 8, color: '#fff', fontSize: 12, padding: '0 8px' }}
+                >
+                  <option value="mantenimiento">Mantenimiento de Mesas & Paños</option>
+                  <option value="renta">Renta del Local</option>
+                  <option value="energia">Energía Eléctrica (CFE)</option>
+                  <option value="agua">Agua Potable</option>
+                  <option value="internet">Internet, Telefonía & WiFi</option>
+                  <option value="limpieza">Artículos de Limpieza & Sanitarios</option>
+                  <option value="musica">Música & Audio (Licencia Autores/Lectores)</option>
+                  <option value="fumigacion">Control de Plagas & Fumigación</option>
+                  <option value="seguridad">Seguridad, Monitoreo & Vigilancia</option>
+                  <option value="publicidad">Publicidad, Redes & Marketing</option>
+                  <option value="insumos">Insumos de Alimentos & Bebidas (Caja)</option>
+                  <option value="papeleria">Papelería, Tickets & Suministros</option>
+                  <option value="seguros">Seguro de Local contra Siniestros</option>
+                  <option value="banco">Comisiones Bancarias (Terminal TPV)</option>
+                  <option value="otros">Otros Gastos Operativos</option>
+                </select>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <label style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Monto ($):</label>
+                  <input
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    required
+                    value={montoGasto}
+                    onChange={e => setMontoGasto(e.target.value)}
+                    placeholder="0.00"
+                    style={{ width: '100%', height: 36, background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 8, color: '#fff', fontSize: 12, padding: '0 8px' }}
+                  />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <label style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Fecha de Pago:</label>
+                  <input
+                    type="date"
+                    required
+                    value={fechaGasto}
+                    onChange={e => setFechaGasto(e.target.value)}
+                    style={{ width: '100%', height: 36, background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 8, color: '#fff', fontSize: 12, padding: '0 8px' }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <label style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Método de Pago:</label>
+                <select
+                  value={metodoPagoGasto}
+                  onChange={e => setMetodoPagoGasto(e.target.value)}
+                  className="form-select"
+                  style={{ width: '100%', height: 36, background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 8, color: '#fff', fontSize: 12, padding: '0 8px' }}
+                >
+                  <option value="efectivo">Efectivo (Caja Chica)</option>
+                  <option value="transferencia">Transferencia Electrónica / SPEI</option>
+                  <option value="tarjeta">Tarjeta de Crédito / Débito</option>
+                </select>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <label style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Detalle / Concepto:</label>
+                <textarea
+                  required
+                  rows="3"
+                  value={descGasto}
+                  onChange={e => setDescGasto(e.target.value)}
+                  placeholder="Ej: Pago de recibo CFE periodo Mayo-Junio o Pulido de bolas Aramith..."
+                  style={{ width: '100%', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 8, color: '#fff', fontSize: 12, padding: 8, resize: 'none' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 10 }}>
+                <button
+                  type="button"
+                  onClick={() => setMostrarModalGasto(false)}
+                  className="btn btn-secondary btn-sm"
+                  style={{ height: 34, padding: '0 15px' }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={guardandoGasto}
+                  className="btn btn-primary btn-sm"
+                  style={{ height: 34, padding: '0 15px' }}
+                >
+                  {guardandoGasto ? 'Guardando...' : 'Guardar Gasto'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
