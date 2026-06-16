@@ -181,11 +181,30 @@ function AppContent() {
 
       let geoData = { lat: null, lng: null, precision: null, status: 'No requerido' };
 
-      // Obtener el tipo de dispositivo que escanea
+      // Obtener el tipo de dispositivo que escanea con detalle de modelo
       const ua = navigator.userAgent;
       let dispositivo = 'PC/Terminal';
-      if (/Mobi|Android|iPhone/i.test(ua)) dispositivo = 'Móvil';
-      else if (/Tablet|iPad/i.test(ua)) dispositivo = 'Tablet';
+      if (/Mobi|Android|iPhone/i.test(ua)) {
+        let mobileBrand = 'Móvil';
+        if (/iPhone/i.test(ua)) {
+          const match = ua.match(/iPhone;\s*([^;)]+)/);
+          mobileBrand = match ? `iPhone (${match[1]})` : 'iPhone';
+        } else if (/Android/i.test(ua)) {
+          const match = ua.match(/Android\s+([^;)]+)(?:;\s*([^;)]+))?/);
+          let model = '';
+          if (match) {
+            const osVer = match[1];
+            const modelMatch = ua.match(/;\s*([^;)]+)\s+Build\//);
+            model = modelMatch ? modelMatch[1] : '';
+            mobileBrand = `Android ${osVer}${model ? ` (${model})` : ''}`;
+          } else {
+            mobileBrand = 'Android';
+          }
+        }
+        dispositivo = mobileBrand;
+      } else if (/Tablet|iPad/i.test(ua)) {
+        dispositivo = /iPad/i.test(ua) ? 'iPad' : 'Tablet';
+      }
 
       const rawPayload = {
         empleadoId: params.scanId,

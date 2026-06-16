@@ -122,23 +122,16 @@ export async function POST(request) {
 
     // 11. Registrar asistencia diaria legacy (solo Entrada)
     if (tipoRegistro === 'entrada') {
-      const hour = new Date().getHours();
-      let turnoActual = 'noche';
-      if (hour >= 6 && hour < 14) turnoActual = 'manana';
-      else if (hour >= 14 && hour < 22) turnoActual = 'tarde';
-
       const qAsist = query(
         collection(db, 'nomina_asistencia'),
         where('empleadoId', '==', emp.id),
-        where('fecha', '==', fechaHoy),
-        where('turno', '==', turnoActual)
+        where('fecha', '==', fechaHoy)
       );
       const snapAsist = await getDocs(qAsist);
       if (snapAsist.empty) {
         await addDoc(collection(db, 'nomina_asistencia'), {
           empleadoId: emp.id,
           fecha: fechaHoy,
-          turno: turnoActual,
           estado: 'presente',
           coordenadas: finalCoordenadas,
           createdAt: serverTimestamp()

@@ -358,6 +358,13 @@ export default function NominaPanel({ showToast }) {
 
   const [activeQrToken, setActiveQrToken] = useState('');
   const [activeQrExpires, setActiveQrExpires] = useState(0);
+  const [fichajeResumenEmpleado, setFichajeResumenEmpleado] = useState(null);
+  const [fichajeResumenInicio, setFichajeResumenInicio] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 15);
+    return d.toISOString().slice(0, 10);
+  });
+  const [fichajeResumenFin, setFichajeResumenFin] = useState(() => today());
 
   const generarTokenQR = async (empleadoId) => {
     try {
@@ -629,17 +636,12 @@ export default function NominaPanel({ showToast }) {
 
   const setAsistenciaDirecta = async (empleadoId, nuevoEstado) => {
     const fecha = today();
-    const hour = new Date().getHours();
-    let turno = 'noche';
-    if (hour >= 6 && hour < 14) turno = 'manana';
-    else if (hour >= 14 && hour < 22) turno = 'tarde';
 
     try {
       const q = query(
         collection(db, 'nomina_asistencia'),
         where('empleadoId', '==', empleadoId),
-        where('fecha', '==', fecha),
-        where('turno', '==', turno)
+        where('fecha', '==', fecha)
       );
       const snap = await getDocs(q);
       if (!snap.empty) {
@@ -647,7 +649,7 @@ export default function NominaPanel({ showToast }) {
         await updateDoc(doc(db, 'nomina_asistencia', docId), { estado: nuevoEstado, updatedAt: serverTimestamp() });
       } else {
         await addDoc(collection(db, 'nomina_asistencia'), {
-          empleadoId, fecha, turno, estado: nuevoEstado, createdAt: serverTimestamp()
+          empleadoId, fecha, estado: nuevoEstado, createdAt: serverTimestamp()
         });
       }
       showToast(`Asistencia registrada`, 'success');
@@ -745,14 +747,9 @@ export default function NominaPanel({ showToast }) {
   // Totales generales calculados
   const totalPendiente = calculos.reduce((s, c) => s + c.pendiente, 0);
 
-  const getAsistenciaTurno = () => {
+  const getAsistenciaDia = () => {
     const fecha = today();
-    const hour = new Date().getHours();
-    let turno = 'noche';
-    if (hour >= 6 && hour < 14) turno = 'manana';
-    else if (hour >= 14 && hour < 22) turno = 'tarde';
-
-    const hoyAsist = asistencias.filter(a => a.fecha === fecha && a.turno === turno);
+    const hoyAsist = asistencias.filter(a => a.fecha === fecha);
     const pres = hoyAsist.filter(a => a.estado === 'presente').length;
     const aus = hoyAsist.filter(a => a.estado === 'ausente').length;
     const tard = hoyAsist.filter(a => a.estado === 'tardanza').length;
@@ -761,7 +758,7 @@ export default function NominaPanel({ showToast }) {
     return { pres, aus, tard, perm, total: hoyAsist.length };
   };
 
-  const asistTurno = getAsistenciaTurno();
+  const asistDia = getAsistenciaDia();
 
   return (
     <div>
@@ -841,61 +838,111 @@ export default function NominaPanel({ showToast }) {
             {/* SECCION 1: PASE DE LISTA RÁPIDO */}
             <div className="card">
               <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <div>
-                <h3 className="card-title"><i className="ri-calendar-check-line" style={{ marginRight: 6 }} />Pase de Lista del Día</h3>
-                <p style={{ fontSize: 10, color: 'var(--text-muted)', margin: 0 }}>Registra la asistencia del personal para el turno actual de forma inmediata</p>
+                <div>
+                  <h3 className="card-title"><i className="ri-calendar-check-line" style={{ marginRight: 6 }} />Pase de Lista del Día</h3>
+                  <p style={{ fontSize: 10, color: 'var(--text-muted)', margin: 0 }}>Historial y estado de ingresos del personal. Haz clic en la tarjeta para ver resumen detallado.</p>
+                </div>
               </div>
-              <span className="badge badge-secondary" style={{ textTransform: 'capitalize' }}>
-                Turno Actual: {new Date().getHours() >= 6 && new Date().getHours() < 14 ? '🌅 Mañana' : new Date().getHours() >= 14 && new Date().getHours() < 22 ? '🌤 Tarde' : '🌙 Noche'}
-              </span>
-            </div>
 
-            <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 6 }}>
-              {empleados.filter(e => e.estado === 'activo').length === 0 ? (
-                <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: 12 }}>No hay empleados activos registrados</div>
-              ) : (
-                empleados.filter(e => e.estado === 'activo').map(emp => {
-                  const asistHoy = asistencias.find(a => a.empleadoId === emp.id && a.fecha === today());
-                  const est = asistHoy?.estado || '';
-                  return (
-                    <div key={emp.id} style={{
-                      background: 'var(--bg-elevated)', border: '1px solid var(--border)',
-                      borderRadius: 12, padding: 10, minWidth: 150, textAlign: 'center',
-                      display: 'flex', flexDirection: 'column', gap: 8
-                    }}>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {emp.nombre}
+              <div style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 6 }}>
+                {empleados.filter(e => e.estado === 'activo').length === 0 ? (
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: 12 }}>No hay empleados activos registrados</div>
+                ) : (
+                  empleados.filter(e => e.estado === 'activo').map(emp => {
+                    const asistHoy = asistencias.find(a => a.empleadoId === emp.id && a.fecha === today());
+                    const est = asistHoy?.estado || '';
+                    
+                    // Calcular estado y logs recientes (últimos 5)
+                    const logs = fichajesLogs.filter(log => log.empleadoId === emp.id && (log.tipo === 'entrada' || log.tipo === 'salida'));
+                    const estaTrabajando = logs.length > 0 && logs[0].tipo === 'entrada';
+                    const ultimos5 = logs.slice(0, 5);
+
+                    return (
+                      <div 
+                        key={emp.id} 
+                        onClick={() => {
+                          setFichajeResumenEmpleado(emp);
+                          const start = new Date();
+                          start.setDate(start.getDate() - 15);
+                          setFichajeResumenInicio(start.toISOString().slice(0, 10));
+                          setFichajeResumenFin(today());
+                        }}
+                        style={{
+                          background: 'var(--bg-elevated)', border: '1px solid var(--border)',
+                          borderRadius: 12, padding: 12, minWidth: 200, cursor: 'pointer',
+                          display: 'flex', flexDirection: 'column', gap: 8, transition: 'all 0.2s',
+                          position: 'relative'
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--border-bronze)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; }}
+                      >
+                        {/* Estado y Nombre */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 110 }}>
+                            {emp.nombre}
+                          </span>
+                          <span style={{ 
+                            fontSize: 9, fontWeight: 800, padding: '2px 6px', borderRadius: 4,
+                            background: estaTrabajando ? 'rgba(34,197,94,0.12)' : 'rgba(107,114,128,0.12)',
+                            color: estaTrabajando ? 'var(--success)' : 'var(--text-muted)',
+                            display: 'flex', alignItems: 'center', gap: 3
+                          }}>
+                            <span style={{ width: 6, height: 6, borderRadius: '50%', background: estaTrabajando ? 'var(--success)' : '#6b7280', display: 'inline-block' }} />
+                            {estaTrabajando ? 'TRABAJANDO' : 'NO FICHADO'}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', marginTop: -4 }}>{emp.rol}</div>
+                        
+                        {/* Historial rápido (Últimos 5 logs) */}
+                        <div style={{ background: 'rgba(0,0,0,0.15)', borderRadius: 8, padding: 6, display: 'flex', flexDirection: 'column', gap: 4 }} onClick={e => e.stopPropagation()}>
+                          <div style={{ fontSize: 8, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 2 }}>Últimos Fichajes</div>
+                          {ultimos5.map(log => {
+                            const d = log.createdAt?.toDate ? log.createdAt.toDate() : new Date(log.createdAt || Date.now());
+                            const hora = d.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+                            const fechaLog = d.toLocaleDateString('es-MX', { day: '2-digit', month: 'short' });
+                            return (
+                              <div key={log.id} style={{ fontSize: 8, color: 'var(--text-secondary)', display: 'flex', justifyContent: 'space-between' }}>
+                                <span>{log.tipo === 'entrada' ? '📥 Ent' : '📤 Sal'}</span>
+                                <span style={{ fontFamily: 'monospace' }}>{fechaLog} {hora}</span>
+                              </div>
+                            );
+                          })}
+                          {ultimos5.length === 0 && (
+                            <div style={{ fontSize: 8, color: 'var(--text-muted)', fontStyle: 'italic', textAlign: 'center' }}>Sin registros</div>
+                          )}
+                        </div>
+
+                        {/* Botones de Asistencia Rápida */}
+                        <div style={{ display: 'flex', justifyContent: 'center', gap: 4, borderTop: '1px solid var(--border-subtle)', paddingTop: 8 }} onClick={e => e.stopPropagation()}>
+                          {ESTADO_ASISTENCIA.map(ea => {
+                            const isActive = est === ea.id;
+                            return (
+                              <button
+                                key={ea.id}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setAsistenciaDirecta(emp.id, ea.id);
+                                }}
+                                title={ea.label}
+                                style={{
+                                  width: 24, height: 24, borderRadius: 6, border: '1px solid var(--border)',
+                                  cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                  fontSize: 10, transition: 'all 0.15s',
+                                  background: isActive ? ea.bg : 'transparent',
+                                  borderColor: isActive ? ea.color : 'var(--border)'
+                                }}
+                              >
+                                {ea.icon}
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
-                      <div style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase' }}>{emp.rol}</div>
-                      
-                      {/* Botones de Asistencia Rápida */}
-                      <div style={{ display: 'flex', justifyContent: 'center', gap: 4 }}>
-                        {ESTADO_ASISTENCIA.map(ea => {
-                          const isActive = est === ea.id;
-                          return (
-                            <button
-                              key={ea.id}
-                              onClick={() => setAsistenciaDirecta(emp.id, ea.id)}
-                              title={ea.label}
-                              style={{
-                                width: 26, height: 26, borderRadius: 6, border: '1px solid var(--border)',
-                                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                fontSize: 12, transition: 'all 0.15s',
-                                background: isActive ? ea.bg : 'transparent',
-                                borderColor: isActive ? ea.color : 'var(--border)'
-                              }}
-                            >
-                              {ea.icon}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                })
-              )}
+                    );
+                  })
+                )}
+              </div>
             </div>
-          </div>
 
           {/* SECCION 2: TABLA DE PERSONAL & NÓMINA */}
           <div className="card">
@@ -1101,28 +1148,28 @@ export default function NominaPanel({ showToast }) {
           {/* PANEL 1: RESUMEN DE ASISTENCIA */}
           <div className="card">
             <div className="card-header" style={{ marginBottom: 12 }}>
-              <h3 className="card-title">Asistencia del Turno</h3>
+              <h3 className="card-title">Asistencia del Día</h3>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
                 <span>Presentes:</span>
-                <span style={{ fontWeight: 700, color: 'var(--success)' }}>{asistTurno.pres}</span>
+                <span style={{ fontWeight: 700, color: 'var(--success)' }}>{asistDia.pres}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
                 <span>Ausentes:</span>
-                <span style={{ fontWeight: 700, color: 'var(--danger)' }}>{asistTurno.aus}</span>
+                <span style={{ fontWeight: 700, color: 'var(--danger)' }}>{asistDia.aus}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
                 <span>Tardanzas:</span>
-                <span style={{ fontWeight: 700, color: 'var(--warning)' }}>{asistTurno.tard}</span>
+                <span style={{ fontWeight: 700, color: 'var(--warning)' }}>{asistDia.tard}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
                 <span>Permisos:</span>
-                <span style={{ fontWeight: 700, color: 'var(--info)' }}>{asistTurno.perm}</span>
+                <span style={{ fontWeight: 700, color: 'var(--info)' }}>{asistDia.perm}</span>
               </div>
               <div style={{ borderTop: '1px solid var(--border)', paddingTop: 8, display: 'flex', justifyContent: 'space-between', fontSize: 12, fontWeight: 700 }}>
                 <span>Total Registros:</span>
-                <span>{asistTurno.total}</span>
+                <span>{asistDia.total}</span>
               </div>
             </div>
           </div>
@@ -1348,6 +1395,136 @@ export default function NominaPanel({ showToast }) {
       )}
 
       {/* ── MODALES DEL SISTEMA ── */}
+
+      {/* MODAL RESUMEN PERSONALIZADO */}
+      {fichajeResumenEmpleado && (() => {
+        const empLogs = fichajesLogs.filter(log => 
+          log.empleadoId === fichajeResumenEmpleado.id && 
+          log.fecha >= fichajeResumenInicio && 
+          log.fecha <= fichajeResumenFin && 
+          (log.tipo === 'entrada' || log.tipo === 'salida')
+        ).sort((a, b) => {
+          const tA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : (a.createdAt || 0);
+          const tB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : (b.createdAt || 0);
+          return tB - tA;
+        });
+
+        const sortedCron = [...empLogs].sort((a, b) => {
+          const tA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : (a.createdAt || 0);
+          const tB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : (b.createdAt || 0);
+          return tA - tB;
+        });
+
+        let totalHoras = 0;
+        let sesionesCompletas = 0;
+        let entradaActiva = null;
+
+        sortedCron.forEach(log => {
+          if (log.tipo === 'entrada') {
+            entradaActiva = log.createdAt?.toDate ? log.createdAt.toDate() : new Date(log.createdAt);
+          } else if (log.tipo === 'salida' && entradaActiva) {
+            const salidaTime = log.createdAt?.toDate ? log.createdAt.toDate() : new Date(log.createdAt);
+            const diffMs = Math.max(0, salidaTime - entradaActiva);
+            totalHoras += diffMs / (1000 * 60 * 60);
+            sesionesCompletas += 1;
+            entradaActiva = null;
+          }
+        });
+
+        return (
+          <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setFichajeResumenEmpleado(null)}>
+            <div className="modal" style={{ maxWidth: 580, background: 'rgba(25, 20, 20, 0.95)', border: '1px solid var(--border-bronze)', boxShadow: '0 20px 50px rgba(0,0,0,0.8)' }}>
+              <div className="modal-header" style={{ borderBottom: '1px solid var(--border)' }}>
+                <span className="modal-title" style={{ color: 'var(--bronze-light)' }}>
+                  <i className="ri-file-user-line" style={{ marginRight: 6 }} />
+                  Resumen de Fichajes: {fichajeResumenEmpleado.nombre} {fichajeResumenEmpleado.apellido || ''}
+                </span>
+                <button onClick={() => setFichajeResumenEmpleado(null)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 20, cursor: 'pointer' }}>
+                  <i className="ri-close-line" />
+                </button>
+              </div>
+              <div className="modal-body" style={{ maxHeight: 'calc(100vh - 200px)', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
+                
+                {/* Modificador de Fechas */}
+                <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 12, padding: 12 }}>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 8 }}>Intervalo de Fechas del Reporte</div>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <input className="form-input" type="date" value={fichajeResumenInicio} onChange={e => setFichajeResumenInicio(e.target.value)} style={{ flex: 1, height: 32, fontSize: 11 }} />
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>al</span>
+                    <input className="form-input" type="date" value={fichajeResumenFin} onChange={e => setFichajeResumenFin(e.target.value)} style={{ flex: 1, height: 32, fontSize: 11 }} />
+                  </div>
+                </div>
+
+                {/* Métricas Acumuladas */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)', borderRadius: 12, padding: 12, textAlign: 'center' }}>
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Sesiones Completas</div>
+                    <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--bronze-light)', marginTop: 4 }}>{sesionesCompletas}</div>
+                  </div>
+                  <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)', borderRadius: 12, padding: 12, textAlign: 'center' }}>
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Total Horas Calculadas</div>
+                    <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--success)', marginTop: 4 }}>{totalHoras.toFixed(1)} hrs</div>
+                  </div>
+                </div>
+
+                {/* Historial de Fichajes Detallado */}
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#fff', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Registros Encontrados ({empLogs.length})</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {empLogs.map(log => {
+                      const d = log.createdAt?.toDate ? log.createdAt.toDate() : new Date(log.createdAt || Date.now());
+                      const hora = d.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+                      const fechaFmt = d.toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' });
+                      const esEntrada = log.tipo === 'entrada';
+                      return (
+                        <div key={log.id} style={{
+                          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                          background: 'var(--bg-elevated)', border: '1px solid var(--border)',
+                          borderRadius: 10, padding: '8px 12px', fontSize: 11
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span style={{ 
+                              width: 20, height: 20, borderRadius: 6,
+                              background: esEntrada ? 'rgba(34,197,94,0.1)' : 'rgba(107,114,128,0.1)',
+                              color: esEntrada ? 'var(--success)' : '#9ca3af',
+                              display: 'flex', alignItems: 'center', justifyCentent: 'center', fontSize: 10
+                            }}>
+                              {esEntrada ? '📥' : '📤'}
+                            </span>
+                            <div>
+                              <div style={{ fontWeight: 700, color: esEntrada ? 'var(--success)' : '#e5e7eb' }}>
+                                {esEntrada ? 'Entrada' : 'Salida'}
+                              </div>
+                              <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>
+                                Dispositivo: <span style={{ color: 'var(--bronze-light)' }}>{log.dispositivo || 'PC/Terminal'}</span>
+                              </div>
+                            </div>
+                          </div>
+                          <div style={{ textAlign: 'right' }}>
+                            <div style={{ fontWeight: 600 }}>{hora}</div>
+                            <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>{fechaFmt}</div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {empLogs.length === 0 && (
+                      <div style={{ textAlign: 'center', padding: '24px 0', fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                        No hay registros para este empleado en el rango de fechas seleccionado.
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+              </div>
+              <div className="modal-footer" style={{ borderTop: '1px solid var(--border)', padding: '12px 16px' }}>
+                <button className="btn btn-secondary" onClick={() => setFichajeResumenEmpleado(null)} style={{ padding: '8px 20px', fontSize: 12 }}>
+                  Cerrar
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* MODAL EMPLEADO */}
       {showEmpModal && (
