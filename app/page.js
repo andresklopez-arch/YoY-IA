@@ -176,42 +176,10 @@ function AppContent() {
       // Forzar un retraso artificial de 1 segundo para permitir que React pinte la pantalla de carga
       await new Promise((resolve) => setTimeout(resolve, 1000));
 
-      // Validación previa de contexto seguro para Geolocalización
-      if (typeof window !== 'undefined' && window.location.protocol !== 'https:' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-        if (!navigator.geolocation) {
-          throw new Error('El navegador de tu celular bloquea el GPS sobre HTTP (conexión no segura). Para permitirlo:\n1. Abre chrome://flags en Google Chrome de tu celular.\n2. Busca "Insecure origins treated as secure".\n3. Agrega "http://' + window.location.host + '" y cámbialo a Enabled.\n4. Presiona "Relaunch" para reiniciar Chrome.');
-        }
-      }
-      
       // Sugerencia 1: Limpieza explícita inmediata de la sesión previa en localStorage, Firebase y Contexto
       await logout();
 
-      // 1. Obtener geolocalización para registrar coordenadas en la asistencia
-      let geoData = { lat: null, lng: null, precision: null, status: 'No disponible' };
-      if (typeof navigator !== 'undefined' && navigator.geolocation) {
-        try {
-          const getCoords = () => new Promise((resolve) => {
-            navigator.geolocation.getCurrentPosition(
-              (pos) => resolve({
-                lat: pos.coords.latitude,
-                lng: pos.coords.longitude,
-                precision: pos.coords.accuracy,
-                status: 'Obtenido'
-              }),
-              (err) => resolve({
-                lat: null,
-                lng: null,
-                precision: null,
-                status: `Error: ${err.message}`
-              }),
-              { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
-            );
-          });
-          geoData = await getCoords();
-        } catch (geoErr) {
-          console.warn("Error obteniendo geolocalización:", geoErr);
-        }
-      }
+      let geoData = { lat: null, lng: null, precision: null, status: 'No requerido' };
 
       // Obtener el tipo de dispositivo que escanea
       const ua = navigator.userAgent;

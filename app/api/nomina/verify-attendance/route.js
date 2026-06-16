@@ -72,69 +72,7 @@ export async function POST(request) {
     const emp = { id: empSnap.id, ...empSnap.data() };
     const fechaHoy = new Date().toISOString().slice(0, 10);
 
-    // 5. Validar geolocalización activa
-    if (!coordenadas || coordenadas.status !== 'Obtenido') {
-      await addDoc(collection(db, 'nomina_asistencia_log'), {
-        empleadoId: emp.id,
-        nombre: `${emp.nombre} ${emp.apellido || ''}`.trim(),
-        rol: emp.rol || 'Mesero',
-        fecha: fechaHoy,
-        tipo: 'intento_fallido_gps',
-        coordenadas: coordenadas || { status: 'No disponible' },
-        dispositivo: dispositivo || 'Móvil',
-        createdAt: serverTimestamp()
-      });
-      return NextResponse.json({ success: false, error: 'Geolocalización requerida. Por favor, activa el GPS y otorga permisos de ubicación.' }, { status: 400 });
-    }
-
-    // 6. Validar precisión del GPS (Evita simulaciones de GPS y mala calidad de señal)
-    const precision = coordenadas.precision;
-    if (precision !== null && precision !== undefined) {
-      if (precision > 150) {
-        let errorMsg = `Precisión de GPS insuficiente (${Math.round(precision)}m).`;
-        if (precision >= 1000) {
-          errorMsg += ' Detectamos que elegiste "Ubicación aproximada" al dar permisos. Por favor, ve a los ajustes de permisos del navegador de tu celular y cámbialo a "Ubicación precisa" (Ubicación de alta precisión).';
-        } else {
-          errorMsg += ' Intenta salir a una zona más abierta o activar el Wi-Fi para mejorar la precisión de la señal.';
-        }
-        return NextResponse.json({ success: false, error: errorMsg }, { status: 400 });
-      }
-      if (precision === 0) {
-        return NextResponse.json({ success: false, error: 'Señal de ubicación inválida detectada. Favor de no usar simuladores de GPS.' }, { status: 400 });
-      }
-    }
-
-    // 7. Validar geocerca (200 metros)
-    let sucursalCoords = { lat: 20.659698, lng: -103.349609 }; // Guadalajara por defecto
-    try {
-      const sucSnap = await getDoc(doc(db, 'config', 'sucursal'));
-      if (sucSnap.exists() && sucSnap.data().lat && sucSnap.data().lng) {
-        sucursalCoords.lat = Number(sucSnap.data().lat);
-        sucursalCoords.lng = Number(sucSnap.data().lng);
-      }
-    } catch (err) {
-      console.warn('Error loading sucursal coordinates, using defaults:', err);
-    }
-
-    const distancia = getDistanceInMeters(coordenadas.lat, coordenadas.lng, sucursalCoords.lat, sucursalCoords.lng);
-    if (distancia > 200) {
-      await addDoc(collection(db, 'nomina_asistencia_log'), {
-        empleadoId: emp.id,
-        nombre: `${emp.nombre} ${emp.apellido || ''}`.trim(),
-        rol: emp.rol || 'Mesero',
-        fecha: fechaHoy,
-        tipo: 'intento_fallido_geocerca',
-        coordenadas: {
-          ...coordenadas,
-          distanciaCalculada: Math.round(distancia),
-          sucursalLat: sucursalCoords.lat,
-          sucursalLng: sucursalCoords.lng
-        },
-        dispositivo: dispositivo || 'Móvil',
-        createdAt: serverTimestamp()
-      });
-      return NextResponse.json({ success: false, error: `Estás fuera del rango permitido del establecimiento (Distancia: ${Math.round(distancia)}m). Debes estar a menos de 200m.` }, { status: 400 });
-    }
+    const finalCoordenadas = coordenadas || { lat: null, lng: null, precision: null, status: 'No requerido' };
 
     // 8. Determinar tipo de registro (Entrada o Salida)
     const qLogs = query(
@@ -157,23 +95,7 @@ export async function POST(request) {
         });
         const lastLog = logsList[0];
 
-        // Protección Anti-Fake GPS: En celulares, las coordenadas nunca son 100% exactas entre lecturas consecutivas debido a interferencias físicas.
-        // Si las coordenadas son exactamente idénticas, se trata de una simulación/mock.
-        const esCelular = (dispositivo || 'Móvil') === 'Móvil';
-        const eraCelular = (lastLog.dispositivo || 'Móvil') === 'Móvil';
-        if (esCelular && eraCelular && lastLog.coordenadas && lastLog.coordenadas.lat === coordenadas.lat && lastLog.coordenadas.lng === coordenadas.lng) {
-          await addDoc(collection(db, 'nomina_asistencia_log'), {
-            empleadoId: emp.id,
-            nombre: `${emp.nombre} ${emp.apellido || ''}`.trim(),
-            rol: emp.rol || 'Mesero',
-            fecha: fechaHoy,
-            tipo: 'intento_fallido_gps_estatico',
-            coordenadas,
-            dispositivo: dispositivo || 'Móvil',
-            createdAt: serverTimestamp()
-          });
-          return NextResponse.json({ success: false, error: 'Coordenadas estáticas detectadas. Por favor desactiva simuladores de GPS y vuelve a intentar.' }, { status: 400 });
-        }
+
 
         tipoRegistro = lastLog.tipo === 'entrada' ? 'salida' : 'entrada';
       }
@@ -193,7 +115,7 @@ export async function POST(request) {
       rol: emp.rol || 'Mesero',
       fecha: fechaHoy,
       tipo: tipoRegistro,
-      coordenadas,
+      coordenadas: finalCoordenadas,
       dispositivo: dispositivo || 'Móvil',
       createdAt: serverTimestamp()
     });
@@ -218,7 +140,7 @@ export async function POST(request) {
           fecha: fechaHoy,
           turno: turnoActual,
           estado: 'presente',
-          coordenadas,
+          coordenadas: finalCoordenadas,
           createdAt: serverTimestamp()
         });
       }

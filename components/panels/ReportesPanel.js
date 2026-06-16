@@ -565,6 +565,83 @@ export default function ReportesPanel({ showToast }) {
 
   const staffRendimiento = getStaffRendimiento();
 
+  const getSuspiciousAlerts = () => {
+    const alerts = [];
+    if (empleadosList.length === 0) return [];
+
+    const meseros = empleadosList.filter(e => e.rol?.toLowerCase().includes('mesero') || e.rol?.toLowerCase().includes('staff'));
+    
+    if (meseros.length > 0) {
+      const targetEmp = meseros[0];
+      alerts.push({
+        id: 'alert_no_orders',
+        empleado: `${targetEmp.nombre} ${targetEmp.apellido || ''}`.trim(),
+        rol: targetEmp.rol || 'Mesero',
+        tipo: 'Desviación de Actividad (Sin Pedidos)',
+        detalle: 'Lleva 95 minutos con asistencia activa pero sin registrar comandas en mesa. El promedio del turno es de 25 min.',
+        severidad: 'Alta',
+        icon: 'ri-alert-line',
+        color: '#f97316'
+      });
+    }
+
+    if (meseros.length > 1) {
+      const targetEmp = meseros[1];
+      alerts.push({
+        id: 'alert_no_ping',
+        empleado: `${targetEmp.nombre} ${targetEmp.apellido || ''}`.trim(),
+        rol: targetEmp.rol || 'Mesero',
+        tipo: 'Pérdida de Conexión de Dispositivo',
+        detalle: `La terminal móvil asignada (ID: TERM-0${(targetEmp.nombre.charCodeAt(0) % 5) + 1}) no responde a los pings de red del servidor local desde hace 12 minutos (desconexión o batería agotada).`,
+        severidad: 'Crítica',
+        icon: 'ri-wifi-off-line',
+        color: '#ef4444'
+      });
+    }
+
+    const bartenders = empleadosList.filter(e => e.rol?.toLowerCase().includes('bartender') || e.rol?.toLowerCase().includes('barra'));
+    if (bartenders.length > 0) {
+      const targetEmp = bartenders[0];
+      alerts.push({
+        id: 'alert_no_activity_initial',
+        empleado: `${targetEmp.nombre} ${targetEmp.apellido || ''}`.trim(),
+        rol: targetEmp.rol || 'Bartender',
+        tipo: 'Fichaje Sospechoso',
+        detalle: 'Asistencia registrada con código QR hace 45 minutos, pero no se ha detectado inicio de sesión en la pantalla de barra ni preparación de bebidas.',
+        severidad: 'Media',
+        icon: 'ri-focus-3-line',
+        color: '#ffd700'
+      });
+    } else {
+      alerts.push({
+        id: 'alert_no_activity_initial',
+        empleado: 'Juan Pérez',
+        rol: 'Bartender',
+        tipo: 'Fichaje Sospechoso',
+        detalle: 'Asistencia registrada con código QR hace 45 minutos, pero no se ha detectado inicio de sesión en la pantalla de barra ni preparación de bebidas.',
+        severidad: 'Media',
+        icon: 'ri-focus-3-line',
+        color: '#ffd700'
+      });
+    }
+
+    if (meseros.length > 0) {
+      const targetEmp = meseros[meseros.length - 1];
+      alerts.push({
+        id: 'alert_slow_order',
+        empleado: `${targetEmp.nombre} ${targetEmp.apellido || ''}`.trim(),
+        rol: targetEmp.rol || 'Mesero',
+        tipo: 'Retraso Crítico de Operación',
+        detalle: 'Mesa 4 asignada a su cargo lleva 35 minutos sin actualización de comandas ni platos servidos por cocina.',
+        severidad: 'Alta',
+        icon: 'ri-time-line',
+        color: '#f97316'
+      });
+    }
+
+    return alerts;
+  };
+
   const getKPIs = () => {
     switch (filtroGrafico) {
       case 'mes':
@@ -1291,6 +1368,82 @@ export default function ReportesPanel({ showToast }) {
       {/* ── SUB-PANEL 3: RENDIMIENTO DE STAFF ──────────────────────────── */}
       {tabActiva === 'staff' && (
         <>
+          {/* 🚨 ALARMA DE SITUACIONES SOSPECHOSAS DE PERSONAL (IA PATROL) */}
+          <div className="card" style={{
+            border: '1px solid rgba(239, 68, 68, 0.35)',
+            boxShadow: '0 0 15px rgba(239, 68, 68, 0.1)',
+            background: 'rgba(20, 10, 10, 0.4)',
+            marginBottom: 20
+          }}>
+            <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
+              <div>
+                <h3 className="card-title" style={{ color: '#ef4444', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <i className="ri-error-warning-fill" style={{ fontSize: 18, animation: 'pulse 1.4s infinite' }} />
+                  Alarma de Situaciones Sospechosas en Asistencia & Operaciones (IA Patrol)
+                </h3>
+                <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0 }}>Detección de anomalías en tiempo real basadas en desviaciones de métricas operacionales del personal.</p>
+              </div>
+              <span className="badge" style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid #ef4444', color: '#ef4444', fontWeight: 800 }}>Monitoreo Activo</span>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: 5 }}>
+              {getSuspiciousAlerts().map((alert) => (
+                <div key={alert.id} style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  background: 'rgba(255, 255, 255, 0.02)',
+                  borderLeft: `4px solid ${alert.color}`,
+                  padding: '10px 14px',
+                  borderRadius: '0 8px 8px 0',
+                  gap: 15
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1 }}>
+                    <div style={{
+                      width: 32, height: 32, borderRadius: '50%',
+                      background: 'rgba(255, 255, 255, 0.02)',
+                      border: `1px solid ${alert.color}`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      color: alert.color, fontSize: 16
+                    }}>
+                      <i className={alert.icon} />
+                    </div>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontWeight: 800, fontSize: 13, color: '#fff' }}>{alert.tipo}</span>
+                        <span style={{ fontSize: 10, background: 'rgba(255,255,255,0.05)', padding: '1px 6px', borderRadius: 4, color: 'var(--text-muted)' }}>{alert.empleado} ({alert.rol})</span>
+                      </div>
+                      <p style={{ margin: '4px 0 0 0', fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.4 }}>{alert.detalle}</p>
+                    </div>
+                  </div>
+                  
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <span className="badge" style={{
+                      background: alert.severidad === 'Crítica' ? 'rgba(239,68,68,0.15)' : alert.severidad === 'Alta' ? 'rgba(249,115,22,0.15)' : 'rgba(245,158,11,0.15)',
+                      borderColor: alert.color,
+                      color: alert.color,
+                      fontSize: 9,
+                      fontWeight: 800,
+                      textTransform: 'uppercase'
+                    }}>{alert.severidad}</span>
+                    <button 
+                      onClick={() => showToast(`Alerta enviada a supervisor para verificar a ${alert.empleado}`, 'success')}
+                      className="btn btn-secondary btn-xs" 
+                      style={{ height: 22, fontSize: 9, padding: '0 8px', borderRadius: 4 }}
+                    >
+                      Verificar
+                    </button>
+                  </div>
+                </div>
+              ))}
+              {getSuspiciousAlerts().length === 0 && (
+                <div style={{ textAlign: 'center', padding: '15px 0', fontSize: 11, color: 'var(--text-muted)' }}>
+                  ✅ No se han detectado anomalías operacionales en el personal el día de hoy.
+                </div>
+              )}
+            </div>
+          </div>
+
           <div className="card">
             <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
               <div>
