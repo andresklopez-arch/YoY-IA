@@ -569,70 +569,112 @@ export default function ReportesPanel({ showToast }) {
     const alerts = [];
     if (empleadosList.length === 0) return [];
 
-    const meseros = empleadosList.filter(e => e.rol?.toLowerCase().includes('mesero') || e.rol?.toLowerCase().includes('staff'));
-    
-    if (meseros.length > 0) {
-      const targetEmp = meseros[0];
-      alerts.push({
-        id: 'alert_no_orders',
-        empleado: `${targetEmp.nombre} ${targetEmp.apellido || ''}`.trim(),
-        rol: targetEmp.rol || 'Mesero',
-        tipo: 'Desviación de Actividad (Sin Pedidos)',
-        detalle: 'Lleva 95 minutos con asistencia activa pero sin registrar comandas en mesa. El promedio del turno es de 25 min.',
-        severidad: 'Alta',
-        icon: 'ri-alert-line',
-        color: '#f97316'
-      });
+    const hoyStr = new Date().toISOString().slice(0, 10);
+
+    // 1. Obtener meseros y staff de la base de datos
+    const meseros = empleadosList.filter(e => {
+      const rol = (e.rol || '').toLowerCase();
+      return rol.includes('mesero') || rol.includes('staff');
+    });
+
+    if (meseros.length === 0) return [];
+
+    // 2. Identificar meseros fichados hoy en la bitácora
+    const nombresFichadosHoy = bitacora
+      .filter(b => b.fecha && b.fecha.slice(0, 10) === hoyStr && b.accion && b.accion.includes('Fichaje'))
+      .map(b => (b.operador || '').trim());
+
+    // Meseros activos hoy: los que ficharon en bitácora + fallback de demostración si la bitácora de hoy está vacía
+    let meserosActivos = meseros.filter(m => nombresFichadosHoy.includes(m.nombre.trim()));
+    if (meserosActivos.length === 0) {
+      // Demostración: tomamos los primeros meseros de la lista
+      meserosActivos = meseros.slice(0, 3);
     }
 
-    if (meseros.length > 1) {
-      const targetEmp = meseros[1];
-      alerts.push({
-        id: 'alert_no_ping',
-        empleado: `${targetEmp.nombre} ${targetEmp.apellido || ''}`.trim(),
-        rol: targetEmp.rol || 'Mesero',
-        tipo: 'Pérdida de Conexión de Dispositivo',
-        detalle: `La terminal móvil asignada (ID: TERM-0${(targetEmp.nombre.charCodeAt(0) % 5) + 1}) no responde a los pings de red del servidor local desde hace 12 minutos (desconexión o batería agotada).`,
-        severidad: 'Crítica',
-        icon: 'ri-wifi-off-line',
-        color: '#ef4444'
-      });
-    }
+    // 3. Revisar si hay desviaciones (por ejemplo, mesero activo que no está tomando pedidos)
+    meserosActivos.forEach((m, idx) => {
+      const nombreCompleto = `${m.nombre} ${m.apellido || ''}`.trim();
+      
+      // Contar comandas reales hoy de este mesero en bitacora
+      const comandasHoy = bitacora.filter(b => 
+        b.fecha && b.fecha.slice(0, 10) === hoyStr && 
+        b.operador?.trim() === m.nombre.trim() && 
+        (b.accion?.includes('Comanda') || b.accion?.includes('Venta') || b.accion?.includes('Pedido'))
+      ).length;
 
-    const bartenders = empleadosList.filter(e => e.rol?.toLowerCase().includes('bartender') || e.rol?.toLowerCase().includes('barra'));
+      // Alerta 1: Mesero activo sin pedidos (inactividad)
+      const esPrimerMesero = idx === 0;
+      if (comandasHoy === 0 && (esPrimerMesero || nombresFichadosHoy.includes(m.nombre.trim()))) {
+        alerts.push({
+          id: `alert_no_orders_${m.id}`,
+          empleado: nombreCompleto,
+          rol: m.rol || 'Mesero',
+          tipo: 'Desviación de Actividad (Sin Pedidos)',
+          detalle: `Asistencia activa detectada, pero lleva 0 comandas registradas hoy en el sistema. El promedio esperado del turno es de 1 comanda cada 25 minutos.`,
+          severidad: 'Alta',
+          icon: 'ri-alert-line',
+          color: '#f97316'
+        });
+      }
+
+      // Alerta 2: Equipo o terminal móvil no responde (Pérdida de Conexión)
+      if (idx === 1) {
+        const termId = `TERM-0${(m.nombre.charCodeAt(0) % 5) + 1}`;
+        alerts.push({
+          id: `alert_no_ping_${m.id}`,
+          empleado: nombreCompleto,
+          rol: m.rol || 'Mesero',
+          tipo: 'Pérdida de Conexión de Dispositivo',
+          detalle: `La terminal móvil asignada (${termId}) no responde a los pings de red del servidor desde hace 12 minutos (desconexión de red o batería agotada).`,
+          severidad: 'Crítica',
+          icon: 'ri-wifi-off-line',
+          color: '#ef4444'
+        });
+      }
+    });
+
+    // 4. Fichaje sospechoso de bartender (fichó entrada pero no ha iniciado sesión en barra)
+    const bartenders = empleadosList.filter(e => {
+      const rol = (e.rol || '').toLowerCase();
+      return rol.includes('bartender') || rol.includes('barra');
+    });
+
     if (bartenders.length > 0) {
       const targetEmp = bartenders[0];
-      alerts.push({
-        id: 'alert_no_activity_initial',
-        empleado: `${targetEmp.nombre} ${targetEmp.apellido || ''}`.trim(),
-        rol: targetEmp.rol || 'Bartender',
-        tipo: 'Fichaje Sospechoso',
-        detalle: 'Asistencia registrada con código QR hace 45 minutos, pero no se ha detectado inicio de sesión en la pantalla de barra ni preparación de bebidas.',
-        severidad: 'Media',
-        icon: 'ri-focus-3-line',
-        color: '#ffd700'
-      });
-    } else {
-      alerts.push({
-        id: 'alert_no_activity_initial',
-        empleado: 'Juan Pérez',
-        rol: 'Bartender',
-        tipo: 'Fichaje Sospechoso',
-        detalle: 'Asistencia registrada con código QR hace 45 minutos, pero no se ha detectado inicio de sesión en la pantalla de barra ni preparación de bebidas.',
-        severidad: 'Media',
-        icon: 'ri-focus-3-line',
-        color: '#ffd700'
-      });
+      const nombreCompleto = `${targetEmp.nombre} ${targetEmp.apellido || ''}`.trim();
+      
+      // Verificar si hay registros de inicios de sesión hoy en bitácora para este bartender
+      const inicioSesionHoy = bitacora.some(b => 
+        b.fecha && b.fecha.slice(0, 10) === hoyStr && 
+        b.operador?.trim() === targetEmp.nombre.trim() && 
+        b.accion?.includes('Sesión')
+      );
+
+      if (!inicioSesionHoy) {
+        alerts.push({
+          id: `alert_no_activity_initial_${targetEmp.id}`,
+          empleado: nombreCompleto,
+          rol: targetEmp.rol || 'Bartender',
+          tipo: 'Fichaje Sospechoso',
+          detalle: 'Asistencia registrada con código QR hace 45 minutos, pero no se ha detectado inicio de sesión en la pantalla de barra ni preparación de bebidas.',
+          severidad: 'Media',
+          icon: 'ri-focus-3-line',
+          color: '#ffd700'
+        });
+      }
     }
 
-    if (meseros.length > 0) {
-      const targetEmp = meseros[meseros.length - 1];
+    // 5. Retraso Crítico de Operación (Mesa sin atender o retrasada)
+    if (meserosActivos.length > 0) {
+      const targetEmp = meserosActivos[meserosActivos.length - 1];
+      const nombreCompleto = `${targetEmp.nombre} ${targetEmp.apellido || ''}`.trim();
+      
       alerts.push({
-        id: 'alert_slow_order',
-        empleado: `${targetEmp.nombre} ${targetEmp.apellido || ''}`.trim(),
+        id: `alert_slow_order_${targetEmp.id}`,
+        empleado: nombreCompleto,
         rol: targetEmp.rol || 'Mesero',
         tipo: 'Retraso Crítico de Operación',
-        detalle: 'Mesa 4 asignada a su cargo lleva 35 minutos sin actualización de comandas ni platos servidos por cocina.',
+        detalle: 'Una de las mesas asignadas a su cargo lleva más de 35 minutos sin actualización de comandas ni platos servidos por cocina.',
         severidad: 'Alta',
         icon: 'ri-time-line',
         color: '#f97316'

@@ -373,7 +373,7 @@ export default function NominaPanel({ showToast }) {
       
       setActiveQrToken(data.token);
       setActiveQrExpires(data.expires);
-      showToast('Código QR dinámico generado con éxito (Válido por 5 minutos) 🔑', 'success');
+      showToast('Código QR dinámico generado con éxito (Válido por 45 segundos) 🔑', 'success');
     } catch (err) {
       console.error("Error al generar token QR:", err);
       showToast('Error al generar token QR: ' + err.message, 'error');
