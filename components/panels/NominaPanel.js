@@ -433,6 +433,88 @@ export default function NominaPanel({ showToast }) {
     showToast('Reporte CSV descargado con éxito ✅', 'success');
   };
 
+  const imprimirTicketNominaPago = (pagoData) => {
+    const w = window.open('', '_blank');
+    if (!w) {
+      showToast("El navegador bloqueó la ventana emergente. Por favor, habilite los pop-ups para imprimir.", "danger");
+      return;
+    }
+    const htmlContent = `
+      <html><head><title>Comprobante de Pago de Nómina</title>
+      <style>
+        body { margin: 0; padding: 20px; font-family: 'Courier New', Courier, monospace; background: #fff; color: #000; font-size: 13px; line-height: 1.4; max-width: 280px; }
+        .text-center { text-align: center; }
+        .divider { border-top: 1px dashed #000; margin: 10px 0; }
+        .header { margin-bottom: 12px; }
+        .header h3 { margin: 0; font-size: 15px; font-weight: bold; }
+        .header p { margin: 2px 0; font-size: 11px; }
+        .monto { font-size: 18px; font-weight: bold; margin: 10px 0; text-align: center; }
+        .sign-area { margin-top: 30px; text-align: center; }
+        .sign-line { border-top: 1px solid #000; width: 180px; margin: 30px auto 5px; }
+        .footer { margin-top: 20px; font-size: 10px; text-align: center; color: #555; }
+        .breakdown { font-size: 11px; }
+        .breakdown-row { display: flex; justify-content: space-between; }
+      </style>
+      </head>
+      <body>
+        <div class="header text-center">
+          <h3>YoY IA Billar Club</h3>
+          <p>RECIBO DE NÓMINA</p>
+          <p>Periodo: ${pagoData.periodo || `${pagoData.fechaInicio} al ${pagoData.fechaFin}`}</p>
+          <p>Fecha Pago: ${pagoData.fecha}</p>
+          <p>Impreso: ${new Date().toLocaleString()}</p>
+        </div>
+        
+        <div class="divider"></div>
+        
+        <div style="font-size: 12px; margin-bottom: 8px;">
+          <strong>Empleado:</strong> ${pagoData.nombreEmpleado}<br/>
+          <strong>Días Laborados:</strong> ${pagoData.diasTrabajados || 0} días<br/>
+        </div>
+        
+        <div class="divider"></div>
+        
+        <div class="breakdown">
+          <div class="breakdown-row"><span>Sueldo Base:</span><span>$${Number(pagoData.sueldoProp || 0).toFixed(2)}</span></div>
+          <div class="breakdown-row"><span>Comisión Mesas:</span><span>$${Number(pagoData.comisionMesas || 0).toFixed(2)}</span></div>
+          <div class="breakdown-row"><span>Comisión Bar:</span><span>$${Number(pagoData.comisionBar || 0).toFixed(2)}</span></div>
+          <div class="breakdown-row"><span>Bono por Turno:</span><span>$${Number(pagoData.bonoTurno || 0).toFixed(2)}</span></div>
+          <div class="breakdown-row"><span>Deducciones:</span><span>-$${Number(pagoData.deducciones || 0).toFixed(2)}</span></div>
+        </div>
+        
+        <div class="divider"></div>
+        
+        <div class="monto">
+          NETO RECIBIDO:<br/>$${Number(pagoData.total).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MXN
+        </div>
+        
+        <div class="divider"></div>
+        
+        <div class="sign-area">
+          <div class="sign-line"></div>
+          <div style="font-size: 11px; font-weight: bold;">Autoriza (Gerente/Cajero)</div>
+          
+          <div class="sign-line"></div>
+          <div style="font-size: 11px; font-weight: bold;">Recibe y firma:<br/>${pagoData.nombreEmpleado}</div>
+        </div>
+        
+        <div class="footer">
+          <p>YoY IA Billar Club agradece tu esfuerzo diario.</p>
+        </div>
+        
+        <script>
+          window.onload = () => {
+            window.print();
+            setTimeout(() => { window.close(); }, 500);
+          };
+        </script>
+      </body>
+      </html>
+    `;
+    w.document.write(htmlContent);
+    w.document.close();
+  };
+
   const exportarCSVEmpleado = (emp, logs) => {
     if (logs.length === 0) {
       showToast('No hay registros para exportar', 'warning');
@@ -776,6 +858,24 @@ export default function NominaPanel({ showToast }) {
           bonoTurno: item.bonoTurno, deducciones: item.deducciones, total: item.pendiente,
           descontoDeCaja: descontarCaja, fecha: today(), createdAt: serverTimestamp(),
         });
+
+        // Generar e imprimir el comprobante térmico de nómina
+        imprimirTicketNominaPago({
+          nombreEmpleado: `${item.emp.nombre} ${item.emp.apellido}`,
+          periodo,
+          fechaInicio,
+          fechaFin,
+          fecha: today(),
+          diasTrabajados: item.diasTrabajados,
+          sueldoProp: item.sueldoProp,
+          comisionMesas: item.comisionMesas,
+          comisionBar: item.comisionBar,
+          bonoTurno: item.bonoTurno,
+          deducciones: item.deducciones,
+          total: item.pendiente,
+          descontoDeCaja: descontarCaja,
+        });
+
         if (descontarCaja) {
           await addDoc(collection(db, 'gastos'), {
             categoria: 'admin', descripcion: `Pago de nómina — ${item.emp.nombre} ${item.emp.apellido}`,
@@ -783,7 +883,7 @@ export default function NominaPanel({ showToast }) {
           });
         }
       }
-      showToast(`${todos ? 'Nómina completa' : 'Pago'} registrado ✅`, 'success');
+      showToast(`${todos ? 'Nómina completa' : 'Pago'} registrado e impreso ✅`, 'success');
       setShowPagarModal(null);
       calcularNomina();
     } catch (e) { showToast('Error: ' + e.message, 'error'); }
@@ -881,6 +981,16 @@ export default function NominaPanel({ showToast }) {
                   <p style={{ fontSize: 10, color: 'var(--text-muted)', margin: 0 }}>Fichajes y nómina en tiempo real. Haz clic en una tarjeta para abrir la ficha de perfil.</p>
                 </div>
                 <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                  {/* Buscador de Tarjetas */}
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      className="form-input" type="text" placeholder="Buscar tarjeta..."
+                      value={busqueda} onChange={e => setBusqueda(e.target.value)}
+                      style={{ paddingLeft: 26, fontSize: 10, height: 28, width: 130 }}
+                    />
+                    <i className="ri-search-line" style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontSize: 10 }} />
+                  </div>
+
                   {/* Periodo de Pago */}
                   <div style={{ display: 'flex', gap: 6, alignItems: 'center', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)', borderRadius: 10, padding: '4px 8px' }}>
                     <span style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Periodo:</span>
@@ -916,10 +1026,17 @@ export default function NominaPanel({ showToast }) {
               </div>
 
               <div style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 6 }}>
-                {empleados.filter(e => mostrarInactivos ? true : e.estado === 'activo').length === 0 ? (
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)', padding: 12 }}>No hay empleados registrados para mostrar</div>
-                ) : (
-                  empleados.filter(e => mostrarInactivos ? true : e.estado === 'activo').map(emp => {
+                {(() => {
+                  const filtrados = empleados
+                    .filter(e => mostrarInactivos ? true : e.estado === 'activo')
+                    .filter(e => {
+                      if (!busqueda) return true;
+                      return `${e.nombre} ${e.apellido || ''} ${e.rol} ${e.departamento}`.toLowerCase().includes(busqueda.toLowerCase());
+                    });
+                  if (filtrados.length === 0) {
+                    return <div style={{ fontSize: 11, color: 'var(--text-muted)', padding: 12 }}>No se encontraron empleados que coincidan</div>;
+                  }
+                  return filtrados.map(emp => {
                     const esInactivo = emp.estado === 'inactivo';
                     const asistHoy = asistencias.find(a => a.empleadoId === emp.id && a.fecha === today());
                     const est = asistHoy?.estado || '';
@@ -1109,8 +1226,8 @@ export default function NominaPanel({ showToast }) {
                         </div>
                       </div>
                     );
-                  })
-                )}
+                  });
+                })()}
               </div>
             </div>
 
@@ -1409,7 +1526,8 @@ export default function NominaPanel({ showToast }) {
 
                   {/* Resumen Financiero del Periodo Activo */}
                   {calcResumen ? (
-                    <div className="animate-fadeIn" style={{
+                    <>
+                      <div className="animate-fadeIn" style={{
                       background: 'rgba(197,168,128,0.04)',
                       border: '1px solid rgba(197,168,128,0.15)',
                       borderRadius: 12,
@@ -1496,9 +1614,23 @@ export default function NominaPanel({ showToast }) {
                             <i className="ri-money-dollar-circle-line" /> Pagar Nómina
                           </button>
                         ) : (
-                          <div style={{ flex: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 11, height: 32, background: 'rgba(34,197,94,0.1)', color: 'var(--success)', borderRadius: 8, fontWeight: 700 }}>
-                            ✓ Nómina Completa
-                          </div>
+                          (() => {
+                            const pagoRealizado = pagos.find(p => p.empleadoId === fichajeResumenEmpleado.id && p.fechaInicio === fechaInicio && p.fechaFin === fechaFin);
+                            return pagoRealizado ? (
+                              <button 
+                                className="btn btn-success" 
+                                onClick={() => imprimirTicketNominaPago(pagoRealizado)}
+                                style={{ flex: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 11, height: 32 }}
+                                title="Reimprimir el ticket de nómina para este período"
+                              >
+                                <i className="ri-printer-line" /> Recibo Impreso
+                              </button>
+                            ) : (
+                              <div style={{ flex: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 11, height: 32, background: 'rgba(34,197,94,0.1)', color: 'var(--success)', borderRadius: 8, fontWeight: 700 }}>
+                                ✓ Nómina Completa
+                              </div>
+                            );
+                          })()
                         )}
                         
                         <button 
@@ -1530,6 +1662,48 @@ export default function NominaPanel({ showToast }) {
                       </div>
 
                     </div>
+
+                    {/* Historial de Pagos Anteriores */}
+                    {(() => {
+                      const empPagosPrevios = pagos.filter(p => p.empleadoId === fichajeResumenEmpleado.id);
+                      return (
+                        <div style={{ marginTop: 14 }}>
+                          <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--bronze-light)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>
+                            Historial de Pagos Recibidos
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 110, overflowY: 'auto', paddingRight: 4 }}>
+                            {empPagosPrevios.map(p => (
+                              <div key={p.id} style={{
+                                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                                background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)',
+                                borderRadius: 8, padding: '6px 10px', fontSize: 10
+                              }}>
+                                <div>
+                                  <div style={{ fontWeight: 700, color: '#fff' }}>{p.periodo || `${p.fechaInicio} al ${p.fechaFin}`}</div>
+                                  <div style={{ fontSize: 8, color: 'var(--text-muted)' }}>Pagado: {p.fecha} {p.descontoDeCaja ? '· Caja' : ''}</div>
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                  <strong style={{ color: 'var(--success)' }}>{fmt(p.total)}</strong>
+                                  <button 
+                                    onClick={() => imprimirTicketNominaPago(p)}
+                                    style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 2 }} 
+                                    title="Reimprimir Ticket"
+                                  >
+                                    <i className="ri-printer-line" />
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                            {empPagosPrevios.length === 0 && (
+                              <div style={{ fontSize: 9, color: 'var(--text-muted)', fontStyle: 'italic', padding: '6px 0', textAlign: 'center' }}>
+                                No se han registrado pagos para este empleado.
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })()}
+                    </>
                   ) : (
                     <div style={{ color: 'var(--text-muted)', fontSize: 11, fontStyle: 'italic', padding: 10, textAlign: 'center' }}>
                       Cargando cálculos de nómina...
