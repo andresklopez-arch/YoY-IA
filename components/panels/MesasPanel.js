@@ -111,6 +111,7 @@ const CATEGORIAS_GASTO = [
   { id: 'limpieza',   label: 'Limpieza',              icon: '🧹', color: '#22c55e' },
   { id: 'reparacion', label: 'Reparaciones',          icon: '🛠️', color: '#ef4444' },
   { id: 'admin',      label: 'Administrativos',       icon: '📋', color: '#b0b8c8' },
+  { id: 'nomina',     label: 'Pago de Nómina',        icon: '💸', color: '#10b981' },
   { id: 'otro',       label: 'Otro / Personalizado',  icon: '➕', color: '#6b7280' },
 ];
 
@@ -1723,7 +1724,9 @@ export default function MesasPanel({ showToast }) {
           <div style="font-size: 11px; font-weight: bold;">Firma del Cajero</div>
           
           <div class="sign-line"></div>
-          <div style="font-size: 11px; font-weight: bold;">Firma de Autorización</div>
+          <div style="font-size: 11px; font-weight: bold;">
+            ${gastoData.categoria === 'nomina' && gastoData.empleadoNombre ? `Recibe y firma: ${gastoData.empleadoNombre}` : 'Firma de Autorización'}
+          </div>
         </div>
         
         <div class="footer">
@@ -1753,6 +1756,9 @@ export default function MesasPanel({ showToast }) {
         fecha: gastoData.fecha,
         proveedor: gastoData.proveedor || '',
         notas: gastoData.notas || '',
+        empleadoId: gastoData.empleadoId || null,
+        empleadoNombre: gastoData.empleadoNombre || null,
+        conceptoNomina: gastoData.conceptoNomina || null,
         createdAt: serverTimestamp()
       });
       showToast('Gasto registrado exitosamente 💸', 'success');
@@ -7446,15 +7452,49 @@ const SUGERENCIAS_POR_CATEGORIA = {
 };
 
 function ModalGasto({ onClose, onConfirm, CATEGORIAS_GASTO }) {
+  const [empleados, setEmpleados] = useState([]);
   const [form, setForm] = useState({
     categoria: 'mesas',
     descripcion: '',
     monto: '',
     fecha: new Date().toISOString().slice(0, 10),
     proveedor: '',
-    notas: ''
+    notas: '',
+    empleadoId: '',
+    empleadoNombre: '',
+    conceptoNomina: 'adelanto_nomina'
   });
   useBodyScrollLock(true);
+
+  useEffect(() => {
+    const fetchEmpleados = async () => {
+      try {
+        const q = query(collection(db, 'nomina_empleados'), where('estado', '==', 'activo'));
+        const snap = await getDocs(q);
+        setEmpleados(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      } catch (err) {
+        console.error("Error al cargar empleados en ModalGasto:", err);
+      }
+    };
+    fetchEmpleados();
+  }, []);
+
+  useEffect(() => {
+    if (form.categoria === 'nomina') {
+      const emp = empleados.find(e => e.id === form.empleadoId);
+      const empNombre = emp ? `${emp.nombre} ${emp.apellido || ''}`.trim() : '';
+      let conceptLabel = '';
+      if (form.conceptoNomina === 'adelanto_nomina') conceptLabel = 'Adelanto de nómina';
+      else if (form.conceptoNomina === 'prestamo') conceptLabel = 'Préstamo';
+      else if (form.conceptoNomina === 'faltante') conceptLabel = 'Faltante';
+      
+      if (empNombre && conceptLabel) {
+        setForm(p => ({ ...p, descripcion: `${conceptLabel} - ${empNombre}` }));
+      } else {
+        setForm(p => ({ ...p, descripcion: '' }));
+      }
+    }
+  }, [form.categoria, form.empleadoId, form.conceptoNomina, empleados]);
 
   const sugerencias = SUGERENCIAS_POR_CATEGORIA[form.categoria] || [];
 
@@ -7477,6 +7517,64 @@ function ModalGasto({ onClose, onConfirm, CATEGORIAS_GASTO }) {
         
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div className="form-group">
+            <label className="form-label">Categoría de Gasto</label>
+            <select 
+              className="form-select" 
+              value={form.categoria} 
+              onChange={e => setForm(p => ({ ...p, categoria: e.target.value, empleadoId: '', empleadoNombre: '', conceptoNomina: 'adelanto_nomina', descripcion: '' }))}
+              style={{ width: '100%', padding: '10px 12px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 10, color: 'var(--text-main)', outline: 'none' }}
+            >
+              {CATEGORIAS_GASTO.map(c => (
+                <option key={c.id} value={c.id} style={{ background: 'var(--bg-card)' }}>
+                  {c.icon} {c.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {form.categoria === 'nomina' && (
+            <>
+              <div className="form-group">
+                <label className="form-label">Empleado</label>
+                <select 
+                  className="form-select" 
+                  value={form.empleadoId} 
+                  onChange={e => {
+                    const empId = e.target.value;
+                    const emp = empleados.find(x => x.id === empId);
+                    const nombreCompleto = emp ? `${emp.nombre} ${emp.apellido || ''}`.trim() : '';
+                    setForm(p => ({ ...p, empleadoId: empId, empleadoNombre: nombreCompleto }));
+                  }}
+                  required
+                  style={{ width: '100%', padding: '10px 12px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 10, color: 'var(--text-main)', outline: 'none' }}
+                >
+                  <option value="">-- Seleccionar Empleado --</option>
+                  {empleados.map(e => (
+                    <option key={e.id} value={e.id} style={{ background: 'var(--bg-card)' }}>
+                      {e.nombre} {e.apellido || ''} ({e.rol})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
+              <div className="form-group">
+                <label className="form-label">Concepto de Nómina</label>
+                <select 
+                  className="form-select" 
+                  value={form.conceptoNomina} 
+                  onChange={e => setForm(p => ({ ...p, conceptoNomina: e.target.value }))}
+                  required
+                  style={{ width: '100%', padding: '10px 12px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 10, color: 'var(--text-main)', outline: 'none' }}
+                >
+                  <option value="adelanto_nomina" style={{ background: 'var(--bg-card)' }}>Adelanto de Nómina</option>
+                  <option value="prestamo" style={{ background: 'var(--bg-card)' }}>Préstamo</option>
+                  <option value="faltante" style={{ background: 'var(--bg-card)' }}>Faltante</option>
+                </select>
+              </div>
+            </>
+          )}
+
+          <div className="form-group">
             <label className="form-label">Descripción / Concepto</label>
             <input 
               type="text" 
@@ -7485,8 +7583,9 @@ function ModalGasto({ onClose, onConfirm, CATEGORIAS_GASTO }) {
               value={form.descripcion} 
               onChange={e => setForm(p => ({ ...p, descripcion: e.target.value }))} 
               required 
+              disabled={form.categoria === 'nomina'}
             />
-            {sugerencias.length > 0 && (
+            {form.categoria !== 'nomina' && sugerencias.length > 0 && (
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
                 {sugerencias.map((sug, i) => (
                   <button
@@ -7537,22 +7636,6 @@ function ModalGasto({ onClose, onConfirm, CATEGORIAS_GASTO }) {
                 required 
               />
             </div>
-          </div>
-
-          <div className="form-group">
-            <label className="form-label">Categoría de Gasto</label>
-            <select 
-              className="form-select" 
-              value={form.categoria} 
-              onChange={e => setForm(p => ({ ...p, categoria: e.target.value }))}
-              style={{ width: '100%', padding: '10px 12px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 10, color: 'var(--text-main)', outline: 'none' }}
-            >
-              {CATEGORIAS_GASTO.map(c => (
-                <option key={c.id} value={c.id} style={{ background: 'var(--bg-card)' }}>
-                  {c.icon} {c.label}
-                </option>
-              ))}
-            </select>
           </div>
 
           <div className="form-group">

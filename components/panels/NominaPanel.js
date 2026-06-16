@@ -39,6 +39,7 @@ const CATEGORIAS_GASTO = [
   { id: 'limpieza',   label: 'Limpieza',              icon: '🧹', color: '#22c55e' },
   { id: 'reparacion', label: 'Reparaciones',          icon: '🛠️', color: '#ef4444' },
   { id: 'admin',      label: 'Administrativos',       icon: '📋', color: '#b0b8c8' },
+  { id: 'nomina',     label: 'Pago de Nómina',        icon: '💸', color: '#10b981' },
   { id: 'otro',       label: 'Otro / Personalizado',  icon: '➕', color: '#6b7280' },
 ];
 
@@ -503,7 +504,7 @@ export default function NominaPanel({ showToast }) {
       const tardanzas = asistEmp.filter(a => a.estado === 'tardanza').length;
       const sueldoBase = Number(emp.sueldoBase) || 0;
       const sueldoProp = sueldoBase > 0 ? (sueldoBase / dias) * diasTrabajados : 0;
-      const deducciones = tardanzas * (sueldoBase / dias / 2);
+      const deduccionesBase = tardanzas * (sueldoBase / dias / 2);
 
       let comisionMesas = 0;
       if (emp.comisionMesas > 0 && ventasMesas > 0) {
@@ -519,16 +520,47 @@ export default function NominaPanel({ showToast }) {
       }
 
       const bonoTurno = (Number(emp.bonoTurno) || 0) * diasTrabajados;
-      const total = Math.max(0, sueldoProp + comisionMesas + comisionBar + bonoTurno - deducciones);
+
+      // Calcular adelantos, préstamos y faltantes registrados como gastos
+      const empGastos = gastos.filter(g => 
+        g.empleadoId === emp.id && 
+        g.categoria === 'nomina' && 
+        g.fecha >= fechaInicio && 
+        g.fecha <= fechaFin
+      );
+      const adelanto = empGastos.filter(g => g.conceptoNomina === 'adelanto_nomina').reduce((s, g) => s + (Number(g.monto) || 0), 0);
+      const prestamo = empGastos.filter(g => g.conceptoNomina === 'prestamo').reduce((s, g) => s + (Number(g.monto) || 0), 0);
+      const faltante = empGastos.filter(g => g.conceptoNomina === 'faltante').reduce((s, g) => s + (Number(g.monto) || 0), 0);
+
+      const deduccionesNomina = deduccionesBase + prestamo + faltante;
+      const total = Math.max(0, sueldoProp + comisionMesas + comisionBar + bonoTurno - deduccionesNomina);
 
       const pagado = pagos
         .filter(p => p.empleadoId === emp.id && p.fechaInicio === fechaInicio && p.fechaFin === fechaFin)
         .reduce((s, p) => s + (p.total || 0), 0);
 
-      return { emp, diasTrabajados, tardanzas, sueldoProp, comisionMesas, comisionBar, bonoTurno, deducciones, total, pagado, pendiente: Math.max(0, total - pagado) };
+      const pagadoPeriodo = pagado + adelanto;
+
+      return { 
+        emp, 
+        diasTrabajados, 
+        tardanzas, 
+        sueldoProp, 
+        comisionMesas, 
+        comisionBar, 
+        bonoTurno, 
+        deducciones: deduccionesNomina, 
+        total, 
+        pagado: pagadoPeriodo, 
+        pendiente: Math.max(0, total - pagadoPeriodo),
+        gastoAdelantos: adelanto,
+        gastoPrestamos: prestamo,
+        gastoFaltantes: faltante,
+        tardanzasDeduccion: deduccionesBase
+      };
     });
     setCalculos(result);
-  }, [empleados, asistencias, pagos, fechaInicio, fechaFin, ventasMesas, ventasBar]);
+  }, [empleados, asistencias, pagos, gastos, fechaInicio, fechaFin, ventasMesas, ventasBar]);
 
   useEffect(() => {
     calcularNomina();
@@ -1073,6 +1105,13 @@ export default function NominaPanel({ showToast }) {
                             <div>
                               <div style={{ fontWeight: 700, fontSize: 12 }}>{c.emp.nombre} {c.emp.apellido}</div>
                               <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>{c.emp.rol} · {c.emp.departamento}</div>
+                              {(c.gastoAdelantos > 0 || c.gastoPrestamos > 0 || c.gastoFaltantes > 0) && (
+                                <div style={{ display: 'flex', gap: 6, fontSize: 8, marginTop: 2, flexWrap: 'wrap' }}>
+                                  {c.gastoAdelantos > 0 && <span style={{ color: 'var(--bronze-light)', background: 'rgba(197,168,128,0.1)', padding: '1px 4px', borderRadius: 3 }}>💸 Adelanto: {fmt(c.gastoAdelantos)}</span>}
+                                  {c.gastoPrestamos > 0 && <span style={{ color: 'var(--info)', background: 'rgba(59,130,246,0.1)', padding: '1px 4px', borderRadius: 3 }}>🤝 Préstamo: {fmt(c.gastoPrestamos)}</span>}
+                                  {c.gastoFaltantes > 0 && <span style={{ color: 'var(--danger)', background: 'rgba(239,68,68,0.1)', padding: '1px 4px', borderRadius: 3 }}>⚠️ Faltante: {fmt(c.gastoFaltantes)}</span>}
+                                </div>
+                              )}
                             </div>
                           </div>
                         </td>
@@ -1870,6 +1909,44 @@ export default function NominaPanel({ showToast }) {
                   <div style={{ fontSize: 14, fontWeight: 700 }}>{showPagarModal.emp.nombre} {showPagarModal.emp.apellido}</div>
                   <div style={{ fontFamily: 'var(--font-display)', fontSize: 32, fontWeight: 700, color: 'var(--bronze-light)', margin: '8px 0' }}>{fmt(showPagarModal.pendiente)}</div>
                   <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{showPagarModal.diasTrabajados} días laborados (periodo actual)</div>
+                  
+                  {(showPagarModal.gastoAdelantos > 0 || showPagarModal.gastoPrestamos > 0 || showPagarModal.gastoFaltantes > 0 || showPagarModal.tardanzas > 0) && (
+                    <div style={{ 
+                      marginTop: 12, padding: '8px 12px', background: 'rgba(0,0,0,0.15)', 
+                      borderRadius: 8, fontSize: 10, textAlign: 'left', display: 'flex', 
+                      flexDirection: 'column', gap: 4, border: '1px solid var(--border-subtle)' 
+                    }}>
+                      <div style={{ fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', fontSize: 9 }}>Ajustes del Periodo (Caja):</div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span>Sueldo Bruto + Comisiones:</span>
+                        <span>{fmt(showPagarModal.sueldoProp + showPagarModal.comisionMesas + showPagarModal.comisionBar + showPagarModal.bonoTurno)}</span>
+                      </div>
+                      {showPagarModal.tardanzas > 0 && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--warning)' }}>
+                          <span>Deducción Tardanzas ({showPagarModal.tardanzas}):</span>
+                          <span>- {fmt(showPagarModal.tardanzasDeduccion)}</span>
+                        </div>
+                      )}
+                      {showPagarModal.gastoAdelantos > 0 && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--bronze-light)' }}>
+                          <span>Adelantos recibidos:</span>
+                          <span>- {fmt(showPagarModal.gastoAdelantos)}</span>
+                        </div>
+                      )}
+                      {showPagarModal.gastoPrestamos > 0 && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--info)' }}>
+                          <span>Préstamos deducidos:</span>
+                          <span>- {fmt(showPagarModal.gastoPrestamos)}</span>
+                        </div>
+                      )}
+                      {showPagarModal.gastoFaltantes > 0 && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--danger)' }}>
+                          <span>Faltantes deducidos:</span>
+                          <span>- {fmt(showPagarModal.gastoFaltantes)}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
               <div style={{ background: 'var(--bg-elevated)', borderRadius: 10, padding: 12, marginTop: 14, border: '1px solid var(--border)' }}>
