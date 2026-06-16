@@ -34,12 +34,12 @@ function usePedidosCocina() {
 const PANEL_LABELS = {
   dashboard: 'Dashboard',
   mesas:     'Control de Mesas',
-  caja:      'Caja y Reportes IA',
+  caja:      'INTELIGENCIA',
   bar:       'Inventario Inteligente IA',
   clientes:  'Clientes',
   torneos:   'Torneos y Ligas',
   nomina:    'Nómina & Gastos',
-  reportes:  'Caja y Reportes IA',
+  reportes:  'INTELIGENCIA',
   config:    'Configuración',
 };
 
@@ -550,7 +550,7 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
       <div className="topbar-quick-actions">
         {[
           { label: 'Mesa', icon: 'ri-play-circle-line', color: 'var(--success)', nav: 'mesas', shortcut: 'Alt + 1' },
-          { label: 'Caja y Reportes IA', icon: 'ri-money-dollar-box-line', color: 'var(--bronze-light)', nav: 'caja', shortcut: 'Alt + 2' },
+          { label: 'INTELIGENCIA', icon: 'ri-money-dollar-box-line', color: 'var(--bronze-light)', nav: 'caja', shortcut: 'Alt + 2' },
           { label: 'Inventario', icon: 'ri-archive-line', color: 'var(--blue-light)', nav: 'bar', shortcut: 'Alt + 3' },
           { label: 'Torneos', icon: 'ri-trophy-line', color: '#ffd700', nav: 'torneos', shortcut: 'Alt + 4' },
           { label: 'Nómina', icon: 'ri-briefcase-4-line', color: 'var(--bronze-light)', nav: 'nomina', badge: alertasNomina.length, shortcut: 'Alt + 5' },

@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, Fragment } from 'react';
 import { db } from '@/lib/firebase';
 import { doc, onSnapshot, query, collection, orderBy, limit, getDocs, startAfter, writeBatch, addDoc, serverTimestamp } from 'firebase/firestore';
 import { deobfuscate, obfuscate } from '@/lib/crypto';
@@ -128,6 +128,10 @@ export default function CajaPanel({ showToast }) {
   const [surgePercent, setSurgePercent] = useState(20);
   const [discountPercent, setDiscountPercent] = useState(15);
 
+  // Metas y Subpestañas IA
+  const [metaMensual, setMetaMensual] = useState(100000);
+  const [subTabIa, setSubTabIa] = useState('auditoria'); // 'auditoria' | 'predictivos'
+
   // Modal cobro manual
   const [mostrarCobroManual, setMostrarCobroManual] = useState(false);
   const [nuevoMonto, setNuevoMonto] = useState('');
@@ -222,6 +226,12 @@ export default function CajaPanel({ showToast }) {
       }),
       onSnapshot(doc(db, 'config', 'cuentas_estado'), snap => {
         if (snap.exists() && Array.isArray(snap.data().cuentas)) setCuentasActivas(snap.data().cuentas);
+      }),
+      onSnapshot(doc(db, 'config', 'sucursal'), snap => {
+        if (snap.exists()) {
+          const d = snap.data();
+          if (d.metaMensual !== undefined) setMetaMensual(Number(d.metaMensual));
+        }
       })
     ];
     return () => unsubs.forEach(unsub => unsub());

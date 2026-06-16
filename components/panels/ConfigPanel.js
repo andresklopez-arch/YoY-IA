@@ -55,6 +55,7 @@ export default function ConfigPanel({ showToast }) {
     horarioApertura: '10:00',
     horarioCierre: '02:00',
     capacidad: 8,
+    metaMensual: 100000,
   });
 
   const [modoSurge, setModoSurge] = useState(true);
@@ -802,13 +803,19 @@ export default function ConfigPanel({ showToast }) {
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                 {[
-                  { label: 'Nombre del Negocio', key: 'nombre' },
-                  { label: 'Dirección', key: 'direccion' },
-                  { label: 'Teléfono', key: 'telefono' },
+                  { label: 'Nombre del Negocio', key: 'nombre', type: 'text' },
+                  { label: 'Dirección', key: 'direccion', type: 'text' },
+                  { label: 'Teléfono', key: 'telefono', type: 'text' },
+                  { label: 'Meta de Ingresos Mensual ($)', key: 'metaMensual', type: 'number' },
                 ].map(f => (
                   <div key={f.key} className="form-group">
                     <label className="form-label">{f.label}</label>
-                    <input className="form-input" value={sucursal[f.key] || ''} onChange={e => setSucursal(p => ({ ...p, [f.key]: e.target.value }))} />
+                    <input 
+                      type={f.type || 'text'} 
+                      className="form-input" 
+                      value={sucursal[f.key] || ''} 
+                      onChange={e => setSucursal(p => ({ ...p, [f.key]: f.type === 'number' ? Number(e.target.value) : e.target.value }))} 
+                    />
                   </div>
                 ))}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
