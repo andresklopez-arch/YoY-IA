@@ -21,7 +21,8 @@ function areMesasEqual(arr1, arr2) {
         m1.tipo !== m2.tipo ||
         m1.socios !== m2.socios ||
         m1.clienteUid !== m2.clienteUid ||
-        m1.preTicketImpreso !== m2.preTicketImpreso) {
+        m1.preTicketImpreso !== m2.preTicketImpreso ||
+        m1.filaId !== m2.filaId) {
       return false;
     }
   }
