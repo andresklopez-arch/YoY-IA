@@ -323,7 +323,18 @@ export default function FilaEsperaCliente() {
           <div style={{ fontSize: 64, marginBottom: 20 }}>🚶‍♂️</div>
           <h2 style={{ ...titleStyle, color: '#718096' }}>Turno Retirado</h2>
           <p style={textStyle}>
-            Tu turno en la fila virtual ha sido retirado por el personal. Si necesitas una mesa, por favor solicita un nuevo turno en la caja.
+            {data.motivoRetiro === 'timeout' 
+              ? 'Tu turno en la fila virtual ha sido retirado automáticamente por inasistencia (tolerancia de 5 min agotada).'
+              : 'Tu turno en la fila virtual ha sido retirado por el personal. Si necesitas una mesa, por favor solicita un nuevo turno en la caja.'
+            }
+          </p>
+        </div>
+      ) : data.estado === 'completado' || data.estado === 'jugando' ? (
+        <div style={cardStyle}>
+          <div style={{ fontSize: 64, marginBottom: 20 }}>🎮</div>
+          <h2 style={{ ...titleStyle, color: '#22c55e' }}>¡A Jugar!</h2>
+          <p style={textStyle}>
+            ¡Tu turno ha sido asignado con éxito! Tu mesa asignada es la <strong>{data.mesaAsignada}</strong>. ¡Que disfrutes tu juego!
           </p>
         </div>
       ) : (

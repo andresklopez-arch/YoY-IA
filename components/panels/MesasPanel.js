@@ -370,12 +370,29 @@ function CameraHandler({ mode, onCapture }) {
 }
 
 // ── MODAL ABRIR MESA ──────────────────────────────────────
-function ModalAbrirMesa({ mesa, onClose, onConfirm }) {
+function ModalAbrirMesa({ mesa, adminPinHash, hashPassword, onClose, onConfirm }) {
   const [cliente, setCliente] = useState(mesa.cliente || '');
   const [esSocio, setEsSocio] = useState(mesa.esSocio || false);
   const [rentarTaco, setRentarTaco] = useState(false);
   const [rentarBolas, setRentarBolas] = useState(false);
   const [rentarTiza, setRentarTiza] = useState(false);
+
+  const [isBypassed, setIsBypassed] = useState(false);
+  const [showPinPrompt, setShowPinPrompt] = useState(false);
+  const [pinInput, setPinInput] = useState('');
+  const [pinError, setPinError] = useState('');
+
+  const handleVerifyBypass = () => {
+    setPinError('');
+    if (hashPassword(pinInput) === adminPinHash) {
+      setIsBypassed(true);
+      setShowPinPrompt(false);
+      setPinInput('');
+      setCliente(''); // Permitir ingresar otro nombre
+    } else {
+      setPinError('PIN de Administrador incorrecto');
+    }
+  };
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -395,18 +412,61 @@ function ModalAbrirMesa({ mesa, onClose, onConfirm }) {
             </div>
 
             <div className="form-group">
+              {(mesa.isLockedToQueue && !isBypassed) ? (
+                <div style={{ background: 'rgba(197, 168, 128, 0.08)', border: '1px solid rgba(197, 168, 128, 0.25)', borderRadius: 12, padding: '12px 14px', marginBottom: 14, fontSize: 12 }}>
+                  <div style={{ fontWeight: 700, color: 'var(--bronze-light)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <i className="ri-lock-line" /> Fila de Espera Activa
+                  </div>
+                  <div style={{ color: 'rgba(255,255,255,0.7)', marginTop: 4 }}>
+                    Esta mesa está reservada para el cliente: <strong>{cliente}</strong>.
+                  </div>
+                  {!showPinPrompt ? (
+                    <button 
+                      type="button" 
+                      className="btn btn-secondary btn-xs" 
+                      style={{ marginTop: 8, fontSize: 10, background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#ef4444' }}
+                      onClick={() => setShowPinPrompt(true)}
+                    >
+                      <i className="ri-shield-keyhole-line" /> Saltar Fila (PIN Admin)
+                    </button>
+                  ) : (
+                    <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6, borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 10 }}>
+                      <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', fontWeight: 600 }}>AUTORIZAR BYPASS (PIN)</span>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <input 
+                          type="password" 
+                          className="form-input" 
+                          placeholder="PIN de Admin" 
+                          value={pinInput} 
+                          onChange={e => setPinInput(e.target.value)}
+                          style={{ padding: '6px 10px', fontSize: 12, flex: 1 }}
+                          onKeyDown={e => { if (e.key === 'Enter') handleVerifyBypass(); }}
+                        />
+                        <button type="button" className="btn btn-primary btn-xs" onClick={handleVerifyBypass} style={{ padding: '0 10px' }}>
+                          Autorizar
+                        </button>
+                        <button type="button" className="btn btn-secondary btn-xs" onClick={() => { setShowPinPrompt(false); setPinInput(''); setPinError(''); }} style={{ padding: '0 10px' }}>
+                          Cancelar
+                        </button>
+                      </div>
+                      {pinError && <span style={{ color: '#ef4444', fontSize: 10, textAlign: 'left' }}>{pinError}</span>}
+                    </div>
+                  )}
+                </div>
+              ) : null}
+
               <label className="form-label">
-                {mesa.isLockedToQueue ? 'Nombre del cliente (Asignado por Fila Virtual)' : 'Nombre del cliente (opcional)'}
+                {(mesa.isLockedToQueue && !isBypassed) ? 'Nombre del cliente (Asignado por Fila Virtual)' : 'Nombre del cliente (opcional)'}
               </label>
               <input 
                 className="form-input" 
                 placeholder="Ej: Carlos Rodríguez" 
                 value={cliente} 
                 onChange={e => setCliente(e.target.value)}
-                disabled={mesa.isLockedToQueue}
-                style={mesa.isLockedToQueue ? { background: 'rgba(255,255,255,0.03)', color: 'var(--text-secondary)', cursor: 'not-allowed', borderColor: 'rgba(197,168,128,0.3)' } : {}}
+                disabled={mesa.isLockedToQueue && !isBypassed}
+                style={(mesa.isLockedToQueue && !isBypassed) ? { background: 'rgba(255,255,255,0.03)', color: 'var(--text-secondary)', cursor: 'not-allowed', borderColor: 'rgba(197,168,128,0.3)' } : {}}
               />
-              {mesa.isLockedToQueue && (
+              {(mesa.isLockedToQueue && !isBypassed) && (
                 <div style={{ fontSize: 11, color: 'var(--bronze-light)', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
                   <i className="ri-information-line" />
                   Mesa reservada para el siguiente cliente en la fila de espera.
@@ -414,13 +474,13 @@ function ModalAbrirMesa({ mesa, onClose, onConfirm }) {
               )}
             </div>
 
-            <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: mesa.isLockedToQueue ? 'not-allowed' : 'pointer', padding: '10px 14px', background: 'var(--bg-elevated)', borderRadius: 10, border: '1px solid var(--border)', opacity: mesa.isLockedToQueue ? 0.6 : 1 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: (mesa.isLockedToQueue && !isBypassed) ? 'not-allowed' : 'pointer', padding: '10px 14px', background: 'var(--bg-elevated)', borderRadius: 10, border: '1px solid var(--border)', opacity: (mesa.isLockedToQueue && !isBypassed) ? 0.6 : 1 }}>
               <input 
                 type="checkbox" 
                 checked={esSocio} 
                 onChange={e => setEsSocio(e.target.checked)} 
-                disabled={mesa.isLockedToQueue}
-                style={{ width: 16, height: 16, accentColor: 'var(--bronze)', cursor: mesa.isLockedToQueue ? 'not-allowed' : 'pointer' }} 
+                disabled={mesa.isLockedToQueue && !isBypassed}
+                style={{ width: 16, height: 16, accentColor: 'var(--bronze)', cursor: (mesa.isLockedToQueue && !isBypassed) ? 'not-allowed' : 'pointer' }} 
               />
               <span style={{ fontSize: 13, fontWeight: 600 }}>Es miembro / socio mensual</span>
               <span className="badge badge-bronze" style={{ marginLeft: 'auto' }}>Sin cargo</span>
@@ -447,7 +507,7 @@ function ModalAbrirMesa({ mesa, onClose, onConfirm }) {
         </div>
         <div className="modal-footer">
           <button className="btn btn-secondary" onClick={onClose}>Cancelar</button>
-          <button className="btn btn-primary" onClick={() => onConfirm({ cliente: cliente.trim() || `Mesa ${mesa.id}`, esSocio, rentarTaco, rentarBolas, rentarTiza })}>
+          <button className="btn btn-primary" onClick={() => onConfirm({ cliente: cliente.trim() || `Mesa ${mesa.id}`, esSocio, rentarTaco, rentarBolas, rentarTiza, bypassedFilaId: isBypassed ? mesa.filaId : null })}>
             <i className="ri-play-circle-line" /> Iniciar Mesa
           </button>
         </div>
@@ -2478,6 +2538,53 @@ export default function MesasPanel({ showToast }) {
     return unsub;
   }, []);
 
+  const [assignedFila, setAssignedFila] = useState([]);
+
+  // Escuchar Fila de Espera Asignada en tiempo real
+  useEffect(() => {
+    const q = query(
+      collection(db, 'fila_espera'),
+      where('estado', '==', 'asignada')
+    );
+    const unsub = onSnapshot(q, snap => {
+      const items = snap.docs.map(d => {
+        const val = d.data();
+        return {
+          ...val,
+          id: isNaN(d.id) ? d.id : Number(d.id),
+          assignedAt: val.assignedAt ? (val.assignedAt.toMillis ? val.assignedAt.toMillis() : val.assignedAt) : Date.now()
+        };
+      });
+      setAssignedFila(items);
+    }, err => {
+      console.error("Error al escuchar fila_espera asignada:", err);
+    });
+    return unsub;
+  }, []);
+
+  // Auto-cancelador de asignaciones vencidas en Fila Virtual (5 minutos de tolerancia)
+  useEffect(() => {
+    const ahora = Date.now();
+    const GRACE_PERIOD = 5 * 60 * 1000; // 5 minutos en milisegundos
+
+    assignedFila.forEach(async (f) => {
+      if (f.assignedAt && (ahora - f.assignedAt > GRACE_PERIOD)) {
+        try {
+          // Cambiar estado a 'retirado' por inasistencia (timeout)
+          await updateDoc(doc(db, 'fila_espera', String(f.id)), {
+            estado: 'retirado',
+            removedAt: serverTimestamp(),
+            motivoRetiro: 'timeout'
+          });
+          registrarEvento('Fila Expirada', `El turno de ${f.cliente} expiró por inasistencia (Tolerancia 5 min).`);
+          showToast(`Turno de ${f.cliente} cancelado por inasistencia.`, 'warning');
+        } catch (err) {
+          console.error("Error al auto-cancelar fila por timeout:", err);
+        }
+      }
+    });
+  }, [tick, assignedFila]);
+
   // Auto-liberador de reservaciones expiradas (tiempo configurable)
   useEffect(() => {
     const ahora = Date.now();
@@ -2883,7 +2990,24 @@ export default function MesasPanel({ showToast }) {
     if (mesa.estado === 'ocupada') { setModalCerrar(mesa); return; }
     if (mesa.estado === 'manten') { showToast('Mesa en mantenimiento, no disponible.', 'warning'); return; }
     
-    // Verificar si hay alguien en fila de espera para este tipo de mesa
+    // 1. Verificar si esta mesa específica ya fue asignada/alertada a un cliente en la fila
+    const assignedToThisMesa = assignedFila.find(f => {
+      const mesaNombreStr = mesa.nombre || `Mesa ${mesa.id}`;
+      return f.mesaAsignada && (f.mesaAsignada.toLowerCase() === mesaNombreStr.toLowerCase());
+    });
+
+    if (assignedToThisMesa) {
+      setModalAbrir({
+        ...mesa,
+        cliente: assignedToThisMesa.cliente,
+        filaId: assignedToThisMesa.id,
+        isLockedToQueue: true
+      });
+      showToast(`Mesa asignada a ${assignedToThisMesa.cliente} (Fila Virtual)`, 'info');
+      return;
+    }
+
+    // 2. Si no, verificar si hay alguien en fila de espera general para este tipo de mesa
     const matchingWaiting = fila.filter(f => f.estado === 'espera' && matchesTableType(f.tipo, mesa.tipo));
     if (matchingWaiting.length > 0) {
       const nextInLine = matchingWaiting[0];
@@ -2899,7 +3023,7 @@ export default function MesasPanel({ showToast }) {
     }
   };
 
-  const confirmarAbrirMesa = (mesaId, { cliente, esSocio, rentarTaco, rentarBolas, rentarTiza }) => {
+  const confirmarAbrirMesa = (mesaId, { cliente, esSocio, rentarTaco, rentarBolas, rentarTiza, bypassedFilaId }) => {
     let finalCliente = (cliente || '').trim();
     if (!finalCliente || ['público', 'publico', 'público general', 'publico general'].includes(finalCliente.toLowerCase())) {
       finalCliente = `Mesa ${mesaId}`;
@@ -2914,10 +3038,14 @@ export default function MesasPanel({ showToast }) {
       !(c.mesaId === mesaId || (c.cliente && c.cliente.toLowerCase() === `mesa ${mesaId}`))
     )).catch(err => console.error("Error al limpiar cuenta vieja al abrir mesa:", err));
     
-    if (modalAbrir && modalAbrir.filaId) {
+    if (bypassedFilaId) {
+      // Registrar bypass en la bitácora
+      registrarEvento('Bypass Fila Virtual', `Se realizó bypass de Fila Virtual para abrir la Mesa ${mesaId} a nombre de ${finalCliente}. El cliente en espera original conservará su posición.`);
+      showToast(`Bypass autorizado para Mesa ${mesaId}`, 'warning');
+    } else if (modalAbrir && modalAbrir.filaId) {
       const docId = String(modalAbrir.filaId);
       updateDoc(doc(db, 'fila_espera', docId), {
-        estado: 'asignada',
+        estado: 'completado',
         mesaAsignada: `Mesa ${mesaId}`,
         assignedAt: serverTimestamp()
       }).catch(err => console.error("Error al actualizar estado en fila_espera:", err));
@@ -4725,6 +4853,8 @@ export default function MesasPanel({ showToast }) {
       {modalAbrir && (
         <ModalAbrirMesa
           mesa={modalAbrir}
+          adminPinHash={adminPinHash}
+          hashPassword={hashPassword}
           onClose={() => setModalAbrir(null)}
           onConfirm={(data) => confirmarAbrirMesa(modalAbrir.id, data)}
         />
