@@ -603,7 +603,7 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
           {activePanel === 'mesas' && (user?.permisos?.nomina === true || user?.role === 'admin') && (
             <button
               onClick={() => setShowModalPaseLista(true)}
-              className="btn btn-secondary btn-xs btn-pase-lista-glow"
+              className="btn btn-secondary btn-xs"
               style={{
                 height: 28,
                 padding: '4px 14px',
@@ -620,65 +620,70 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
                 letterSpacing: '0.05em',
                 cursor: 'pointer',
                 marginLeft: 12,
-                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
                 position: 'relative',
                 overflow: 'hidden',
-                textShadow: '0 0 4px rgba(227, 168, 105, 0.5)'
+                textShadow: '0 0 4px rgba(227, 168, 105, 0.5)',
+                background: 'var(--bg-elevated)'
               }}
               onMouseEnter={e => {
                 e.currentTarget.style.border = '1px solid #e3a869';
-                e.currentTarget.style.boxShadow = '0 0 25px rgba(227, 168, 105, 0.9)';
-                e.currentTarget.style.transform = 'translateY(-1px) scale(1.05)';
-                e.currentTarget.style.background = 'linear-gradient(135deg, rgba(227, 168, 105, 0.3) 0%, rgba(205, 127, 50, 0.5) 100%)';
+                e.currentTarget.style.transform = 'translateY(-1px)';
+                e.currentTarget.style.background = 'rgba(227, 168, 105, 0.12)';
               }}
               onMouseLeave={e => {
                 e.currentTarget.style.border = '1px solid rgba(227, 168, 105, 0.45)';
-                e.currentTarget.style.boxShadow = '';
-                e.currentTarget.style.transform = 'translateY(0) scale(1)';
-                e.currentTarget.style.background = '';
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.background = 'var(--bg-elevated)';
               }}
               title="Pase de Lista / Código QR"
             >
               {/* CSS Embebido para efectos dinámicos premium */}
               <style>{`
-                @keyframes pulse-glow-gold {
+                @keyframes led-color-cycle {
                   0%, 100% {
-                    box-shadow: 0 0 8px rgba(227, 168, 105, 0.2);
-                    border-color: rgba(227, 168, 105, 0.4);
-                    background: linear-gradient(135deg, rgba(227, 168, 105, 0.12) 0%, rgba(205, 127, 50, 0.22) 100%);
-                  }
-                  50% {
-                    box-shadow: 0 0 18px rgba(227, 168, 105, 0.65);
-                    border-color: rgba(227, 168, 105, 0.95);
-                    background: linear-gradient(135deg, rgba(227, 168, 105, 0.22) 0%, rgba(205, 127, 50, 0.4) 100%);
-                  }
-                }
-                .btn-pase-lista-glow {
-                  animation: pulse-glow-gold 2s infinite ease-in-out;
-                }
-                @keyframes pulse-green-led {
-                  0%, 100% {
+                    background-color: #10b981;
+                    box-shadow: 0 0 6px #10b981, 0 0 12px #10b981;
                     transform: scale(1);
-                    box-shadow: 0 0 4px #10b981;
-                    opacity: 1;
+                  }
+                  16% {
+                    background-color: #06b6d4;
+                    box-shadow: 0 0 6px #06b6d4, 0 0 12px #06b6d4;
+                    transform: scale(1.15);
+                  }
+                  33% {
+                    background-color: #3b82f6;
+                    box-shadow: 0 0 6px #3b82f6, 0 0 12px #3b82f6;
+                    transform: scale(1);
                   }
                   50% {
-                    transform: scale(1.3);
-                    box-shadow: 0 0 12px #10b981, 0 0 20px #10b981;
-                    opacity: 0.7;
+                    background-color: #8b5cf6;
+                    box-shadow: 0 0 6px #8b5cf6, 0 0 12px #8b5cf6;
+                    transform: scale(1.15);
+                  }
+                  66% {
+                    background-color: #ec4899;
+                    box-shadow: 0 0 6px #ec4899, 0 0 12px #ec4899;
+                    transform: scale(1);
+                  }
+                  83% {
+                    background-color: #f59e0b;
+                    box-shadow: 0 0 6px #f59e0b, 0 0 12px #f59e0b;
+                    transform: scale(1.15);
                   }
                 }
-                .led-green-pulse {
-                  animation: pulse-green-led 1.2s infinite ease-in-out;
+                .led-color-pulse {
+                  animation: led-color-cycle 4s infinite ease-in-out;
                 }
               `}</style>
-              {/* Led indicador pulsante verde para denotar acción de fichaje activa */}
-              <span className="led-green-pulse" style={{
+              {/* Led indicador dinámico que cambia de color para denotar acción de fichaje activa */}
+              <span className="led-color-pulse" style={{
                 width: 7,
                 height: 7,
                 borderRadius: '50%',
                 background: '#10b981',
-                display: 'inline-block'
+                display: 'inline-block',
+                marginRight: 2
               }} />
               <i className="ri-qr-code-line" style={{ fontSize: 13, color: '#e3a869' }} />
               <span style={{ letterSpacing: '0.03em' }}>Pase de Lista</span>
