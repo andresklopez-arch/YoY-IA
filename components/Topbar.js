@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import { useAuth } from '@/lib/auth-context';
 import { useAlertasNomina } from '@/components/panels/NominaPanel';
 import { QRCodeSVG } from 'qrcode.react';
-import { collection, query, where, onSnapshot, doc, getDoc, setDoc, addDoc, getDocs, serverTimestamp, updateDoc, orderBy, limit } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc, getDoc, setDoc, addDoc, getDocs, serverTimestamp, updateDoc, orderBy, limit, writeBatch } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { deobfuscate, obfuscate } from '@/lib/crypto';
 
@@ -277,6 +277,7 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
   const [showNotificationDrawer, setShowNotificationDrawer] = useState(false);
   const [pedidosAlerts, setPedidosAlerts] = useState([]);
   const [stockAlerts, setStockAlerts] = useState([]);
+  const [dismissedAlerts, setDismissedAlerts] = useState([]);
 
   const playUISound = () => {
     try {
@@ -474,21 +475,93 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
     return () => clearInterval(t);
   }, []);
 
+  // Cargar alertas descartadas desde localStorage al montar
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('yoy_billar_alertas_descartadas');
+      if (saved) {
+        setDismissedAlerts(JSON.parse(saved) || []);
+      }
+    } catch (e) {
+      console.error("Error al cargar alertas descartadas:", e);
+    }
+  }, []);
+
+  const descartarAlerta = async (n) => {
+    if (n.tipo === 'pedido' || n.tipo === 'asistencia' || n.id.startsWith('pedido_') || n.id.startsWith('asistencia_')) {
+      try {
+        const docRef = doc(db, 'mesa_pedidos', n.id);
+        await updateDoc(docRef, {
+          estado: 'atendido',
+          atendidoAdmin: true,
+          atendidoAt: serverTimestamp()
+        });
+        showToast('Alerta atendida ✓', 'success');
+      } catch (err) {
+        console.error("Error al atender alerta en Firestore:", err);
+        showToast('Error al atender alerta', 'danger');
+      }
+    } else {
+      const updated = [...dismissedAlerts, n.id];
+      setDismissedAlerts(updated);
+      try {
+        localStorage.setItem('yoy_billar_alertas_descartadas', JSON.stringify(updated));
+      } catch (e) {
+        console.error(e);
+      }
+      showToast('Alerta descartada', 'info');
+    }
+  };
+
+  const limpiarTodoElDrawer = async () => {
+    const firestoreAlerts = allNotifications.filter(n => n.tipo === 'pedido' || n.tipo === 'asistencia');
+    if (firestoreAlerts.length > 0) {
+      try {
+        const batch = writeBatch(db);
+        firestoreAlerts.forEach(n => {
+          const docRef = doc(db, 'mesa_pedidos', n.id);
+          batch.update(docRef, {
+            estado: 'atendido',
+            atendidoAdmin: true,
+            atendidoAt: serverTimestamp()
+          });
+        });
+        await batch.commit();
+      } catch (err) {
+        console.error("Error al limpiar alertas en lote:", err);
+      }
+    }
+
+    const localAlerts = allNotifications.filter(n => n.tipo !== 'pedido' && n.tipo !== 'asistencia');
+    if (localAlerts.length > 0) {
+      const newDismissed = [...dismissedAlerts, ...localAlerts.map(n => n.id)];
+      setDismissedAlerts(newDismissed);
+      try {
+        localStorage.setItem('yoy_billar_alertas_descartadas', JSON.stringify(newDismissed));
+      } catch (e) {}
+    }
+
+    showToast('Todas las alertas marcadas como leídas', 'success');
+    setShowNotificationDrawer(false);
+  };
+
   const timeStr = time.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
   const dateStr = time.toLocaleDateString(locale, { weekday: 'short', day: 'numeric', month: 'short' });
 
   // Lista unificada de notificaciones
-  const allNotifications = [
+  const rawNotifications = [
     ...alertasNomina.map((n, i) => ({
       id: 'nomina_' + i,
       tipo: 'nomina',
       titulo: 'Alerta de Nómina',
-      desc: n.descripcion || n,
+      desc: n.mensaje || n.descripcion || String(n),
       fecha: 'Nómina'
     })),
     ...pedidosAlerts,
     ...stockAlerts
   ];
+
+  const allNotifications = rawNotifications.filter(n => !dismissedAlerts.includes(n.id));
 
   return (
     <header className="topbar">
@@ -875,15 +948,40 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
                       e.currentTarget.style.background = 'var(--bg-elevated)';
                     }}
                   >
-                    <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                      <div style={{ width: 28, height: 28, borderRadius: 6, background: 'rgba(255,255,255,0.02)', border: `1px solid ${color}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color, flexShrink: 0 }}>
-                        <i className={icon} />
+                    <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                      <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', flex: 1 }}>
+                        <div style={{ width: 28, height: 28, borderRadius: 6, background: 'rgba(255,255,255,0.02)', border: `1px solid ${color}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color, flexShrink: 0 }}>
+                          <i className={icon} />
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: '#fff' }}>{n.titulo}</div>
+                          <p style={{ fontSize: 10, color: 'var(--text-secondary)', marginTop: 2, lineHeight: 1.4, margin: 0 }}>{n.desc}</p>
+                          <span style={{ fontSize: 8, color: 'var(--text-muted)', marginTop: 6, display: 'block' }}>{n.fecha}</span>
+                        </div>
                       </div>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 11, fontWeight: 700, color: '#fff' }}>{n.titulo}</div>
-                        <p style={{ fontSize: 10, color: 'var(--text-secondary)', marginTop: 2, lineHeight: 1.4, margin: 0 }}>{n.desc}</p>
-                        <span style={{ fontSize: 8, color: 'var(--text-muted)', marginTop: 6, display: 'block' }}>{n.fecha}</span>
-                      </div>
+                      <button
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          await descartarAlerta(n);
+                        }}
+                        style={{
+                          background: 'none', border: 'none', color: 'var(--text-muted)',
+                          cursor: 'pointer', padding: 4, borderRadius: '55%',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: 16, transition: 'all 0.15s', flexShrink: 0
+                        }}
+                        onMouseEnter={e => {
+                          e.currentTarget.style.color = 'var(--success)';
+                          e.currentTarget.style.background = 'rgba(34, 197, 94, 0.1)';
+                        }}
+                        onMouseLeave={e => {
+                          e.currentTarget.style.color = 'var(--text-muted)';
+                          e.currentTarget.style.background = 'none';
+                        }}
+                        title="Descartar / Atender"
+                      >
+                        <i className="ri-check-line" style={{ fontWeight: 800 }} />
+                      </button>
                     </div>
                   </div>
                 );
@@ -895,10 +993,7 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
             <div style={{ padding: 12, borderTop: '1px solid var(--border)', display: 'flex', gap: 10 }}>
               <button
                 className="btn btn-secondary btn-sm"
-                onClick={() => {
-                  showToast('Notificaciones marcadas como leídas', 'success');
-                  setShowNotificationDrawer(false);
-                }}
+                onClick={limpiarTodoElDrawer}
                 style={{ width: '100%' }}
               >
                 Limpiar Drawer

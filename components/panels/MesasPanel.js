@@ -3491,7 +3491,7 @@ export default function MesasPanel({ showToast }) {
       finalCliente = `Mesa ${mesaId}`;
     }
     setMesas(prev => prev.map(m => m.id === mesaId
-      ? { ...m, estado: 'ocupada', cliente: finalCliente, inicio: Date.now(), socios: esSocio, rentarTaco, rentarBolas, rentarTiza, clienteUid: '', preTicketImpreso: false, reservadaAt: null, limiteReservaMs: null, telefono: '', filaId: (modalAbrir && modalAbrir.filaId) ? modalAbrir.filaId : null }
+      ? { ...m, estado: 'ocupada', cliente: finalCliente, inicio: Date.now(), socios: esSocio, rentarTaco, rentarBolas, rentarTiza, clienteUid: '', preTicketImpreso: false, reservadaAt: null, limiteReservaMs: null, telefono: '', filaId: bypassedFilaId ? null : ((modalAbrir && modalAbrir.filaId) ? modalAbrir.filaId : null) }
       : m
     ));
 
