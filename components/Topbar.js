@@ -671,8 +671,8 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
                     box-shadow: 0 0 6px #f59e0b, 0 0 12px #f59e0b;
                     transform: scale(1.15);
                   }
-                }
                 .led-color-pulse {
+                  background-color: #10b981;
                   animation: led-color-cycle 4s infinite ease-in-out;
                 }
               `}</style>
@@ -681,7 +681,6 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
                 width: 7,
                 height: 7,
                 borderRadius: '50%',
-                background: '#10b981',
                 display: 'inline-block',
                 marginRight: 2
               }} />
