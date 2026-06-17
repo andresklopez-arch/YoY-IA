@@ -2886,6 +2886,10 @@ export default function MesasPanel({ showToast }) {
       
       // Si la mesa de destino ya no está libre (ej: ocupada por bypass, mantenimiento, etc.)
       if (!targetTable || targetTable.estado !== 'libre') {
+        // Si la mesa está ocupada pero fue abierta/iniciada para este cliente de la fila virtual, no es inválido
+        if (targetTable && targetTable.estado === 'ocupada' && targetTable.filaId === f.id) {
+          return;
+        }
         invalidUpdates.push(f);
       }
     });
@@ -3487,7 +3491,7 @@ export default function MesasPanel({ showToast }) {
       finalCliente = `Mesa ${mesaId}`;
     }
     setMesas(prev => prev.map(m => m.id === mesaId
-      ? { ...m, estado: 'ocupada', cliente: finalCliente, inicio: Date.now(), socios: esSocio, rentarTaco, rentarBolas, rentarTiza, clienteUid: '', preTicketImpreso: false, reservadaAt: null, limiteReservaMs: null, telefono: '', filaId: null }
+      ? { ...m, estado: 'ocupada', cliente: finalCliente, inicio: Date.now(), socios: esSocio, rentarTaco, rentarBolas, rentarTiza, clienteUid: '', preTicketImpreso: false, reservadaAt: null, limiteReservaMs: null, telefono: '', filaId: (modalAbrir && modalAbrir.filaId) ? modalAbrir.filaId : null }
       : m
     ));
 
