@@ -1669,38 +1669,38 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
 
         {/* 5 TARJETAS EN EL CENTRO DE LA CABECERA (Extremadamente pequeñas y compactas) */}
         {!esCajero && (
-          <div style={{ display: 'flex', gap: 6, flex: 1, justifyContent: 'center', maxWidth: 620, margin: '0 10px' }}>
-            <div className="stat-card" style={{ padding: '4px 6px', display: 'flex', flexDirection: 'column', justifyContent: 'center', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 6, minWidth: 80, flex: 1 }}>
-              <span style={{ fontSize: 7, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.02em', whiteSpace: 'nowrap' }}>Tkt Prom.</span>
-              <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--bronze-light)', marginTop: 1 }}>
+          <div style={{ display: 'flex', gap: 4, flex: 1, justifyContent: 'center', maxWidth: 460, margin: '0 8px' }}>
+            <div className="stat-card" style={{ padding: '2px 4px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 4, minWidth: 60, maxWidth: 85, flex: 1, gap: 1 }}>
+              <span style={{ fontSize: 7, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.01em', whiteSpace: 'nowrap' }}>TKT PROM</span>
+              <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--bronze-light)' }}>
                 ${metricasRendimiento.ticketPromedio.toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
               </span>
             </div>
             
-            <div className="stat-card" style={{ padding: '4px 6px', display: 'flex', flexDirection: 'column', justifyContent: 'center', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 6, minWidth: 80, flex: 1 }}>
-              <span style={{ fontSize: 7, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.02em', whiteSpace: 'nowrap' }}>Gasto Diar.</span>
-              <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--danger)', marginTop: 1 }}>
+            <div className="stat-card" style={{ padding: '2px 4px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 4, minWidth: 60, maxWidth: 85, flex: 1, gap: 1 }}>
+              <span style={{ fontSize: 7, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.01em', whiteSpace: 'nowrap' }}>GASTO DIAR</span>
+              <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--danger)' }}>
                 ${metricasRendimiento.gastoDiarioPromedio.toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
               </span>
             </div>
             
-            <div className="stat-card" style={{ padding: '4px 6px', display: 'flex', flexDirection: 'column', justifyContent: 'center', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 6, minWidth: 80, flex: 1 }}>
-              <span style={{ fontSize: 7, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.02em', whiteSpace: 'nowrap' }}>Op. Mensual</span>
-              <span style={{ fontSize: 11, fontWeight: 800, color: '#fff', marginTop: 1 }}>
+            <div className="stat-card" style={{ padding: '2px 4px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 4, minWidth: 60, maxWidth: 85, flex: 1, gap: 1 }}>
+              <span style={{ fontSize: 7, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.01em', whiteSpace: 'nowrap' }}>OP MES</span>
+              <span style={{ fontSize: 10, fontWeight: 800, color: '#fff' }}>
                 ${metricasRendimiento.gastoMensualProyectado.toLocaleString('es-MX', { maximumFractionDigits: 0, maximumFractionDigits: 0 })}
               </span>
             </div>
 
-            <div className="stat-card" style={{ padding: '4px 6px', display: 'flex', flexDirection: 'column', justifyContent: 'center', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 6, minWidth: 80, flex: 1 }}>
-              <span style={{ fontSize: 7, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.02em', whiteSpace: 'nowrap' }}>Util. Diaria</span>
-              <span style={{ fontSize: 11, fontWeight: 800, color: metricasRendimiento.utilidadDiariaPromedio >= 0 ? 'var(--success)' : 'var(--danger)', marginTop: 1 }}>
+            <div className="stat-card" style={{ padding: '2px 4px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 4, minWidth: 60, maxWidth: 85, flex: 1, gap: 1 }}>
+              <span style={{ fontSize: 7, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.01em', whiteSpace: 'nowrap' }}>UTIL DIA</span>
+              <span style={{ fontSize: 10, fontWeight: 800, color: metricasRendimiento.utilidadDiariaPromedio >= 0 ? 'var(--success)' : 'var(--danger)' }}>
                 ${metricasRendimiento.utilidadDiariaPromedio.toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
               </span>
             </div>
 
-            <div className="stat-card" style={{ padding: '4px 6px', display: 'flex', flexDirection: 'column', justifyContent: 'center', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 6, minWidth: 80, flex: 1 }}>
-              <span style={{ fontSize: 7, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.02em', whiteSpace: 'nowrap' }}>Util. Fin Mes</span>
-              <span style={{ fontSize: 11, fontWeight: 800, color: metricasRendimiento.utilidadMensualProyectada >= 0 ? 'var(--success)' : 'var(--danger)', marginTop: 1 }}>
+            <div className="stat-card" style={{ padding: '2px 4px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 4, minWidth: 60, maxWidth: 85, flex: 1, gap: 1 }}>
+              <span style={{ fontSize: 7, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.01em', whiteSpace: 'nowrap' }}>UTIL MES</span>
+              <span style={{ fontSize: 10, fontWeight: 800, color: metricasRendimiento.utilidadMensualProyectada >= 0 ? 'var(--success)' : 'var(--danger)' }}>
                 ${metricasRendimiento.utilidadMensualProyectada.toLocaleString('es-MX', { maximumFractionDigits: 0, maximumFractionDigits: 0 })}
               </span>
             </div>
