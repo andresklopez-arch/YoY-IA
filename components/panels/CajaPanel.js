@@ -1814,8 +1814,10 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
     const rentasBase = finanzas.rentasMesas;
     const aumentoPico = rentasBase * 0.45 * (surgePercent / 100);
     const impactoLento = -(rentasBase * 0.20 * (discountPercent / 100)) + (rentasBase * 0.15 * 0.85); // discount + volume
-    return Math.max(0, aumentoPico + impactoLento);
-  }, [finanzas.rentasMesas, surgePercent, discountPercent]);
+    const totalPeriodo = Math.max(0, aumentoPico + impactoLento);
+    const factorDias = diasFiltro > 0 ? diasFiltro : 1;
+    return (totalPeriodo / factorDias) * 30;
+  }, [finanzas.rentasMesas, surgePercent, discountPercent, diasFiltro]);
 
   // 12. Cobro Manual
   const registrarCobroManual = async (e) => {
