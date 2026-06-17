@@ -127,6 +127,7 @@ export default function CajaPanel({ showToast }) {
   const [descartadas, setDescartadas] = useState({});
   const [productos, setProductos] = useState([]);
   const [mesas, setMesas] = useState([]);
+  const [tarifaAutopilotActivo, setTarifaAutopilotActivo] = useState(false);
   const [cuentasActivas, setCuentasActivas] = useState([]);
   const [inconsistenciasEnVivo, setInconsistenciasEnVivo] = useState([]);
 
@@ -341,7 +342,11 @@ export default function CajaPanel({ showToast }) {
         if (snap.exists()) setProductos(snap.data().productos || []);
       }),
       onSnapshot(doc(db, 'config', 'mesas_estado'), snap => {
-        if (snap.exists() && Array.isArray(snap.data().mesas)) setMesas(snap.data().mesas);
+        if (snap.exists()) {
+          const data = snap.data();
+          if (Array.isArray(data.mesas)) setMesas(data.mesas);
+          setTarifaAutopilotActivo(!!data.tarifaAutopilotActivo);
+        }
       }),
       onSnapshot(doc(db, 'config', 'cuentas_estado'), snap => {
         if (snap.exists() && Array.isArray(snap.data().cuentas)) setCuentasActivas(snap.data().cuentas);
@@ -1337,6 +1342,222 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
     });
   }, [empleadosList, encuestasList, nominaPagosList, bitacora, fichajesLogs, ultimoCorteFecha, promedioAtencion]);
 
+  // Análisis inteligente de mesas en tiempo real
+  const analisisMesas = useMemo(() => {
+    const stats = {};
+    
+    const listadoMesas = mesas.length > 0 ? mesas : [
+      { id: 1, nombre: 'Mesa 1', tipo: 'Carambola 3B', tarifa: 80 },
+      { id: 2, nombre: 'Mesa 2', tipo: 'Carambola 3B', tarifa: 80 },
+      { id: 3, nombre: 'Mesa 3', tipo: 'Pool 9B', tarifa: 60 },
+      { id: 4, nombre: 'Mesa 4', tipo: 'Carambola 3B', tarifa: 80 },
+      { id: 5, nombre: 'Mesa 5', tipo: 'Snooker', tarifa: 100 },
+      { id: 6, nombre: 'Mesa 6', tipo: 'Pool 9B', tarifa: 60 },
+      { id: 7, nombre: 'Mesa 7', tipo: 'Carambola 3B', tarifa: 80 },
+      { id: 8, nombre: 'Mesa 8', tipo: 'Pool 9B', tarifa: 60 },
+    ];
+
+    listadoMesas.forEach(m => {
+      stats[m.id] = {
+        id: m.id,
+        nombre: m.nombre || `Mesa ${m.id}`,
+        tipo: m.tipo || 'Pool 9B',
+        tarifa: m.tarifa || 60,
+        horasJugadasEnMantenimiento: m.horasJugadasEnMantenimiento || 0,
+        ultimoMantenimientoAt: m.ultimoMantenimientoAt || null,
+        ingresosTotales: 0,
+        tiempoHoras: 0,
+        cantidadUsos: 0,
+        consumoBebidas: 0,
+        consumoComida: 0,
+        calificaciones: [],
+        calificacionPromedio: 0,
+        sociosCierres: 0
+      };
+    });
+
+    bitacora.forEach(e => {
+      const det = (e.detalle || '').toLowerCase();
+      const acc = e.accion || '';
+      
+      let foundMesaId = null;
+      for (let mId in stats) {
+        const mName = stats[mId].nombre.toLowerCase();
+        if (det.includes(`mesa ${mId}`) || det.includes(mName)) {
+          foundMesaId = mId;
+          break;
+        }
+      }
+
+      if (foundMesaId) {
+        const s = stats[foundMesaId];
+        if (e.monto && Number(e.monto) > 0) {
+          if (acc === 'Cierre Directo' || acc === 'Mesa a Cuenta' || acc === 'Mesa a Cuenta Nueva' || acc === 'Liquidar Cuenta') {
+            s.ingresosTotales += Number(e.monto);
+            s.cantidadUsos += 1;
+          } else if (acc === 'Agregar Consumo' || acc === 'Pedido a Cuenta') {
+            s.ingresosTotales += Number(e.monto);
+          }
+        }
+
+        if (acc === 'Cierre Directo' || acc === 'Mesa a Cuenta') {
+          const timeMatch = det.match(/([0-9.]+)\s*h/);
+          if (timeMatch) {
+            s.tiempoHoras += parseFloat(timeMatch[1]);
+          } else if (e.monto && s.tarifa > 0) {
+            const estimatedPlayCost = Number(e.monto) * 0.6;
+            s.tiempoHoras += estimatedPlayCost / s.tarifa;
+          } else {
+            s.tiempoHoras += 1.5;
+          }
+          if (det.includes('socio')) {
+            s.sociosCierres += 1;
+            s.tiempoHoras += 2.0;
+          }
+        }
+
+        const bebidasKeywords = ['cerveza', 'corona', 'victoria', 'modelo', 'indio', 'tecate', 'coca', 'refresco', 'agua', 'jugo', 'fanta', 'sprite', 'michelada', 'clamato', 'azulito', 'cantarito', 'trago', 'ron', 'tequila', 'whisky', 'vodka', 'bebida', 'soda'];
+        const comidaKeywords = ['hamburguesa', 'papas', 'nachos', 'alitas', 'boneless', 'hot dog', 'dog', 'quesadilla', 'taco', 'tacos', 'sincronizada', 'botana', 'sushi', 'pizza', 'comida', 'snack', 'alimento'];
+        
+        if (det.includes('agregado') || det.includes('pedido') || det.includes('comanda')) {
+          let qty = 1;
+          const qtyMatch = det.match(/([0-9]+)\s*x/);
+          if (qtyMatch) {
+            qty = parseInt(qtyMatch[1]);
+          }
+          
+          let matchedBebida = bebidasKeywords.some(kw => det.includes(kw));
+          let matchedComida = comidaKeywords.some(kw => det.includes(kw));
+          
+          if (matchedBebida) {
+            s.consumoBebidas += qty;
+          } else if (matchedComida) {
+            s.consumoComida += qty;
+          } else {
+            s.consumoBebidas += Math.ceil(qty * 0.5);
+            s.consumoComida += Math.floor(qty * 0.5);
+          }
+        }
+      }
+    });
+
+    encuestasList.forEach(enc => {
+      const mId = enc.mesaId;
+      if (stats[mId]) {
+        const calif = enc.calificaciones;
+        if (calif) {
+          const avg = ((calif.atencion || 0) + (calif.rapidez || 0) + (calif.limpieza || 0) + (calif.equipo || 0)) / 4;
+          stats[mId].calificaciones.push(avg);
+        }
+      }
+    });
+
+    const items = Object.values(stats);
+    
+    items.forEach(s => {
+      if (s.calificaciones.length > 0) {
+        s.calificacionPromedio = s.calificaciones.reduce((a, b) => a + b, 0) / s.calificaciones.length;
+      } else {
+        s.calificacionPromedio = 4.3 + ((s.id * 3) % 8) * 0.1;
+      }
+      s.ingresosTotales = Math.round(s.ingresosTotales);
+      s.tiempoHoras = parseFloat(s.tiempoHoras.toFixed(1));
+      
+      if (s.ingresosTotales === 0) {
+        s.ingresosTotales = s.tarifa * 3 + ((s.id * 140) % 500);
+        s.tiempoHoras = 2.5 + ((s.id * 2) % 6);
+        s.cantidadUsos = 1 + (s.id % 3);
+        s.consumoBebidas = 3 + ((s.id * 4) % 10);
+        s.consumoComida = 1 + ((s.id * 3) % 7);
+      }
+
+      // 1. Alertas de mantenimiento preventivo (límite 50h por paño)
+      const horasDesdeMantenimiento = Math.max(0, s.tiempoHoras - s.horasJugadasEnMantenimiento);
+      s.porcentajePaño = Math.max(0, Math.min(100, Math.round(((50 - horasDesdeMantenimiento) / 50) * 100)));
+
+      // 2. IA Tarifa Dinámica sugerida
+      if (s.tiempoHoras > 6.0) {
+        s.tarifaSugerida = Math.round(s.tarifa * 1.15); // +15% alta demanda
+      } else if (s.tiempoHoras < 3.5) {
+        s.tarifaSugerida = Math.round(s.tarifa * 0.90); // -10% descuento promocional
+      } else {
+        s.tarifaSugerida = s.tarifa;
+      }
+
+      // 3. Tendencia semanal de demanda (7 días) basada en ocupación real de bitácora
+      const demandByDay = [0, 0, 0, 0, 0, 0, 0];
+      bitacora.forEach(e => {
+        const det = (e.detalle || '').toLowerCase();
+        const acc = e.accion || '';
+        const mName = s.nombre.toLowerCase();
+        const isForThisMesa = det.includes(`mesa ${s.id}`) || det.includes(mName);
+        
+        if (isForThisMesa && (acc === 'Cierre Directo' || acc === 'Mesa a Cuenta' || acc === 'Mesa a Cuenta Nueva' || acc === 'Liquidar Cuenta')) {
+          if (e.fecha) {
+            const date = new Date(e.fecha);
+            const dayOfWeek = date.getDay(); // 0 = Dom, 1 = Lun, ..., 6 = Sab
+            const idxDay = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Mon=0, ..., Sun=6
+            demandByDay[idxDay] += 1;
+          }
+        }
+      });
+      
+      const maxCount = Math.max(...demandByDay);
+      s.tendenciaDemanda = demandByDay.map((count, idxDay) => {
+        if (maxCount === 0) {
+          const baseDemand = [20, 35, 50, 45, 75, 95, 80];
+          const variance = ((s.id * 13 + idxDay) % 20) - 10;
+          return Math.max(10, Math.min(100, (baseDemand[idxDay] || 50) + variance));
+        }
+        return Math.max(15, Math.min(100, Math.round((count / maxCount) * 80) + 20));
+      });
+    });
+
+    return items;
+  }, [bitacora, encuestasList, mesas]);
+
+  // Autopilot de tarifas dinámicas en base a afluencia
+  useEffect(() => {
+    if (!tarifaAutopilotActivo || analisisMesas.length === 0) return;
+    
+    // Check if any mesa needs its tariff updated to the suggested one
+    const mesasADiferentes = analisisMesas.filter(m => m.tarifaSugerida !== m.tarifa);
+    if (mesasADiferentes.length === 0) return;
+
+    // We have some tables that need update. Let's update them!
+    const updatedMesas = mesas.map(m => {
+      const match = mesasADiferentes.find(mad => mad.id === m.id);
+      if (match) {
+        return {
+          ...m,
+          tarifa: match.tarifaSugerida
+        };
+      }
+      return m;
+    });
+
+    const runAutopilotUpdate = async () => {
+      try {
+        await setDoc(doc(db, 'config', 'mesas_estado'), { mesas: updatedMesas }, { merge: true });
+        
+        // Register events for each updated table
+        for (let mDiff of mesasADiferentes) {
+          await registrarEvento(
+            'Autopilot Tarifa', 
+            `Autopilot aplicó tarifa dinámica de $${mDiff.tarifaSugerida}/h a la Mesa ${mDiff.id} (tarifa previa: $${mDiff.tarifa}/h).`,
+            0,
+            'info'
+          );
+        }
+        showToast(`💡 Autopilot actualizó tarifas en ${mesasADiferentes.length} mesa(s)`, 'info');
+      } catch (err) {
+        console.error('Error en Autopilot de tarifas:', err);
+      }
+    };
+
+    runAutopilotUpdate();
+  }, [analisisMesas, tarifaAutopilotActivo, mesas]);
+
   // 9. Live Auditor Anomalies
   const anomalidadesAuditor = useMemo(() => {
     const list = [];
@@ -1735,180 +1956,7 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
     return { grid, maxVal };
   }, [bitacora, cobros]);
 
-  // Análisis inteligente de mesas en tiempo real
-  // Análisis inteligente de mesas en tiempo real
-  const analisisMesas = useMemo(() => {
-    const stats = {};
-    
-    const listadoMesas = mesas.length > 0 ? mesas : [
-      { id: 1, nombre: 'Mesa 1', tipo: 'Carambola 3B', tarifa: 80 },
-      { id: 2, nombre: 'Mesa 2', tipo: 'Carambola 3B', tarifa: 80 },
-      { id: 3, nombre: 'Mesa 3', tipo: 'Pool 9B', tarifa: 60 },
-      { id: 4, nombre: 'Mesa 4', tipo: 'Carambola 3B', tarifa: 80 },
-      { id: 5, nombre: 'Mesa 5', tipo: 'Snooker', tarifa: 100 },
-      { id: 6, nombre: 'Mesa 6', tipo: 'Pool 9B', tarifa: 60 },
-      { id: 7, nombre: 'Mesa 7', tipo: 'Carambola 3B', tarifa: 80 },
-      { id: 8, nombre: 'Mesa 8', tipo: 'Pool 9B', tarifa: 60 },
-    ];
-
-    listadoMesas.forEach(m => {
-      stats[m.id] = {
-        id: m.id,
-        nombre: m.nombre || `Mesa ${m.id}`,
-        tipo: m.tipo || 'Pool 9B',
-        tarifa: m.tarifa || 60,
-        horasJugadasEnMantenimiento: m.horasJugadasEnMantenimiento || 0,
-        ultimoMantenimientoAt: m.ultimoMantenimientoAt || null,
-        ingresosTotales: 0,
-        tiempoHoras: 0,
-        cantidadUsos: 0,
-        consumoBebidas: 0,
-        consumoComida: 0,
-        calificaciones: [],
-        calificacionPromedio: 0,
-        sociosCierres: 0
-      };
-    });
-
-    bitacora.forEach(e => {
-      const det = (e.detalle || '').toLowerCase();
-      const acc = e.accion || '';
-      
-      let foundMesaId = null;
-      for (let mId in stats) {
-        const mName = stats[mId].nombre.toLowerCase();
-        if (det.includes(`mesa ${mId}`) || det.includes(mName)) {
-          foundMesaId = mId;
-          break;
-        }
-      }
-
-      if (foundMesaId) {
-        const s = stats[foundMesaId];
-        if (e.monto && Number(e.monto) > 0) {
-          if (acc === 'Cierre Directo' || acc === 'Mesa a Cuenta' || acc === 'Mesa a Cuenta Nueva' || acc === 'Liquidar Cuenta') {
-            s.ingresosTotales += Number(e.monto);
-            s.cantidadUsos += 1;
-          } else if (acc === 'Agregar Consumo' || acc === 'Pedido a Cuenta') {
-            s.ingresosTotales += Number(e.monto);
-          }
-        }
-
-        if (acc === 'Cierre Directo' || acc === 'Mesa a Cuenta') {
-          const timeMatch = det.match(/([0-9.]+)\s*h/);
-          if (timeMatch) {
-            s.tiempoHoras += parseFloat(timeMatch[1]);
-          } else if (e.monto && s.tarifa > 0) {
-            const estimatedPlayCost = Number(e.monto) * 0.6;
-            s.tiempoHoras += estimatedPlayCost / s.tarifa;
-          } else {
-            s.tiempoHoras += 1.5;
-          }
-          if (det.includes('socio')) {
-            s.sociosCierres += 1;
-            s.tiempoHoras += 2.0;
-          }
-        }
-
-        const bebidasKeywords = ['cerveza', 'corona', 'victoria', 'modelo', 'indio', 'tecate', 'coca', 'refresco', 'agua', 'jugo', 'fanta', 'sprite', 'michelada', 'clamato', 'azulito', 'cantarito', 'trago', 'ron', 'tequila', 'whisky', 'vodka', 'bebida', 'soda'];
-        const comidaKeywords = ['hamburguesa', 'papas', 'nachos', 'alitas', 'boneless', 'hot dog', 'dog', 'quesadilla', 'taco', 'tacos', 'sincronizada', 'botana', 'sushi', 'pizza', 'comida', 'snack', 'alimento'];
-        
-        if (det.includes('agregado') || det.includes('pedido') || det.includes('comanda')) {
-          let qty = 1;
-          const qtyMatch = det.match(/([0-9]+)\s*x/);
-          if (qtyMatch) {
-            qty = parseInt(qtyMatch[1]);
-          }
-          
-          let matchedBebida = bebidasKeywords.some(kw => det.includes(kw));
-          let matchedComida = comidaKeywords.some(kw => det.includes(kw));
-          
-          if (matchedBebida) {
-            s.consumoBebidas += qty;
-          } else if (matchedComida) {
-            s.consumoComida += qty;
-          } else {
-            s.consumoBebidas += Math.ceil(qty * 0.5);
-            s.consumoComida += Math.floor(qty * 0.5);
-          }
-        }
-      }
-    });
-
-    encuestasList.forEach(enc => {
-      const mId = enc.mesaId;
-      if (stats[mId]) {
-        const calif = enc.calificaciones;
-        if (calif) {
-          const avg = ((calif.atencion || 0) + (calif.rapidez || 0) + (calif.limpieza || 0) + (calif.equipo || 0)) / 4;
-          stats[mId].calificaciones.push(avg);
-        }
-      }
-    });
-
-    const items = Object.values(stats);
-    
-    items.forEach(s => {
-      if (s.calificaciones.length > 0) {
-        s.calificacionPromedio = s.calificaciones.reduce((a, b) => a + b, 0) / s.calificaciones.length;
-      } else {
-        s.calificacionPromedio = 4.3 + ((s.id * 3) % 8) * 0.1;
-      }
-      s.ingresosTotales = Math.round(s.ingresosTotales);
-      s.tiempoHoras = parseFloat(s.tiempoHoras.toFixed(1));
-      
-      if (s.ingresosTotales === 0) {
-        s.ingresosTotales = s.tarifa * 3 + ((s.id * 140) % 500);
-        s.tiempoHoras = 2.5 + ((s.id * 2) % 6);
-        s.cantidadUsos = 1 + (s.id % 3);
-        s.consumoBebidas = 3 + ((s.id * 4) % 10);
-        s.consumoComida = 1 + ((s.id * 3) % 7);
-      }
-
-      // 1. Alertas de mantenimiento preventivo (límite 50h por paño)
-      const horasDesdeMantenimiento = Math.max(0, s.tiempoHoras - s.horasJugadasEnMantenimiento);
-      s.porcentajePaño = Math.max(0, Math.min(100, Math.round(((50 - horasDesdeMantenimiento) / 50) * 100)));
-
-      // 2. IA Tarifa Dinámica sugerida
-      if (s.tiempoHoras > 6.0) {
-        s.tarifaSugerida = Math.round(s.tarifa * 1.15); // +15% alta demanda
-      } else if (s.tiempoHoras < 3.5) {
-        s.tarifaSugerida = Math.round(s.tarifa * 0.90); // -10% descuento promocional
-      } else {
-        s.tarifaSugerida = s.tarifa;
-      }
-
-      // 3. Tendencia semanal de demanda (7 días) basada en ocupación real de bitácora
-      const demandByDay = [0, 0, 0, 0, 0, 0, 0];
-      bitacora.forEach(e => {
-        const det = (e.detalle || '').toLowerCase();
-        const acc = e.accion || '';
-        const mName = s.nombre.toLowerCase();
-        const isForThisMesa = det.includes(`mesa ${s.id}`) || det.includes(mName);
-        
-        if (isForThisMesa && (acc === 'Cierre Directo' || acc === 'Mesa a Cuenta' || acc === 'Mesa a Cuenta Nueva' || acc === 'Liquidar Cuenta')) {
-          if (e.fecha) {
-            const date = new Date(e.fecha);
-            const dayOfWeek = date.getDay(); // 0 = Dom, 1 = Lun, ..., 6 = Sab
-            const idxDay = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Mon=0, ..., Sun=6
-            demandByDay[idxDay] += 1;
-          }
-        }
-      });
-      
-      const maxCount = Math.max(...demandByDay);
-      s.tendenciaDemanda = demandByDay.map((count, idxDay) => {
-        if (maxCount === 0) {
-          const baseDemand = [20, 35, 50, 45, 75, 95, 80];
-          const variance = ((s.id * 13 + idxDay) % 20) - 10;
-          return Math.max(10, Math.min(100, (baseDemand[idxDay] || 50) + variance));
-        }
-        return Math.max(15, Math.min(100, Math.round((count / maxCount) * 80) + 20));
-      });
-    });
-
-    return items;
-  }, [bitacora, encuestasList, mesas]);
+  // El análisis inteligente de mesas fue reubicado arriba de anomalidadesAuditor para evitar TDZ.
 
   const renderMesaLogo = (tipo) => {
     const tLower = (tipo || '').toLowerCase();
@@ -1985,6 +2033,17 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
       });
 
       await setDoc(doc(db, 'config', 'mesas_estado'), { mesas: updatedMesas }, { merge: true });
+      
+      // SUGERENCIA 1: Guardar historial detallado en mantenimientos_historicos
+      await addDoc(collection(db, 'mantenimientos_historicos'), {
+        mesaId,
+        nombreMesa: `Mesa ${mesaId}`,
+        horasAcumuladas: tiempoHorasActual,
+        fecha: new Date().toISOString(),
+        operador: user ? (user.name || user.alias || user.email) : 'Administrador',
+        rolOperador: user ? (user.role || 'admin') : 'admin'
+      });
+
       await registrarEvento(
         'Mantenimiento Mesa', 
         `Se registró mantenimiento y cepillado de paño para la Mesa ${mesaId}. Horas acumuladas: ${tiempoHorasActual}h`,
@@ -2028,6 +2087,17 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
     }
   };
 
+  const toggleAutopilot = async () => {
+    const nuevoEstado = !tarifaAutopilotActivo;
+    try {
+      await setDoc(doc(db, 'config', 'mesas_estado'), { tarifaAutopilotActivo: nuevoEstado }, { merge: true });
+      showToast(`¡Autopilot de tarifas ${nuevoEstado ? 'activado 🤖' : 'desactivado 👤'}!`, 'info');
+    } catch (err) {
+      console.error(err);
+      showToast('Error al guardar configuración de Autopilot', 'danger');
+    }
+  };
+
   const renderAnalisisInteligenteMesas = () => {
     let mesaLider = null;
     let mesaMenosRentable = null;
@@ -2052,7 +2122,31 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
               Análisis Inteligente de Mesas
             </span>
           </div>
-          <span className="badge badge-bronze" style={{ fontSize: 6.5, padding: '1px 3px', textTransform: 'uppercase' }}>IA LIVE</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <button
+              onClick={toggleAutopilot}
+              title="Activar/Desactivar ajuste automático de tarifas dinámicas por afluencia"
+              style={{
+                background: tarifaAutopilotActivo ? 'rgba(0,230,118,0.15)' : 'rgba(255,255,255,0.03)',
+                border: tarifaAutopilotActivo ? '1px solid var(--success)' : '1px solid rgba(255,255,255,0.1)',
+                borderRadius: 4,
+                color: tarifaAutopilotActivo ? 'var(--success)' : 'var(--text-muted)',
+                fontSize: 6.5,
+                padding: '2px 4px',
+                cursor: 'pointer',
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 2,
+                outline: 'none'
+              }}
+            >
+              <i className="ri-settings-3-line" style={{ fontSize: 7.5 }} />
+              PILOTO: {tarifaAutopilotActivo ? 'AUTO' : 'MANUAL'}
+            </button>
+            <span className="badge badge-bronze" style={{ fontSize: 6.5, padding: '1px 3px', textTransform: 'uppercase' }}>IA LIVE</span>
+          </div>
         </div>
 
         {/* HIGHLIGHTS */}
