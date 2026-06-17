@@ -289,16 +289,27 @@ function MeseroContent() {
   const isAlertaParaMi = (alerta) => {
     if (!user || !user.uid) return false;
     
-    // 1. Si la comanda/alerta tiene un meseroId explícito
-    if (alerta.meseroId) {
-      return alerta.meseroId === user.uid;
+    // 1. Si la comanda/alerta tiene un meseroId explícito o arreglo meseroIds
+    if (alerta.meseroId && alerta.meseroId === user.uid) {
+      return true;
+    }
+    if (alerta.meseroIds && Array.isArray(alerta.meseroIds) && alerta.meseroIds.includes(user.uid)) {
+      return true;
     }
     
-    // 2. Si no tiene meseroId explícito pero está asociada a una mesa
+    // 2. Si está asociada a una mesa
     if (alerta.mesaId) {
       const mesaAsoc = mesasRef.current?.find(m => String(m.id) === String(alerta.mesaId));
-      if (mesaAsoc && mesaAsoc.meseroId) {
-        return mesaAsoc.meseroId === user.uid;
+      if (mesaAsoc) {
+        const isAssigned = 
+          (mesaAsoc.meseroId && mesaAsoc.meseroId === user.uid) ||
+          (mesaAsoc.meseroIds && Array.isArray(mesaAsoc.meseroIds) && mesaAsoc.meseroIds.includes(user.uid));
+        
+        if (isAssigned) return true;
+        
+        // Si la mesa tiene meseros asignados y yo no soy uno de ellos, no es para mí
+        const tieneAsignados = mesaAsoc.meseroId || (mesaAsoc.meseroIds && mesaAsoc.meseroIds.length > 0);
+        if (tieneAsignados) return false;
       }
     }
     
@@ -494,13 +505,26 @@ function MeseroContent() {
       // Si la app está en segundo plano y llega nueva alerta, disparar Web Notification
       if (items.length > 0 && typeof window !== 'undefined' && document.hidden) {
         const masReciente = items[0];
-        const alertaMeseroId = masReciente.meseroId;
-        const isForMe = !alertaMeseroId || alertaMeseroId === user?.uid || (() => {
-          if (masReciente.mesaId) {
-            const mesaAsoc = mesasRef.current?.find(m => String(m.id) === String(masReciente.mesaId));
-            return !mesaAsoc?.meseroId || mesaAsoc.meseroId === user?.uid;
+        const isForMe = (() => {
+          const alertaMeseroId = masReciente.meseroId;
+          const alertaMeseroIds = masReciente.meseroIds || [];
+          
+          if (alertaMeseroId && alertaMeseroId === user?.uid) return true;
+          if (alertaMeseroIds.includes(user?.uid)) return true;
+          
+          if (!alertaMeseroId && alertaMeseroIds.length === 0) {
+            if (masReciente.mesaId) {
+              const mesaAsoc = mesasRef.current?.find(m => String(m.id) === String(masReciente.mesaId));
+              if (mesaAsoc) {
+                const mesaWaiters = mesaAsoc.meseroIds && Array.isArray(mesaAsoc.meseroIds) ? mesaAsoc.meseroIds : (mesaAsoc.meseroId ? [mesaAsoc.meseroId] : []);
+                if (mesaWaiters.length > 0) {
+                  return mesaWaiters.includes(user?.uid);
+                }
+              }
+            }
+            return true;
           }
-          return true;
+          return false;
         })();
         
         if (isForMe && Notification.permission === 'granted') {
@@ -804,7 +828,10 @@ function MeseroContent() {
     if (verSoloMisMesas && user?.uid) {
       list = list.filter(c => {
         const mesaAsociada = findMesaAsociada(c);
-        return mesaAsociada && mesaAsociada.meseroId === user.uid;
+        return mesaAsociada && (
+          mesaAsociada.meseroId === user.uid || 
+          (mesaAsociada.meseroIds && Array.isArray(mesaAsociada.meseroIds) && mesaAsociada.meseroIds.includes(user.uid))
+        );
       });
     }
 
@@ -1168,10 +1195,14 @@ function MeseroContent() {
                             <span>📍 Mesa {c.mesaId || (mesaAsociada ? mesaAsociada.id : '—')}</span>
                             <span>·</span>
                             <span>Tiempo: ${costoTiempo}</span>
-                            {mesaAsociada?.meseroNombre && (
+                            {((mesaAsociada?.meseroIds && mesaAsociada.meseroIds.length > 0) || mesaAsociada?.meseroNombre) && (
                               <>
                                 <span>·</span>
-                                <span style={{ color: 'var(--bronze-light)', fontWeight: 600 }}>👤 {mesaAsociada.meseroNombre}</span>
+                                <span style={{ color: 'var(--bronze-light)', fontWeight: 600 }}>
+                                  👤 {(mesaAsociada.meseroIds && mesaAsociada.meseroIds.length > 0) 
+                                    ? mesaAsociada.meseroNombres.join(', ') 
+                                    : mesaAsociada.meseroNombre}
+                                </span>
                               </>
                             )}
                           </div>
