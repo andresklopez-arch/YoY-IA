@@ -4650,7 +4650,14 @@ export default function MesasPanel({ showToast }) {
                 style={mergedStyle}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
-                  <div className="mesa-number">{mesa.id}</div>
+                  <div>
+                    <div className="mesa-number" style={{ lineHeight: 1.1 }}>{mesa.id}</div>
+                    {mesa.nombre && mesa.nombre.trim().toLowerCase() !== `mesa ${mesa.id}`.toLowerCase() && mesa.nombre.trim().toLowerCase() !== `mesa${mesa.id}`.toLowerCase() && (
+                      <div style={{ fontSize: 11, fontWeight: 500, color: 'var(--bronze-light)', marginTop: 2, maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={mesa.nombre}>
+                        {mesa.nombre}
+                      </div>
+                    )}
+                  </div>
                   <span 
                     className={`mesa-status-badge ${mesa.estado}`}
                     style={badgeStyle}
