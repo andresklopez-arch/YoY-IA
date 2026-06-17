@@ -54,7 +54,7 @@ const QUICK_NAV_TARGETS = [
   { href: '/cocina' },
 ];
 
-export default function Topbar({ user, activePanel, onToggleSidebar, showToast, onNavigate }) {
+export default function Topbar({ user, activePanel, showToast, onNavigate }) {
   const { logout, loginWithEmpleadoId } = useAuth();
   const [time, setTime] = useState(new Date());
   const [showMenu, setShowMenu] = useState(false);
@@ -419,13 +419,6 @@ export default function Topbar({ user, activePanel, onToggleSidebar, showToast, 
   return (
     <header className="topbar">
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <button
-          onClick={onToggleSidebar}
-          style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', fontSize: 20, cursor: 'pointer', padding: 4, borderRadius: 6 }}
-        >
-          <i className="ri-menu-line" />
-        </button>
-
         <button
           onClick={() => onNavigate('mesas')}
           style={{

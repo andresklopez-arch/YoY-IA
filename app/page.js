@@ -1,6 +1,5 @@
 'use client';
 import { useState, useEffect, Component, useRef } from 'react';
-import Sidebar from '@/components/Sidebar';
 import Topbar from '@/components/Topbar';
 import ToastContainer from '@/components/ToastContainer';
 import MesasPanel from '@/components/panels/MesasPanel';
@@ -72,7 +71,6 @@ function AppContent() {
   const [minLoadingDone, setMinLoadingDone] = useState(false);
   const [imageError, setImageError] = useState(false);
   const [activePanel, setActivePanel] = useState('mesas');
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [toasts, setToasts] = useState([]);
   const [isProcessingQR, setIsProcessingQR] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -818,41 +816,13 @@ function AppContent() {
 
   return (
     <div className="app-wrapper">
-      {/* Sensor de hover invisible en el borde izquierdo */}
-      <div 
-        onMouseEnter={() => setSidebarOpen(true)}
-        style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          bottom: 0,
-          width: 12,
-          zIndex: 1050,
-          background: 'transparent',
-          cursor: 'pointer'
-        }}
-      />
-
-      <Sidebar
-        activePanel={activePanel}
-        onNavigate={(panel) => {
-          setActivePanel(panel);
-          setSidebarOpen(false);
-        }}
-        open={sidebarOpen}
-        onMouseEnter={() => setSidebarOpen(true)}
-        onMouseLeave={() => setSidebarOpen(false)}
-        user={user}
-      />
       <div className="main-content">
         <Topbar
           user={user}
           activePanel={activePanel}
-          onToggleSidebar={() => setSidebarOpen(p => !p)}
           showToast={showToast}
           onNavigate={(panel) => {
             setActivePanel(panel);
-            setSidebarOpen(false);
           }}
         />
         <div className="page-content">
