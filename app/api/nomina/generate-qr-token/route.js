@@ -12,7 +12,7 @@ export async function POST(request) {
       return NextResponse.json({ success: false, error: 'empleadoId es requerido' }, { status: 400 });
     }
 
-    const expires = Date.now() + 45 * 1000; // 45 segundos
+    const expires = Date.now() + 25 * 1000; // 25 segundos
     const token = crypto
       .createHmac('sha256', SECRET)
       .update(`${empleadoId}:${expires}`)
