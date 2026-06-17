@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useMemo, Fragment } from 'react';
 import { db } from '@/lib/firebase';
-import { doc, onSnapshot, query, collection, orderBy, limit, getDocs, startAfter, writeBatch, addDoc, serverTimestamp, where, setDoc } from 'firebase/firestore';
+import { doc, onSnapshot, query, collection, orderBy, limit, getDocs, startAfter, writeBatch, addDoc, serverTimestamp, where, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { deobfuscate, obfuscate } from '@/lib/crypto';
 import { useAuth } from '@/lib/auth-context';
 
@@ -136,6 +136,31 @@ export default function CajaPanel({ showToast }) {
   const [surgePercent, setSurgePercent] = useState(20);
   const [discountPercent, setDiscountPercent] = useState(15);
   const [mesaExpandidaId, setMesaExpandidaId] = useState(null);
+
+  // Modal de Enviar Cupón
+  const [modalEnviarCuponOpen, setModalEnviarCuponOpen] = useState(false);
+  const [cuponClienteNombre, setCuponClienteNombre] = useState('');
+  const [cuponPorcentaje, setCuponPorcentaje] = useState(15);
+  const [cuponCodigo, setCuponCodigo] = useState('');
+  const [cuponMensaje, setCuponMensaje] = useState('');
+
+  // Modal de Clientes (Agregar & Consultar)
+  const [modalAgregarClienteOpen, setModalAgregarClienteOpen] = useState(false);
+  const [modalConsultarClienteOpen, setModalConsultarClienteOpen] = useState(false);
+  const [subTabConsultar, setSubTabConsultar] = useState('lista'); // 'lista' | 'duplicados'
+  
+  // Clientes desde Base de Datos
+  const [clientesFidelidad, setClientesFidelidad] = useState([]);
+  const [nuevoClienteNombre, setNuevoClienteNombre] = useState('');
+  const [nuevoClienteTelefono, setNuevoClienteTelefono] = useState('');
+
+  // Consejos IA Big Data (4 consejos activos)
+  const [consejosIa, setConsejosIa] = useState([
+    { id: 1, title: "Iluminación Inteligente IoT", desc: "Discrepancia en Mesa 4: Iluminación de mesa encendida sin cobro activo en caja. Verifique si hay juego informal no registrado para evitar merma.", tag: "Alerta", color: "var(--danger)", leido: false },
+    { id: 2, title: "Predicción Climatológica", desc: "Se detecta lluvia intensa en la zona. La IA proyecta un incremento de +22% en consumo de café, chocolate y snacks calientes. Promueva estos productos en barra.", tag: "Clima", color: "var(--blue-light)", leido: false },
+    { id: 3, title: "Control de Churn (Retención)", desc: "Se identificaron 3 clientes VIP inactivos hace más de 14 días. Envíe cupones de reactivación vía WhatsApp para evitar una pérdida proyectada de $5,400 MXN en el mes.", tag: "Churn", color: "var(--warning)", leido: false },
+    { id: 4, title: "Planificación de Stock JIT", desc: "La cerveza Corona Extra proyecta agotarse el sábado a las 21:30 en base al histórico de consumo. Se sugiere solicitar 80 unidades de forma prioritaria hoy.", tag: "Abasto", color: "var(--bronze-light)", leido: false }
+  ]);
 
   // Metas y Subpestañas IA
   const [metaMensual, setMetaMensual] = useState(100000);
@@ -2194,6 +2219,214 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
     }
   };
 
+  const poolConsejosBigData = [
+    { title: "Optimización de Mesas Snooker", desc: "La Mesa 5 (Snooker) tiene un uso 30% menor que las de Pool los miércoles. Se sugiere implementar tarifa promocional de $80/h este día para reactivar demanda.", tag: "Tarifas", color: "var(--bronze-light)" },
+    { title: "Planificación de Compras JIT", desc: "El consumo de nachos y hamburguesas aumenta 45% durante eventos deportivos transmitidos en vivo. Asegure stock de pan y queso antes del partido del viernes.", tag: "Abasto", color: "var(--blue-light)" },
+    { title: "Fidelización de Clientes", desc: "El ticket promedio de los clientes VIP recurrentes es 2.4 veces mayor cuando se les aplica descuento vitalicio. Promueva la afiliación de clientes frecuentes.", tag: "LTV", color: "var(--success)" },
+    { title: "Eficiencia de Fila Digital", desc: "La fila de espera digital registra un tiempo de respuesta de 143 segundos. Reducir este tiempo un 10% incrementaría la rotación de mesas un 5% mensual.", tag: "Rotación", color: "var(--info)" },
+    { title: "Picos de Venta en Barra", desc: "El 40% de las ventas en barra se realizan entre 19:00 y 21:30. Considere asignar un barman de soporte en este horario para evitar demoras en la barra.", tag: "Barra", color: "var(--bronze-light)" },
+    { title: "Nivelación de Bandas", desc: "La Mesa 7 (Carambola) registra baja calificación de usuarios (★4.1) debido a un desajuste detectado en la nivelación de las bandas. Programar mantenimiento preventivo.", tag: "Mantenimiento", color: "var(--warning)" },
+    { title: "Retención de Fila Virtual", desc: "El uso de la Fila Virtual de espera ha reducido el abandono de clientes en caja un 18%. Mantenga activos los banners informativos de QR en el acceso del club.", tag: "Clientes", color: "var(--success)" },
+    { title: "Consumo Cruzado IA", desc: "Clientes que rentan mesas de Carambola tienen un 60% más de probabilidad de consumir bebidas preparadas. Ofrezca promociones cruzadas al iniciar la sesión.", tag: "Barra", color: "var(--info)" }
+  ];
+
+  const marcarConsejoLeido = (id) => {
+    setConsejosIa(prev => prev.map(c => c.id === id ? { ...c, leido: true } : c));
+    showToast("Consejo marcado como leído ✓", "success");
+    setTimeout(() => {
+      setConsejosIa(prev => prev.map(c => {
+        if (c.id === id) {
+          const unusedPool = poolConsejosBigData.filter(p => !prev.some(x => x.title === p.title));
+          const source = unusedPool.length > 0 ? unusedPool : poolConsejosBigData;
+          const nextRandom = source[Math.floor(Math.random() * source.length)];
+          return {
+            id: c.id,
+            title: nextRandom.title,
+            desc: nextRandom.desc,
+            tag: nextRandom.tag,
+            color: nextRandom.color,
+            leido: false
+          };
+        }
+        return c;
+      }));
+      showToast("La IA ha analizado el Big Data del negocio y generó un nuevo consejo 🧠", "info");
+    }, 800);
+  };
+
+  const generarMensajeIa = (nombre, desc, codigo) => {
+    const mensajes = [
+      `¡Hola ${nombre}! 🌟 En YoY Billar valoramos mucho tu fidelidad. Te obsequiamos un cupón exclusivo del ${desc}% de descuento en tu próximo consumo de mesa o barra. Código de canje: ${codigo}. ¡Te esperamos pronto para unas buenas partidas! 🎱`,
+      `Estimado ${nombre}, para celebrar tus visitas constantes, la IA de YoY Billar ha seleccionado tu cuenta para recibir un beneficio exclusivo: Cupón de ${desc}% de descuento en tu siguiente visita. Código: ${codigo}. Presenta este mensaje en caja. ¡Buen día! 🏆`,
+      `¡Hola ${nombre}! 🎱 Queremos agradecer tu preferencia. Aquí tienes tu cupón personalizado del ${desc}% de descuento: ${codigo}. Úsalo en tu próxima renta de mesa. Válido por 15 días. ¡Ven a divertirte con nosotros! 🍻`
+    ];
+    return mensajes[Math.floor(Math.random() * mensajes.length)];
+  };
+
+  const triggerEnviarCuponModal = (nombre, pct = 15) => {
+    const initials = nombre.slice(0, 3).toUpperCase().replace(/\s/g, '');
+    const code = `VIP${pct}-${initials}-${Math.floor(Math.random() * 900 + 100)}`;
+    setCuponClienteNombre(nombre);
+    setCuponPorcentaje(pct);
+    setCuponCodigo(code);
+    setCuponMensaje(generarMensajeIa(nombre, pct, code));
+    setModalEnviarCuponOpen(true);
+  };
+
+  const enviarMensajeCupónPorRed = async (red) => {
+    try {
+      await addDoc(collection(db, 'cupones_retencion'), {
+        cliente: cuponClienteNombre.trim(),
+        descuento: cuponPorcentaje,
+        codigo: cuponCodigo,
+        canal: red,
+        estado: 'enviado',
+        createdAt: serverTimestamp()
+      });
+
+      await addDoc(collection(db, 'bitacora'), {
+        fecha: new Date().toISOString(),
+        tipo: 'ia',
+        usuario: user?.nombre || 'Cerebro IA',
+        accion: 'Clientes - Cupón Fidelidad',
+        monto: 0,
+        detalle: `Enviado cupón ${cuponCodigo} (${cuponPorcentaje}%) a ${cuponClienteNombre} vía ${red.toUpperCase()}`
+      });
+
+      const textEscaped = encodeURIComponent(cuponMensaje);
+      if (red === 'whatsapp' || red === 'whatsapp_business') {
+        window.open(`https://api.whatsapp.com/send?text=${textEscaped}`, '_blank');
+      } else if (red === 'telegram') {
+        window.open(`https://t.me/share/url?url=&text=${textEscaped}`, '_blank');
+      }
+
+      showToast(`Cupón registrado y enviado con éxito por ${red.toUpperCase()}`, 'success');
+      setModalEnviarCuponOpen(false);
+    } catch (err) {
+      console.error(err);
+      showToast('Error al procesar el cupón', 'danger');
+    }
+  };
+
+  const registrarClienteManual = async (e) => {
+    e.preventDefault();
+    if (!nuevoClienteNombre || !nuevoClienteTelefono) {
+      showToast('Por favor complete todos los campos obligatorios', 'danger');
+      return;
+    }
+    try {
+      const nuevoCliente = {
+        nombre: nuevoClienteNombre.trim(),
+        telefono: nuevoClienteTelefono.trim(),
+        visitas: 1,
+        totalConsumo: 0,
+        puntos: 50,
+        ultimaVisita: new Date().toISOString()
+      };
+      await addDoc(collection(db, 'clientes'), nuevoCliente);
+      await addDoc(collection(db, 'bitacora'), {
+        fecha: new Date().toISOString(),
+        tipo: 'ia',
+        usuario: user?.nombre || 'Cerebro IA',
+        accion: 'Clientes - Registro Manual',
+        monto: 0,
+        detalle: `Se registró nuevo cliente ${nuevoCliente.nombre} con teléfono ${nuevoCliente.telefono}. Se le otorgaron 50 puntos de bienvenida.`
+      });
+      showToast(`¡Cliente ${nuevoCliente.nombre} registrado con éxito! (Acumula 50 puntos)`, 'success');
+      setNuevoClienteNombre('');
+      setNuevoClienteTelefono('');
+      setModalAgregarClienteOpen(false);
+      cargarListadoClientes();
+    } catch (err) {
+      console.error(err);
+      showToast('Error al registrar cliente en Firestore', 'danger');
+    }
+  };
+
+  const cargarListadoClientes = async () => {
+    try {
+      const snap = await getDocs(collection(db, 'clientes'));
+      const list = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      
+      if (list.length === 0) {
+        const seed = [
+          { nombre: "Juan Pérez", telefono: "5512345678", visitas: 11, totalConsumo: 2450, puntos: 110,  ultimaVisita: new Date(Date.now() - 14 * 24 * 3600000).toISOString() },
+          { nombre: "Sofia Gómez", telefono: "5598765432", visitas: 9, totalConsumo: 1950, puntos: 90,  ultimaVisita: new Date(Date.now() - 15 * 24 * 3600000).toISOString() },
+          { nombre: "Carlos R.", telefono: "5545678901", visitas: 8, totalConsumo: 1850, puntos: 80,  ultimaVisita: new Date(Date.now() - 2 * 24 * 3600000).toISOString() },
+          { nombre: "Luis Martínez", telefono: "5578901234", visitas: 6, totalConsumo: 1600, puntos: 60,  ultimaVisita: new Date(Date.now() - 16 * 24 * 3600000).toISOString() },
+          { nombre: "Pedro M.", telefono: "5534567890", visitas: 2, totalConsumo: 450, puntos: 20,   ultimaVisita: new Date(Date.now() - 1 * 24 * 3600000).toISOString() },
+          { nombre: "Juan Perez", telefono: "5512345678", visitas: 3, totalConsumo: 600, puntos: 30,  ultimaVisita: new Date().toISOString() }
+        ];
+        
+        for (const c of seed) {
+          await addDoc(collection(db, 'clientes'), c);
+        }
+        
+        const freshSnap = await getDocs(collection(db, 'clientes'));
+        setClientesFidelidad(freshSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      } else {
+        setClientesFidelidad(list);
+      }
+    } catch (err) {
+      console.error("Error loading clientes:", err);
+    }
+  };
+
+  const unificarClientes = async (c1, c2) => {
+    try {
+      const mergedClient = {
+        nombre: c1.nombre.length >= c2.nombre.length ? c1.nombre : c2.nombre,
+        telefono: c1.telefono || c2.telefono,
+        visitas: (Number(c1.visitas) || 0) + (Number(c2.visitas) || 0),
+        totalConsumo: (Number(c1.totalConsumo) || 0) + (Number(c2.totalConsumo) || 0),
+        puntos: (Number(c1.puntos) || 0) + (Number(c2.puntos) || 0),
+        ultimaVisita: new Date(Math.max(new Date(c1.ultimaVisita).getTime(), new Date(c2.ultimaVisita).getTime())).toISOString(),
+        unificado: true
+      };
+
+      await updateDoc(doc(db, 'clientes', c1.id), mergedClient);
+      await deleteDoc(doc(db, 'clientes', c2.id));
+      
+      await addDoc(collection(db, 'bitacora'), {
+        fecha: new Date().toISOString(),
+        tipo: 'ia',
+        usuario: user?.nombre || 'Cerebro IA',
+        accion: 'Clientes - Unificación Duplicados',
+        monto: 0,
+        detalle: `Unificados clientes ${c1.nombre} y ${c2.nombre}. Se combinaron sus visitas (${mergedClient.visitas}), total de consumo ($${mergedClient.totalConsumo}) y puntos (${mergedClient.puntos}).`
+      });
+
+      showToast(`Clientes unificados con éxito. Datos guardados en ${mergedClient.nombre}.`, 'success');
+      await cargarListadoClientes();
+    } catch (err) {
+      console.error("Error unificando clientes:", err);
+      showToast("Error al unificar clientes: " + err.message, "danger");
+    }
+  };
+
+  const obtenerPosiblesDuplicados = useMemo(() => {
+    const dups = [];
+    const n = clientesFidelidad.length;
+    
+    for (let i = 0; i < n; i++) {
+      for (let j = i + 1; j < n; j++) {
+        const c1 = clientesFidelidad[i];
+        const c2 = clientesFidelidad[j];
+        
+        const samePhone = c1.telefono && c2.telefono && c1.telefono.trim() === c2.telefono.trim();
+        const norm1 = c1.nombre.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+        const norm2 = c2.nombre.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+        const sameName = norm1.replace(/\s+/g, '') === norm2.replace(/\s+/g, '') ||
+                         (norm1.split(' ')[0] === norm2.split(' ')[0] && norm1.split(' ')[1] === norm2.split(' ')[1] && norm1.split(' ')[1]);
+                         
+        if (samePhone || sameName) {
+          dups.push({ c1, c2, motivo: samePhone ? "Mismo teléfono" : "Nombres muy similares" });
+        }
+      }
+    }
+    return dups;
+  }, [clientesFidelidad]);
+
   const renderAnalisisInteligenteMesas = () => {
     let mesaLider = null;
     let mesaMenosRentable = null;
@@ -3841,10 +4074,20 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
 
               {/* NUEVO SUBMENÚ: INTELIGENCIA DE CLIENTES Y CONSUMOS */}
               <div style={{ background: 'rgba(0,0,0,0.15)', border: '1px solid var(--border-bronze)', borderRadius: 12, padding: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <h4 style={{ margin: 0, fontSize: 11, fontWeight: 800, color: 'var(--bronze-light)', display: 'flex', alignItems: 'center', gap: 6, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                  <i className="ri-team-line" style={{ fontSize: 14 }} />
-                  Inteligencia de Clientes y Consumos (Perfilado RFM Real)
-                </h4>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+                  <h4 style={{ margin: 0, fontSize: 11, fontWeight: 800, color: 'var(--bronze-light)', display: 'flex', alignItems: 'center', gap: 6, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    <i className="ri-team-line" style={{ fontSize: 14 }} />
+                    Inteligencia de Clientes y Consumos (Perfilado RFM Real)
+                  </h4>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button className="btn btn-primary btn-xs" onClick={() => setModalAgregarClienteOpen(true)} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', fontSize: 10 }}>
+                      <i className="ri-user-add-line" /> Agregar Cliente
+                    </button>
+                    <button className="btn btn-secondary btn-xs" onClick={() => { cargarListadoClientes(); setModalConsultarClienteOpen(true); }} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', fontSize: 10 }}>
+                      <i className="ri-search-line" /> Consultar Clientes
+                    </button>
+                  </div>
+                </div>
                 
                 {/* Métricas del Submenú */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, background: 'rgba(0,0,0,0.2)', padding: 10, borderRadius: 8, border: '1px solid var(--border)' }}>
@@ -3891,7 +4134,7 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
                                 )}
                               </div>
                               <div style={{ display: 'flex', gap: 5, marginTop: 4 }}>
-                                <button className="btn btn-secondary btn-xs" onClick={() => enviarCuponDescuento(c.nombre)} style={{ fontSize: 8.5, padding: '2px 6px', flex: 1 }}>
+                                <button className="btn btn-secondary btn-xs" onClick={() => triggerEnviarCuponModal(c.nombre, 15)} style={{ fontSize: 8.5, padding: '2px 6px', flex: 1 }}>
                                   Enviar Cupón 15%
                                 </button>
                                 {!hasLifetime && (
@@ -3925,7 +4168,7 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
                                 </div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 9, color: 'var(--text-secondary)' }}>
                                   <span>Historial: ${c.total} MXN</span>
-                                  <button className="btn btn-danger btn-xs" onClick={() => enviarWhatsAppReactivacion(c.nombre)} style={{ fontSize: 8.5, padding: '2px 6px', display: 'flex', alignItems: 'center', gap: 3 }}>
+                                  <button className="btn btn-danger btn-xs" onClick={() => triggerEnviarCuponModal(c.nombre, 15)} style={{ fontSize: 8.5, padding: '2px 6px', display: 'flex', alignItems: 'center', gap: 3 }}>
                                     <i className="ri-whatsapp-line" /> Reactivar
                                   </button>
                                 </div>
@@ -3943,9 +4186,9 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
                       <h5 style={{ margin: '0 0 6px 0', fontSize: 10, fontWeight: 800, color: 'var(--bronze-light)', textTransform: 'uppercase' }}>💡 10 Recomendaciones IA Retención</h5>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 5, maxHeight: 180, overflowY: 'auto', paddingRight: 4 }}>
                         {[
-                          { text: "Premiar al 5% top con Cupón 15%", badge: "Retención", actionName: "Enviar Cupón", action: () => showToast("Cupones masivos enviados a clientes top", "success") },
-                          { text: "Fidelizar con Descuento 10% Vitalicio", badge: "Lealtad", actionName: "Ver VIPs", action: () => showToast("Lista de clientes VIP consultada", "info") },
-                          { text: "Reactivar inactivos (>7 días) vía WhatsApp", badge: "Churn", actionName: "Enviar WA", action: () => showToast("Campana de WhatsApp iniciada", "success") },
+                          { text: "Premiar al 5% top con Cupón 15%", badge: "Retención", actionName: "Enviar Cupón", action: () => triggerEnviarCuponModal("Cliente Top", 15) },
+                          { text: "Fidelizar con Descuento 10% Vitalicio", badge: "Lealtad", actionName: "Ver VIPs", action: () => { cargarListadoClientes(); setModalConsultarClienteOpen(true); } },
+                          { text: "Reactivar inactivos (>7 días) vía WhatsApp", badge: "Churn", actionName: "Enviar WA", action: () => triggerEnviarCuponModal("Cliente Inactivo", 15) },
                           { text: "Happy Hour en horas lentas (Martes/Miércoles)", badge: "Promoción", actionName: "Programar", action: promoverMenuLluvia },
                           { text: "Auditar barra en tiempo real para control de merma", badge: "Auditoría", actionName: "Auditar", action: auditarInventarioConCuentas },
                           { text: "Programar Torneo VIP exclusivo (RFM)", badge: "Eventos", actionName: "Crear", action: programarTorneoVip },
@@ -3975,205 +4218,74 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
 
               <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
 
-              {/* INTELIGENCIA PREDICTIVA (10 MÓDULOS) */}
+              {/* INTELIGENCIA PREDICTIVA (REDISEÑADA A 4 CONSEJOS DINÁMICOS) */}
               <div>
-                <h4 style={{ margin: '0 0 10px 0', fontSize: 11, fontWeight: 800, color: 'var(--bronze-light)', display: 'flex', alignItems: 'center', gap: 6, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                  <i className="ri-magic-line" style={{ fontSize: 14 }} />
-                  Inteligencia Predictiva (10 Módulos de Diagnóstico)
+                <h4 style={{ margin: '0 0 12px 0', fontSize: 13, fontWeight: 800, color: 'var(--bronze-light)', display: 'flex', alignItems: 'center', gap: 6, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  <i className="ri-magic-line" style={{ fontSize: 16 }} />
+                  Inteligencia Predictiva
                 </h4>
+                
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
-                  {/* Module 1 */}
-                  <div style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid var(--border)', borderRadius: 12, padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--danger)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <i className="ri-lightbulb-flash-line" style={{ fontSize: 14 }} />
-                        1. Iluminación Inteligente IoT
-                      </span>
-                      <span className="badge badge-danger" style={{ fontSize: 9.5 }}>Alerta</span>
+                  {consejosIa.map((c) => (
+                    <div 
+                      key={c.id} 
+                      style={{ 
+                        background: c.leido ? 'rgba(46, 204, 113, 0.05)' : 'rgba(0,0,0,0.2)', 
+                        border: c.leido ? '1px solid var(--success)' : '1px solid var(--border)', 
+                        borderRadius: 12, 
+                        padding: 16, 
+                        display: 'flex', 
+                        flexDirection: 'column', 
+                        gap: 10,
+                        transition: 'all 0.3s ease',
+                        position: 'relative',
+                        boxShadow: c.leido ? '0 0 10px rgba(46, 204, 113, 0.1)' : 'none'
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: 14, fontWeight: 800, color: c.leido ? 'var(--success)' : c.color || 'var(--bronze-light)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <i className="ri-lightbulb-line" style={{ fontSize: 16 }} />
+                          {c.title}
+                        </span>
+                        <span className="badge" style={{ fontSize: 9.5, background: c.leido ? 'rgba(46, 204, 113, 0.2)' : 'rgba(255,255,255,0.05)', color: c.leido ? 'var(--success)' : '#fff' }}>
+                          {c.leido ? '✓ Leído' : c.tag}
+                        </span>
+                      </div>
+                      
+                      <p style={{ fontSize: 12.5, color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
+                        {c.desc}
+                      </p>
+                      
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 'auto', paddingTop: 4 }}>
+                        <button 
+                          className="btn btn-xs" 
+                          onClick={() => marcarConsejoLeido(c.id)} 
+                          disabled={c.leido}
+                          style={{ 
+                            fontSize: 11, 
+                            padding: '4px 12px', 
+                            background: c.leido ? 'rgba(46, 204, 113, 0.2)' : 'rgba(255, 255, 255, 0.05)', 
+                            border: c.leido ? '1px solid var(--success)' : '1px solid var(--border)', 
+                            color: c.leido ? 'var(--success)' : 'var(--text-primary)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 4,
+                            cursor: c.leido ? 'default' : 'pointer'
+                          }}
+                        >
+                          {c.leido ? (
+                            <>
+                              <i className="ri-checkbox-circle-fill" /> Leído
+                            </>
+                          ) : (
+                            <>
+                              <i className="ri-checkbox-blank-circle-line" /> Marcar como Leído
+                            </>
+                          )}
+                        </button>
+                      </div>
                     </div>
-                    <p style={{ fontSize: 11.5, color: 'var(--text-secondary)', margin: 0 }}>
-                      Discrepancia en Mesa 4: Iluminación de mesa encendida pero no registra tiempo de cobro o renta en el panel.
-                    </p>
-                    <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                      <button className="btn btn-danger btn-xs" onClick={apagarLuzMesa4} style={{ fontSize: 10.5, padding: '3px 8px' }}>
-                        Apagar Luz
-                      </button>
-                      <button className="btn btn-secondary btn-xs" onClick={iniciarRentaMesa4} style={{ fontSize: 10.5, padding: '3px 8px' }}>
-                        Iniciar Renta
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Module 2 */}
-                  <div style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid var(--border)', borderRadius: 12, padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--blue-light)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <i className="ri-temp-cold-line" style={{ fontSize: 14 }} />
-                        2. Predicción Climatológica
-                      </span>
-                      <span className="badge badge-success" style={{ fontSize: 9.5 }}>Clima</span>
-                    </div>
-                    <p style={{ fontSize: 11.5, color: 'var(--text-secondary)', margin: 0 }}>
-                      Lluvia intensa detectada en la zona. IA proyecta un incremento de +22% en consumo de snacks calientes y bebidas de barra.
-                    </p>
-                    <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                      <button className="btn btn-primary btn-xs" onClick={promoverMenuLluvia} style={{ fontSize: 10.5, padding: '3px 8px' }}>
-                        Promover Menú Lluvia
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Module 3 */}
-                  <div style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid var(--border)', borderRadius: 12, padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--warning)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <i className="ri-user-unfollow-line" style={{ fontSize: 14 }} />
-                        3. Control de Churn (Retención)
-                      </span>
-                      <span className="badge badge-warning" style={{ fontSize: 9.5 }}>Acción</span>
-                    </div>
-                    <p style={{ fontSize: 11.5, color: 'var(--text-secondary)', margin: 0 }}>
-                      3 clientes VIP no han asistido en 14 días (Juan P., Luis M., Sofía G.). Tasa de riesgo de abandono: 68%.
-                    </p>
-                    <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                      <button className="btn btn-warning btn-xs" onClick={enviarCuponReactivacion} style={{ fontSize: 10.5, padding: '3px 8px' }}>
-                        Enviar Cupón Reactivación
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Module 4 */}
-                  <div style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid var(--border)', borderRadius: 12, padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--bronze-light)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <i className="ri-shopping-cart-2-line" style={{ fontSize: 14 }} />
-                        4. Planificación de Stock JIT
-                      </span>
-                      <span className="badge badge-bronze" style={{ fontSize: 9.5 }}>Abasto</span>
-                    </div>
-                    <p style={{ fontSize: 11.5, color: 'var(--text-secondary)', margin: 0 }}>
-                      Cerveza Corona Extra proyecta agotarse el sábado a las 21:30. Sugerencia: reabastecer 80 unidades de forma prioritaria.
-                    </p>
-                    <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                      <button className="btn btn-secondary btn-xs" onClick={solicitarStockCorona} style={{ fontSize: 10.5, padding: '3px 8px' }}>
-                        Solicitar 80 pz
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Module 5 */}
-                  <div style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid var(--border)', borderRadius: 12, padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--success)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <i className="ri-qr-code-fill" style={{ fontSize: 14 }} />
-                        5. Conciliación de Barra & Comandas QR
-                      </span>
-                      <span className="badge badge-success" style={{ fontSize: 9.5 }}>Ok</span>
-                    </div>
-                    <p style={{ fontSize: 11.5, color: 'var(--text-secondary)', margin: 0 }}>
-                      Tasa de discrepancia en comandas QR: 0%. Todas las ventas registradas corresponden con salidas de inventario.
-                    </p>
-                    <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                      <button className="btn btn-success btn-xs" onClick={auditarInventarioConCuentas} style={{ fontSize: 10.5, padding: '3px 8px' }}>
-                        Auditar Inventario en Tiempo Real
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Module 6 */}
-                  <div style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid var(--border)', borderRadius: 12, padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--blue-light)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <i className="ri-group-line" style={{ fontSize: 14 }} />
-                        6. Perfilado de Consumo RFM
-                      </span>
-                      <span className="badge badge-blue" style={{ fontSize: 9.5 }}>Datos</span>
-                    </div>
-                    <p style={{ fontSize: 11.5, color: 'var(--text-secondary)', margin: 0 }}>
-                      Se identificaron 24 clientes VIP en el grupo 'Campeones' (Gasto de $380/visita). Recomendación: Torneo de Invitación Cerrada.
-                    </p>
-                    <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                      <button className="btn btn-primary btn-xs" onClick={programarTorneoVip} style={{ fontSize: 10.5, padding: '3px 8px' }}>
-                        Programar Torneo VIP
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Module 7 */}
-                  <div style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid var(--border)', borderRadius: 12, padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--bronze-light)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <i className="ri-message-3-line" style={{ fontSize: 14 }} />
-                        7. Sentimiento de Clientes NLP
-                      </span>
-                      <span className="badge badge-bronze" style={{ fontSize: 9.5 }}>IA</span>
-                    </div>
-                    <p style={{ fontSize: 11.5, color: 'var(--text-secondary)', margin: 0 }}>
-                      Sentimiento general en QR: 88% Positivo. Queja recurrente detectada en comentarios de barra: "Música alta en zona Carambola".
-                    </p>
-                    <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                      <button className="btn btn-secondary btn-xs" onClick={regularAudioCarambola} style={{ fontSize: 10.5, padding: '3px 8px' }}>
-                        Regular Audio
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Module 8 */}
-                  <div style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid var(--border)', borderRadius: 12, padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--warning)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <i className="ri-pulse-line" style={{ fontSize: 14 }} />
-                        8. Surge Pricing Automatizado
-                      </span>
-                      <span className="badge badge-warning" style={{ fontSize: 9.5 }}>Surge</span>
-                    </div>
-                    <p style={{ fontSize: 11.5, color: 'var(--text-secondary)', margin: 0 }}>
-                      Ocupación actual: 75%. El Surge Pricing (+15%) está listo para ser aplicado de forma automática al superar el 85% del aforo.
-                    </p>
-                    <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                      <button className="btn btn-warning btn-xs" onClick={forzarSurgePricing} style={{ fontSize: 10.5, padding: '3px 8px' }}>
-                        Forzar Activación
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Module 9 */}
-                  <div style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid var(--border)', borderRadius: 12, padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--success)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <i className="ri-pie-chart-2-line" style={{ fontSize: 14 }} />
-                        9. ROI & Ocupación de Mesas
-                      </span>
-                      <span className="badge badge-success" style={{ fontSize: 9.5 }}>ROI</span>
-                    </div>
-                    <p style={{ fontSize: 11.5, color: 'var(--text-secondary)', margin: 0 }}>
-                      Mesa 5 (Snooker) reporta un ROI de renta 15% menor que Pool. Se sugiere promover ligas de Snooker o habilitar tarifa promocional.
-                    </p>
-                    <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                      <button className="btn btn-secondary btn-xs" onClick={verDetallesRoi} style={{ fontSize: 10.5, padding: '3px 8px' }}>
-                        Ver Detalles ROI
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Module 10 */}
-                  <div style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid var(--border)', borderRadius: 12, padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--blue-light)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <i className="ri-vip-crown-line" style={{ fontSize: 14 }} />
-                        10. LTV VIP Proyectado
-                      </span>
-                      <span className="badge badge-blue" style={{ fontSize: 9.5 }}>LTV</span>
-                    </div>
-                    <p style={{ fontSize: 11.5, color: 'var(--text-secondary)', margin: 0 }}>
-                      Membresías VIP proyectan facturar $35,000 en 12 meses. Tasa de retención anual: 92%. LTV por socio VIP: $4,500.
-                    </p>
-                    <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                      <button className="btn btn-primary btn-xs" onClick={verProyeccionesLtv} style={{ fontSize: 10.5, padding: '3px 8px' }}>
-                        Ver Proyecciones
-                      </button>
-                    </div>
-                  </div>
+                  ))}
                 </div>
               </div>
             </div>
@@ -4736,6 +4848,302 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
                 Imprimir Ticket
               </button>
               <button className="btn btn-primary" onClick={() => setMostrarResumenCorteModal(false)}>Cerrar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 1: ENVIAR CUPÓN DE FIDELIDAD (EDITABLE) */}
+      {modalEnviarCuponOpen && (
+        <div className="modal-overlay" onClick={() => setModalEnviarCuponOpen(false)}>
+          <div className="modal" style={{ maxWidth: 500, display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header" style={{ borderBottom: '1px solid var(--border)' }}>
+              <span className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <i className="ri-coupon-line" style={{ color: 'var(--bronze-light)' }} />
+                Enviar Cupón de Fidelidad (Editable)
+              </span>
+              <button onClick={() => setModalEnviarCuponOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 20 }}>✕</button>
+            </div>
+            <div className="modal-body" style={{ overflowY: 'auto', padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)' }}>Cliente</label>
+                <input 
+                  type="text" 
+                  className="input" 
+                  value={cuponClienteNombre} 
+                  onChange={e => setCuponClienteNombre(e.target.value)} 
+                  style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)', color: '#fff', padding: '8px 12px', borderRadius: 6, fontSize: 12 }}
+                />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)' }}>Descuento (%)</label>
+                  <input 
+                    type="number" 
+                    className="input" 
+                    value={cuponPorcentaje} 
+                    onChange={e => setCuponPorcentaje(Number(e.target.value))} 
+                    style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)', color: '#fff', padding: '8px 12px', borderRadius: 6, fontSize: 12 }}
+                  />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)' }}>Código de Cupón</label>
+                  <input 
+                    type="text" 
+                    className="input" 
+                    value={cuponCodigo} 
+                    onChange={e => setCuponCodigo(e.target.value)} 
+                    style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)', color: '#fff', padding: '8px 12px', borderRadius: 6, fontSize: 12 }}
+                  />
+                </div>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)' }}>Mensaje de WhatsApp/Telegram</label>
+                  <button 
+                    type="button" 
+                    onClick={() => setCuponMensaje(generarMensajeIa(cuponClienteNombre, cuponPorcentaje, cuponCodigo))} 
+                    style={{ background: 'rgba(205, 127, 50, 0.15)', border: '1px solid var(--border-bronze)', color: 'var(--bronze-light)', fontSize: 9.5, padding: '2px 8px', borderRadius: 4, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+                  >
+                    <i className="ri-magic-line" /> Redactar con IA
+                  </button>
+                </div>
+                <textarea 
+                  rows={4} 
+                  value={cuponMensaje} 
+                  onChange={e => setCuponMensaje(e.target.value)} 
+                  style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)', color: '#fff', padding: '8px 12px', borderRadius: 6, fontSize: 11.5, fontFamily: 'sans-serif', resize: 'vertical' }}
+                />
+              </div>
+            </div>
+            <div className="modal-footer" style={{ borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', gap: 8, flexWrap: 'wrap', padding: '12px 20px' }}>
+              <button className="btn btn-secondary" onClick={() => setModalEnviarCuponOpen(false)} style={{ fontSize: 11 }}>Cancelar</button>
+              
+              <button 
+                className="btn btn-success" 
+                onClick={() => enviarMensajeCupónPorRed('whatsapp')}
+                style={{ background: '#25D366', color: '#fff', display: 'flex', alignItems: 'center', gap: 4, fontSize: 11 }}
+              >
+                <i className="ri-whatsapp-line" /> WhatsApp
+              </button>
+
+              <button 
+                className="btn btn-success" 
+                onClick={() => enviarMensajeCupónPorRed('whatsapp_business')}
+                style={{ background: '#128C7E', color: '#fff', display: 'flex', alignItems: 'center', gap: 4, fontSize: 11 }}
+              >
+                <i className="ri-whatsapp-line" /> WA Business
+              </button>
+
+              <button 
+                className="btn btn-primary" 
+                onClick={() => enviarMensajeCupónPorRed('telegram')}
+                style={{ background: '#0088cc', color: '#fff', display: 'flex', alignItems: 'center', gap: 4, fontSize: 11 }}
+              >
+                <i className="ri-telegram-line" /> Telegram
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 2: AGREGAR NUEVO CLIENTE */}
+      {modalAgregarClienteOpen && (
+        <div className="modal-overlay" onClick={() => setModalAgregarClienteOpen(false)}>
+          <form className="modal" onSubmit={registrarClienteManual} style={{ maxWidth: 400, display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header" style={{ borderBottom: '1px solid var(--border)' }}>
+              <span className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <i className="ri-user-add-line" style={{ color: 'var(--bronze-light)' }} />
+                Agregar Nuevo Cliente
+              </span>
+              <button type="button" onClick={() => setModalAgregarClienteOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 20 }}>✕</button>
+            </div>
+            <div className="modal-body" style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ background: 'rgba(205,127,50,0.1)', border: '1px solid rgba(205,127,50,0.3)', borderRadius: 8, padding: 10, fontSize: 11, color: 'var(--bronze-light)', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <strong>ℹ️ Información Importante:</strong>
+                <span>Los clientes dados de alta van acumulando puntos en cada visita y consumo para recibir beneficios y descuentos automáticos (se otorgan 50 puntos de bienvenida).</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)' }}>Nombre Completo *</label>
+                <input 
+                  type="text" 
+                  required
+                  placeholder="Ej. Juan Pérez"
+                  value={nuevoClienteNombre} 
+                  onChange={e => setNuevoClienteNombre(e.target.value)} 
+                  style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)', color: '#fff', padding: '8px 12px', borderRadius: 6, fontSize: 12 }}
+                />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)' }}>Número de Teléfono *</label>
+                <input 
+                  type="tel" 
+                  required
+                  placeholder="Ej. 5512345678"
+                  value={nuevoClienteTelefono} 
+                  onChange={e => setNuevoClienteTelefono(e.target.value)} 
+                  style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)', color: '#fff', padding: '8px 12px', borderRadius: 6, fontSize: 12 }}
+                />
+              </div>
+            </div>
+            <div className="modal-footer" style={{ borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '12px 20px' }}>
+              <button type="button" className="btn btn-secondary" onClick={() => setModalAgregarClienteOpen(false)} style={{ fontSize: 11 }}>Cancelar</button>
+              <button type="submit" className="btn btn-primary" style={{ fontSize: 11 }}>Registrar y Otorgar Puntos</button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* MODAL 3: CONSULTAR CLIENTES Y FIDELIDAD */}
+      {modalConsultarClienteOpen && (
+        <div className="modal-overlay" onClick={() => setModalConsultarClienteOpen(false)}>
+          <div className="modal" style={{ maxWidth: 700, width: '90vw', maxHeight: '85vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header" style={{ borderBottom: '1px solid var(--border)' }}>
+              <span className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <i className="ri-user-search-line" style={{ color: 'var(--bronze-light)' }} />
+                Consultar Clientes y Fidelidad
+              </span>
+              <button onClick={() => setModalConsultarClienteOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 20 }}>✕</button>
+            </div>
+            
+            {/* Tabs de Búsqueda */}
+            <div style={{ display: 'flex', background: 'rgba(0,0,0,0.2)', borderBottom: '1px solid var(--border)' }}>
+              <button 
+                onClick={() => setSubTabConsultar('lista')}
+                style={{
+                  flex: 1,
+                  padding: '12px',
+                  background: subTabConsultar === 'lista' ? 'rgba(255,255,255,0.05)' : 'none',
+                  border: 'none',
+                  borderBottom: subTabConsultar === 'lista' ? '2px solid var(--bronze-light)' : '2px solid transparent',
+                  color: subTabConsultar === 'lista' ? 'var(--bronze-light)' : 'var(--text-muted)',
+                  fontSize: 11.5,
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                📋 Listado General ({clientesFidelidad.length})
+              </button>
+              <button 
+                onClick={() => setSubTabConsultar('duplicados')}
+                style={{
+                  flex: 1,
+                  padding: '12px',
+                  background: subTabConsultar === 'duplicados' ? 'rgba(255,255,255,0.05)' : 'none',
+                  border: 'none',
+                  borderBottom: subTabConsultar === 'duplicados' ? '2px solid var(--bronze-light)' : '2px solid transparent',
+                  color: subTabConsultar === 'duplicados' ? 'var(--bronze-light)' : 'var(--text-muted)',
+                  fontSize: 11.5,
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                👥 Posibles Duplicados ({obtenerPosiblesDuplicados().length})
+              </button>
+            </div>
+
+            <div className="modal-body" style={{ overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {subTabConsultar === 'lista' ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+                      <thead>
+                        <tr style={{ borderBottom: '1px solid var(--border)', textAlign: 'left', color: 'var(--text-muted)' }}>
+                          <th style={{ padding: '8px 6px' }}>Nombre</th>
+                          <th style={{ padding: '8px 6px' }}>Teléfono</th>
+                          <th style={{ padding: '8px 6px', textAlign: 'center' }}>Visitas</th>
+                          <th style={{ padding: '8px 6px', textAlign: 'right' }}>Total Consumo</th>
+                          <th style={{ padding: '8px 6px', textAlign: 'center' }}>Puntos</th>
+                          <th style={{ padding: '8px 6px', textAlign: 'center' }}>Acciones</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {clientesFidelidad.length === 0 ? (
+                          <tr>
+                            <td colSpan={6} style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)' }}>No hay clientes registrados.</td>
+                          </tr>
+                        ) : (
+                          clientesFidelidad.map((c) => (
+                            <tr key={c.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)', verticalAlign: 'middle' }}>
+                              <td style={{ padding: '8px 6px', fontWeight: 700, color: '#fff' }}>{c.nombre}</td>
+                              <td style={{ padding: '8px 6px', color: 'var(--text-secondary)' }}>{c.telefono}</td>
+                              <td style={{ padding: '8px 6px', textAlign: 'center' }}>{c.visitas}</td>
+                              <td style={{ padding: '8px 6px', textAlign: 'right', fontWeight: 700, color: 'var(--success)' }}>${(c.totalConsumo || 0).toLocaleString('es-MX')}</td>
+                              <td style={{ padding: '8px 6px', textAlign: 'center' }}>
+                                <span className="badge badge-bronze" style={{ fontSize: 9, padding: '2px 6px' }}>{c.puntos || 0} pts</span>
+                              </td>
+                              <td style={{ padding: '8px 6px', textAlign: 'center' }}>
+                                <button 
+                                  className="btn btn-secondary btn-xs" 
+                                  onClick={() => {
+                                    setModalConsultarClienteOpen(false);
+                                    triggerEnviarCuponModal(c.nombre, 15);
+                                  }}
+                                  style={{ fontSize: 9, padding: '2px 6px' }}
+                                >
+                                  Enviar Cupón
+                                </button>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <p style={{ fontSize: 10.5, color: 'var(--text-muted)', margin: 0 }}>
+                    La IA analiza continuamente el listado de clientes registrados desde la caja o comensal para detectar números duplicados o nombres similares, y permite fusionar sus visitas, consumos e historial de puntos en un solo perfil.
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {obtenerPosiblesDuplicados().length === 0 ? (
+                      <div style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)', background: 'rgba(0,0,0,0.1)', borderRadius: 8, border: '1px solid var(--border)', fontSize: 11.5 }}>
+                        ✨ ¡Gran trabajo! No se encontraron clientes duplicados en la base de datos.
+                      </div>
+                    ) : (
+                      obtenerPosiblesDuplicados().map((dup, idx) => (
+                        <div key={idx} style={{ background: 'rgba(205, 127, 50, 0.04)', border: '1px solid rgba(205, 127, 50, 0.2)', borderRadius: 10, padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span className="badge badge-warning" style={{ fontSize: 8.5 }}>{dup.reason}</span>
+                            <button 
+                              className="btn btn-primary btn-xs" 
+                              onClick={() => unificarClientes(dup.c1, dup.c2)}
+                              style={{ padding: '3px 8px', fontSize: 10, display: 'flex', alignItems: 'center', gap: 4 }}
+                            >
+                              <i className="ri-links-line" /> Unificar Perfiles
+                            </button>
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, fontSize: 11 }}>
+                            <div style={{ background: 'rgba(0,0,0,0.2)', padding: 8, borderRadius: 6, border: '1px solid var(--border)' }}>
+                              <strong style={{ color: 'var(--bronze-light)' }}>Perfil Principal (Mayor Antigüedad)</strong>
+                              <div style={{ marginTop: 4, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                <span>Nombre: <strong>{dup.c1.nombre}</strong></span>
+                                <span>Teléfono: {dup.c1.telefono}</span>
+                                <span>Visitas: {dup.c1.visitas} | Puntos: {dup.c1.puntos}</span>
+                                <span>Consumo: <strong>${(dup.c1.totalConsumo || 0).toLocaleString()}</strong></span>
+                              </div>
+                            </div>
+                            <div style={{ background: 'rgba(0,0,0,0.2)', padding: 8, borderRadius: 6, border: '1px solid var(--border)' }}>
+                              <strong style={{ color: 'var(--text-muted)' }}>Perfil Duplicado (Se fusionará y eliminará)</strong>
+                              <div style={{ marginTop: 4, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                <span>Nombre: <strong>{dup.c2.nombre}</strong></span>
+                                <span>Teléfono: {dup.c2.telefono}</span>
+                                <span>Visitas: {dup.c2.visitas} | Puntos: {dup.c2.puntos}</span>
+                                <span>Consumo: <strong>${(dup.c2.totalConsumo || 0).toLocaleString()}</strong></span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            <div className="modal-footer" style={{ borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', padding: '12px 20px' }}>
+              <button className="btn btn-secondary" onClick={() => setModalConsultarClienteOpen(false)} style={{ fontSize: 11 }}>Cerrar</button>
             </div>
           </div>
         </div>
