@@ -1280,9 +1280,10 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
     if (empleadosList.length === 0) return [];
     return empleadosList.map(emp => {
       const encuestasMesero = encuestasList.filter(e => e.meseroId === emp.id || (e.meseroNombre && e.meseroNombre.toLowerCase().includes(emp.nombre.toLowerCase())));
+      const esServicio = ['mesero', 'bartender', 'cajero'].includes(emp.rol?.toLowerCase());
       const promedioSatis = encuestasMesero.length > 0
-        ? encuestasMesero.reduce((acc, curr) => acc + (curr.calificaciones?.atencion || 5.0), 0) / encuestasMesero.length
-        : 5.0;
+        ? encuestasMesero.reduce((acc, curr) => acc + (curr.calificaciones?.atencion || 0), 0) / encuestasMesero.length
+        : (esServicio ? promedioAtencion : 5.0);
 
       const pagosEmp = nominaPagosList.filter(p => p.empleadoId === emp.id);
       const comisionesReales = pagosEmp.reduce((s, p) => s + (Number(p.comisionMesas || p.comisionBar || 0) || 0), 0);
@@ -1658,14 +1659,60 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
       
       {/* CABECERA */}
       <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, gap: 12 }}>
-        <div>
-          <h1 className="page-title gradient-bronze" style={{ margin: 0, fontSize: esCajero ? 20 : 15, whiteSpace: 'nowrap' }}>
-            {esCajero ? 'Caja y POS Operativo' : 'INTELIGENCIA DE NEGOCIO'}
-          </h1>
-          <p className="page-subtitle" style={{ margin: '2px 0 0 0', fontSize: 10, whiteSpace: 'nowrap' }}>
-            {esCajero ? 'Turno en curso · Reconciliación' : 'Control y auditoría IA'}
-          </p>
-        </div>
+        {esCajero ? (
+          <div>
+            <h1 className="page-title gradient-bronze" style={{ margin: 0, fontSize: 20, whiteSpace: 'nowrap' }}>
+              Caja y POS Operativo
+            </h1>
+            <p className="page-subtitle" style={{ margin: '2px 0 0 0', fontSize: 10, whiteSpace: 'nowrap' }}>
+              Turno en curso · Reconciliación
+            </p>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)', borderRadius: 6, padding: '3px 6px', minWidth: 210, gap: 2 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 8, fontWeight: 800, color: 'var(--bronze-light)' }}>SATISFACCIÓN: ★{promedioGeneral.toFixed(1)}/5.0</span>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2px 8px', fontSize: 6.5 }}>
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 6.5, color: 'var(--text-secondary)' }}>
+                  <span>Meseros:</span>
+                  <strong>★{promedioAtencion.toFixed(1)}</strong>
+                </div>
+                <div style={{ width: '100%', height: 2, background: 'rgba(255,255,255,0.05)', borderRadius: 1, overflow: 'hidden' }}>
+                  <div style={{ width: `${(promedioAtencion/5)*100}%`, height: '100%', background: 'var(--bronze)' }} />
+                </div>
+              </div>
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 6.5, color: 'var(--text-secondary)' }}>
+                  <span>Rapidez:</span>
+                  <strong>★{promedioRapidez.toFixed(1)}</strong>
+                </div>
+                <div style={{ width: '100%', height: 2, background: 'rgba(255,255,255,0.05)', borderRadius: 1, overflow: 'hidden' }}>
+                  <div style={{ width: `${(promedioRapidez/5)*100}%`, height: '100%', background: 'var(--success)' }} />
+                </div>
+              </div>
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 6.5, color: 'var(--text-secondary)' }}>
+                  <span>Limpieza:</span>
+                  <strong>★{promedioLimpieza.toFixed(1)}</strong>
+                </div>
+                <div style={{ width: '100%', height: 2, background: 'rgba(255,255,255,0.05)', borderRadius: 1, overflow: 'hidden' }}>
+                  <div style={{ width: `${(promedioLimpieza/5)*100}%`, height: '100%', background: 'var(--blue-light)' }} />
+                </div>
+              </div>
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 6.5, color: 'var(--text-secondary)' }}>
+                  <span>Equipos:</span>
+                  <strong>★{promedioEquipo.toFixed(1)}</strong>
+                </div>
+                <div style={{ width: '100%', height: 2, background: 'rgba(255,255,255,0.05)', borderRadius: 1, overflow: 'hidden' }}>
+                  <div style={{ width: `${(promedioEquipo/5)*100}%`, height: '100%', background: 'var(--warning)' }} />
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* 5 TARJETAS EN EL CENTRO DE LA CABECERA (Extremadamente pequeñas y compactas) */}
         {!esCajero && (
@@ -1929,144 +1976,6 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
       </div>
     </div>
 
-      {/* HISTORIAL DE CORTES DE CAJA */}
-      <div className="card" style={{ padding: 14, marginTop: 14, background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 12 }}>
-          <h3 className="card-title" style={{ fontSize: 11, fontWeight: 800, color: 'var(--bronze-light)', display: 'flex', alignItems: 'center', gap: 8, margin: 0, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-            <i className="ri-history-line" style={{ fontSize: 14 }} />
-            Historial de Cortes de Caja
-          </h3>
-
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>Desde:</span>
-              <input 
-                type="date" 
-                className="form-input" 
-                style={{ fontSize: 9, padding: '2px 4px', width: 100, background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 4, color: '#fff' }} 
-                value={filtroCorteInicio}
-                onChange={e => setFiltroCorteInicio(e.target.value)}
-              />
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>Hasta:</span>
-              <input 
-                type="date" 
-                className="form-input" 
-                style={{ fontSize: 9, padding: '2px 4px', width: 100, background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 4, color: '#fff' }} 
-                value={filtroCorteFin}
-                onChange={e => setFiltroCorteFin(e.target.value)}
-              />
-            </div>
-            {(filtroCorteInicio || filtroCorteFin) && (
-              <button 
-                className="btn btn-secondary btn-xs" 
-                onClick={() => { setFiltroCorteInicio(''); setFiltroCorteFin(''); }}
-                style={{ fontSize: 8, padding: '2px 6px' }}
-              >
-                Limpiar
-              </button>
-            )}
-          </div>
-        </div>
-        
-        {cortesFiltrados.length === 0 ? (
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic', textAlign: 'center', padding: '12px 0' }}>
-            No se han registrado cortes de caja en este periodo o no hay datos.
-          </div>
-        ) : (
-          <>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10, maxHeight: 180, overflowY: 'auto', paddingRight: 4 }}>
-              {cortesFiltrados.map(c => {
-                const dateObj = new Date(c.fecha);
-                const dateStr = dateObj.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' });
-                const timeStr = dateObj.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
-                
-                return (
-                  <div 
-                    key={c.id} 
-                    onClick={() => {
-                      setResumenCorteActivo({
-                        operador: c.operador,
-                        ultimoCorteFecha: c.ultimoCorteFecha,
-                        efectivoContado: c.efectivoContado,
-                        efectivoEsperado: c.efectivoEsperado,
-                        diferencia: c.diferencia,
-                        totalIngresos: c.totalIngresos,
-                        totalGastos: c.totalGastos,
-                        resumenIA: c.resumenIA,
-                        cantidadesDenom: c.cantidadesDenom || {},
-                        ingresosDetalle: c.ingresosDetalle || [],
-                        gastosDetalle: c.gastosDetalle || [],
-                        corteData: {
-                          ingresosEfectivo: c.efectivoEsperado + c.totalGastos,
-                          ingresosTarjeta: c.ingresosDetalle?.filter(i => i.metodo === 'tarjeta').reduce((s,i) => s+i.monto, 0) || 0,
-                          ingresosTransferencia: c.ingresosDetalle?.filter(i => i.metodo === 'transferencia').reduce((s,i) => s+i.monto, 0) || 0,
-                          ingresosDetalle: c.ingresosDetalle || [],
-                          gastosDetalle: c.gastosDetalle || [],
-                          totalIngresos: c.totalIngresos,
-                          totalGastos: c.totalGastos,
-                          efectivoEsperado: c.efectivoEsperado
-                        }
-                      });
-                      setMostrarResumenCorteModal(true);
-                    }}
-                    style={{
-                      background: 'var(--bg-elevated)',
-                      border: '1px solid var(--border)',
-                      borderRadius: 8,
-                      padding: '10px 12px',
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: 4
-                    }}
-                    onMouseEnter={e => {
-                      e.currentTarget.style.borderColor = 'var(--border-bronze)';
-                      e.currentTarget.style.background = 'rgba(255,255,255,0.02)';
-                    }}
-                    onMouseLeave={e => {
-                      e.currentTarget.style.borderColor = 'var(--border)';
-                      e.currentTarget.style.background = 'var(--bg-elevated)';
-                    }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 700 }}>{dateStr} {timeStr}</span>
-                      <span className="badge badge-bronze" style={{ fontSize: 7, padding: '1px 3px' }}>IA Audit</span>
-                    </div>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: '#fff', marginTop: 2 }}>
-                      Cajero: {c.operador}
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, marginTop: 4 }}>
-                      <span style={{ color: 'var(--text-secondary)' }}>Efectivo:</span>
-                      <strong>${c.efectivoContado.toLocaleString()}</strong>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
-                      <span style={{ color: 'var(--text-secondary)' }}>Diferencia:</span>
-                      <strong style={{ color: c.diferencia === 0 ? 'var(--success)' : c.diferencia > 0 ? 'var(--warning)' : 'var(--danger)' }}>
-                        {c.diferencia >= 0 ? '+' : ''}${c.diferencia.toLocaleString()}
-                      </strong>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-            {historialCortes.length >= limiteCortesCaja && (
-              <div style={{ display: 'flex', justifyContent: 'center', marginTop: 10 }}>
-                <button 
-                  className="btn btn-secondary btn-xs"
-                  onClick={() => setLimiteCortesCaja(prev => prev + 10)}
-                  style={{ fontSize: 9, padding: '4px 12px', background: 'rgba(255,255,255,0.02)', borderColor: 'var(--border-bronze)', color: 'var(--bronze-light)' }}
-                >
-                  <i className="ri-arrow-down-s-line" style={{ marginRight: 4 }} /> Ver más cortes
-                </button>
-              </div>
-            )}
-          </>
-        )}
-      </div>
-
       {/* SELECTOR DE PERIODO - Exclusivo Admin/Gerente */}
       {!esCajero && (
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, alignItems: 'center', marginTop: -10 }}>
@@ -2112,48 +2021,15 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
             </h3>
             <i className={seccionIaAbierta ? "ri-arrow-up-s-line" : "ri-arrow-down-s-line"} style={{ fontSize: 16, color: 'var(--text-muted)' }} />
           </div>
-
           {seccionIaAbierta && (
-            <div className="animate-fadeIn" style={{ marginTop: 14 }}>
-              {/* Tab Selector */}
-              <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', marginBottom: 14, gap: 10 }}>
-                <button
-                  onClick={() => setSubTabIa('auditoria')}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    borderBottom: subTabIa === 'auditoria' ? '2px solid var(--bronze)' : '2px solid transparent',
-                    color: subTabIa === 'auditoria' ? '#fff' : 'var(--text-muted)',
-                    padding: '6px 12px',
-                    fontSize: 11,
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    transition: 'all 0.15s'
-                  }}
-                >
-                  <i className="ri-shield-check-line" style={{ marginRight: 6 }} />
-                  Auditoría y Simuladores
-                </button>
-                <button
-                  onClick={() => setSubTabIa('predictivos')}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    borderBottom: subTabIa === 'predictivos' ? '2px solid var(--bronze)' : '2px solid transparent',
-                    color: subTabIa === 'predictivos' ? '#fff' : 'var(--text-muted)',
-                    padding: '6px 12px',
-                    fontSize: 11,
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    transition: 'all 0.15s'
-                  }}
-                >
-                  <i className="ri-magic-line" style={{ marginRight: 6 }} />
-                  Inteligencia Predictiva (10 Módulos)
-                </button>
-              </div>
-
-              {subTabIa === 'auditoria' ? (
+            <div className="animate-fadeIn" style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 20 }}>
+              
+              {/* AUDITORÍA Y SIMULADORES */}
+              <div>
+                <h4 style={{ margin: '0 0 10px 0', fontSize: 11, fontWeight: 800, color: 'var(--bronze-light)', display: 'flex', alignItems: 'center', gap: 6, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  <i className="ri-shield-check-line" style={{ fontSize: 14 }} />
+                  Auditoría y Simuladores de Control
+                </h4>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
                   {/* Columna Izquierda: Live Auditor & Price Optimizer */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -2445,10 +2321,18 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
                       </div>
                     )}
                   </div>
-
                 </div>
-              ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
+              </div>
+
+              <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
+
+                {/* INTELIGENCIA PREDICTIVA (10 MÓDULOS) */}
+                <div>
+                  <h4 style={{ margin: '0 0 10px 0', fontSize: 11, fontWeight: 800, color: 'var(--bronze-light)', display: 'flex', alignItems: 'center', gap: 6, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    <i className="ri-magic-line" style={{ fontSize: 14 }} />
+                    Inteligencia Predictiva (10 Módulos de Diagnóstico)
+                  </h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
                   {/* Module 1 */}
                   <div style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid var(--border)', borderRadius: 12, padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -2640,7 +2524,7 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
                     </div>
                   </div>
                 </div>
-              )}
+              </div>
             </div>
           )}
         </div>
@@ -2928,33 +2812,33 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
                 </div>
               </div>
 
-              {/* Staff y Satisfacción en dos columnas */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 14 }}>
+              {/* Staff */}
+              <div style={{ width: '100%' }}>
                 
                 {/* Staff metrics */}
-                <div style={{ background: 'rgba(0,0,0,0.15)', border: '1px solid var(--border)', borderRadius: 12, padding: 12 }}>
-                  <h4 style={{ margin: '0 0 10px 0', fontSize: 11, fontWeight: 800, color: 'var(--bronze-light)' }}>
+                <div style={{ background: 'rgba(0,0,0,0.15)', border: '1px solid var(--border)', borderRadius: 12, padding: 10 }}>
+                  <h4 style={{ margin: '0 0 8px 0', fontSize: 11, fontWeight: 800, color: 'var(--bronze-light)' }}>
                     Desempeño y Comisiones del Staff
                   </h4>
                   <div className="table-wrapper" style={{ border: 'none' }}>
-                    <table style={{ fontSize: 9 }}>
+                    <table style={{ fontSize: 9, lineHeight: '1.2', borderCollapse: 'collapse', width: '100%' }}>
                       <thead>
                         <tr>
-                          <th>Nombre</th>
-                          <th>Rol</th>
-                          <th style={{ textAlign: 'center' }}>Turnos</th>
-                          <th style={{ textAlign: 'right' }}>Comisión</th>
-                          <th style={{ textAlign: 'right' }}>Satisfacción</th>
+                          <th style={{ padding: '3px 4px', fontSize: 9 }}>Nombre</th>
+                          <th style={{ padding: '3px 4px', fontSize: 9 }}>Rol</th>
+                          <th style={{ textAlign: 'center', padding: '3px 4px', fontSize: 9 }}>Turnos</th>
+                          <th style={{ textAlign: 'right', padding: '3px 4px', fontSize: 9 }}>Comisión</th>
+                          <th style={{ textAlign: 'right', padding: '3px 4px', fontSize: 9 }}>Satisfacción</th>
                         </tr>
                       </thead>
                       <tbody>
                         {staffRendimiento.map(staff => (
-                          <tr key={staff.id}>
-                            <td style={{ fontWeight: 600 }}>{staff.nombre}</td>
-                            <td style={{ color: 'var(--text-secondary)' }}>{staff.rol}</td>
-                            <td style={{ textAlign: 'center' }}>{staff.turnos}</td>
-                            <td style={{ textAlign: 'right', color: 'var(--success)', fontWeight: 700 }}>${staff.comisiones.toLocaleString()}</td>
-                            <td style={{ textAlign: 'right' }}>
+                          <tr key={staff.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
+                            <td style={{ fontWeight: 600, padding: '3px 4px' }}>{staff.nombre}</td>
+                            <td style={{ color: 'var(--text-secondary)', padding: '3px 4px' }}>{staff.rol}</td>
+                            <td style={{ textAlign: 'center', padding: '3px 4px' }}>{staff.turnos}</td>
+                            <td style={{ textAlign: 'right', color: 'var(--success)', fontWeight: 700, padding: '3px 4px' }}>${staff.comisiones.toLocaleString()}</td>
+                            <td style={{ textAlign: 'right', padding: '3px 4px' }}>
                               <span style={{ 
                                 color: staff.satisfaccion >= 4.5 ? 'var(--success)' : staff.satisfaccion >= 4.0 ? 'var(--warning)' : 'var(--danger)',
                                 fontWeight: 700
@@ -2967,58 +2851,6 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
                       </tbody>
                     </table>
                   </div>
-                </div>
-
-                {/* Satisfacción de Clientes */}
-                <div style={{ background: 'rgba(0,0,0,0.15)', border: '1px solid var(--border)', borderRadius: 12, padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  <h4 style={{ margin: 0, fontSize: 11, fontWeight: 800, color: 'var(--bronze-light)' }}>
-                    Satisfacción Promedio: ★ {promedioGeneral.toFixed(1)} / 5.0
-                  </h4>
-                  
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 10 }}>
-                    <div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
-                        <span>Atención de Meseros:</span>
-                        <strong>★ {promedioAtencion.toFixed(1)}</strong>
-                      </div>
-                      <div style={{ width: '100%', height: 6, background: 'rgba(255,255,255,0.05)', borderRadius: 3, overflow: 'hidden' }}>
-                        <div style={{ width: `${(promedioAtencion/5)*100}%`, height: '100%', background: 'var(--bronze)' }} />
-                      </div>
-                    </div>
-                    <div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
-                        <span>Rapidez del Servicio:</span>
-                        <strong>★ {promedioRapidez.toFixed(1)}</strong>
-                      </div>
-                      <div style={{ width: '100%', height: 6, background: 'rgba(255,255,255,0.05)', borderRadius: 3, overflow: 'hidden' }}>
-                        <div style={{ width: `${(promedioRapidez/5)*100}%`, height: '100%', background: 'var(--success)' }} />
-                      </div>
-                    </div>
-                    <div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
-                        <span>Limpieza de Áreas:</span>
-                        <strong>★ {promedioLimpieza.toFixed(1)}</strong>
-                      </div>
-                      <div style={{ width: '100%', height: 6, background: 'rgba(255,255,255,0.05)', borderRadius: 3, overflow: 'hidden' }}>
-                        <div style={{ width: `${(promedioLimpieza/5)*100}%`, height: '100%', background: 'var(--blue-light)' }} />
-                      </div>
-                    </div>
-                    <div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
-                        <span>Equipos y Mesas (Paños):</span>
-                        <strong>★ {promedioEquipo.toFixed(1)}</strong>
-                      </div>
-                      <div style={{ width: '100%', height: 6, background: 'rgba(255,255,255,0.05)', borderRadius: 3, overflow: 'hidden' }}>
-                        <div style={{ width: `${(promedioEquipo/5)*100}%`, height: '100%', background: 'var(--warning)' }} />
-                      </div>
-                    </div>
-                  </div>
-
-                  {totalEncuestas > 0 && (promedioAtencion < 4.2 || promedioRapidez < 4.0) && (
-                    <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 8, padding: 8, fontSize: 8, color: 'var(--danger)', lineHeight: 1.3 }}>
-                      ⚠️ <strong>Cuellos de Botella Detectados:</strong> Tiempo de servicio o atención debajo de los estándares óptimos. La IA sugiere re-organizar los horarios de meseros para el fin de semana.
-                    </div>
-                  )}
                 </div>
 
               </div>
