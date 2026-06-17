@@ -1504,9 +1504,9 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
 
       // 2. IA Tarifa Dinámica sugerida (basada en tarifaBase para evitar feedback loops exponenciales)
       if (s.tiempoHoras > 6.0) {
-        s.tarifaSugerida = Math.round(s.tarifaBase * 1.15); // +15% alta demanda
+        s.tarifaSugerida = Math.round(s.tarifaBase * (1 + surgePercent / 100)); // +surgePercent% alta demanda
       } else if (s.tiempoHoras < 3.5) {
-        s.tarifaSugerida = Math.round(s.tarifaBase * 0.90); // -10% descuento promocional
+        s.tarifaSugerida = Math.round(s.tarifaBase * (1 - discountPercent / 100)); // -discountPercent% descuento promocional
       } else {
         s.tarifaSugerida = s.tarifaBase;
       }
@@ -1541,7 +1541,7 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
     });
 
     return items;
-  }, [bitacora, encuestasList, mesas]);
+  }, [bitacora, encuestasList, mesas, surgePercent, discountPercent]);
 
   // Autopilot de tarifas dinámicas en base a afluencia
   useEffect(() => {
@@ -3524,6 +3524,34 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
                             onChange={e => setDiscountPercent(parseInt(e.target.value))}
                             style={{ width: '100%', accentColor: 'var(--bronze)' }}
                           />
+                        </div>
+                        
+                        <div style={{ marginTop: 12 }}>
+                          <button
+                            onClick={toggleAutopilot}
+                            title="Activar/Desactivar ajuste automático de tarifas dinámicas por afluencia"
+                            style={{
+                              background: tarifaAutopilotActivo ? 'rgba(0,230,118,0.15)' : 'rgba(255,255,255,0.03)',
+                              border: tarifaAutopilotActivo ? '1px solid var(--success)' : '1px solid rgba(255,255,255,0.1)',
+                              borderRadius: 6,
+                              color: tarifaAutopilotActivo ? 'var(--success)' : 'var(--text-muted)',
+                              fontSize: 10,
+                              padding: '6px 12px',
+                              cursor: 'pointer',
+                              fontWeight: 700,
+                              textTransform: 'uppercase',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 6,
+                              outline: 'none',
+                              width: '100%',
+                              justifyContent: 'center',
+                              transition: 'all 0.15s'
+                            }}
+                          >
+                            <i className="ri-settings-3-line" style={{ fontSize: 11 }} />
+                            PILOTO: {tarifaAutopilotActivo ? 'AUTO' : 'MANUAL'}
+                          </button>
                         </div>
                       </div>
                     </div>
