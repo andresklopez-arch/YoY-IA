@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams } from 'next/navigation';
-import { doc, onSnapshot, collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, onSnapshot, collection, addDoc, serverTimestamp, query, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
 export default function FilaEsperaCliente() {
@@ -11,6 +11,8 @@ export default function FilaEsperaCliente() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [alerting, setAlerting] = useState(false);
+  const [posicionGeneral, setPosicionGeneral] = useState(null);
+  const [posicionTipo, setPosicionTipo] = useState(null);
   const audioCtxRef = useRef(null);
   const beepIntervalRef = useRef(null);
 
@@ -208,6 +210,52 @@ export default function FilaEsperaCliente() {
     return () => unsub();
   }, [id]);
 
+  // Escuchar toda la fila en espera para calcular la posición en tiempo real
+  useEffect(() => {
+    if (!id || !data || data.estado !== 'espera') {
+      setPosicionGeneral(null);
+      setPosicionTipo(null);
+      return;
+    }
+
+    const q = query(
+      collection(db, 'fila_espera'),
+      where('estado', '==', 'espera')
+    );
+
+    const unsub = onSnapshot(q, (snap) => {
+      const items = snap.docs.map(d => {
+        const val = d.data();
+        return {
+          ...val,
+          id: d.id
+        };
+      });
+
+      // Ordenar por registro (FIFO)
+      items.sort((a, b) => (a.registro || 0) - (b.registro || 0));
+
+      // 1. Posición General
+      const idxGeneral = items.findIndex(item => String(item.id) === String(id));
+      if (idxGeneral !== -1) {
+        setPosicionGeneral(idxGeneral + 1);
+
+        // 2. Posición por Tipo (filtrando por el tipo de mesa de este cliente)
+        const tipoCliente = data.tipo;
+        const itemsMismoTipo = items.filter(item => item.tipo === tipoCliente);
+        const idxTipo = itemsMismoTipo.findIndex(item => String(item.id) === String(id));
+        setPosicionTipo(idxTipo !== -1 ? idxTipo + 1 : null);
+      } else {
+        setPosicionGeneral(null);
+        setPosicionTipo(null);
+      }
+    }, (error) => {
+      console.error("Error al escuchar la fila general:", error);
+    });
+
+    return () => unsub();
+  }, [id, data]);
+
   // Alerta sonora y de vibración
   useEffect(() => {
     if (alerting) {
@@ -398,7 +446,32 @@ export default function FilaEsperaCliente() {
           <div style={positionBadgeStyle}>
             Turno: #{data.id ? String(data.id).slice(-4) : 'Espera'}
           </div>
-          
+
+          {posicionGeneral !== null && (
+            <div style={{
+              background: posicionGeneral === 1 ? 'rgba(34, 197, 94, 0.08)' : 'rgba(197, 168, 128, 0.08)',
+              border: posicionGeneral === 1 ? '1.5px solid rgba(34, 197, 94, 0.3)' : '1.5px solid rgba(197, 168, 128, 0.3)',
+              borderRadius: 20,
+              padding: '16px 24px',
+              marginBottom: 20,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 4,
+              boxShadow: '0 4px 20px rgba(0,0,0,0.2)'
+            }}>
+              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 600 }}>Posición en Fila</span>
+              <span style={{ fontSize: 44, fontWeight: 800, color: posicionGeneral === 1 ? '#22c55e' : '#c5a880', lineHeight: 1 }}>#{posicionGeneral}</span>
+              {posicionGeneral === 1 ? (
+                <span style={{ fontSize: 11, color: '#22c55e', marginTop: 4, fontWeight: 700 }}>¡Eres el siguiente! Prepárate.</span>
+              ) : posicionTipo !== null && posicionTipo !== posicionGeneral ? (
+                <span style={{ fontSize: 11, color: 'rgba(197, 168, 128, 0.8)', marginTop: 4, fontWeight: 500 }}>
+                  (#{posicionTipo} para mesa tipo {data.tipo})
+                </span>
+              ) : null}
+            </div>
+          )}
+
           <div style={detailsContainerStyle}>
             <div style={detailRowStyle}>
               <span style={detailLabelStyle}>Cliente:</span>
