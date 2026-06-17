@@ -2249,18 +2249,46 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
             </p>
           </div>
         ) : (
-          <div style={{ display: 'flex', alignItems: 'center', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)', borderRadius: 6, padding: '4px 10px', gap: 10, whiteSpace: 'nowrap' }}>
-            <span style={{ fontSize: 10, fontWeight: 900, color: 'var(--bronze-light)' }}>
-              SATISFACCIÓN: ★{promedioGeneral.toFixed(1)}/5.0
-            </span>
-            <div style={{ display: 'flex', gap: 8, fontSize: 8.5, color: 'var(--text-secondary)' }}>
-              <span>Meseros: <strong>★{promedioAtencion.toFixed(1)}</strong></span>
-              <span>·</span>
-              <span>Rapidez: <strong>★{promedioRapidez.toFixed(1)}</strong></span>
-              <span>·</span>
-              <span>Limpieza: <strong>★{promedioLimpieza.toFixed(1)}</strong></span>
-              <span>·</span>
-              <span>Equipos: <strong>★{promedioEquipo.toFixed(1)}</strong></span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap' }}>
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              background: 'linear-gradient(135deg, rgba(212,175,55,0.15) 0%, rgba(139,115,85,0.05) 100%)', 
+              border: '1px solid rgba(212, 175, 55, 0.3)', 
+              borderRadius: 6, 
+              padding: '6px 12px', 
+              gap: 6,
+              boxShadow: '0 0 10px rgba(212,175,55,0.05)'
+            }}>
+              <span style={{ fontSize: 9, fontWeight: 700, color: 'rgba(212,175,55,0.7)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Satisfacción</span>
+              <span style={{ fontSize: 13, fontWeight: 900, color: 'var(--bronze-light)', textShadow: '0 0 4px rgba(212,175,55,0.2)' }}>
+                ★{promedioGeneral.toFixed(1)}/5.0
+              </span>
+            </div>
+            
+            <div style={{ display: 'flex', gap: 6 }}>
+              {[
+                { label: 'Meseros', value: promedioAtencion, color: '#f39c12' },
+                { label: 'Rapidez', value: promedioRapidez, color: '#3498db' },
+                { label: 'Limpieza', value: promedioLimpieza, color: '#2ecc71' },
+                { label: 'Equipos', value: promedioEquipo, color: '#9b59b6' }
+              ].map((item, idx) => (
+                <div key={idx} style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: 4, 
+                  background: 'rgba(255,255,255,0.03)', 
+                  border: '1px solid rgba(255,255,255,0.06)', 
+                  borderRadius: 6, 
+                  padding: '5px 8px',
+                  fontSize: 10.5
+                }}>
+                  <span style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>{item.label}:</span>
+                  <span style={{ color: '#fff', fontWeight: 800, display: 'flex', alignItems: 'center', gap: 2 }}>
+                    <span style={{ color: item.color }}>★</span>{item.value.toFixed(1)}
+                  </span>
+                </div>
+              ))}
             </div>
           </div>
         )}
