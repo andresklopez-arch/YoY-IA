@@ -50,8 +50,8 @@ const QUICK_NAV_TARGETS = [
   { nav: 'bar' },
   { nav: 'torneos' },
   { nav: 'nomina' },
-  { href: '/mesero' },
   { nav: 'config' },
+  { href: '/mesero' },
   { href: '/cocina' },
 ];
 
@@ -695,8 +695,8 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
           { label: 'Inventario', icon: 'ri-archive-line', color: 'var(--blue-light)', nav: 'bar', shortcut: 'Alt + 3' },
           { label: 'Torneos', icon: 'ri-trophy-line', color: '#ffd700', nav: 'torneos', shortcut: 'Alt + 4' },
           { label: 'Nómina', icon: 'ri-briefcase-4-line', color: 'var(--bronze-light)', nav: 'nomina', badge: alertasNomina.length, shortcut: 'Alt + 5' },
-          { label: 'Mesero', icon: 'ri-customer-service-2-line', color: 'var(--success)', href: '/mesero', badge: pedidosPendientes, shortcut: 'Alt + 6' },
-          { label: 'Ajustes', icon: 'ri-settings-4-line', color: 'var(--text-muted)', nav: 'config', shortcut: 'Alt + 7' },
+          { label: 'Ajustes', icon: 'ri-settings-4-line', color: 'var(--text-muted)', nav: 'config', shortcut: 'Alt + 6' },
+          { label: 'Mesero', icon: 'ri-customer-service-2-line', color: 'var(--success)', href: '/mesero', badge: pedidosPendientes, shortcut: 'Alt + 7' },
           { label: 'Cocina', icon: 'ri-restaurant-line', color: 'var(--blue-light)', href: '/cocina', badge: pedidosCocina, shortcut: 'Alt + 8' },
         ].map((a, i) => {
           const isActive = activePanel === a.nav;
