@@ -83,6 +83,18 @@ const getCleanClientName = (name) => {
   return name.replace(/\s*\(Mesa[s]?\s+\d+.*?\)/gi, '').trim();
 };
 
+const matchesTableType = (waitlistType, tableType) => {
+  if (!waitlistType || !tableType) return false;
+  const wt = waitlistType.toLowerCase();
+  const tt = tableType.toLowerCase();
+  if (wt === 'cualquiera' || wt === 'any') return true;
+  if (wt.includes('pool') && tt.includes('pool')) return true;
+  if (wt.includes('carambola') && tt.includes('carambola')) return true;
+  if (wt.includes('snooker') && tt.includes('snooker')) return true;
+  if (wt.includes('dominó') || wt.includes('domino') && (tt.includes('domino') || tt.includes('dominó'))) return true;
+  return wt === tt;
+};
+
 // ── DATOS INICIALES DE MESAS ───────────────────────────────
 const INIT_MESAS = [
   { id: 1, nombre: 'Mesa 1', tipo: 'Carambola 3B', estado: 'libre',    cliente: null, inicio: null, tarifa: 80, socios: false, clienteUid: '' },
@@ -383,12 +395,33 @@ function ModalAbrirMesa({ mesa, onClose, onConfirm }) {
             </div>
 
             <div className="form-group">
-              <label className="form-label">Nombre del cliente (opcional)</label>
-              <input className="form-input" placeholder="Ej: Carlos Rodríguez" value={cliente} onChange={e => setCliente(e.target.value)} />
+              <label className="form-label">
+                {mesa.isLockedToQueue ? 'Nombre del cliente (Asignado por Fila Virtual)' : 'Nombre del cliente (opcional)'}
+              </label>
+              <input 
+                className="form-input" 
+                placeholder="Ej: Carlos Rodríguez" 
+                value={cliente} 
+                onChange={e => setCliente(e.target.value)}
+                disabled={mesa.isLockedToQueue}
+                style={mesa.isLockedToQueue ? { background: 'rgba(255,255,255,0.03)', color: 'var(--text-secondary)', cursor: 'not-allowed', borderColor: 'rgba(197,168,128,0.3)' } : {}}
+              />
+              {mesa.isLockedToQueue && (
+                <div style={{ fontSize: 11, color: 'var(--bronze-light)', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <i className="ri-information-line" />
+                  Mesa reservada para el siguiente cliente en la fila de espera.
+                </div>
+              )}
             </div>
 
-            <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', padding: '10px 14px', background: 'var(--bg-elevated)', borderRadius: 10, border: '1px solid var(--border)' }}>
-              <input type="checkbox" checked={esSocio} onChange={e => setEsSocio(e.target.checked)} style={{ width: 16, height: 16, accentColor: 'var(--bronze)' }} />
+            <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: mesa.isLockedToQueue ? 'not-allowed' : 'pointer', padding: '10px 14px', background: 'var(--bg-elevated)', borderRadius: 10, border: '1px solid var(--border)', opacity: mesa.isLockedToQueue ? 0.6 : 1 }}>
+              <input 
+                type="checkbox" 
+                checked={esSocio} 
+                onChange={e => setEsSocio(e.target.checked)} 
+                disabled={mesa.isLockedToQueue}
+                style={{ width: 16, height: 16, accentColor: 'var(--bronze)', cursor: mesa.isLockedToQueue ? 'not-allowed' : 'pointer' }} 
+              />
               <span style={{ fontSize: 13, fontWeight: 600 }}>Es miembro / socio mensual</span>
               <span className="badge badge-bronze" style={{ marginLeft: 'auto' }}>Sin cargo</span>
             </label>
@@ -2417,6 +2450,34 @@ export default function MesasPanel({ showToast }) {
   const [fila, setFila] = useState([]);
   const tick = useLiveTick();
 
+  // Escuchar Fila de Espera en tiempo real desde Firestore
+  useEffect(() => {
+    const q = query(
+      collection(db, 'fila_espera'),
+      where('estado', '==', 'espera')
+    );
+    const unsub = onSnapshot(q, snap => {
+      const items = snap.docs.map(d => {
+        const val = d.data();
+        return {
+          ...val,
+          id: isNaN(d.id) ? d.id : Number(d.id)
+        };
+      });
+      // Ordenar por timestamp de registro ascendente (FIFO)
+      items.sort((a, b) => (a.registro || 0) - (b.registro || 0));
+      setFila(items);
+      try {
+        localStorage.setItem('yoy_billar_fila', obfuscate(items));
+      } catch (err) {
+        console.error("Error al respaldar fila en localStorage:", err);
+      }
+    }, err => {
+      console.error("Error al escuchar fila_espera en tiempo real:", err);
+    });
+    return unsub;
+  }, []);
+
   // Auto-liberador de reservaciones expiradas (tiempo configurable)
   useEffect(() => {
     const ahora = Date.now();
@@ -2821,7 +2882,21 @@ export default function MesasPanel({ showToast }) {
   const abrirMesa = (mesa) => {
     if (mesa.estado === 'ocupada') { setModalCerrar(mesa); return; }
     if (mesa.estado === 'manten') { showToast('Mesa en mantenimiento, no disponible.', 'warning'); return; }
-    setModalAbrir(mesa);
+    
+    // Verificar si hay alguien en fila de espera para este tipo de mesa
+    const matchingWaiting = fila.filter(f => f.estado === 'espera' && matchesTableType(f.tipo, mesa.tipo));
+    if (matchingWaiting.length > 0) {
+      const nextInLine = matchingWaiting[0];
+      setModalAbrir({
+        ...mesa,
+        cliente: nextInLine.cliente,
+        filaId: nextInLine.id,
+        isLockedToQueue: true
+      });
+      showToast(`Fila de Espera Activa: Mesa bloqueada para ${nextInLine.cliente}`, 'info');
+    } else {
+      setModalAbrir(mesa);
+    }
   };
 
   const confirmarAbrirMesa = (mesaId, { cliente, esSocio, rentarTaco, rentarBolas, rentarTiza }) => {
@@ -2881,7 +2956,7 @@ export default function MesasPanel({ showToast }) {
   };
 
   const asignarClienteDeFila = (clienteEspera) => {
-    let table = mesas.find(m => m.estado === 'libre' && m.tipo === clienteEspera.tipo);
+    let table = mesas.find(m => m.estado === 'libre' && matchesTableType(clienteEspera.tipo, m.tipo));
     if (!table) {
       table = mesas.find(m => m.estado === 'libre');
     }
@@ -2892,7 +2967,8 @@ export default function MesasPanel({ showToast }) {
         ...table,
         cliente: clienteEspera.cliente,
         esSocio: false,
-        filaId: clienteEspera.id
+        filaId: clienteEspera.id,
+        isLockedToQueue: true
       });
     } else {
       showToast('No hay mesas libres disponibles.', 'warning');
@@ -3379,6 +3455,94 @@ export default function MesasPanel({ showToast }) {
       }, 300);
     } catch (err) {
       console.error("Error al inyectar iframe de fila:", err);
+    }
+  };
+
+  const imprimirQRRegistroVirtual = () => {
+    const host = typeof window !== 'undefined' ? window.location.origin : 'https://yoy-ia-billar.vercel.app';
+    const registroUrl = `${host}/fila/registro`;
+
+    const htmlContent = `
+      <html><head><title>Fila Virtual - YoY IA Billar Club</title>
+      <style>
+        body { margin: 0; padding: 20px; font-family: 'Courier New', Courier, monospace; background: #fff; color: #000; font-size: 13px; line-height: 1.4; max-width: 280px; text-align: center; }
+        .text-center { text-align: center; }
+        .divider { border-top: 1px dashed #000; margin: 10px 0; }
+        .header h2 { margin: 0; font-size: 18px; font-weight: bold; }
+        .header p { margin: 2px 0; font-size: 11px; }
+        .qr-container { margin: 15px auto; width: 180px; height: 180px; display: flex; justify-content: center; align-items: center; }
+        .footer { margin-top: 15px; font-size: 10px; color: #555; }
+      </style>
+      </head>
+      <body>
+        <div class="header">
+          <h2>YoY IA Billar Club</h2>
+          <p>FILA VIRTUAL AUTOSERVICIO</p>
+        </div>
+        
+        <div class="divider"></div>
+        
+        <p style="font-size: 11px; font-weight: bold; margin-bottom: 5px;">ESCANEA PARA REGISTRARTE:</p>
+        <div id="qrcode-container" class="qr-container" style="margin: 0 auto;"></div>
+        
+        <p style="font-size: 11px; font-weight: bold; margin-top: 10px;">INSTRUCCIONES:</p>
+        <div style="text-align: left; font-size: 11px; padding: 0 5px;">
+          1. Escanea el código QR con tu celular.<br/>
+          2. Elige tu tipo de mesa y nombre.<br/>
+          3. Recibe tu turno en la fila.<br/>
+          4. Te notificaremos cuando tu mesa esté lista.
+        </div>
+        
+        <div class="divider"></div>
+        
+        <div class="footer">
+          <p>YoY IA Billar Club</p>
+        </div>
+        
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+        <script>
+          window.onload = () => {
+            new QRCode(document.getElementById('qrcode-container'), {
+              text: "${registroUrl}",
+              width: 180,
+              height: 180,
+              colorDark: "#000000",
+              colorLight: "#ffffff",
+              correctLevel: QRCode.CorrectLevel.H
+            });
+            setTimeout(() => {
+              window.print();
+            }, 600);
+          };
+        </script>
+      </body>
+      </html>
+    `;
+
+    try {
+      const iframe = document.createElement('iframe');
+      iframe.style.position = 'fixed';
+      iframe.style.right = '0';
+      iframe.style.bottom = '0';
+      iframe.style.width = '0';
+      iframe.style.height = '0';
+      iframe.style.border = '0';
+      document.body.appendChild(iframe);
+
+      const doc = iframe.contentWindow.document || iframe.contentDocument;
+      doc.open();
+      doc.write(htmlContent);
+      doc.close();
+
+      iframe.contentWindow.focus();
+      setTimeout(() => {
+        iframe.contentWindow.print();
+        setTimeout(() => {
+          document.body.removeChild(iframe);
+        }, 1500);
+      }, 300);
+    } catch (err) {
+      console.error("Error al imprimir QR de fila virtual:", err);
     }
   };
 
@@ -4596,6 +4760,7 @@ export default function MesasPanel({ showToast }) {
           onClose={() => setModalFila(false)}
           showToast={showToast}
           imprimirComprobanteEspera={imprimirComprobanteEspera}
+          imprimirQRRegistroVirtual={imprimirQRRegistroVirtual}
         />
       )}
       {modalCuentas && (
@@ -4782,7 +4947,7 @@ function ModalNuevaMesa({ mesas, onClose, onConfirm }) {
 }
 
 // ── MODAL FILA VIRTUAL ───────────────────────────────────
-function ModalFilaVirtual({ fila, setFila, mesas, onAssign, onClose, showToast, imprimirComprobanteEspera }) {
+function ModalFilaVirtual({ fila, setFila, mesas, onAssign, onClose, showToast, imprimirComprobanteEspera, imprimirQRRegistroVirtual }) {
   const [cliente, setCliente] = useState('');
   const [contacto, setContacto] = useState('');
   const [tipo, setTipo] = useState('Carambola 3B');
@@ -5012,6 +5177,26 @@ function ModalFilaVirtual({ fila, setFila, mesas, onAssign, onClose, showToast, 
             <button className="btn btn-primary" style={{ marginTop: 8 }} onClick={agregarFila}>
               Añadir a la Fila
             </button>
+            <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16, marginTop: 16, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, textAlign: 'center' }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--bronze-light)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Registro Autoservicio (QR)</span>
+              <div style={{ background: '#fff', padding: 8, borderRadius: 10, display: 'inline-block', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}>
+                <img 
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=110x110&data=${encodeURIComponent(typeof window !== 'undefined' ? `${window.location.origin}/fila/registro` : 'https://yoy-ia-billar.vercel.app/fila/registro')}`} 
+                  alt="QR Registro"
+                  style={{ width: 110, height: 110, display: 'block' }}
+                />
+              </div>
+              <p style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.3, margin: '2px 0', maxWidth: 220 }}>
+                Los clientes pueden escanear este código QR para anotarse solos en la lista de espera.
+              </p>
+              <button 
+                className="btn btn-secondary btn-sm" 
+                onClick={imprimirQRRegistroVirtual}
+                style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 11 }}
+              >
+                <i className="ri-printer-line" /> Imprimir QR de Fila
+              </button>
+            </div>
           </div>
         </div>
         <div className="modal-footer">
