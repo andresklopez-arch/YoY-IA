@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useMemo, Fragment } from 'react';
 import { db } from '@/lib/firebase';
-import { doc, onSnapshot, query, collection, orderBy, limit, getDocs, startAfter, writeBatch, addDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, onSnapshot, query, collection, orderBy, limit, getDocs, startAfter, writeBatch, addDoc, serverTimestamp, where, setDoc } from 'firebase/firestore';
 import { deobfuscate, obfuscate } from '@/lib/crypto';
 import { useAuth } from '@/lib/auth-context';
 
@@ -89,6 +89,12 @@ export default function CajaPanel({ showToast }) {
   const [cantidades, setCantidades] = useState({
     1000: '', 500: '', 200: '', 100: '', 50: '', 20: '', 10: '', 5: '', 2: '', 1: '', 0.5: ''
   });
+
+  // Auditoría IA de Corte de Caja
+  const [ultimoCorteFecha, setUltimoCorteFecha] = useState(null);
+  const [bitacoraFiltrada, setBitacoraFiltrada] = useState([]);
+  const [mostrarResumenCorteModal, setMostrarResumenCorteModal] = useState(false);
+  const [resumenCorteActivo, setResumenCorteActivo] = useState(null);
 
   // Estados de Bitácora y Stock
   const [bitacora, setBitacora] = useState([]);
@@ -234,6 +240,41 @@ export default function CajaPanel({ showToast }) {
     }
   }, [cobros]);
 
+  // 3b. Sincronizar último corte de caja
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, 'config', 'ultimo_corte'), snap => {
+      if (snap.exists()) {
+        setUltimoCorteFecha(snap.data().fecha);
+      } else {
+        const hace24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+        setUltimoCorteFecha(hace24h);
+        setDoc(doc(db, 'config', 'ultimo_corte'), { fecha: hace24h });
+      }
+    }, err => {
+      console.warn("Error al escuchar ultimo_corte:", err);
+      const hace24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      setUltimoCorteFecha(hace24h);
+    });
+    return () => unsub();
+  }, []);
+
+  // 3c. Suscribirse a bitácora filtrada por fecha del último corte
+  useEffect(() => {
+    if (!ultimoCorteFecha) return;
+    const q = query(
+      collection(db, 'bitacora'),
+      where('fecha', '>=', ultimoCorteFecha)
+    );
+    const unsub = onSnapshot(q, snap => {
+      const items = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      items.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+      setBitacoraFiltrada(items);
+    }, err => {
+      console.warn("Error al escuchar bitacora del corte:", err);
+    });
+    return () => unsub();
+  }, [ultimoCorteFecha]);
+
   // 4. Suscripciones Firestore
   useEffect(() => {
     const unsubs = [
@@ -353,7 +394,300 @@ export default function CajaPanel({ showToast }) {
   const totalHoy = cobros.filter(t => t.monto > 0).reduce((s, t) => s + t.monto, 0);
   const totalGastos = Math.abs(cobros.filter(t => t.monto < 0).reduce((s, t) => s + t.monto, 0));
   const utilidad = totalHoy - totalGastos;
-  const totalEfectivoEsperado = cobros.filter(t => t.metodo === 'efectivo').reduce((s, t) => s + t.monto, 0);
+
+  const calculationsCorte = useMemo(() => {
+    const startPeriod = ultimoCorteFecha || new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    let ingresosEfectivo = 0;
+    let ingresosTarjeta = 0;
+    let ingresosTransferencia = 0;
+    const ingresosDetalle = [];
+
+    bitacoraFiltrada.forEach(e => {
+      if (e.monto && e.monto > 0) {
+        const detLower = (e.detalle || '').toLowerCase();
+        let metodo = 'efectivo';
+        
+        if (detLower.includes('tarjeta')) {
+          metodo = 'tarjeta';
+          ingresosTarjeta += Number(e.monto);
+        } else if (detLower.includes('transferencia') || detLower.includes('spei') || detLower.includes('qr') || detLower.includes('código qr')) {
+          metodo = 'transferencia';
+          ingresosTransferencia += Number(e.monto);
+        } else {
+          ingresosEfectivo += Number(e.monto);
+        }
+
+        ingresosDetalle.push({
+          id: e.id || Date.now() + Math.random(),
+          fecha: e.fecha,
+          hora: new Date(e.fecha).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }),
+          descripcion: e.detalle || e.accion,
+          cliente: e.operador || 'Cliente',
+          monto: Number(e.monto),
+          metodo
+        });
+      }
+    });
+
+    let totalGastosVal = 0;
+    const gastosDetalle = [];
+
+    gastosList.forEach(g => {
+      if (g.fecha && g.fecha >= startPeriod) {
+        const montoG = Number(g.monto) || 0;
+        totalGastosVal += montoG;
+        gastosDetalle.push({
+          id: g.id || Date.now() + Math.random(),
+          fecha: g.fecha,
+          hora: new Date(g.fecha).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }),
+          descripcion: g.descripcion || 'Gasto registrado',
+          categoria: g.categoria || 'general',
+          proveedor: g.proveedor || g.empleadoNombre || 'Proveedor/Empleado',
+          monto: montoG
+        });
+      }
+    });
+
+    bitacoraFiltrada.forEach(e => {
+      if (e.monto && e.monto < 0) {
+        const montoAbs = Math.abs(Number(e.monto));
+        totalGastosVal += montoAbs;
+        gastosDetalle.push({
+          id: e.id || Date.now() + Math.random(),
+          fecha: e.fecha,
+          hora: new Date(e.fecha).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }),
+          descripcion: e.detalle || e.accion,
+          categoria: 'manual',
+          proveedor: e.operador || 'N/A',
+          monto: montoAbs
+        });
+      }
+    });
+
+    const totalIngresos = ingresosEfectivo + ingresosTarjeta + ingresosTransferencia;
+    const efectivoEsperado = ingresosEfectivo - totalGastosVal;
+
+    return {
+      ingresosEfectivo,
+      ingresosTarjeta,
+      ingresosTransferencia,
+      ingresosDetalle,
+      gastosDetalle,
+      totalIngresos,
+      totalGastos: totalGastosVal,
+      efectivoEsperado
+    };
+  }, [bitacoraFiltrada, gastosList, ultimoCorteFecha]);
+
+  const generarResumenIA = (corteData, sumaContadaVal, diferenciaVal) => {
+    const { ingresosEfectivo, ingresosTarjeta, ingresosTransferencia, totalIngresos, totalGastos: totalGastosVal, gastosDetalle } = corteData;
+    
+    let diagnostico = '';
+    if (diferenciaVal === 0) {
+      diagnostico = 'El flujo de efectivo auditado coincide a la perfección. La trazabilidad indica un balance saludable entre entradas y salidas.';
+    } else if (diferenciaVal > 0) {
+      diagnostico = `Se detectó un SOBRANTE de $${diferenciaVal.toLocaleString()} MXN. Esto sugiere que hubo ingresos en efectivo no registrados en el sistema de mesas (ej: cobros manuales o propinas ingresadas directamente) o comprobantes de egresos que se pagaron con cuentas externas en lugar del efectivo de caja.`;
+    } else {
+      diagnostico = `Se detectó un FALTANTE de $${Math.abs(diferenciaVal).toLocaleString()} MXN. Alerta de trazabilidad: posibles causas incluyen cambio incorrecto entregado a clientes, pagos de barra retirados de caja sin comprobante, o descuadres en comisiones de meseros cobradas directamente en efectivo.`;
+    }
+
+    let categoriasGastos = {};
+    gastosDetalle.forEach(g => {
+      categoriasGastos[g.categoria] = (categoriasGastos[g.categoria] || 0) + g.monto;
+    });
+    
+    let gastosAnalisis = Object.keys(categoriasGastos).length > 0 
+      ? Object.keys(categoriasGastos).map(cat => `- ${cat.toUpperCase()}: $${categoriasGastos[cat].toLocaleString()} MXN`).join('\n')
+      : 'No se registraron egresos/gastos en este periodo.';
+
+    let metodosIngreso = `
+- EFECTIVO: $${ingresosEfectivo.toLocaleString()} MXN (${totalIngresos > 0 ? Math.round((ingresosEfectivo / totalIngresos) * 100) : 0}%)
+- TARJETA: $${ingresosTarjeta.toLocaleString()} MXN (${totalIngresos > 0 ? Math.round((ingresosTarjeta / totalIngresos) * 100) : 0}%)
+- TRANSF/SPEI/QR: $${ingresosTransferencia.toLocaleString()} MXN (${totalIngresos > 0 ? Math.round((ingresosTransferencia / totalIngresos) * 100) : 0}%)
+`;
+
+    let report = `🤖 AUDITORÍA DE FLUJO DE CAJA — MOTOR IA YOY
+
+=== DIAGNÓSTICO FINANCIERO ===
+${diagnostico}
+
+=== FLUJO DE TRAZABILIDAD ===
+Ingresos Totales (Mesas / Barra): $${totalIngresos.toLocaleString()} MXN
+Distribución de Pagos en Pantalla de Mesas:
+${metodosIngreso}
+
+Egresos Totales (Gastos / Nómina): -$${totalGastosVal.toLocaleString()} MXN
+Distribución de Egresos por Categorías:
+${gastosAnalisis}
+
+=== ARQUEO Y RECONCILIACIÓN ===
+Efectivo Esperado en Caja: $${(ingresosEfectivo - totalGastosVal).toLocaleString()} MXN
+Efectivo Físico Entregado (Arqueo): $${sumaContadaVal.toLocaleString()} MXN
+Diferencia Auditoría: ${diferenciaVal >= 0 ? '+' : ''}$${diferenciaVal.toLocaleString()} MXN
+
+=== SUGERENCIAS PREVENTIVAS IA ===
+${diferenciaVal < 0 ? '1. Implementar auditoría ciega por turnos.\n2. Conciliar consumos del bar con el inventario físico al cambio de cajero.' : diferenciaVal > 0 ? '1. Verificar si existen tickets de comandero físico pendientes de facturación.\n2. Asegurar que las comisiones se descuenten de forma digital.' : '1. Mantener el protocolo actual de arqueo interactivo.\n2. Continuar con la trazabilidad en tiempo real de Firestore.'}`;
+    return report.trim();
+  };
+
+  const imprimirTicketCorte = (corteData, sumaContadaVal, diferenciaVal, resumenIA, operador, fechaUltimo, cantidadesDenom) => {
+    const { ingresosEfectivo, ingresosTarjeta, ingresosTransferencia, totalIngresos, totalGastos: totalGastosVal, ingresosDetalle, gastosDetalle } = corteData;
+    
+    let htmlContent = `
+      <html><head><title>Corte de Caja - YoY IA Billar</title>
+      <style>
+        body { margin: 0; padding: 10px; font-family: 'Courier New', Courier, monospace; background: #fff; color: #000; font-size: 11px; line-height: 1.4; max-width: 280px; }
+        .text-center { text-align: center; }
+        .text-right { text-align: right; }
+        .divider { border-top: 1px dashed #000; margin: 8px 0; }
+        .header { margin-bottom: 8px; }
+        .header h3 { margin: 0; font-size: 13px; font-weight: bold; }
+        .header p { margin: 2px 0; font-size: 9px; }
+        .details-table { width: 100%; border-collapse: collapse; }
+        .details-table td, .details-table th { padding: 2px 0; vertical-align: top; font-size: 10px; }
+        .footer { margin-top: 15px; font-size: 8px; text-align: center; color: #555; }
+        pre { white-space: pre-wrap; font-family: inherit; font-size: 9px; margin: 4px 0; }
+      </style>
+      </head>
+      <body>
+        <div class="header text-center">
+          <h3>YoY IA Billar Club</h3>
+          <p>TICKET DE CORTE DE CAJA</p>
+          <p>Fecha Corte: ${new Date().toLocaleString('es-MX')}</p>
+          <p>Desde: ${new Date(fechaUltimo).toLocaleString('es-MX')}</p>
+          <p>Cajero: ${operador}</p>
+        </div>
+        
+        <div class="divider"></div>
+        
+        <div>
+          <strong>RESUMEN DE EFECTIVO:</strong><br/>
+          Esperado en Caja: $${(ingresosEfectivo - totalGastosVal).toLocaleString()} MXN<br/>
+          Contado en Físico: $${sumaContadaVal.toLocaleString()} MXN<br/>
+          Diferencia: ${diferenciaVal >= 0 ? '+' : ''}$${diferenciaVal.toLocaleString()} MXN<br/>
+        </div>
+
+        <div class="divider"></div>
+        
+        <strong>INGRESOS (MESA/BARRA):</strong>
+        <table class="details-table">
+          <thead>
+            <tr style="border-bottom: 1px dashed #000;">
+              <th align="left">Detalle</th>
+              <th align="right">Monto</th>
+            </tr>
+          </thead>
+          <tbody>
+    `;
+
+    ingresosDetalle.forEach(item => {
+      htmlContent += `
+        <tr>
+          <td>${item.descripcion.slice(0, 18)} (${item.metodo.toUpperCase().slice(0, 4)})</td>
+          <td align="right">$${item.monto.toLocaleString()}</td>
+        </tr>
+      `;
+    });
+
+    htmlContent += `
+          </tbody>
+        </table>
+        
+        <div class="divider"></div>
+        
+        <strong>EGRESOS (GASTOS/NÓMINA):</strong>
+        <table class="details-table">
+          <thead>
+            <tr style="border-bottom: 1px dashed #000;">
+              <th align="left">Detalle</th>
+              <th align="right">Monto</th>
+            </tr>
+          </thead>
+          <tbody>
+    `;
+
+    gastosDetalle.forEach(item => {
+      htmlContent += `
+        <tr>
+          <td>[${item.categoria.slice(0, 4).toUpperCase()}] ${item.descripcion.slice(0, 15)}</td>
+          <td align="right">-$${item.monto.toLocaleString()}</td>
+        </tr>
+      `;
+    });
+
+    htmlContent += `
+          </tbody>
+        </table>
+
+        <div class="divider"></div>
+        
+        <strong>DESGLOSE DE BILLETES/MONEDAS:</strong>
+        <table class="details-table">
+          <tbody>
+    `;
+
+    Object.keys(cantidadesDenom).forEach(den => {
+      const qty = parseInt(cantidadesDenom[den]) || 0;
+      if (qty > 0) {
+        htmlContent += `
+          <tr>
+            <td>$${den} x ${qty}</td>
+            <td align="right">$${(parseFloat(den) * qty).toLocaleString()}</td>
+          </tr>
+        `;
+      }
+    });
+
+    htmlContent += `
+          </tbody>
+        </table>
+
+        <div class="divider"></div>
+        
+        <strong>AUDITORÍA DE TRAZABILIDAD IA:</strong><br/>
+        <pre>${resumenIA}</pre>
+
+        <div class="divider"></div>
+        
+        <div class="footer">
+          <p>YoY IA Billar — Sistema de Auditoría y Trazabilidad</p>
+          <p>Firma Cajero: ___________________</p>
+          <p>Firma Administrador: _____________</p>
+        </div>
+      </body>
+      </html>
+    `;
+
+    try {
+      const iframe = document.createElement('iframe');
+      iframe.style.position = 'fixed';
+      iframe.style.right = '0';
+      iframe.style.bottom = '0';
+      iframe.style.width = '0';
+      iframe.style.height = '0';
+      iframe.style.border = '0';
+      document.body.appendChild(iframe);
+
+      const docVal = iframe.contentWindow.document || iframe.contentDocument;
+      docVal.open();
+      docVal.write(htmlContent);
+      docVal.close();
+
+      iframe.contentWindow.focus();
+      setTimeout(() => {
+        iframe.contentWindow.print();
+        setTimeout(() => {
+          document.body.removeChild(iframe);
+        }, 1500);
+      }, 300);
+    } catch (err) {
+      console.error("Error al inyectar iframe e imprimir corte:", err);
+    }
+  };
+
+  const totalEfectivoEsperado = calculationsCorte.efectivoEsperado;
+  const totalDigitalEsperado = calculationsCorte.ingresosTarjeta + calculationsCorte.ingresosTransferencia;
+
   const sumaContada = Object.keys(cantidades).reduce((acc, val) => {
     const qty = parseInt(cantidades[val]) || 0;
     return acc + (parseFloat(val) * qty);
@@ -368,22 +702,64 @@ export default function CajaPanel({ showToast }) {
     return esCierre && esMontoCero;
   });
 
-  const guardarCorteCaja = () => {
+  const guardarCorteCaja = async () => {
     const nombreOperador = user ? (user.name || user.alias || user.email) : 'Administrador';
-    setCobros(prev => [{
-      id: Date.now(),
-      tipo: 'corte',
-      descripcion: `Corte de Caja (Contado: $${sumaContada.toLocaleString()} - Esperado: $${totalEfectivoEsperado.toLocaleString()})`,
-      cliente: nombreOperador,
-      monto: diferencia,
-      metodo: 'efectivo',
-      hora: new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }),
-      color: diferencia >= 0 ? 'var(--success)' : 'var(--danger)',
-    }, ...prev]);
+    const resumenIaTexto = generarResumenIA(calculationsCorte, sumaContada, diferencia);
+    const fechaUltimo = ultimoCorteFecha || new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const cantidadesDenom = { ...cantidades };
 
-    registrarEvento('Corte de Caja', `Corte realizado. Contado: $${sumaContada} - Esperado: $${totalEfectivoEsperado}. Diferencia: $${diferencia}`, diferencia, 'info');
-    showToast(`Corte registrado. Diferencia: $${diferencia.toLocaleString()}`, diferencia >= 0 ? 'success' : 'danger');
-    triggerSimulatedPrint('caja', `Reporte de Corte de Caja - Diferencia: $${diferencia}`);
+    const corteInfo = {
+      operador: nombreOperador,
+      ultimoCorteFecha: fechaUltimo,
+      efectivoContado: sumaContada,
+      efectivoEsperado: calculationsCorte.efectivoEsperado,
+      diferencia: diferencia,
+      totalIngresos: calculationsCorte.totalIngresos,
+      totalGastos: calculationsCorte.totalGastos,
+      resumenIA: resumenIaTexto,
+      cantidadesDenom,
+      ingresosDetalle: calculationsCorte.ingresosDetalle,
+      gastosDetalle: calculationsCorte.gastosDetalle,
+      corteData: calculationsCorte
+    };
+
+    try {
+      await addDoc(collection(db, 'cortes_caja'), {
+        fecha: serverTimestamp(),
+        operador: nombreOperador,
+        ultimoCorteFecha: fechaUltimo,
+        efectivoContado: sumaContada,
+        efectivoEsperado: calculationsCorte.efectivoEsperado,
+        diferencia: diferencia,
+        totalIngresos: calculationsCorte.totalIngresos,
+        totalGastos: calculationsCorte.totalGastos,
+        resumenIA: resumenIaTexto,
+        cantidadesDenom: cantidades,
+        ingresosDetalle: calculationsCorte.ingresosDetalle,
+        gastosDetalle: calculationsCorte.gastosDetalle
+      });
+
+      await registrarEvento(
+        'Corte de Caja',
+        `Corte de Caja realizado por ${nombreOperador}. Contado: $${sumaContada.toLocaleString()} - Esperado: $${calculationsCorte.efectivoEsperado.toLocaleString()}. Diferencia: ${diferencia >= 0 ? '+' : ''}$${diferencia.toLocaleString()}`,
+        diferencia,
+        'info'
+      );
+
+      imprimirTicketCorte(calculationsCorte, sumaContada, diferencia, resumenIaTexto, nombreOperador, fechaUltimo, cantidadesDenom);
+
+      const nuevaFecha = new Date().toISOString();
+      await setDoc(doc(db, 'config', 'ultimo_corte'), { fecha: nuevaFecha });
+
+      setResumenCorteActivo(corteInfo);
+      setMostrarResumenCorteModal(true);
+
+      showToast(`Corte registrado exitosamente. Diferencia: $${diferencia.toLocaleString()}`, diferencia >= 0 ? 'success' : 'danger');
+    } catch (err) {
+      console.error("Error al procesar el corte de caja:", err);
+      showToast("Error al guardar el corte de caja en la base de datos.", "danger");
+    }
+
     setMostrarCorte(false);
     localStorage.removeItem('yoy_caja_corte_draft');
     setCantidades({
@@ -1040,7 +1416,7 @@ export default function CajaPanel({ showToast }) {
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
                   <span style={{ color: 'var(--text-secondary)' }}>Digital (Tarjeta/SPEI):</span>
                   <span style={{ fontWeight: 700, color: 'var(--blue-light)' }}>
-                    ${(cobros.filter(t => t.metodo !== 'efectivo').reduce((s, t) => s + t.monto, 0)).toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                    ${totalDigitalEsperado.toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                   </span>
                 </div>
                 
@@ -2266,6 +2642,121 @@ export default function CajaPanel({ showToast }) {
           hasMore={hasMoreBitacora}
           loadingMore={loadingMoreBitacora}
         />
+      )}
+
+      {/* MODAL RESUMEN CORTE DE CAJA (AUDITORÍA IA) */}
+      {mostrarResumenCorteModal && resumenCorteActivo && (
+        <div className="modal-overlay" onClick={() => setMostrarResumenCorteModal(false)}>
+          <div className="modal" style={{ maxWidth: 650, maxHeight: '90vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header" style={{ borderBottom: '1px solid var(--border)' }}>
+              <span className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <i className="ri-robot-line" style={{ color: 'var(--bronze-light)' }} />
+                Resumen de Corte Auditado por IA
+              </span>
+              <button onClick={() => setMostrarResumenCorteModal(false)} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 20 }}>✕</button>
+            </div>
+            
+            <div className="modal-body" style={{ overflowY: 'auto', padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {/* Encabezado e Info */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, background: 'rgba(255,255,255,0.02)', padding: 12, borderRadius: 8, border: '1px solid var(--border)', fontSize: 11 }}>
+                <div>
+                  <span style={{ color: 'var(--text-muted)' }}>Cajero / Operador:</span><br/>
+                  <strong>{resumenCorteActivo.operador}</strong>
+                </div>
+                <div>
+                  <span style={{ color: 'var(--text-muted)' }}>Periodo Auditado:</span><br/>
+                  <strong>Desde {new Date(resumenCorteActivo.ultimoCorteFecha).toLocaleDateString()} {new Date(resumenCorteActivo.ultimoCorteFecha).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</strong>
+                </div>
+              </div>
+
+              {/* Resultados Financieros del Arqueo */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+                <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 10, padding: 12, textAlign: 'center' }}>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 4 }}>Esperado Efectivo</div>
+                  <strong style={{ fontSize: 16 }}>${resumenCorteActivo.efectivoEsperado.toLocaleString()}</strong>
+                </div>
+                <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 10, padding: 12, textAlign: 'center' }}>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 4 }}>Entregado Administrador</div>
+                  <strong style={{ fontSize: 16 }}>${resumenCorteActivo.efectivoContado.toLocaleString()}</strong>
+                </div>
+                <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 10, padding: 12, textAlign: 'center' }}>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 4 }}>Diferencia Arqueo</div>
+                  <strong style={{ fontSize: 16, color: resumenCorteActivo.diferencia === 0 ? 'var(--success)' : resumenCorteActivo.diferencia > 0 ? 'var(--warning)' : 'var(--danger)' }}>
+                    {resumenCorteActivo.diferencia >= 0 ? '+' : ''}${resumenCorteActivo.diferencia.toLocaleString()}
+                  </strong>
+                </div>
+              </div>
+
+              {/* Trazabilidad IA */}
+              <div style={{ background: 'linear-gradient(135deg, rgba(205, 127, 50, 0.05), rgba(0,0,0,0.2))', border: '1px solid var(--border-bronze)', borderRadius: 10, padding: 14 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--bronze-light)', fontWeight: 800, fontSize: 12, marginBottom: 10 }}>
+                  <i className="ri-robot-line" />
+                  <span>ANÁLISIS DE TRAZABILIDAD IA</span>
+                </div>
+                <pre style={{ margin: 0, padding: 0, background: 'none', border: 'none', color: '#fff', fontSize: 10, whiteSpace: 'pre-wrap', lineHeight: 1.5, fontFamily: 'monospace' }}>
+                  {resumenCorteActivo.resumenIA}
+                </pre>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                {/* Ingresos Detallados */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <h4 style={{ fontSize: 11, color: 'var(--bronze-light)', margin: 0, textTransform: 'uppercase', fontWeight: 800 }}>Ingresos Detectados</h4>
+                  <div style={{ maxHeight: 150, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 8, padding: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {resumenCorteActivo.ingresosDetalle.length === 0 ? (
+                      <span style={{ fontSize: 10, color: 'var(--text-muted)', fontStyle: 'italic' }}>No hay ingresos.</span>
+                    ) : (
+                      resumenCorteActivo.ingresosDetalle.map(item => (
+                        <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, borderBottom: '1px solid rgba(255,255,255,0.02)', paddingBottom: 4 }}>
+                          <span style={{ color: 'var(--text-secondary)' }}>{item.descripcion.slice(0, 22)} ({item.metodo.toUpperCase().slice(0, 4)})</span>
+                          <strong>${item.monto.toLocaleString()}</strong>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                {/* Egresos Detallados */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <h4 style={{ fontSize: 11, color: 'var(--bronze-light)', margin: 0, textTransform: 'uppercase', fontWeight: 800 }}>Egresos / Gastos</h4>
+                  <div style={{ maxHeight: 150, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 8, padding: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {resumenCorteActivo.gastosDetalle.length === 0 ? (
+                      <span style={{ fontSize: 10, color: 'var(--text-muted)', fontStyle: 'italic' }}>No hay egresos.</span>
+                    ) : (
+                      resumenCorteActivo.gastosDetalle.map(item => (
+                        <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, borderBottom: '1px solid rgba(255,255,255,0.02)', paddingBottom: 4 }}>
+                          <span style={{ color: 'var(--text-secondary)' }}>[{item.categoria.slice(0,4).toUpperCase()}] {item.descripcion.slice(0, 18)}</span>
+                          <strong style={{ color: 'var(--danger)' }}>-${item.monto.toLocaleString()}</strong>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="modal-footer" style={{ borderTop: '1px solid var(--border)', gap: 10 }}>
+              <button 
+                className="btn btn-secondary" 
+                onClick={() => {
+                  imprimirTicketCorte(
+                    resumenCorteActivo.corteData,
+                    resumenCorteActivo.efectivoContado,
+                    resumenCorteActivo.diferencia,
+                    resumenCorteActivo.resumenIA,
+                    resumenCorteActivo.operador,
+                    resumenCorteActivo.ultimoCorteFecha,
+                    resumenCorteActivo.cantidadesDenom
+                  );
+                }}
+              >
+                <i className="ri-printer-line" style={{ marginRight: 6 }} />
+                Imprimir Ticket
+              </button>
+              <button className="btn btn-primary" onClick={() => setMostrarResumenCorteModal(false)}>Cerrar</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
