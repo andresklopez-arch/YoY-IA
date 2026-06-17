@@ -2538,6 +2538,36 @@ export default function MesasPanel({ showToast }) {
     return unsub;
   }, []);
 
+  const playCashierNotificationSound = () => {
+    try {
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      if (AudioContext) {
+        const ctx = new AudioContext();
+        const playTone = (freq, time, duration, vol) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(freq, time);
+          gain.gain.setValueAtTime(0, time);
+          gain.gain.linearRampToValueAtTime(vol, time + 0.05);
+          gain.gain.exponentialRampToValueAtTime(0.001, time + duration);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(time);
+          osc.stop(time + duration);
+        };
+        // Nota 1 (Arpeggio)
+        playTone(523.25, ctx.currentTime, 0.4, 0.25); // C5
+        playTone(659.25, ctx.currentTime + 0.12, 0.5, 0.2); // E5
+        playTone(783.99, ctx.currentTime + 0.24, 0.8, 0.15); // G5
+        
+        setTimeout(() => ctx.close(), 1500);
+      }
+    } catch (e) {
+      console.warn("Error al reproducir sonido de caja:", e);
+    }
+  };
+
   const [assignedFila, setAssignedFila] = useState([]);
 
   // Escuchar Fila de Espera Asignada en tiempo real
@@ -2561,6 +2591,26 @@ export default function MesasPanel({ showToast }) {
     });
     return unsub;
   }, []);
+
+  // Alerta sonora reactiva y recordatorio periódico para el cajero
+  const prevAssignedCountRef = useRef(0);
+  useEffect(() => {
+    if (assignedFila.length > prevAssignedCountRef.current) {
+      playCashierNotificationSound();
+    }
+    prevAssignedCountRef.current = assignedFila.length;
+
+    let chimeInterval = null;
+    if (assignedFila.length > 0) {
+      chimeInterval = setInterval(() => {
+        playCashierNotificationSound();
+      }, 15000); // Recordatorio cada 15 segundos
+    }
+
+    return () => {
+      if (chimeInterval) clearInterval(chimeInterval);
+    };
+  }, [assignedFila]);
 
   // Auto-cancelador de asignaciones vencidas en Fila Virtual (5 minutos de tolerancia)
   useEffect(() => {
@@ -2631,6 +2681,7 @@ export default function MesasPanel({ showToast }) {
             mesaAsignada: mesaNombreStr,
             assignedAt: serverTimestamp()
           });
+          playCashierNotificationSound(); // Alerta sonora en caja
           registrarEvento('Asignación Automática', `Mesa ${m.id} (${m.tipo}) asignada automáticamente a ${elegible.cliente} (Fila Virtual).`);
           showToast(`Mesa ${m.id} asignada automáticamente a ${elegible.cliente}`, 'success');
         } catch (err) {
@@ -4135,7 +4186,82 @@ export default function MesasPanel({ showToast }) {
 
   return (
     <div style={{ minHeight: isFullscreen ? '100vh' : 'auto', padding: isFullscreen ? '20px' : '0', background: isFullscreen ? 'var(--bg-main)' : 'transparent' }}>
-      <div className="page-header" style={{
+      <style>{`
+        @keyframes pulseBorderGold {
+          0% { border-color: rgba(197, 168, 128, 0.4); box-shadow: 0 0 5px rgba(197, 168, 128, 0.15); }
+          50% { border-color: rgba(197, 168, 128, 0.8); box-shadow: 0 0 15px rgba(197, 168, 128, 0.35); }
+          100% { border-color: rgba(197, 168, 128, 0.4); box-shadow: 0 0 5px rgba(197, 168, 128, 0.15); }
+        }
+        @keyframes pulseGlowAlert {
+          0% { box-shadow: 0 4px 15px rgba(197, 168, 128, 0.15); border-color: rgba(197, 168, 128, 0.4); }
+          50% { box-shadow: 0 4px 25px rgba(197, 168, 128, 0.3); border-color: rgba(197, 168, 128, 0.7); }
+          100% { box-shadow: 0 4px 15px rgba(197, 168, 128, 0.15); border-color: rgba(197, 168, 128, 0.4); }
+        }
+        @keyframes ringBell {
+          0% { transform: rotate(0); }
+          15% { transform: rotate(15deg); }
+          30% { transform: rotate(-15deg); }
+          45% { transform: rotate(10deg); }
+          60% { transform: rotate(-10deg); }
+          75% { transform: rotate(4deg); }
+          85% { transform: rotate(-4deg); }
+          100% { transform: rotate(0); }
+        }
+      `}</style>
+
+      {/* Banner de Fila Virtual Activa (Visual Alert para el Cajero) */}
+      {assignedFila.length > 0 && (
+        <div style={{ 
+          background: 'rgba(197, 168, 128, 0.08)', 
+          border: '1.5px solid rgba(197, 168, 128, 0.4)', 
+          borderRadius: 14, 
+          padding: '12px 18px', 
+          marginBottom: 16, 
+          boxShadow: '0 4px 15px rgba(197, 168, 128, 0.15)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 8,
+          animation: 'pulseGlowAlert 3s infinite ease-in-out'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 18, animation: 'ringBell 1.5s infinite ease' }}>🚨</span>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--bronze-light)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Fila Virtual: Asignaciones de Mesa Activas
+              </span>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                Los clientes han sido notificados en sus dispositivos móviles y tienen 5 minutos de tolerancia para presentarse.
+              </span>
+            </div>
+          </div>
+          
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 4 }}>
+            {assignedFila.map(f => {
+              const timeRemaining = Math.max(0, 5 * 60 - Math.floor((Date.now() - (f.assignedAt || Date.now())) / 1000));
+              const minutes = Math.floor(timeRemaining / 60);
+              const seconds = timeRemaining % 60;
+              const timeStr = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+              
+              return (
+                <div key={f.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 8, padding: '8px 12px', fontSize: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <i className="ri-user-shared-line" style={{ color: 'var(--bronze-light)' }} />
+                    <strong>{f.cliente}</strong> (Turno: #{String(f.id).slice(-4)}) ➔ <span style={{ color: '#22c55e', fontWeight: 700 }}>{f.mesaAsignada}</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>Tiempo restante:</span>
+                    <strong style={{ color: timeRemaining < 60 ? '#ef4444' : 'var(--bronze-light)', fontSize: 13, fontFamily: 'monospace' }}>
+                      {timeStr}
+                    </strong>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+        <div className="page-header" style={{
         marginBottom: 16,
         background: 'var(--bg-elevated)',
         border: '1px solid var(--border-bronze)',
@@ -4406,6 +4532,9 @@ export default function MesasPanel({ showToast }) {
             '--comet-duration': cometDuration
           };
 
+          const mesaNombreStr = mesa.nombre || `Mesa ${mesa.id}`;
+          const isAssignedToQueue = mesa.estado === 'libre' && assignedFila.some(f => f.mesaAsignada && f.mesaAsignada.toLowerCase() === mesaNombreStr.toLowerCase());
+
           const dynamicStyle = hasAlert ? {
             boxShadow: '0 0 16px rgba(239, 68, 68, 0.3)',
             border: '1px solid rgba(239, 68, 68, 0.4)',
@@ -4413,6 +4542,11 @@ export default function MesasPanel({ showToast }) {
           } : isPorCobrar ? {
             border: '1.5px dashed #f59e0b',
             boxShadow: '0 0 12px rgba(245, 158, 11, 0.15)',
+          } : isAssignedToQueue ? {
+            border: '1px solid rgba(197, 168, 128, 0.5)',
+            boxShadow: '0 0 10px rgba(197, 168, 128, 0.25)',
+            background: 'rgba(197, 168, 128, 0.03)',
+            animation: 'pulseBorderGold 3s infinite ease-in-out'
           } : {};
 
           const mergedStyle = { ...baseStyle, ...dynamicStyle };
@@ -4441,6 +4575,31 @@ export default function MesasPanel({ showToast }) {
                 <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 3 }}>
                   {mesa.tipo}
                 </div>
+
+                {mesa.estado === 'libre' && (
+                  (() => {
+                    const mNombreStr = mesa.nombre || `Mesa ${mesa.id}`;
+                    const assignment = assignedFila.find(f => f.mesaAsignada && f.mesaAsignada.toLowerCase() === mNombreStr.toLowerCase());
+                    if (assignment) {
+                      const timeRemaining = Math.max(0, 5 * 60 - Math.floor((Date.now() - (assignment.assignedAt || Date.now())) / 1000));
+                      const minutes = Math.floor(timeRemaining / 60);
+                      const seconds = timeRemaining % 60;
+                      const timeStr = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+                      return (
+                        <div style={{ marginTop: 4, display: 'flex', flexDirection: 'column', gap: 4, background: 'rgba(197, 168, 128, 0.08)', border: '1px solid rgba(197, 168, 128, 0.2)', borderRadius: 8, padding: '6px 8px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 700, color: 'var(--bronze-light)' }}>
+                            <i className="ri-alarm-warning-line animate-pulse" />
+                            <span>Fila: {assignment.cliente}</span>
+                          </div>
+                          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.6)' }}>
+                            Expiración: <strong style={{ color: '#ef4444' }}>{timeStr}</strong>
+                          </div>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()
+                )}
 
                 {mesa.estado === 'ocupada' && (
                   <>

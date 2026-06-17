@@ -108,24 +108,39 @@ export default function FilaEsperaCliente() {
     }
   };
 
-  // Disparar notificación del sistema cuando se activa la alerta
+  // Disparar notificación del sistema cuando se activa la alerta de forma periódica para sonido/vibración constante en segundo plano
   useEffect(() => {
+    let systemAlertInterval = null;
     if (alerting) {
-      if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-        if (swRegistrationRef.current) {
-          swRegistrationRef.current.showNotification("¡TU MESA ESTÁ LISTA! 🔔", {
-            body: `Hola, ${data?.cliente || 'Cliente'}. Tu mesa asignada es la ${data?.mesaAsignada || ''}. Dirígete al personal.`,
-            icon: "/icon.png",
-            vibrate: [300, 200, 300, 200, 500],
-            tag: "mesa-lista",
-            requireInteraction: true,
-            actions: [
-              { action: 'silenciar', title: '🔇 Silenciar Alarma' }
-            ]
-          });
+      const triggerNotification = () => {
+        if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+          if (swRegistrationRef.current) {
+            swRegistrationRef.current.showNotification("¡TU MESA ESTÁ LISTA! 🔔", {
+              body: `Hola, ${data?.cliente || 'Cliente'}. Tu mesa asignada es la ${data?.mesaAsignada || ''}. Dirígete al personal de inmediato.`,
+              icon: "/icon.png",
+              vibrate: [500, 200, 500, 200, 800],
+              tag: "mesa-lista",
+              renotify: true,
+              requireInteraction: true,
+              actions: [
+                { action: 'silenciar', title: '🔇 Silenciar Alarma' }
+              ]
+            });
+          }
         }
-      }
+      };
+
+      triggerNotification();
+
+      // Repetir cada 8 segundos para emular una alarma constante
+      systemAlertInterval = setInterval(triggerNotification, 8000);
     }
+
+    return () => {
+      if (systemAlertInterval) {
+        clearInterval(systemAlertInterval);
+      }
+    };
   }, [alerting, data]);
 
   // Escuchar mensajes del Service Worker para silenciar la alarma
