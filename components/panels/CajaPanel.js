@@ -1556,12 +1556,17 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
     const gastoDiarioPromedio = finanzas.totalOPEX / diasFiltro;
     const gastoMensualProyectado = (finanzas.totalOPEX / diasFiltro) * 30;
     
+    const utilidadDiariaPromedio = finanzas.utilidadNeta / diasFiltro;
+    const utilidadMensualProyectada = datosProyeccion.proyeccionCierre - gastoMensualProyectado;
+    
     return {
       ticketPromedio,
       gastoDiarioPromedio,
-      gastoMensualProyectado
+      gastoMensualProyectado,
+      utilidadDiariaPromedio,
+      utilidadMensualProyectada
     };
-  }, [finanzas.totalIngresos, finanzas.totalOPEX, cobros, diasFiltro]);
+  }, [finanzas.totalIngresos, finanzas.totalOPEX, finanzas.utilidadNeta, cobros, diasFiltro, datosProyeccion.proyeccionCierre]);
 
   // Mapa de calor
   const DIAS_SEMANA_MAPA = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
@@ -1667,6 +1672,42 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
           </button>
         </div>
       </div>
+
+      {/* 5 TARJETAS DE MÉTRICAS RÁPIDAS (Colocadas después del título) */}
+      {!esCajero && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10, marginBottom: 8 }}>
+          <div className="stat-card" style={{ padding: '8px 10px', display: 'flex', flexDirection: 'column', justifyContent: 'center', background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+            <span style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.04em' }}>Ticket Promedio Client</span>
+            <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--bronze-light)', marginTop: 2 }}>
+              ${metricasRendimiento.ticketPromedio.toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+            </span>
+          </div>
+          <div className="stat-card" style={{ padding: '8px 10px', display: 'flex', flexDirection: 'column', justifyContent: 'center', background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+            <span style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.04em' }}>Gasto Diario Promedio</span>
+            <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--danger)', marginTop: 2 }}>
+              ${metricasRendimiento.gastoDiarioPromedio.toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+            </span>
+          </div>
+          <div className="stat-card" style={{ padding: '8px 10px', display: 'flex', flexDirection: 'column', justifyContent: 'center', background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+            <span style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.04em' }}>Operación Mensual Est.</span>
+            <span style={{ fontSize: 14, fontWeight: 800, color: '#fff', marginTop: 2 }}>
+              ${metricasRendimiento.gastoMensualProyectado.toLocaleString('es-MX', { maximumFractionDigits: 0, maximumFractionDigits: 0 })}
+            </span>
+          </div>
+          <div className="stat-card" style={{ padding: '8px 10px', display: 'flex', flexDirection: 'column', justifyContent: 'center', background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+            <span style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.04em' }}>Utilidad Diaria Prom.</span>
+            <span style={{ fontSize: 14, fontWeight: 800, color: metricasRendimiento.utilidadDiariaPromedio >= 0 ? 'var(--success)' : 'var(--danger)', marginTop: 2 }}>
+              ${metricasRendimiento.utilidadDiariaPromedio.toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+            </span>
+          </div>
+          <div className="stat-card" style={{ padding: '8px 10px', display: 'flex', flexDirection: 'column', justifyContent: 'center', background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+            <span style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.04em' }}>Utilidad Fin de Mes Est.</span>
+            <span style={{ fontSize: 14, fontWeight: 800, color: metricasRendimiento.utilidadMensualProyectada >= 0 ? 'var(--success)' : 'var(--danger)', marginTop: 2 }}>
+              ${metricasRendimiento.utilidadMensualProyectada.toLocaleString('es-MX', { maximumFractionDigits: 0, maximumFractionDigits: 0 })}
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* SECCIÓN PRINCIPAL: MÓDULOS Y KPIS A LA IZQUIERDA, CORTE Y HISTORIAL A LA DERECHA */}
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 240px', gap: 16, alignItems: 'flex-start' }}>
@@ -1822,27 +1863,6 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
                 </div>
               </div>
 
-              {/* Mini metrics bar (3 columns) */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginTop: 4 }}>
-                <div className="stat-card" style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', justifyContent: 'center', background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-                  <span style={{ fontSize: 10.5, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.04em' }}>Ticket Promedio Client</span>
-                  <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--bronze-light)', marginTop: 2 }}>
-                    ${metricasRendimiento.ticketPromedio.toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                  </span>
-                </div>
-                <div className="stat-card" style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', justifyContent: 'center', background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-                  <span style={{ fontSize: 10.5, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.04em' }}>Gasto Diario Promedio</span>
-                  <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--danger)', marginTop: 2 }}>
-                    ${metricasRendimiento.gastoDiarioPromedio.toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                  </span>
-                </div>
-                <div className="stat-card" style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', justifyContent: 'center', background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-                  <span style={{ fontSize: 10.5, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.04em' }}>Operación Mensual Est.</span>
-                  <span style={{ fontSize: 15, fontWeight: 800, color: '#fff', marginTop: 2 }}>
-                    ${metricasRendimiento.gastoMensualProyectado.toLocaleString('es-MX', { maximumFractionDigits: 0, maximumFractionDigits: 0 })}
-                  </span>
-                </div>
-              </div>
             </>
           )}
         </div>
