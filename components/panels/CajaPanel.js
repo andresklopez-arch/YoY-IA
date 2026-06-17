@@ -1665,20 +1665,15 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
           <button className="btn btn-secondary btn-sm" onClick={() => setMostrarBitacora(true)} style={{ height: 32, fontSize: 11 }}>
             <i className="ri-history-line" /> Bitácora
           </button>
-          {!esCajero && (
-            <button className="btn btn-secondary btn-sm" onClick={() => setMostrarCobroManual(true)} style={{ height: 32, fontSize: 11 }}>
-              <i className="ri-money-dollar-box-line" /> Cobro Manual
-            </button>
-          )}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, width: 140 }}>
             <button className="btn btn-primary btn-sm" onClick={() => setMostrarCorte(true)} style={{ height: 32, fontSize: 11, width: '100%' }}>
               <i className="ri-file-list-3-line" /> Corte de Caja
             </button>
             {/* Historial rápido (sólo fecha) */}
             {cortesFiltrados.length > 0 && (
-              <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, padding: '4px 6px', display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 110, overflowY: 'auto', width: '100%', boxShadow: '0 4px 6px rgba(0,0,0,0.15)' }}>
+              <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, padding: '4px 6px', display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 180, overflowY: 'auto', width: '100%', boxShadow: '0 4px 6px rgba(0,0,0,0.15)' }}>
                 <span style={{ fontSize: 7, color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.03em', textAlign: 'center', borderBottom: '1px solid var(--border)', paddingBottom: 2 }}>Historial Cortes</span>
-                {cortesFiltrados.slice(0, 5).map(c => {
+                {cortesFiltrados.slice(0, 10).map(c => {
                   const dateObj = new Date(c.fecha);
                   const dateStr = dateObj.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: '2-digit' });
                   const timeStr = dateObj.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
@@ -1757,44 +1752,44 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
         ) : (
           <div style={{ gridColumn: 'span 4', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             {/* Tarjeta 1: Resumen Financiero Unificado */}
-            <div className="stat-card" style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 10, background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-bronze)', paddingBottom: 6 }}>
-                <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--bronze-light)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  <i className="ri-wallet-3-line" style={{ marginRight: 6 }} />
+            <div className="stat-card" style={{ padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 6, background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-bronze)', paddingBottom: 4 }}>
+                <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--bronze-light)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  <i className="ri-wallet-3-line" style={{ marginRight: 4 }} />
                   Resumen Financiero Unificado
                 </span>
-                <span className="badge badge-success" style={{ fontSize: 9 }}>En Vivo</span>
+                <span className="badge badge-success" style={{ fontSize: 8, padding: '2px 4px' }}>En Vivo</span>
               </div>
               
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
-                  <span style={{ color: 'var(--text-secondary)' }}>Efectivo en Caja:</span>
+              <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '4px 12px', fontSize: 10 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>Efectivo:</span>
                   <span style={{ fontWeight: 700, color: 'var(--success)' }}>${totalEfectivoEsperado.toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
                 </div>
                 
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
-                  <span style={{ color: 'var(--text-secondary)' }}>Digital (Tarjeta/SPEI):</span>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>Ingresos:</span>
+                  <span style={{ fontWeight: 700, color: 'var(--success)' }}>${finanzas.totalIngresos.toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>Digital:</span>
                   <span style={{ fontWeight: 700, color: 'var(--blue-light)' }}>
                     ${totalDigitalEsperado.toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                   </span>
                 </div>
                 
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, borderTop: '1px dashed var(--border)', paddingTop: 6 }}>
-                  <span style={{ color: 'var(--text-secondary)' }}>Ingresos Totales ({filtroGrafico}):</span>
-                  <span style={{ fontWeight: 700, color: 'var(--success)' }}>${finanzas.totalIngresos.toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
-                </div>
-                
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
-                  <span style={{ color: 'var(--text-secondary)' }}>Gastos Totales (OPEX):</span>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>Gastos:</span>
                   <span style={{ fontWeight: 700, color: 'var(--danger)' }}>-${finanzas.totalOPEX.toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
                 </div>
-                
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, fontWeight: 800, borderTop: '1px solid var(--border-bronze)', paddingTop: 6 }}>
+
+                <div style={{ gridColumn: 'span 2', display: 'flex', justifyContent: 'space-between', fontSize: 11, fontWeight: 800, borderTop: '1px solid var(--border-bronze)', paddingTop: 4, marginTop: 2 }}>
                   <span style={{ color: '#fff' }}>Utilidad Neta (P&L):</span>
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                     <span style={{ color: 'var(--bronze-light)' }}>${finanzas.utilidadNeta.toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
                     <span style={{ fontSize: 9, color: finanzas.margenUtilidad >= 0 ? 'var(--success)' : 'var(--danger)' }}>
-                      {finanzas.margenUtilidad.toFixed(1)}% Margen
+                      ({finanzas.margenUtilidad.toFixed(1)}% Margen)
                     </span>
                   </div>
                 </div>
@@ -1802,39 +1797,40 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
             </div>
 
             {/* Tarjeta 2: Metas y Proyección al Cierre */}
-            <div className="stat-card" style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 10, background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-bronze)', paddingBottom: 6 }}>
-                <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--bronze-light)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  <i className="ri-flag-line" style={{ marginRight: 6 }} />
+            <div className="stat-card" style={{ padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 6, background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-bronze)', paddingBottom: 4 }}>
+                <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--bronze-light)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  <i className="ri-flag-line" style={{ marginRight: 4 }} />
                   Metas y Proyección (Mes Actual)
                 </span>
-                <span className="badge badge-bronze" style={{ fontSize: 9 }}>Predicción IA</span>
+                <span className="badge badge-bronze" style={{ fontSize: 8, padding: '2px 4px' }}>Predicción IA</span>
               </div>
               
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
                   <span style={{ color: 'var(--text-secondary)' }}>Ingreso Acumulado:</span>
                   <span style={{ fontWeight: 700, color: '#fff' }}>
                     ${ingresosMesActual.toLocaleString('es-MX', { maximumFractionDigits: 0 })} / ${metaMensual.toLocaleString('es-MX', { maximumFractionDigits: 0 })}
                   </span>
                 </div>
                 
-                {/* Progress Bar */}
-                <div style={{ width: '100%', height: 8, background: 'var(--bg-elevated)', borderRadius: 4, overflow: 'hidden', position: 'relative', border: '1px solid var(--border)' }}>
-                  <div style={{
-                    width: `${Math.min(100, datosProyeccion.porcentajeMeta)}%`,
-                    height: '100%',
-                    background: 'linear-gradient(90deg, var(--bronze), var(--bronze-light))',
-                    borderRadius: 4,
-                    transition: 'width 0.4s ease'
-                  }} />
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, color: 'var(--text-muted)' }}>
-                  <span>Progreso de Meta: {datosProyeccion.porcentajeMeta.toFixed(1)}%</span>
-                  <span>Día {datosProyeccion.diaActual} de {datosProyeccion.totalDiasMes}</span>
+                {/* Progress Bar and text inline */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '2px 0' }}>
+                  <div style={{ flex: 1, height: 6, background: 'var(--bg-elevated)', borderRadius: 3, overflow: 'hidden', border: '1px solid var(--border)', position: 'relative' }}>
+                    <div style={{
+                      width: `${Math.min(100, datosProyeccion.porcentajeMeta)}%`,
+                      height: '100%',
+                      background: 'linear-gradient(90deg, var(--bronze), var(--bronze-light))',
+                      borderRadius: 3,
+                      transition: 'width 0.4s ease'
+                    }} />
+                  </div>
+                  <span style={{ fontSize: 8, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                    {datosProyeccion.porcentajeMeta.toFixed(1)}% (Día {datosProyeccion.diaActual}/{datosProyeccion.totalDiasMes})
+                  </span>
                 </div>
 
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, borderTop: '1px dashed var(--border)', paddingTop: 6 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, borderTop: '1px dashed var(--border)', paddingTop: 4 }}>
                   <span style={{ color: 'var(--text-secondary)' }}>Proyección Cierre:</span>
                   <span style={{ fontWeight: 700, color: datosProyeccion.superaMeta ? 'var(--success)' : 'var(--warning)' }}>
                     ${datosProyeccion.proyeccionCierre.toLocaleString('es-MX', { maximumFractionDigits: 0 })} ({datosProyeccion.porcentajeProyectado.toFixed(0)}%)
@@ -1843,25 +1839,30 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
 
                 {/* IA recommendation / warning */}
                 <div style={{
-                  background: datosProyeccion.superaMeta ? 'rgba(46, 204, 113, 0.04)' : 'rgba(231, 76, 60, 0.04)',
-                  border: `1px solid ${datosProyeccion.superaMeta ? 'rgba(46, 204, 113, 0.15)' : 'rgba(231, 76, 60, 0.15)'}`,
-                  borderRadius: 6,
-                  padding: '6px 8px',
-                  fontSize: 10,
+                  background: datosProyeccion.superaMeta ? 'rgba(46, 204, 113, 0.03)' : 'rgba(231, 76, 60, 0.03)',
+                  border: `1px solid ${datosProyeccion.superaMeta ? 'rgba(46, 204, 113, 0.1)' : 'rgba(231, 76, 60, 0.1)'}`,
+                  borderRadius: 4,
+                  padding: '3px 6px',
+                  fontSize: 8.5,
                   display: 'flex',
-                  gap: 6,
-                  alignItems: 'flex-start'
+                  gap: 4,
+                  alignItems: 'center'
                 }}>
                   <i className={datosProyeccion.superaMeta ? "ri-checkbox-circle-line" : "ri-alert-line"} style={{
                     color: datosProyeccion.superaMeta ? 'var(--success)' : 'var(--danger)',
-                    marginTop: 1,
-                    fontSize: 12
+                    fontSize: 10
                   }} />
-                  <span style={{ color: 'var(--text-secondary)', lineHeight: '1.3em' }}>
-                    {datosProyeccion.superaMeta ? (
+                  <span style={{ color: 'var(--text-secondary)', lineHeight: '1.2em', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', width: '100%' }} title={
+                    datosProyeccion.superaMeta ? (
                       `IA: Superación proyectada. Ritmo diario estable de ${fmt(datosProyeccion.promedioDiario)}/día.`
                     ) : (
-                      `IA: Déficit estimado de $${(metaMensual - datosProyeccion.proyeccionCierre).toLocaleString('es-MX', { maximumFractionDigits: 0 })}. Se recomienda Surge Pricing (+${surgePercent}%) o comandas QR con descuento.`
+                      `IA: Déficit de $${(metaMensual - datosProyeccion.proyeccionCierre).toLocaleString('es-MX', { maximumFractionDigits: 0 })}. Se sugiere Surge Pricing (+${surgePercent}%) o comandas QR con descuento.`
+                    )
+                  }>
+                    {datosProyeccion.superaMeta ? (
+                      `IA: Superación proyectada. Ritmo de ${fmt(datosProyeccion.promedioDiario)}/día.`
+                    ) : (
+                      `IA: Déficit de $${(metaMensual - datosProyeccion.proyeccionCierre).toLocaleString('es-MX', { maximumFractionDigits: 0 })}. Surge Pricing (+${surgePercent}%) o QR con descuento.`
                     )}
                   </span>
                 </div>
