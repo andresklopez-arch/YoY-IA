@@ -660,8 +660,215 @@ export default function ConfigPanel({ showToast }) {
     localStorage.setItem('yoy_ticket_config', JSON.stringify(updated));
   };
 
+  const descargarQR = (tipo, id = null) => {
+    const host = typeof window !== 'undefined' ? window.location.origin : 'https://yoy-ia-billar.vercel.app';
+    const qrUrl = tipo === 'fila' ? `${host}/fila/registro` : `${host}/mesa/${id}`;
+    const filename = tipo === 'fila' ? 'qr_fila_virtual.png' : `qr_mesa_${id}.png`;
+    const qrServerUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrUrl)}`;
+    
+    showToast('Iniciando descarga de QR...', 'info');
+    fetch(qrServerUrl)
+      .then(response => response.blob())
+      .then(blob => {
+        const blobURL = window.URL.createObjectURL(blob);
+        const tempLink = document.createElement('a');
+        tempLink.style.display = 'none';
+        tempLink.href = blobURL;
+        tempLink.setAttribute('download', filename);
+        document.body.appendChild(tempLink);
+        tempLink.click();
+        document.body.removeChild(tempLink);
+        window.URL.revokeObjectURL(blobURL);
+        showToast('QR descargado con éxito ✓', 'success');
+      })
+      .catch(err => {
+        console.error("Error al descargar QR:", err);
+        window.open(qrServerUrl, '_blank');
+      });
+  };
+
+  const imprimirQRRegistroVirtual = () => {
+    const host = typeof window !== 'undefined' ? window.location.origin : 'https://yoy-ia-billar.vercel.app';
+    const registroUrl = `${host}/fila/registro`;
+
+    const htmlContent = `
+      <html><head><title>Fila Virtual - YoY IA Billar Club</title>
+      <style>
+        body { margin: 0; padding: 20px; font-family: 'Courier New', Courier, monospace; background: #fff; color: #000; font-size: 13px; line-height: 1.4; max-width: 280px; text-align: center; }
+        .text-center { text-align: center; }
+        .divider { border-top: 1px dashed #000; margin: 10px 0; }
+        .header h2 { margin: 0; font-size: 18px; font-weight: bold; }
+        .header p { margin: 2px 0; font-size: 11px; }
+        .qr-container { margin: 15px auto; width: 180px; height: 180px; display: flex; justify-content: center; align-items: center; }
+        .footer { margin-top: 15px; font-size: 10px; color: #555; }
+      </style>
+      </head>
+      <body>
+        <div class="header">
+          <h2>YoY IA Billar Club</h2>
+          <p>FILA VIRTUAL AUTOSERVICIO</p>
+        </div>
+        
+        <div class="divider"></div>
+        
+        <p style="font-size: 11px; font-weight: bold; margin-bottom: 5px;">ESCANEA PARA REGISTRARTE:</p>
+        <div id="qrcode-container" class="qr-container" style="margin: 0 auto;"></div>
+        
+        <p style="font-size: 11px; font-weight: bold; margin-top: 10px;">INSTRUCCIONES:</p>
+        <div style="text-align: left; font-size: 11px; padding: 0 5px;">
+          1. Escanea el código QR con tu celular.<br/>
+          2. Elige tu tipo de mesa y nombre.<br/>
+          3. Recibe tu turno en la fila.<br/>
+          4. Te notificaremos cuando tu mesa esté lista.
+        </div>
+        
+        <div class="divider"></div>
+        
+        <div class="footer">
+          <p>YoY IA Billar Club</p>
+        </div>
+        
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+        <script>
+          window.onload = () => {
+            new QRCode(document.getElementById('qrcode-container'), {
+              text: "${registroUrl}",
+              width: 180,
+              height: 180,
+              colorDark: "#000000",
+              colorLight: "#ffffff",
+              correctLevel: QRCode.CorrectLevel.H
+            });
+            setTimeout(() => {
+              window.print();
+            }, 600);
+          };
+        </script>
+      </body>
+      </html>
+    `;
+
+    try {
+      const iframe = document.createElement('iframe');
+      iframe.style.position = 'fixed';
+      iframe.style.right = '0';
+      iframe.style.bottom = '0';
+      iframe.style.width = '0';
+      iframe.style.height = '0';
+      iframe.style.border = '0';
+      document.body.appendChild(iframe);
+
+      const doc = iframe.contentWindow.document || iframe.contentDocument;
+      doc.open();
+      doc.write(htmlContent);
+      doc.close();
+
+      iframe.contentWindow.focus();
+      setTimeout(() => {
+        iframe.contentWindow.print();
+        setTimeout(() => {
+          document.body.removeChild(iframe);
+        }, 1500);
+      }, 300);
+    } catch (err) {
+      console.error("Error al imprimir QR de fila virtual:", err);
+    }
+  };
+
   const imprimirQRs = (mesaId) => {
-    showToast(mesaId ? `Imprimiendo código QR para Mesa ${mesaId}...` : 'Enviando todos los códigos QR a la cola de impresión...', 'success');
+    const host = typeof window !== 'undefined' ? window.location.origin : 'https://yoy-ia-billar.vercel.app';
+    const items = [];
+    
+    if (mesaId) {
+      const m = mesas.find(x => x.id === mesaId);
+      if (m) items.push({ url: `${host}/mesa/${m.id}`, titulo: `MESA ${m.id} - ${m.nombre}` });
+    } else {
+      // Todos: fila virtual primero, luego las mesas
+      items.push({ url: `${host}/fila/registro`, titulo: 'FILA VIRTUAL - REGISTRO' });
+      mesas.forEach(m => {
+        items.push({ url: `${host}/mesa/${m.id}`, titulo: `MESA ${m.id} - ${m.nombre}` });
+      });
+    }
+
+    if (items.length === 0) return;
+
+    let pageHtmls = items.map((item, idx) => `
+      <div class="print-page" style="${idx > 0 ? 'page-break-before: always;' : ''}">
+        <div class="header">
+          <h2>YoY IA Billar Club</h2>
+          <p>${item.titulo}</p>
+        </div>
+        <div class="divider"></div>
+        <p style="font-size: 11px; font-weight: bold; margin-bottom: 5px;">ESCANEA CON TU CELULAR:</p>
+        <div id="qrcode-container-${idx}" class="qr-container" style="margin: 0 auto; width: 180px; height: 180px; display: flex; justify-content: center; align-items: center;"></div>
+        <div class="divider"></div>
+        <div class="footer">
+          <p>YoY IA Billar Club</p>
+        </div>
+      </div>
+    `).join('');
+
+    const htmlContent = `
+      <html><head><title>Impresión de QRs</title>
+      <style>
+        body { margin: 0; padding: 20px; font-family: 'Courier New', Courier, monospace; background: #fff; color: #000; font-size: 13px; line-height: 1.4; max-width: 280px; text-align: center; }
+        .text-center { text-align: center; }
+        .divider { border-top: 1px dashed #000; margin: 10px 0; }
+        .header h2 { margin: 0; font-size: 18px; font-weight: bold; }
+        .header p { margin: 2px 0; font-size: 11px; }
+        .footer { margin-top: 15px; font-size: 10px; color: #555; }
+      </style>
+      </head>
+      <body>
+        ${pageHtmls}
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+        <script>
+          window.onload = () => {
+            const itemsData = ${JSON.stringify(items)};
+            itemsData.forEach((item, idx) => {
+              new QRCode(document.getElementById('qrcode-container-' + idx), {
+                text: item.url,
+                width: 180,
+                height: 180,
+                colorDark: "#000000",
+                colorLight: "#ffffff",
+                correctLevel: QRCode.CorrectLevel.H
+              });
+            });
+            setTimeout(() => {
+              window.print();
+            }, 800);
+          };
+        </script>
+      </body>
+      </html>
+    `;
+
+    try {
+      const iframe = document.createElement('iframe');
+      iframe.style.position = 'fixed';
+      iframe.style.right = '0';
+      iframe.style.bottom = '0';
+      iframe.style.width = '0';
+      iframe.style.height = '0';
+      iframe.style.border = '0';
+      document.body.appendChild(iframe);
+
+      const doc = iframe.contentWindow.document || iframe.contentDocument;
+      doc.open();
+      doc.write(htmlContent);
+      doc.close();
+
+      iframe.contentWindow.focus();
+      setTimeout(() => {
+        iframe.contentWindow.print();
+        setTimeout(() => {
+          document.body.removeChild(iframe);
+        }, 1500);
+      }, 300);
+    } catch (err) {
+      console.error("Error al imprimir QRs:", err);
+    }
   };
 
   // ── MÉTODOS DEL RECETARIO ────────────────────────────
@@ -1121,23 +1328,75 @@ export default function ConfigPanel({ showToast }) {
                 <i className="ri-printer-line" /> Imprimir Todos los QRs
               </button>
               
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 310, overflowY: 'auto' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 350, overflowY: 'auto' }}>
+                {/* QR de Fila Virtual - Autoservicio */}
+                <div style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'space-between', 
+                  padding: '10px 12px', 
+                  background: 'rgba(197, 168, 128, 0.08)', 
+                  border: '1.5px solid rgba(197, 168, 128, 0.3)', 
+                  borderRadius: 10,
+                  marginBottom: 4
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <img 
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=60x60&data=${encodeURIComponent(typeof window !== 'undefined' ? `${window.location.origin}/fila/registro` : 'https://yoy-ia-billar.vercel.app/fila/registro')}`} 
+                      width="36" 
+                      height="36" 
+                      style={{ borderRadius: 6, background: '#fff', padding: 2 }} 
+                      alt="QR Fila Virtual" 
+                    />
+                    <div>
+                      <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--bronze-light)' }}>Fila Virtual (Autoservicio)</span>
+                      <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Registro de clientes por QR</div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => descargarQR('fila')}
+                      style={{ fontSize: 11, padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 4 }}
+                    >
+                      <i className="ri-download-2-line" /> Descargar
+                    </button>
+                    <button
+                      className="btn btn-secondary btn-sm"
+                      onClick={imprimirQRRegistroVirtual}
+                      style={{ fontSize: 11, padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 4 }}
+                    >
+                      <i className="ri-printer-line" /> Imprimir
+                    </button>
+                  </div>
+                </div>
+
+                {/* QRs de Mesas */}
                 {mesas.map(m => (
                   <div key={m.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 10 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <img src={`https://api.qrserver.com/v1/create-qr-code/?size=60x60&data=${encodeURIComponent('https://yoy-ia-billar.vercel.app/mesa/' + m.id)}`} width="36" height="36" style={{ borderRadius: 6, background: '#fff', padding: 2 }} alt="QR Mesa" />
+                      <img src={`https://api.qrserver.com/v1/create-qr-code/?size=60x60&data=${encodeURIComponent(typeof window !== 'undefined' ? `${window.location.origin}/mesa/${m.id}` : `https://yoy-ia-billar.vercel.app/mesa/${m.id}`)}`} width="36" height="36" style={{ borderRadius: 6, background: '#fff', padding: 2 }} alt="QR Mesa" />
                       <div>
                         <span style={{ fontSize: 13, fontWeight: 700 }}>{m.nombre}</span>
                         <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Mesa ID: {m.id}</div>
                       </div>
                     </div>
-                    <button
-                      className="btn btn-secondary btn-sm"
-                      onClick={() => imprimirQRs(m.id)}
-                      style={{ fontSize: 11, padding: '4px 10px' }}
-                    >
-                      <i className="ri-printer-line" /> Imprimir
-                    </button>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => descargarQR('mesa', m.id)}
+                        style={{ fontSize: 11, padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 4 }}
+                      >
+                        <i className="ri-download-2-line" /> Descargar
+                      </button>
+                      <button
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => imprimirQRs(m.id)}
+                        style={{ fontSize: 11, padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 4 }}
+                      >
+                        <i className="ri-printer-line" /> Imprimir
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
