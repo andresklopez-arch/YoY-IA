@@ -117,5 +117,8 @@ service cloud.firestore {
     match /cortes_caja/{document} {
       allow read, write: if true;
     }
+    match /mermas_auditoria/{document} {
+      allow read, write: if true;
+    }
   }
 }

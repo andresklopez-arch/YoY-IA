@@ -750,7 +750,7 @@ ${diferenciaVal < 0 ? '1. Implementar auditoría ciega por turnos.\n2. Conciliar
     };
 
     try {
-      await addDoc(collection(db, 'cortes_caja'), {
+      const docRef = await addDoc(collection(db, 'cortes_caja'), {
         fecha: serverTimestamp(),
         operador: nombreOperador,
         ultimoCorteFecha: fechaUltimo,
@@ -764,6 +764,54 @@ ${diferenciaVal < 0 ? '1. Implementar auditoría ciega por turnos.\n2. Conciliar
         ingresosDetalle: calculationsCorte.ingresosDetalle,
         gastosDetalle: calculationsCorte.gastosDetalle
       });
+
+      // Conciliación y Descuento automático de stock de inventario
+      if (productos && productos.length > 0) {
+        const nuevosProductos = productos.map(p => {
+          const audit = auditoriaCruzadaInventario.find(a => a.nombre.toLowerCase() === p.nombre.toLowerCase());
+          if (audit && audit.comandas > 0) {
+            const nuevoStock = Math.max(0, (p.stock || 0) - audit.comandas);
+            return { ...p, stock: nuevoStock };
+          }
+          return p;
+        });
+
+        await setDoc(doc(db, 'config', 'inventario'), {
+          productos: nuevosProductos,
+          updatedAt: serverTimestamp()
+        });
+
+        const batchStock = writeBatch(db);
+        auditoriaCruzadaInventario.forEach(audit => {
+          if (audit.comandas > 0) {
+            const docStockRef = doc(collection(db, 'historial_stock'));
+            batchStock.set(docStockRef, {
+              fecha: new Date().toISOString(),
+              producto: audit.nombre,
+              tipo: 'salida_corte',
+              cantidad: audit.comandas,
+              detalle: `Descuento automático por cierre de corte de caja de ${nombreOperador}`,
+              operador: nombreOperador
+            });
+          }
+
+          if (audit.diferencia !== 0) {
+            const docMermasRef = doc(collection(db, 'mermas_auditoria'));
+            batchStock.set(docMermasRef, {
+              fecha: serverTimestamp(),
+              corteId: docRef.id,
+              cajero: nombreOperador,
+              productoId: audit.id,
+              productoNombre: audit.nombre,
+              comandasVendidas: audit.comandas,
+              inventarioDeducido: audit.inventario,
+              discrepancia: audit.diferencia,
+              diagnostico: audit.desc
+            });
+          }
+        });
+        await batchStock.commit();
+      }
 
       await registrarEvento(
         'Corte de Caja',
