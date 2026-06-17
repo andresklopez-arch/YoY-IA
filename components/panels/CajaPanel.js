@@ -457,20 +457,69 @@ export default function CajaPanel({ showToast }) {
 
     let totalGastosVal = 0;
     const gastosDetalle = [];
+    const startPeriodTime = new Date(startPeriod).getTime();
 
     gastosList.forEach(g => {
-      if (g.fecha && g.fecha >= startPeriod) {
+      let logTime = 0;
+      if (g.createdAt) {
+        logTime = g.createdAt.toDate ? g.createdAt.toDate().getTime() : new Date(g.createdAt).getTime();
+      } else if (g.fecha) {
+        const isoStr = g.fecha.includes('T') ? g.fecha : `${g.fecha}T12:00:00`;
+        logTime = new Date(isoStr).getTime();
+      }
+
+      if (logTime >= startPeriodTime) {
         const montoG = Number(g.monto) || 0;
         totalGastosVal += montoG;
+        
+        let horaStr = new Date(logTime).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+        
         gastosDetalle.push({
           id: g.id || Date.now() + Math.random(),
           fecha: g.fecha,
-          hora: new Date(g.fecha).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }),
-          descripcion: g.descripcion || 'Gasto registrado',
+          hora: horaStr,
+          descripcion: g.descripcion || g.concepto || 'Gasto registrado',
           categoria: g.categoria || 'general',
           proveedor: g.proveedor || g.empleadoNombre || 'Proveedor/Empleado',
           monto: montoG
         });
+      }
+    });
+
+    // Cruzar información con nómina/adelantos
+    nominaPagosList.forEach(p => {
+      let logTime = 0;
+      if (p.createdAt) {
+        logTime = p.createdAt.toDate ? p.createdAt.toDate().getTime() : new Date(p.createdAt).getTime();
+      } else if (p.fecha) {
+        logTime = new Date(`${p.fecha}T12:00:00`).getTime();
+      }
+
+      if (logTime >= startPeriodTime) {
+        const montoP = Number(p.total) || 0;
+        
+        // Evitar duplicados si ya existe un gasto de nómina para el mismo empleado con monto similar (+/- 1 peso)
+        const yaExiste = gastosDetalle.some(g => 
+          g.categoria === 'admin' && 
+          Math.abs(g.monto - montoP) < 1.0 && 
+          g.descripcion.toLowerCase().includes(p.nombreEmpleado.toLowerCase())
+        );
+
+        if (!yaExiste) {
+          totalGastosVal += montoP;
+          
+          let horaStr = new Date(logTime).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+
+          gastosDetalle.push({
+            id: p.id || Date.now() + Math.random(),
+            fecha: p.fecha || new Date(logTime).toISOString().slice(0, 10),
+            hora: horaStr,
+            descripcion: `Pago de nómina - ${p.nombreEmpleado} (Conciliación)`,
+            categoria: 'nomina',
+            proveedor: p.nombreEmpleado,
+            monto: montoP
+          });
+        }
       }
     });
 
@@ -503,7 +552,7 @@ export default function CajaPanel({ showToast }) {
       totalGastos: totalGastosVal,
       efectivoEsperado
     };
-  }, [bitacoraFiltrada, gastosList, ultimoCorteFecha]);
+  }, [bitacoraFiltrada, gastosList, nominaPagosList, ultimoCorteFecha]);
 
   const generarResumenIA = (corteData, sumaContadaVal, diferenciaVal) => {
     const { ingresosEfectivo, ingresosTarjeta, ingresosTransferencia, totalIngresos, totalGastos: totalGastosVal, gastosDetalle } = corteData;
@@ -1603,7 +1652,7 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       
       {/* CABECERA */}
-      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 0 }}>
+      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 0 }}>
         <div>
           <h1 className="page-title gradient-bronze" style={{ margin: 0 }}>
             {esCajero ? 'Caja y POS Operativo' : 'INTELIGENCIA DE NEGOCIO'}
@@ -1612,7 +1661,7 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
             {esCajero ? 'Turno en curso · Reconciliación de egresos y arqueo' : 'Dashboard inteligente unificado de utilidades, control y auditoría IA'}
           </p>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
           <button className="btn btn-secondary btn-sm" onClick={() => setMostrarBitacora(true)} style={{ height: 32, fontSize: 11 }}>
             <i className="ri-history-line" /> Bitácora
           </button>
@@ -1621,9 +1670,58 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
               <i className="ri-money-dollar-box-line" /> Cobro Manual
             </button>
           )}
-          <button className="btn btn-primary btn-sm" onClick={() => setMostrarCorte(true)} style={{ height: 32, fontSize: 11 }}>
-            <i className="ri-file-list-3-line" /> Corte de Caja
-          </button>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, width: 140 }}>
+            <button className="btn btn-primary btn-sm" onClick={() => setMostrarCorte(true)} style={{ height: 32, fontSize: 11, width: '100%' }}>
+              <i className="ri-file-list-3-line" /> Corte de Caja
+            </button>
+            {/* Historial rápido (sólo fecha) */}
+            {cortesFiltrados.length > 0 && (
+              <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, padding: '4px 6px', display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 110, overflowY: 'auto', width: '100%', boxShadow: '0 4px 6px rgba(0,0,0,0.15)' }}>
+                <span style={{ fontSize: 7, color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.03em', textAlign: 'center', borderBottom: '1px solid var(--border)', paddingBottom: 2 }}>Historial Cortes</span>
+                {cortesFiltrados.slice(0, 5).map(c => {
+                  const dateObj = new Date(c.fecha);
+                  const dateStr = dateObj.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: '2-digit' });
+                  const timeStr = dateObj.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+                  return (
+                    <button
+                      key={c.id}
+                      onClick={() => {
+                        setResumenCorteActivo({
+                          operador: c.operador,
+                          ultimoCorteFecha: c.ultimoCorteFecha,
+                          efectivoContado: c.efectivoContado,
+                          efectivoEsperado: c.efectivoEsperado,
+                          diferencia: c.diferencia,
+                          totalIngresos: c.totalIngresos,
+                          totalGastos: c.totalGastos,
+                          resumenIA: c.resumenIA,
+                          cantidadesDenom: c.cantidadesDenom || {},
+                          ingresosDetalle: c.ingresosDetalle || [],
+                          gastosDetalle: c.gastosDetalle || [],
+                          corteData: {
+                            ingresosEfectivo: c.efectivoEsperado + c.totalGastos,
+                            ingresosTarjeta: c.ingresosDetalle?.filter(i => i.metodo === 'tarjeta').reduce((s,i) => s+i.monto, 0) || 0,
+                            ingresosTransferencia: c.ingresosDetalle?.filter(i => i.metodo === 'transferencia').reduce((s,i) => s+i.monto, 0) || 0,
+                            ingresosDetalle: c.ingresosDetalle || [],
+                            gastosDetalle: c.gastosDetalle || [],
+                            totalIngresos: c.totalIngresos,
+                            totalGastos: c.totalGastos,
+                            efectivoEsperado: c.efectivoEsperado
+                          }
+                        });
+                        setMostrarResumenCorteModal(true);
+                      }}
+                      className="btn btn-secondary btn-xs"
+                      style={{ fontSize: 8, padding: '3px 4px', width: '100%', textAlign: 'left', display: 'flex', justifyContent: 'space-between', background: 'var(--bg-elevated)', border: '1px solid rgba(255,255,255,0.03)', borderRadius: 4 }}
+                    >
+                      <span>📅 {dateStr}</span>
+                      <span style={{ color: 'var(--text-muted)' }}>{timeStr}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
