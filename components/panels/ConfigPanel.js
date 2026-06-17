@@ -40,6 +40,7 @@ const hashPassword = (pwd) => {
 
 export default function ConfigPanel({ showToast }) {
   const [subTab, setSubTab] = useState('general'); // 'general' | 'recetario'
+  const [previewQr, setPreviewQr] = useState(null);
 
   const [tarifas, setTarifas] = useState({
     carambola: 80,
@@ -662,11 +663,33 @@ export default function ConfigPanel({ showToast }) {
     localStorage.setItem('yoy_ticket_config', JSON.stringify(updated));
   };
 
+  const getTableFilename = (mesa) => {
+    if (!mesa) return 'mesa.png';
+    const name = mesa.nombre || `Mesa ${mesa.id}`;
+    const safeName = name
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]/g, '_')
+      .replace(/_+/g, '_')
+      .replace(/(^_|_$)/g, '');
+    return `${safeName}.png`;
+  };
+
   const descargarQR = (tipo, id = null) => {
-    const filename = tipo === 'fila' ? 'qr_fila_virtual.png' : `qr_mesa_${id}.png`;
-    const canvasId = tipo === 'fila' ? 'qr-canvas-fila' : `qr-canvas-mesa-${id}`;
-    const canvas = document.getElementById(canvasId);
+    let filename = 'qr.png';
+    let canvasId = '';
     
+    if (tipo === 'fila') {
+      filename = 'fila_de_espera.png';
+      canvasId = 'qr-canvas-fila';
+    } else {
+      const m = mesas.find(x => x.id === id);
+      filename = getTableFilename(m);
+      canvasId = `qr-canvas-mesa-${id}`;
+    }
+    
+    const canvas = document.getElementById(canvasId);
     if (!canvas) {
       showToast('Error al generar el QR localmente', 'error');
       return;
@@ -692,6 +715,7 @@ export default function ConfigPanel({ showToast }) {
   const descargarTodosLosQRsZIP = async () => {
     const zip = new JSZip();
     let count = 0;
+    const filenamesUsed = new Set();
     
     // 1. Fila Virtual
     const canvasFila = document.getElementById('qr-canvas-fila');
@@ -699,7 +723,8 @@ export default function ConfigPanel({ showToast }) {
       try {
         const dataUrl = canvasFila.toDataURL('image/png');
         const base64Data = dataUrl.split(',')[1];
-        zip.file('qr_fila_virtual.png', base64Data, { base64: true });
+        zip.file('fila_de_espera.png', base64Data, { base64: true });
+        filenamesUsed.add('fila_de_espera.png');
         count++;
       } catch (err) {
         console.error("Error al obtener canvas de fila virtual para ZIP:", err);
@@ -713,9 +738,19 @@ export default function ConfigPanel({ showToast }) {
         try {
           const dataUrl = canvasMesa.toDataURL('image/png');
           const base64Data = dataUrl.split(',')[1];
-          const safeName = m.nombre.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
-          const filename = `qr_mesa_${m.id.toString().padStart(2, '0')}_${safeName}.png`;
-          zip.file(filename, base64Data, { base64: true });
+          
+          let baseFilename = getTableFilename(m);
+          const nameWithoutExt = baseFilename.replace('.png', '');
+          let finalFilename = baseFilename;
+          let counter = 1;
+          
+          while (filenamesUsed.has(finalFilename)) {
+            finalFilename = `${nameWithoutExt}_${counter}.png`;
+            counter++;
+          }
+          
+          zip.file(finalFilename, base64Data, { base64: true });
+          filenamesUsed.add(finalFilename);
           count++;
         } catch (err) {
           console.error(`Error al obtener canvas de mesa ${m.id} para ZIP:`, err);
@@ -1427,17 +1462,28 @@ export default function ConfigPanel({ showToast }) {
                   borderRadius: 10,
                   marginBottom: 4
                 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div 
+                    style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}
+                    onClick={() => setPreviewQr({
+                      title: 'Fila Virtual (Autoservicio)',
+                      value: typeof window !== 'undefined' ? `${window.location.origin}/fila/registro` : 'https://yoy-ia-billar.vercel.app/fila/registro',
+                      filename: 'fila_de_espera.png'
+                    })}
+                    title="Previsualizar QR"
+                  >
                     <img 
                       src={`https://api.qrserver.com/v1/create-qr-code/?size=60x60&data=${encodeURIComponent(typeof window !== 'undefined' ? `${window.location.origin}/fila/registro` : 'https://yoy-ia-billar.vercel.app/fila/registro')}`} 
                       width="36" 
                       height="36" 
-                      style={{ borderRadius: 6, background: '#fff', padding: 2 }} 
+                      style={{ borderRadius: 6, background: '#fff', padding: 2, border: '1px solid var(--border)' }} 
                       alt="QR Fila Virtual" 
                     />
                     <div>
                       <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--bronze-light)' }}>Fila Virtual (Autoservicio)</span>
-                      <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Registro de clientes por QR</div>
+                      <div style={{ fontSize: 10, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <span>Registro de clientes por QR</span>
+                        <i className="ri-eye-line" style={{ fontSize: 11 }} />
+                      </div>
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: 6 }}>
@@ -1461,11 +1507,23 @@ export default function ConfigPanel({ showToast }) {
                 {/* QRs de Mesas */}
                 {mesas.map(m => (
                   <div key={m.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 10 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <img src={`https://api.qrserver.com/v1/create-qr-code/?size=60x60&data=${encodeURIComponent(typeof window !== 'undefined' ? `${window.location.origin}/mesa/${m.id}` : `https://yoy-ia-billar.vercel.app/mesa/${m.id}`)}`} width="36" height="36" style={{ borderRadius: 6, background: '#fff', padding: 2 }} alt="QR Mesa" />
+                    <div 
+                      style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}
+                      onClick={() => setPreviewQr({
+                        title: m.nombre,
+                        value: typeof window !== 'undefined' ? `${window.location.origin}/mesa/${m.id}` : `https://yoy-ia-billar.vercel.app/mesa/${m.id}`,
+                        filename: getTableFilename(m),
+                        mesaId: m.id
+                      })}
+                      title="Previsualizar QR"
+                    >
+                      <img src={`https://api.qrserver.com/v1/create-qr-code/?size=60x60&data=${encodeURIComponent(typeof window !== 'undefined' ? `${window.location.origin}/mesa/${m.id}` : `https://yoy-ia-billar.vercel.app/mesa/${m.id}`)}`} width="36" height="36" style={{ borderRadius: 6, background: '#fff', padding: 2, border: '1px solid var(--border)' }} alt="QR Mesa" />
                       <div>
                         <span style={{ fontSize: 13, fontWeight: 700 }}>{m.nombre}</span>
-                        <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Mesa ID: {m.id}</div>
+                        <div style={{ fontSize: 10, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <span>Mesa ID: {m.id}</span>
+                          <i className="ri-eye-line" style={{ fontSize: 11 }} />
+                        </div>
                       </div>
                     </div>
                     <div style={{ display: 'flex', gap: 6 }}>
@@ -1901,6 +1959,62 @@ export default function ConfigPanel({ showToast }) {
                 })}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Previsualización de QR */}
+      {previewQr && (
+        <div className="modal-overlay" onClick={() => setPreviewQr(null)}>
+          <div className="modal" style={{ maxWidth: 350, textAlign: 'center' }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <span className="modal-title"><i className="ri-qr-code-line" style={{ marginRight: 8 }} />Previsualizar QR</span>
+              <button onClick={() => setPreviewQr(null)} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 20 }}>✕</button>
+            </div>
+            
+            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, padding: '20px 10px' }}>
+              <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)' }}>{previewQr.title}</div>
+              
+              <div style={{ background: '#fff', padding: 16, borderRadius: 12, display: 'inline-block', boxShadow: '0 4px 12px rgba(0,0,0,0.25)', marginTop: 8 }}>
+                <QRCodeCanvas
+                  value={previewQr.value}
+                  size={220}
+                  level="H"
+                />
+              </div>
+              
+              <p style={{ fontSize: 11, color: 'var(--text-muted)', wordBreak: 'break-all', margin: '4px 0 10px 0', padding: '0 10px' }}>
+                {previewQr.value}
+              </p>
+            </div>
+            
+            <div className="modal-footer" style={{ display: 'flex', gap: 10 }}>
+              <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setPreviewQr(null)}>Cerrar</button>
+              <button 
+                className="btn btn-primary" 
+                style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }} 
+                onClick={() => {
+                  const canvasId = previewQr.filename === 'fila_de_espera.png' ? 'qr-canvas-fila' : `qr-canvas-mesa-${previewQr.mesaId}`;
+                  const canvas = document.getElementById(canvasId);
+                  if (canvas) {
+                    const dataUrl = canvas.toDataURL('image/png');
+                    const tempLink = document.createElement('a');
+                    tempLink.style.display = 'none';
+                    tempLink.href = dataUrl;
+                    tempLink.setAttribute('download', previewQr.filename);
+                    document.body.appendChild(tempLink);
+                    tempLink.click();
+                    document.body.removeChild(tempLink);
+                    showToast('QR descargado con éxito ✓', 'success');
+                  } else {
+                    showToast('Error al descargar QR', 'error');
+                  }
+                  setPreviewQr(null);
+                }}
+              >
+                <i className="ri-download-2-line" /> Descargar
+              </button>
+            </div>
           </div>
         </div>
       )}
