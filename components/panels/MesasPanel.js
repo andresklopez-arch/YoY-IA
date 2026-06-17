@@ -1774,12 +1774,15 @@ export default function MesasPanel({ showToast }) {
   };
 
   const [meserosPresentes, setMeserosPresentes] = useState([]);
+  const [empleadosTodos, setEmpleadosTodos] = useState([]);
+  const [dropdownOpenMesa, setDropdownOpenMesa] = useState(null);
 
   useEffect(() => {
     let unsubAsist = null;
     const qEmp = query(collection(db, 'nomina_empleados'), where('estado', '==', 'activo'));
     const unsubEmp = onSnapshot(qEmp, snapEmp => {
       const activeEmployees = snapEmp.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setEmpleadosTodos(activeEmployees);
       
       if (unsubAsist) unsubAsist();
       
@@ -1805,12 +1808,70 @@ export default function MesasPanel({ showToast }) {
     };
   }, []);
 
+  const handleToggleMeseroMesa = async (mesaId, meseroId, meseroNombre) => {
+    const mesa = mesasRef.current.find(m => m.id === mesaId);
+    if (!mesa) return;
+
+    let currentIds = mesa.meseroIds || [];
+    let currentNombres = mesa.meseroNombres || [];
+
+    if (mesa.meseroId && !currentIds.includes(mesa.meseroId)) {
+      currentIds = [mesa.meseroId, ...currentIds];
+      currentNombres = [mesa.meseroNombre || 'Mesero', ...currentNombres];
+    }
+
+    let updatedIds;
+    let updatedNombres;
+
+    if (currentIds.includes(meseroId)) {
+      updatedIds = currentIds.filter(id => id !== meseroId);
+      updatedNombres = currentNombres.filter((_, idx) => currentIds[idx] !== meseroId);
+    } else {
+      updatedIds = [...currentIds, meseroId];
+      updatedNombres = [...currentNombres, meseroNombre];
+    }
+
+    const firstId = updatedIds[0] || null;
+    const firstNombre = updatedNombres[0] || null;
+
+    const updatedMesas = mesasRef.current.map(m => m.id === mesaId
+      ? { 
+          ...m, 
+          meseroIds: updatedIds, 
+          meseroNombres: updatedNombres,
+          meseroId: firstId,
+          meseroNombre: firstNombre
+        }
+      : m
+    );
+
+    setMesas(updatedMesas);
+    localStorage.setItem('yoy_billar_mesas', obfuscate(updatedMesas));
+
+    try {
+      await setDoc(doc(db, 'config', 'mesas_estado'), {
+        mesas: updatedMesas,
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+      showToast(`Mesa ${mesaId} actualizada`, 'success');
+    } catch (err) {
+      console.error("Error al asignar meseros:", err);
+      showToast("Error al guardar asignación", "danger");
+    }
+  };
+
   const handleAsignarMeseroMesa = async (mesaId, meseroId) => {
     const meseroObj = meserosPresentes.find(m => m.id === meseroId);
     const meseroNombre = meseroObj ? meseroObj.nombre : null;
 
     const updatedMesas = mesasRef.current.map(m => m.id === mesaId
-      ? { ...m, meseroId: meseroId || null, meseroNombre: meseroNombre || null }
+      ? { 
+          ...m, 
+          meseroId: meseroId || null, 
+          meseroNombre: meseroNombre || null,
+          meseroIds: meseroId ? [meseroId] : [],
+          meseroNombres: meseroNombre ? [meseroNombre] : []
+        }
       : m
     );
     setMesas(updatedMesas);
