@@ -31,19 +31,22 @@ if %ERRORLEVEL% EQU 0 (
   echo ================================
   echo  Cambios subidos correctamente a GitHub
   echo ================================
-  goto end
+) else (
+  echo ================================
+  echo  ADVERTENCIA: No se pudo subir a GitHub
+  echo ================================
 )
 
 echo.
-echo  Git push no disponible. Desplegando en segundo plano con Vercel...
-call npx vercel --prod --no-wait --yes
+echo  Desplegando en Vercel (Producción)...
+call npx vercel deploy --prod --yes
 if %ERRORLEVEL% EQU 0 (
   echo ================================
-  echo  Despliegue iniciado en Vercel
+  echo  Despliegue completado con éxito en Vercel
   echo ================================
 ) else (
   echo ================================
-  echo  ERROR al iniciar despliegue en Vercel
+  echo  ERROR al desplegar en Vercel
   echo ================================
 )
 
