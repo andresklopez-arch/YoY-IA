@@ -27,7 +27,10 @@ async function run() {
   console.log("=== MESAS CONFIG ===");
   const mesasSnap = await getDoc(doc(db, 'config', 'mesas_estado'));
   if (mesasSnap.exists()) {
-    console.log(JSON.stringify(mesasSnap.data(), null, 2));
+    const mesas = mesasSnap.data().mesas || [];
+    mesas.forEach(m => {
+      console.log(`id=${m.id} nombre=${m.nombre} tipo=${m.tipo} estado=${m.estado} cliente=${m.cliente} filaId=${m.filaId}`);
+    });
   } else {
     console.log("No mesas_estado doc found");
   }
