@@ -37,12 +37,14 @@ async function run() {
   // Reset rates to realistic base values
   const updatedMesas = mesas.map(m => {
     let baseTarifa = m.tarifa;
-    // If it's a huge number, reset it
-    if (typeof baseTarifa === 'number' && (baseTarifa > 10000 || baseTarifa < 0 || isNaN(baseTarifa))) {
+    // If it's a huge number or too low (less than 20), reset it
+    if (typeof baseTarifa !== 'number' || baseTarifa > 10000 || baseTarifa < 20 || isNaN(baseTarifa)) {
       if (m.tipo && m.tipo.toLowerCase().includes('carambola')) {
         baseTarifa = 80;
       } else if (m.tipo && m.tipo.toLowerCase().includes('snooker')) {
         baseTarifa = 100;
+      } else if (m.tipo && m.tipo.toLowerCase().includes('domin')) {
+        baseTarifa = 50;
       } else {
         baseTarifa = 60;
       }

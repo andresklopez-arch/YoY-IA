@@ -2250,7 +2250,7 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               <span style={{ fontSize: 6, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Mesa Líder</span>
               <span style={{ fontSize: 8.5, fontWeight: 800, color: 'var(--success)' }}>
-                {mesaLider ? `${mesaLider.nombre} ($${mesaLider.ingresosTotales})` : '-'}
+                {mesaLider ? `${mesaLider.nombre} ($${Math.round(mesaLider.ingresosTotales)})` : '-'}
               </span>
             </div>
           </div>
@@ -2260,7 +2260,7 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               <span style={{ fontSize: 6, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Menos Rentable</span>
               <span style={{ fontSize: 8.5, fontWeight: 800, color: 'var(--danger)' }}>
-                {mesaMenosRentable ? `${mesaMenosRentable.nombre} ($${mesaMenosRentable.ingresosTotales})` : '-'}
+                {mesaMenosRentable ? `${mesaMenosRentable.nombre} ($${Math.round(mesaMenosRentable.ingresosTotales)})` : '-'}
               </span>
             </div>
           </div>
@@ -2288,7 +2288,7 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
         </div>
 
         {/* LIST OF TABLES */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 5, maxHeight: 215, overflowY: 'auto', paddingRight: 2 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5, maxHeight: 580, overflowY: 'auto', paddingRight: 2 }}>
           {analisisMesas.map(m => {
             const isTop = mesaLider && m.id === mesaLider.id;
             const isBottom = mesaMenosRentable && m.id === mesaMenosRentable.id;
@@ -2352,7 +2352,7 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
                     <div>
                       <div style={{ fontSize: 9.5, fontWeight: 800, color: '#fff', lineHeight: 1.1 }}>{m.nombre}</div>
                       <div style={{ fontSize: 7, color: 'var(--text-muted)' }}>
-                        {m.tipo} · <span style={{ textDecoration: m.tarifaSugerida !== m.tarifa ? 'line-through' : 'none' }}>${m.tarifa}/h</span>
+                        {m.tipo} · <span style={{ textDecoration: m.tarifaSugerida !== m.tarifa ? 'line-through' : 'none' }}>${Math.round(m.tarifa)}/h</span>
                         {m.tarifaSugerida !== m.tarifa && (
                           <span 
                             onClick={() => aplicarTarifaDinamica(m.id, m.tarifaSugerida)}
@@ -2382,7 +2382,7 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
                                 boxShadow: '0 0 4px var(--success)'
                               }} />
                             )}
-                            💡 ${m.tarifaSugerida}/h
+                            💡 ${Math.round(m.tarifaSugerida)}/h
                           </span>
                         )}
                       </div>
@@ -2399,7 +2399,7 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
                 <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1.3fr', gap: 3, background: 'rgba(0,0,0,0.1)', borderRadius: 5, padding: '3px 5px', fontSize: 8.5 }}>
                   <div style={{ display: 'flex', flexDirection: 'column' }}>
                     <span style={{ fontSize: 6, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Dinero</span>
-                    <strong style={{ color: 'var(--success)' }}>${m.ingresosTotales}</strong>
+                    <strong style={{ color: 'var(--success)' }}>${Math.round(m.ingresosTotales)}</strong>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column' }}>
                     <span style={{ fontSize: 6, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Uso</span>
