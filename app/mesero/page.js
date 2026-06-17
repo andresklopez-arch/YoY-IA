@@ -284,6 +284,7 @@ function MeseroContent() {
   // Estados para el panel de Cuentas Activas integrado
   const [expandedIds, setExpandedIds] = useState({});
   const [filtroMesaTexto, setFiltroMesaTexto] = useState('');
+  const [verSoloMisMesas, setVerSoloMisMesas] = useState(false);
   const [filtroCuentaTexto, setFiltroCuentaTexto] = useState('');
   const [tick, setTick] = useState(0);
   const [loadingCuentaId, setLoadingCuentaId] = useState(null);
@@ -762,7 +763,15 @@ function MeseroContent() {
   };
 
   const getMesasFiltradas = () => {
-    const list = getCuentasActivasUnificadas().filter(c => c.mesaId || findMesaAsociada(c));
+    let list = getCuentasActivasUnificadas().filter(c => c.mesaId || findMesaAsociada(c));
+    
+    if (verSoloMisMesas && user?.uid) {
+      list = list.filter(c => {
+        const mesaAsociada = findMesaAsociada(c);
+        return mesaAsociada && mesaAsociada.meseroId === user.uid;
+      });
+    }
+
     const term = filtroMesaTexto.trim().toLowerCase();
     if (!term) return list;
     return list.filter(c => {
@@ -965,8 +974,8 @@ function MeseroContent() {
               Salón: Mesas Activas ({getMesasFiltradas().length})
             </div>
 
-            {/* Buscador Interactivo Inline */}
-            <div style={{ marginBottom: 12 }}>
+            {/* Buscador Interactivo Inline y Filtro de Mis Mesas */}
+            <div style={{ marginBottom: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
               <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
                 <i className="ri-search-line" style={{ position: 'absolute', left: 10, color: 'var(--text-muted)' }} />
                 <input
@@ -994,6 +1003,46 @@ function MeseroContent() {
                   </button>
                 )}
               </div>
+
+              {/* Toggle de Mis Mesas */}
+              {user && (
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    onClick={() => setVerSoloMisMesas(false)}
+                    style={{
+                      flex: 1,
+                      background: !verSoloMisMesas ? 'rgba(197, 168, 128, 0.15)' : 'var(--bg-elevated)',
+                      border: !verSoloMisMesas ? '1px solid var(--border-bronze)' : '1px solid var(--border)',
+                      color: !verSoloMisMesas ? 'var(--bronze-light)' : 'var(--text-muted)',
+                      borderRadius: 8,
+                      padding: '6px 12px',
+                      fontSize: 11,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    🌐 Todas las Mesas
+                  </button>
+                  <button
+                    onClick={() => setVerSoloMisMesas(true)}
+                    style={{
+                      flex: 1,
+                      background: verSoloMisMesas ? 'rgba(197, 168, 128, 0.15)' : 'var(--bg-elevated)',
+                      border: verSoloMisMesas ? '1px solid var(--border-bronze)' : '1px solid var(--border)',
+                      color: verSoloMisMesas ? 'var(--bronze-light)' : 'var(--text-muted)',
+                      borderRadius: 8,
+                      padding: '6px 12px',
+                      fontSize: 11,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    🙋 Mis Mesas Asignadas
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Botón de Expansión Global */}
@@ -1079,8 +1128,16 @@ function MeseroContent() {
                               <i className="ri-notification-3-fill wiggle-bell" style={{ color: 'var(--bronze-light)', marginLeft: 6, fontSize: 12, verticalAlign: 'middle' }} title="Llamada de asistencia o pedido pendiente" />
                             )}
                           </div>
-                          <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 1 }}>
-                            📍 Mesa {c.mesaId || (mesaAsociada ? mesaAsociada.id : '—')} · Tiempo: ${costoTiempo}
+                          <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 1, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                            <span>📍 Mesa {c.mesaId || (mesaAsociada ? mesaAsociada.id : '—')}</span>
+                            <span>·</span>
+                            <span>Tiempo: ${costoTiempo}</span>
+                            {mesaAsociada?.meseroNombre && (
+                              <>
+                                <span>·</span>
+                                <span style={{ color: 'var(--bronze-light)', fontWeight: 600 }}>👤 {mesaAsociada.meseroNombre}</span>
+                              </>
+                            )}
                           </div>
                         </div>
                         

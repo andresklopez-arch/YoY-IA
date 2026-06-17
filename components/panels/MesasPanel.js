@@ -1772,6 +1772,69 @@ export default function MesasPanel({ showToast }) {
       console.error("Error al enviar alerta a meseros:", err);
     }
   };
+
+  const [meserosPresentes, setMeserosPresentes] = useState([]);
+
+  useEffect(() => {
+    let unsubAsist = null;
+    const qEmp = query(collection(db, 'nomina_empleados'), where('estado', '==', 'activo'));
+    const unsubEmp = onSnapshot(qEmp, snapEmp => {
+      const activeEmployees = snapEmp.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      
+      if (unsubAsist) unsubAsist();
+      
+      const fechaHoy = new Date().toISOString().slice(0, 10);
+      const qAsist = query(collection(db, 'nomina_asistencia'), where('fecha', '==', fechaHoy));
+      unsubAsist = onSnapshot(qAsist, snapAsist => {
+        const presentIds = snapAsist.docs
+          .map(doc => doc.data())
+          .filter(a => a.estado === 'presente' || a.estado === 'tardanza')
+          .map(a => a.empleadoId);
+
+        const presentWaiters = activeEmployees.filter(emp => 
+          presentIds.includes(emp.id) &&
+          ((emp.rol || emp.role || '').toLowerCase().includes('mesero') || (emp.rol || emp.role || '').toLowerCase().includes('staff') || !(emp.rol || emp.role))
+        );
+        setMeserosPresentes(presentWaiters);
+      }, err => console.warn("Error loading attendance:", err));
+    }, err => console.warn("Error loading employees:", err));
+
+    return () => {
+      unsubEmp();
+      if (unsubAsist) unsubAsist();
+    };
+  }, []);
+
+  const handleAsignarMeseroMesa = async (mesaId, meseroId) => {
+    const meseroObj = meserosPresentes.find(m => m.id === meseroId);
+    const meseroNombre = meseroObj ? meseroObj.nombre : null;
+
+    const updatedMesas = mesasRef.current.map(m => m.id === mesaId
+      ? { ...m, meseroId: meseroId || null, meseroNombre: meseroNombre || null }
+      : m
+    );
+    setMesas(updatedMesas);
+    localStorage.setItem('yoy_billar_mesas', obfuscate(updatedMesas));
+
+    try {
+      await setDoc(doc(db, 'config', 'mesas_estado'), {
+        mesas: updatedMesas,
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+      
+      if (meseroNombre) {
+        showToast(`Mesa ${mesaId} asignada a ${meseroNombre}`, 'success');
+        registrarEvento('Asignación Mesero', `Mesa ${mesaId} asignada a mesero ${meseroNombre}.`);
+      } else {
+        showToast(`Mesa ${mesaId} sin mesero asignado`, 'info');
+        registrarEvento('Desasignación Mesero', `Se removió mesero asignado de la Mesa ${mesaId}.`);
+      }
+    } catch (err) {
+      console.error("Error al guardar mesero asignado:", err);
+      showToast("Error al guardar la asignación.", "danger");
+    }
+  };
+
   const [filtro, setFiltro] = useState('todas');
   const [animacionesActivas, setAnimacionesActivas] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -5038,6 +5101,51 @@ export default function MesasPanel({ showToast }) {
                         </div>
                       );
                     })}
+                  </div>
+                )}
+
+                {/* Selector de Mesero Asignado */}
+                {mesa.estado !== 'manten' && mesa.estado !== 'fuera' && (
+                  <div 
+                    style={{ 
+                      marginTop: 8, 
+                      marginBottom: 8,
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: 6, 
+                      width: '100%', 
+                      background: 'rgba(255, 255, 255, 0.03)', 
+                      border: '1px solid rgba(255, 255, 255, 0.05)', 
+                      borderRadius: 8, 
+                      padding: '4px 8px',
+                      boxSizing: 'border-box'
+                    }}
+                    onClick={e => e.stopPropagation()}
+                  >
+                    <i className="ri-user-star-line" style={{ fontSize: 12, color: 'var(--bronze-light)' }} />
+                    <select
+                      value={mesa.meseroId || ''}
+                      onChange={(e) => handleAsignarMeseroMesa(mesa.id, e.target.value)}
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: mesa.meseroId ? '#fff' : 'var(--text-muted)',
+                        fontSize: 11,
+                        fontWeight: 600,
+                        outline: 'none',
+                        width: '100%',
+                        cursor: 'pointer',
+                        padding: 0
+                      }}
+                      onClick={e => e.stopPropagation()}
+                    >
+                      <option value="" style={{ background: '#111', color: 'var(--text-muted)' }}>— Sin Mesero —</option>
+                      {meserosPresentes.map(m => (
+                        <option key={m.id} value={m.id} style={{ background: '#111', color: '#fff' }}>
+                          {m.nombre}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 )}
 
