@@ -7,6 +7,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { collection, query, where, onSnapshot, doc, getDoc, setDoc, addDoc, getDocs, serverTimestamp, updateDoc, orderBy, limit, writeBatch } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { deobfuscate, obfuscate } from '@/lib/crypto';
+import { getBusinessDate } from '@/lib/date-utils';
 
 
 // Hook: pedidos pendientes de clientes via QR
@@ -157,7 +158,7 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
 
   const handlePaseListaClick = async (emp) => {
     try {
-      const fechaHoy = new Date().toISOString().slice(0, 10);
+      const fechaHoy = getBusinessDate();
       const hour = new Date().getHours();
       let turnoActual = 'noche';
       if (hour >= 6 && hour < 14) turnoActual = 'manana';

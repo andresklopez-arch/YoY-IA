@@ -5,6 +5,7 @@ import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { obfuscate, deobfuscate, hashNip } from '@/lib/crypto';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth-context';
+import { getBusinessDate } from '@/lib/date-utils';
 import { doc, onSnapshot, setDoc, getDoc, serverTimestamp, collection, query, where, getDocs, writeBatch, updateDoc, runTransaction, addDoc, orderBy, limit } from 'firebase/firestore';
 
 function areMesasEqual(arr1, arr2) {
@@ -1786,7 +1787,7 @@ export default function MesasPanel({ showToast }) {
       
       if (unsubAsist) unsubAsist();
       
-      const fechaHoy = new Date().toISOString().slice(0, 10);
+      const fechaHoy = getBusinessDate();
       const qAsist = query(collection(db, 'nomina_asistencia'), where('fecha', '==', fechaHoy));
       unsubAsist = onSnapshot(qAsist, snapAsist => {
         const presentIds = snapAsist.docs

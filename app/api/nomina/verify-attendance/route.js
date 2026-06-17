@@ -3,6 +3,7 @@ import { db } from '@/lib/firebase';
 import { doc, getDoc, getDocs, addDoc, setDoc, collection, query, where, serverTimestamp } from 'firebase/firestore';
 import crypto from 'crypto';
 import { deobfuscateWithKey } from '@/lib/crypto';
+import { getBusinessDate } from '@/lib/date-utils';
 
 const SECRET = process.env.QR_SECRET || 'yoy_billar_secret_key_2026_io';
 
@@ -70,7 +71,7 @@ export async function POST(request) {
       return NextResponse.json({ success: false, error: 'Empleado no encontrado' }, { status: 404 });
     }
     const emp = { id: empSnap.id, ...empSnap.data() };
-    const fechaHoy = new Date().toISOString().slice(0, 10);
+    const fechaHoy = getBusinessDate();
 
     const finalCoordenadas = coordenadas || { lat: null, lng: null, precision: null, status: 'No requerido' };
 

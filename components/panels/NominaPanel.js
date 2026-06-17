@@ -6,6 +6,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { hashNip } from '@/lib/crypto';
+import { getBusinessDate } from '@/lib/date-utils';
 import { QRCodeSVG } from 'qrcode.react';
 
 const F = ({ label, children, col }) => (
@@ -50,7 +51,7 @@ const moneyFormatter = new Intl.NumberFormat('es-MX', {
   maximumFractionDigits: 2
 });
 const fmt = (n) => moneyFormatter.format(Number(n || 0));
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => getBusinessDate();
 
 // Hook: ventas reales de bar y mesas para comisiones
 function useVentasReales(fechaInicio, fechaFin) {
