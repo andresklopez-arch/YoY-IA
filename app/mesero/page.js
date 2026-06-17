@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   collection, onSnapshot, query, where,
   orderBy, updateDoc, doc, serverTimestamp, addDoc, getDoc
@@ -281,6 +281,33 @@ function MeseroContent() {
   // Alertas de asistencia activa para ventana emergente
   const [alertasAsistencia, setAlertasAsistencia] = useState([]);
 
+  const mesasRef = useRef(mesas);
+  useEffect(() => {
+    mesasRef.current = mesas;
+  }, [mesas]);
+
+  const isAlertaParaMi = (alerta) => {
+    if (!user || !user.uid) return false;
+    
+    // 1. Si la comanda/alerta tiene un meseroId explícito
+    if (alerta.meseroId) {
+      return alerta.meseroId === user.uid;
+    }
+    
+    // 2. Si no tiene meseroId explícito pero está asociada a una mesa
+    if (alerta.mesaId) {
+      const mesaAsoc = mesasRef.current?.find(m => String(m.id) === String(alerta.mesaId));
+      if (mesaAsoc && mesaAsoc.meseroId) {
+        return mesaAsoc.meseroId === user.uid;
+      }
+    }
+    
+    // 3. De lo contrario, es una alerta general (por ejemplo, "Para Llevar" sin mesero o asistencia general), notificar a todos
+    return true;
+  };
+
+  const alertasAsistenciaParaMi = alertasAsistencia.filter(isAlertaParaMi);
+
   // Estados para el panel de Cuentas Activas integrado
   const [expandedIds, setExpandedIds] = useState({});
   const [filtroMesaTexto, setFiltroMesaTexto] = useState('');
@@ -319,14 +346,14 @@ function MeseroContent() {
   // Alerta háptica sutil al detectar alertas pendientes
   useEffect(() => {
     if (typeof navigator !== 'undefined' && navigator.vibrate) {
-      const tieneAlertasAsistenciaPantalla = (alertasAsistencia || []).some(alerta => 
+      const tieneAlertasAsistenciaPantalla = (alertasAsistenciaParaMi || []).some(alerta => 
         !alerta.atendidoMesero
       );
       if (tieneAlertasAsistenciaPantalla) {
         navigator.vibrate([100, 50, 100]);
       }
     }
-  }, [alertasAsistencia]);
+  }, [alertasAsistenciaParaMi.length]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -466,10 +493,19 @@ function MeseroContent() {
 
       // Si la app está en segundo plano y llega nueva alerta, disparar Web Notification
       if (items.length > 0 && typeof window !== 'undefined' && document.hidden) {
-        if (Notification.permission === 'granted') {
-          const masReciente = items[0];
-          new Notification(`🚨 Mesa ${masReciente.mesaId} - ${masReciente.etiqueta}`, {
-            body: `El cliente solicita: ${masReciente.etiqueta}`,
+        const masReciente = items[0];
+        const alertaMeseroId = masReciente.meseroId;
+        const isForMe = !alertaMeseroId || alertaMeseroId === user?.uid || (() => {
+          if (masReciente.mesaId) {
+            const mesaAsoc = mesasRef.current?.find(m => String(m.id) === String(masReciente.mesaId));
+            return !mesaAsoc?.meseroId || mesaAsoc.meseroId === user?.uid;
+          }
+          return true;
+        })();
+        
+        if (isForMe && Notification.permission === 'granted') {
+          new Notification(`🚨 Mesa ${masReciente.mesaId} - ${masReciente.etiqueta || 'Nuevo Pedido'}`, {
+            body: `El cliente solicita: ${masReciente.etiqueta || 'Preparación de consumos'}`,
             icon: '/icon.png',
             silent: false
           });
@@ -481,7 +517,7 @@ function MeseroContent() {
 
   // ── Alarma sonora periódica para asistencias pendientes ──
   useEffect(() => {
-    if (!sonido || alertasAsistencia.length === 0) return;
+    if (!sonido || alertasAsistenciaParaMi.length === 0) return;
     
     const sonarAlerta = () => {
       try {
@@ -511,7 +547,7 @@ function MeseroContent() {
     sonarAlerta();
     const t = setInterval(sonarAlerta, 4000);
     return () => clearInterval(t);
-  }, [sonido, alertasAsistencia.length]);
+  }, [sonido, alertasAsistenciaParaMi.length]);
 
   // Escuchar tecla Escape para cerrar modal de captura de venta con control de cooldown, desenfoque y confirmación
   useEffect(() => {
@@ -1090,7 +1126,7 @@ function MeseroContent() {
                   const total = costoTiempo + consumosTotal;
                   const isExpanded = !!expandedIds[c.id];
 
-                  const cuentaSolicitada = (alertasAsistencia || []).some(alerta => 
+                  const cuentaSolicitada = (alertasAsistenciaParaMi || []).some(alerta => 
                     alerta.tipo === 'cuenta' && 
                     alerta.cliente && 
                     alerta.cliente.toLowerCase() === c.cliente.toLowerCase()
@@ -1100,7 +1136,7 @@ function MeseroContent() {
                     ? (c.cliente && (normalizeText(c.cliente).startsWith('mesa ') || ['publico'].includes(normalizeText(c.cliente))) ? `Mesa ${c.mesaId}` : c.cliente)
                     : (mesaAsociada ? (c.cliente && (normalizeText(c.cliente).startsWith('mesa ') || ['publico'].includes(normalizeText(c.cliente))) ? `Mesa ${mesaAsociada.id}` : c.cliente) : c.cliente);
 
-                  const tieneAsistenciaPendiente = (alertasAsistencia || []).some(alerta => 
+                  const tieneAsistenciaPendiente = (alertasAsistenciaParaMi || []).some(alerta => 
                     !alerta.atendidoMesero &&
                     (
                       (c.mesaId && String(alerta.mesaId) === String(c.mesaId)) ||
@@ -1303,13 +1339,13 @@ function MeseroContent() {
                   const total = costoTiempo + consumosTotal;
                   const isExpanded = !!expandedIds[c.id];
 
-                  const cuentaSolicitada = (alertasAsistencia || []).some(alerta => 
+                  const cuentaSolicitada = (alertasAsistenciaParaMi || []).some(alerta => 
                     alerta.tipo === 'cuenta' && 
                     alerta.cliente && 
                     alerta.cliente.toLowerCase() === c.cliente.toLowerCase()
                   ) || !!localRequestedCuentas[c.cliente.toLowerCase()];
 
-                  const tieneAsistenciaPendiente = (alertasAsistencia || []).some(alerta => 
+                  const tieneAsistenciaPendiente = (alertasAsistenciaParaMi || []).some(alerta => 
                     !alerta.atendidoMesero &&
                     alerta.cliente && c.cliente && alerta.cliente.toLowerCase() === c.cliente.toLowerCase()
                   );
@@ -1424,7 +1460,7 @@ function MeseroContent() {
       </div>
 
       {/* ── VENTANA EMERGENTE: ALERTA DE ASISTENCIA / SERVICIOS ── */}
-      {alertasAsistencia.length > 0 && (
+      {alertasAsistenciaParaMi.length > 0 && (
         <div className="modal-overlay" style={{ zIndex: 1000, background: 'rgba(13,13,15,0.85)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}>
           <div className="modal" style={{ maxWidth: 460, border: '2px solid var(--danger)', boxShadow: '0 0 30px rgba(239,68,68,0.35)', animation: 'scaleUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)' }}>
             <div className="modal-header" style={{ borderBottom: '1px solid rgba(239,68,68,0.2)', paddingBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -1432,12 +1468,12 @@ function MeseroContent() {
                 <span style={{ fontSize: 24, animation: 'pulse 1s infinite' }}>🚨</span> Alerta de Servicio
               </span>
               <span style={{ fontSize: 11, background: 'rgba(239,68,68,0.15)', color: 'var(--danger)', padding: '2px 8px', borderRadius: 999, fontWeight: 800 }}>
-                {alertasAsistencia.length} PENDIENTE(S)
+                {alertasAsistenciaParaMi.length} PENDIENTE(S)
               </span>
             </div>
             <div className="modal-body" style={{ maxHeight: 360, overflowY: 'auto', padding: '16px 0' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                {alertasAsistencia.map((alerta) => (
+                {alertasAsistenciaParaMi.map((alerta) => (
                   <div key={alerta.id} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 14, padding: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                       <div style={{ fontSize: 32 }}>{alerta.icono || '🙋'}</div>

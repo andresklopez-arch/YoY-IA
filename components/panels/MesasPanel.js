@@ -5504,6 +5504,7 @@ export default function MesasPanel({ showToast }) {
           onClose={() => setModalComanda(false)}
           showToast={showToast}
           registrarEvento={registrarEvento}
+          meserosPresentes={meserosPresentes}
         />
       )}
       {mostrarCobroManual && (
@@ -7221,12 +7222,26 @@ function ModalBitacora({ bitacora, onClear, onClose, onLoadMore, hasMore }) {
 }
 
 // ── MODAL REGISTRAR COMANDA (NUEVO) ──────────────────────
-function ModalRegistrarComanda({ mesas, setMesas, cuentasActivas, actualizarCuentasFirestore, onClose, showToast, registrarEvento }) {
+function ModalRegistrarComanda({ mesas, setMesas, cuentasActivas, actualizarCuentasFirestore, onClose, showToast, registrarEvento, meserosPresentes }) {
   const [destinoTipo, setDestinoTipo] = useState('mesa'); // 'mesa', 'cuenta', 'llevar'
   const [destinoId, setDestinoId] = useState('');
   const [carrito, setCarrito] = useState([]);
   const [productos, setProductos] = useState([]);
   const [isClosing, setIsClosing] = useState(false);
+  const [meseroId, setMeseroId] = useState('');
+
+  useEffect(() => {
+    if (destinoTipo === 'mesa' && destinoId) {
+      const targetMesa = mesas.find(m => m.id === parseInt(destinoId));
+      if (targetMesa && targetMesa.meseroId) {
+        setMeseroId(targetMesa.meseroId);
+      } else {
+        setMeseroId('');
+      }
+    } else {
+      setMeseroId('');
+    }
+  }, [destinoId, destinoTipo, mesas]);
 
   const handleClose = () => {
     if (carrito.length > 0) {
@@ -7388,122 +7403,71 @@ function ModalRegistrarComanda({ mesas, setMesas, cuentasActivas, actualizarCuen
       }
     }
 
-    // Descontar del stock fresco validado
-    const stockActualizado = (stockFresco.length > 0 ? stockFresco : productos).map(p => {
-      const enCart = carrito.find(item => item.id === p.id);
-      if (enCart) {
-        return { ...p, stock: Math.max(0, p.stock - enCart.cantidad), lastModified: Date.now() };
-      }
-      return p;
-    });
-
-    localStorage.setItem('yoy_billar_stock', obfuscate(stockActualizado));
-    setDoc(doc(db, 'config', 'inventario'), {
-      productos: stockActualizado,
-      updatedAt: serverTimestamp()
-    }).catch(err => console.error("Error al actualizar inventario en comanda:", err));
-
-    // Agregar comanda al destino de forma transaccional y consistente
-    if (destinoTipo === 'mesa') {
-      const targetMesa = mesas.find(m => m.id === parseInt(destinoId));
-      if (!targetMesa) return;
-
-      actualizarCuentasFirestore(prev => {
-        const cuentaExistente = prev.find(c => 
-          c.mesaId === targetMesa.id ||
-          (c.cliente && !['público', 'publico'].includes(targetMesa.cliente.toLowerCase()) && c.cliente.toLowerCase() === targetMesa.cliente.toLowerCase())
-        );
-        let nuevasCuentas;
-        if (cuentaExistente) {
-          nuevasCuentas = prev.map(c => {
-            if (c.id === cuentaExistente.id) {
-              const nuevosConsumos = [...c.consumos];
-              carrito.forEach(cartItem => {
-                const existeItem = nuevosConsumos.find(i => 
-                  (cartItem.id && i.productoId === cartItem.id) || 
-                  i.producto.toLowerCase() === cartItem.nombre.toLowerCase()
-                );
-                if (existeItem) {
-                  existeItem.cantidad += cartItem.cantidad;
-                  if (cartItem.id) existeItem.productoId = cartItem.id;
-                } else {
-                  nuevosConsumos.push({
-                    id: Date.now() + Math.random(),
-                    productoId: cartItem.id || null,
-                    producto: cartItem.nombre,
-                    precio: cartItem.precioVenta,
-                    cantidad: cartItem.cantidad
-                  });
-                }
-              });
-              return { ...c, consumos: nuevosConsumos };
-            }
-            return c;
-          });
-          showToast(`Comanda enviada a la cuenta de ${targetMesa.cliente} (Mesa ${targetMesa.id}) ✓`, 'success');
-          registrarEvento('Comanda a Cuenta', `Comanda de ${carrito.map(i=>`${i.semibold || i.nombre}`).join(', ')} enviada a la cuenta de ${targetMesa.cliente} (Mesa ${targetMesa.id})`, total);
-        } else {
-          const nuevaCuenta = {
-            id: Date.now(),
-            mesaId: targetMesa.id,
-            cliente: targetMesa.cliente,
-            tiempoJuego: 0,
-            consumos: carrito.map(item => ({
-              id: Date.now() + Math.random(),
-              productoId: item.id || null,
-              producto: item.nombre,
-              precio: item.precioVenta,
-              cantidad: item.cantidad
-            })),
-            inicio: Date.now()
-          };
-          nuevasCuentas = [...prev, nuevaCuenta];
-          showToast(`Comanda cargada a la cuenta de ${targetMesa.cliente} (Mesa ${targetMesa.id}) ✓`, 'success');
-          registrarEvento('Comanda a Mesa', `Comanda de ${carrito.map(i=>`${i.cantidad}x ${i.nombre}`).join(', ')} cargada a la cuenta activa de ${targetMesa.cliente} (Mesa ${targetMesa.id})`, total);
+    // Si es para llevar (venta barra instantánea), descontar inventario en caliente en Firestore
+    if (destinoTipo === 'llevar') {
+      const stockActualizado = (stockFresco.length > 0 ? stockFresco : productos).map(p => {
+        const enCart = carrito.find(item => item.id === p.id);
+        if (enCart) {
+          return { ...p, stock: Math.max(0, p.stock - enCart.cantidad), lastModified: Date.now() };
         }
-        return nuevasCuentas;
-      }).catch(err => console.error("Error al guardar comanda en cuenta mesa:", err));
-    } else if (destinoTipo === 'cuenta') {
-      actualizarCuentasFirestore(prev => {
-        const targetCuenta = prev.find(c => String(c.id) === String(destinoId));
-        if (!targetCuenta) return prev;
+        return p;
+      });
 
-        const nuevasCuentas = prev.map(c => {
-          if (String(c.id) === String(targetCuenta.id)) {
-            const nuevosConsumos = [...c.consumos];
-            carrito.forEach(cartItem => {
-              const existeItem = nuevosConsumos.find(i => 
-                (cartItem.id && i.productoId === cartItem.id) || 
-                i.producto.toLowerCase() === cartItem.nombre.toLowerCase()
-              );
-              if (existeItem) {
-                existeItem.cantidad += cartItem.cantidad;
-                if (cartItem.id) existeItem.productoId = cartItem.id;
-              } else {
-                nuevosConsumos.push({
-                  id: Date.now() + Math.random(),
-                  productoId: cartItem.id || null,
-                  producto: cartItem.nombre,
-                  precio: cartItem.precioVenta,
-                  cantidad: cartItem.cantidad
-                });
-              }
-            });
-            return { ...c, consumos: nuevosConsumos };
-          }
-          return c;
-        });
-        showToast(`Comanda agregada a la cuenta de ${targetCuenta.cliente} ✓`, 'success');
-        registrarEvento('Comanda a Cuenta', `Comanda de ${carrito.map(i=>`${i.cantidad}x ${i.nombre}`).join(', ')} agregada a la cuenta de ${targetCuenta.cliente}`, total);
-        return nuevasCuentas;
-      }).catch(err => console.error("Error al guardar comanda en cuenta directa:", err));
-    } else if (destinoTipo === 'llevar') {
-      showToast(`Comanda registrada Para Llevar. Total: $${total} MXN ✓`, 'success');
-      registrarEvento('Venta Barra', `Comanda Para Llevar: ${carrito.map(i=>`${i.cantidad}x ${i.nombre}`).join(', ')} liquidada al momento`, total);
+      localStorage.setItem('yoy_billar_stock', obfuscate(stockActualizado));
+      setDoc(doc(db, 'config', 'inventario'), {
+        productos: stockActualizado,
+        updatedAt: serverTimestamp()
+      }, { merge: true }).catch(err => console.error("Error al actualizar inventario en comanda de barra:", err));
     }
 
-    setCarrito([]);
-    onClose();
+    const targetMesa = destinoTipo === 'mesa' ? mesas.find(m => m.id === parseInt(destinoId)) : null;
+    const targetCuenta = destinoTipo === 'cuenta' ? cuentasActivas.find(c => String(c.id) === String(destinoId)) : null;
+
+    let finalCliente = 'Para Llevar';
+    if (destinoTipo === 'mesa') {
+      finalCliente = targetMesa ? targetMesa.cliente : `Mesa ${destinoId}`;
+    } else if (destinoTipo === 'cuenta') {
+      finalCliente = targetCuenta ? targetCuenta.cliente : 'Cliente';
+    }
+
+    const comandaData = {
+      mesaId: destinoTipo === 'mesa' ? parseInt(destinoId) : 0,
+      cliente: finalCliente,
+      items: carrito.map(item => ({
+        productoId: item.id,
+        nombre: item.nombre,
+        precio: item.precioVenta,
+        cantidad: item.cantidad
+      })),
+      total: total,
+      estado: 'pendiente',
+      tipo: 'pedido',
+      origen: 'caja_captura',
+      atendidoAdmin: false,
+      atendidoMesero: false,
+      cargadoACuenta: destinoTipo === 'llevar', // Si es 'llevar', se marca como ya cargada para que no intente sumarse a ninguna mesa
+      meseroId: meseroId || null,
+      meseroNombre: meseroId ? ((meserosPresentes || []).find(m => m.id === meseroId)?.nombre || null) : null,
+      createdAt: serverTimestamp()
+    };
+
+    addDoc(collection(db, 'mesa_pedidos'), comandaData)
+      .then(() => {
+        if (destinoTipo === 'llevar') {
+          showToast(`Comanda registrada Para Llevar. Total: $${total} MXN ✓`, 'success');
+          registrarEvento('Venta Barra', `Comanda Para Llevar: ${carrito.map(i=>`${i.cantidad}x ${i.nombre}`).join(', ')} liquidada al momento`, total);
+        } else {
+          showToast(`Comanda de ${finalCliente} registrada y enviada a cocina/mesero ✓`, 'success');
+          registrarEvento('Comanda Registrada', `Comanda de ${carrito.map(i=>`${i.cantidad}x ${i.nombre}`).join(', ')} enviada para ${finalCliente}`, total);
+        }
+        
+        setCarrito([]);
+        onClose();
+      })
+      .catch(err => {
+        console.error("Error al registrar comanda en Firestore:", err);
+        showToast("Error al enviar la comanda.", "danger");
+      });
   };
 
   return (
@@ -7608,6 +7572,24 @@ function ModalRegistrarComanda({ mesas, setMesas, cuentasActivas, actualizarCuen
                 </select>
               )}
             </div>
+
+            {/* Selector de Mesero Asignado para la comanda */}
+            {(destinoTipo === 'mesa' || destinoTipo === 'cuenta') && (
+              <div className="form-group" style={{ marginBottom: 12 }}>
+                <label className="form-label" style={{ fontSize: 10 }}>Mesero Asignado</label>
+                <select 
+                  className="form-select" 
+                  style={{ fontSize: 12, padding: 6 }} 
+                  value={meseroId} 
+                  onChange={e=>setMeseroId(e.target.value)}
+                >
+                  <option value="">-- Sin Mesero / Ninguno --</option>
+                  {(meserosPresentes || []).map(m => (
+                    <option key={m.id} value={m.id}>{m.nombre}</option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             {/* Artículos */}
             <div style={{ flex: 1, maxHeight: 180, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
