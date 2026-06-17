@@ -114,5 +114,8 @@ service cloud.firestore {
     match /auditoria_accesos/{document} {
       allow read, write: if true;
     }
+    match /cortes_caja/{document} {
+      allow read, write: if true;
+    }
   }
 }

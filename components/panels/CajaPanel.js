@@ -95,6 +95,7 @@ export default function CajaPanel({ showToast }) {
   const [bitacoraFiltrada, setBitacoraFiltrada] = useState([]);
   const [mostrarResumenCorteModal, setMostrarResumenCorteModal] = useState(false);
   const [resumenCorteActivo, setResumenCorteActivo] = useState(null);
+  const [historialCortes, setHistorialCortes] = useState([]);
 
   // Estados de Bitácora y Stock
   const [bitacora, setBitacora] = useState([]);
@@ -274,6 +275,28 @@ export default function CajaPanel({ showToast }) {
     });
     return () => unsub();
   }, [ultimoCorteFecha]);
+
+  // 3d. Sincronizar historial de cortes de caja
+  useEffect(() => {
+    const q = query(
+      collection(db, 'cortes_caja'),
+      orderBy('fecha', 'desc'),
+      limit(20)
+    );
+    const unsub = onSnapshot(q, snap => {
+      setHistorialCortes(snap.docs.map(d => {
+        const data = d.data();
+        return {
+          id: d.id,
+          ...data,
+          fecha: data.fecha ? (data.fecha.toDate ? data.fecha.toDate().toISOString() : data.fecha) : new Date().toISOString()
+        };
+      }));
+    }, err => {
+      console.warn("Error al escuchar historial de cortes:", err);
+    });
+    return () => unsub();
+  }, []);
 
   // 4. Suscripciones Firestore
   useEffect(() => {
@@ -1530,6 +1553,97 @@ ${diferenciaVal < 0 ? '1. Implementar auditoría ciega por turnos.\n2. Conciliar
                 </span>
               </div>
             </div>
+          </div>
+        )}
+      </div>
+
+      {/* HISTORIAL DE CORTES DE CAJA */}
+      <div className="card" style={{ padding: 14, marginTop: 14, background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+        <h3 className="card-title" style={{ fontSize: 11, fontWeight: 800, color: 'var(--bronze-light)', display: 'flex', alignItems: 'center', gap: 8, margin: '0 0 12px 0', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          <i className="ri-history-line" style={{ fontSize: 14 }} />
+          Historial de Cortes de Caja (Últimos 20)
+        </h3>
+        
+        {historialCortes.length === 0 ? (
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic', textAlign: 'center', padding: '12px 0' }}>
+            No se han registrado cortes de caja aún.
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10, maxHeight: 180, overflowY: 'auto', paddingRight: 4 }}>
+            {historialCortes.map(c => {
+              const dateObj = new Date(c.fecha);
+              const dateStr = dateObj.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' });
+              const timeStr = dateObj.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+              
+              return (
+                <div 
+                  key={c.id} 
+                  onClick={() => {
+                    setResumenCorteActivo({
+                      operador: c.operador,
+                      ultimoCorteFecha: c.ultimoCorteFecha,
+                      efectivoContado: c.efectivoContado,
+                      efectivoEsperado: c.efectivoEsperado,
+                      diferencia: c.diferencia,
+                      totalIngresos: c.totalIngresos,
+                      totalGastos: c.totalGastos,
+                      resumenIA: c.resumenIA,
+                      cantidadesDenom: c.cantidadesDenom || {},
+                      ingresosDetalle: c.ingresosDetalle || [],
+                      gastosDetalle: c.gastosDetalle || [],
+                      corteData: {
+                        ingresosEfectivo: c.efectivoEsperado + c.totalGastos,
+                        ingresosTarjeta: c.ingresosDetalle?.filter(i => i.metodo === 'tarjeta').reduce((s,i) => s+i.monto, 0) || 0,
+                        ingresosTransferencia: c.ingresosDetalle?.filter(i => i.metodo === 'transferencia').reduce((s,i) => s+i.monto, 0) || 0,
+                        ingresosDetalle: c.ingresosDetalle || [],
+                        gastosDetalle: c.gastosDetalle || [],
+                        totalIngresos: c.totalIngresos,
+                        totalGastos: c.totalGastos,
+                        efectivoEsperado: c.efectivoEsperado
+                      }
+                    });
+                    setMostrarResumenCorteModal(true);
+                  }}
+                  style={{
+                    background: 'var(--bg-elevated)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 8,
+                    padding: '10px 12px',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 4
+                  }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.borderColor = 'var(--border-bronze)';
+                    e.currentTarget.style.background = 'rgba(255,255,255,0.02)';
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.borderColor = 'var(--border)';
+                    e.currentTarget.style.background = 'var(--bg-elevated)';
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 700 }}>{dateStr} {timeStr}</span>
+                    <span className="badge badge-bronze" style={{ fontSize: 7, padding: '1px 3px' }}>IA Audit</span>
+                  </div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#fff', marginTop: 2 }}>
+                    Cajero: {c.operador}
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, marginTop: 4 }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>Efectivo:</span>
+                    <strong>${c.efectivoContado.toLocaleString()}</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>Diferencia:</span>
+                    <strong style={{ color: c.diferencia === 0 ? 'var(--success)' : c.diferencia > 0 ? 'var(--warning)' : 'var(--danger)' }}>
+                      {c.diferencia >= 0 ? '+' : ''}${c.diferencia.toLocaleString()}
+                    </strong>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
