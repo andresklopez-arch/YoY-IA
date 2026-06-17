@@ -152,35 +152,146 @@ export default function FilaRegistroAutoservicio() {
             />
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: 12 }}>
-            <div style={formGroupStyle}>
-              <label style={labelStyle}>¿Qué mesa buscas?</label>
-              <select
-                value={tipo}
-                onChange={(e) => setTipo(e.target.value)}
-                style={selectStyle}
+          <div style={formGroupStyle}>
+            <label style={labelStyle}>¿Qué mesa buscas?</label>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 4, marginBottom: 12 }}>
+              {[
+                { value: 'Pool 9B', label: 'Pool (9 Bolas)', icon: 'pool' },
+                { value: 'Carambola 3B', label: 'Carambola (3B)', icon: 'carambola' },
+                { value: 'Snooker', label: 'Snooker', icon: 'snooker' },
+                { value: 'Dominó', label: 'Dominó', icon: 'domino' },
+              ].map(opt => {
+                const isActive = tipo === opt.value;
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setTipo(opt.value)}
+                    style={{
+                      background: isActive ? 'rgba(197, 168, 128, 0.12)' : 'rgba(255,255,255,0.02)',
+                      border: isActive ? '1.5px solid var(--bronze-light, #c5a880)' : '1px solid rgba(255,255,255,0.06)',
+                      borderRadius: 12,
+                      padding: '10px 6px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 6,
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                      color: isActive ? '#fff' : 'rgba(255,255,255,0.5)',
+                      boxShadow: isActive ? '0 0 10px rgba(197, 168, 128, 0.15)' : 'none'
+                    }}
+                    disabled={loading}
+                  >
+                    {opt.icon === 'pool' && (
+                      <svg width="18" height="18" viewBox="0 0 24 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <polygon points="12,1 23,20 1,20" stroke="var(--bronze-light, #c5a880)" strokeWidth="1.8" strokeLinejoin="round" fill="rgba(197,168,128,0.05)" />
+                        <circle cx="12" cy="7.5" r="2.2" fill="#eab308" />
+                        <circle cx="9.5" cy="12" r="2.2" fill="#3b82f6" />
+                        <circle cx="14.5" cy="12" r="2.2" fill="#ef4444" />
+                        <circle cx="7" cy="16.5" r="2.2" fill="#8b5cf6" />
+                        <circle cx="12" cy="16.5" r="2.2" fill="#f97316" />
+                        <circle cx="17" cy="16.5" r="2.2" fill="#22c55e" />
+                      </svg>
+                    )}
+                    {opt.icon === 'carambola' && (
+                      <svg width="18" height="18" viewBox="0 0 24 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                          <radialGradient id="regRedBall" cx="30%" cy="30%" r="70%">
+                            <stop offset="0%" stopColor="#ff8888" />
+                            <stop offset="65%" stopColor="#dc2626" />
+                            <stop offset="100%" stopColor="#7f1d1d" />
+                          </radialGradient>
+                          <radialGradient id="regYellowBall" cx="30%" cy="30%" r="70%">
+                            <stop offset="0%" stopColor="#fef08a" />
+                            <stop offset="65%" stopColor="#ca8a04" />
+                            <stop offset="100%" stopColor="#713f12" />
+                          </radialGradient>
+                          <radialGradient id="regWhiteBall" cx="30%" cy="30%" r="70%">
+                            <stop offset="0%" stopColor="#ffffff" />
+                            <stop offset="65%" stopColor="#cbd5e1" />
+                            <stop offset="100%" stopColor="#475569" />
+                          </radialGradient>
+                        </defs>
+                        <circle cx="12" cy="15" r="4.8" fill="url(#regRedBall)" />
+                        <circle cx="8.2" cy="9" r="4.8" fill="url(#regYellowBall)" />
+                        <circle cx="15.8" cy="10" r="4.8" fill="url(#regWhiteBall)" />
+                        <circle cx="15.3" cy="9.5" r="0.7" fill="#ef4444" opacity="0.8" />
+                      </svg>
+                    )}
+                    {opt.icon === 'snooker' && (
+                      <svg width="18" height="18" viewBox="0 0 24 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <polygon points="12,1 23,20 1,20" stroke="var(--bronze-light, #c5a880)" strokeWidth="1.2" strokeLinejoin="round" strokeDasharray="2 1.5" fill="rgba(197,168,128,0.03)" />
+                        <circle cx="12" cy="5.5" r="1.6" fill="#ef4444" />
+                        <circle cx="10" cy="9" r="1.6" fill="#ef4444" />
+                        <circle cx="14" cy="9" r="1.6" fill="#ef4444" />
+                        <circle cx="8" cy="12.5" r="1.6" fill="#ef4444" />
+                        <circle cx="12" cy="12.5" r="1.6" fill="#d97706" />
+                        <circle cx="16" cy="12.5" r="1.6" fill="#ef4444" />
+                        <circle cx="6" cy="16" r="1.6" fill="#ef4444" />
+                        <circle cx="10" cy="16" r="1.6" fill="#ef4444" />
+                        <circle cx="14" cy="16" r="1.6" fill="#ef4444" />
+                        <circle cx="18" cy="16" r="1.6" fill="#ef4444" />
+                      </svg>
+                    )}
+                    {opt.icon === 'domino' && (
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <rect x="3" y="6" width="18" height="12" rx="2" stroke="var(--bronze-light, #c5a880)" strokeWidth="1.5" fill="rgba(255,255,255,0.05)" />
+                        <line x1="12" y1="6" x2="12" y2="18" stroke="var(--bronze-light, #c5a880)" strokeWidth="1.5" />
+                        <circle cx="6.5" cy="9" r="1" fill="var(--bronze-light, #c5a880)" />
+                        <circle cx="8.5" cy="12" r="1" fill="var(--bronze-light, #c5a880)" />
+                        <circle cx="15.5" cy="9" r="1" fill="var(--bronze-light, #c5a880)" />
+                        <circle cx="15.5" cy="15" r="1" fill="var(--bronze-light, #c5a880)" />
+                        <circle cx="17.5" cy="9" r="1" fill="var(--bronze-light, #c5a880)" />
+                        <circle cx="17.5" cy="15" r="1" fill="var(--bronze-light, #c5a880)" />
+                      </svg>
+                    )}
+                    <span style={{ fontSize: 11, fontWeight: 700 }}>{opt.label}</span>
+                  </button>
+                );
+              })}
+              <button
+                type="button"
+                onClick={() => setTipo('Cualquiera')}
+                style={{
+                  gridColumn: 'span 2',
+                  background: tipo === 'Cualquiera' ? 'rgba(197, 168, 128, 0.12)' : 'rgba(255,255,255,0.02)',
+                  border: tipo === 'Cualquiera' ? '1.5px solid var(--bronze-light, #c5a880)' : '1px solid rgba(255,255,255,0.06)',
+                  borderRadius: 12,
+                  padding: '10px 8px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  color: tipo === 'Cualquiera' ? '#fff' : 'rgba(255,255,255,0.5)',
+                  boxShadow: tipo === 'Cualquiera' ? '0 0 10px rgba(197, 168, 128, 0.15)' : 'none'
+                }}
                 disabled={loading}
               >
-                <option value="Pool 9B">Pool (9 Bolas)</option>
-                <option value="Carambola 3B">Carambola (3 Bandas)</option>
-                <option value="Snooker">Snooker</option>
-                <option value="Dominó">Dominó</option>
-                <option value="Cualquiera">Cualquiera disponible</option>
-              </select>
+                <svg width="16" height="16" viewBox="0 0 24 22" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ opacity: 0.7 }}>
+                  <line x1="2" y1="20" x2="22" y2="2" stroke="var(--bronze-light, #c5a880)" strokeWidth="1.5" strokeLinecap="round" />
+                  <line x1="2" y1="2" x2="22" y2="20" stroke="var(--bronze-light, #c5a880)" strokeWidth="1.5" strokeLinecap="round" />
+                  <circle cx="12" cy="11" r="3" fill="#fff" />
+                </svg>
+                <span style={{ fontSize: 11, fontWeight: 700 }}>Cualquiera disponible</span>
+              </button>
             </div>
+          </div>
 
-            <div style={formGroupStyle}>
-              <label style={labelStyle}>Jugadores</label>
-              <input
-                type="number"
-                min="1"
-                max="20"
-                value={personas}
-                onChange={(e) => setPersonas(e.target.value)}
-                style={inputStyle}
-                disabled={loading}
-              />
-            </div>
+          <div style={formGroupStyle}>
+            <label style={labelStyle}>Número de Jugadores (Personas)</label>
+            <input
+              type="number"
+              min="1"
+              max="20"
+              value={personas}
+              onChange={(e) => setPersonas(e.target.value)}
+              style={inputStyle}
+              disabled={loading}
+            />
           </div>
 
           <button

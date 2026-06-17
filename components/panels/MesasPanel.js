@@ -4291,6 +4291,13 @@ export default function MesasPanel({ showToast }) {
           85% { transform: rotate(-4deg); }
           100% { transform: rotate(0); }
         }
+        .mesa-card:hover svg {
+          transform: scale(1.18) rotate(4deg);
+          filter: drop-shadow(0 0 6px var(--bronze-light, #c5a880));
+        }
+        .mesa-card svg {
+          transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
       `}</style>
 
       {/* Banner de Fila Virtual Activa (Visual Alert para el Cajero) */}
@@ -5479,7 +5486,7 @@ function ModalFilaVirtual({ fila, setFila, mesas, onAssign, onClose, showToast, 
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" style={{ maxWidth: 620 }} onClick={e => e.stopPropagation()}>
+      <div className="modal" style={{ maxWidth: 880 }} onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <span className="modal-title">
             <i className="ri-qr-code-line" style={{ marginRight: 8, color: 'var(--bronze)' }} />
@@ -5489,7 +5496,7 @@ function ModalFilaVirtual({ fila, setFila, mesas, onAssign, onClose, showToast, 
             <i className="ri-close-line" style={{ fontSize: 20 }} />
           </button>
         </div>
-        <div className="modal-body" style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 20 }}>
+        <div className="modal-body" style={{ display: 'grid', gridTemplateColumns: '1.1fr 1fr 1fr', gap: 20 }}>
           {/* Panel Izquierdo: Lista */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <h4 style={{ fontSize: 12, textTransform: 'uppercase', color: 'var(--text-secondary)', letterSpacing: '0.05em' }}>Clientes en Espera ({fila.length})</h4>
@@ -5535,8 +5542,8 @@ function ModalFilaVirtual({ fila, setFila, mesas, onAssign, onClose, showToast, 
                           style={{ flex: 1, padding: '4px 8px', fontSize: 10 }}
                           onClick={() => {
                             if (libres.length === 0) {
-                              showToast('No hay mesas disponibles en este momento.', 'warning');
-                              return;
+                               showToast('No hay mesas disponibles en este momento.', 'warning');
+                               return;
                             }
                             onAssign(f);
                           }}
@@ -5558,7 +5565,7 @@ function ModalFilaVirtual({ fila, setFila, mesas, onAssign, onClose, showToast, 
             )}
           </div>
 
-          {/* Panel Derecho: Formulario */}
+          {/* Panel Central: Formulario */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12, borderLeft: '1px solid var(--border)', paddingLeft: 20 }}>
             <h4 style={{ fontSize: 12, textTransform: 'uppercase', color: 'var(--text-secondary)', letterSpacing: '0.05em' }}>Registrar en Espera</h4>
             <div className="form-group">
@@ -5584,26 +5591,28 @@ function ModalFilaVirtual({ fila, setFila, mesas, onAssign, onClose, showToast, 
             <button className="btn btn-primary" style={{ marginTop: 8 }} onClick={agregarFila}>
               Añadir a la Fila
             </button>
-            <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16, marginTop: 16, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, textAlign: 'center' }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--bronze-light)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Registro Autoservicio (QR)</span>
-              <div style={{ background: '#fff', padding: 8, borderRadius: 10, display: 'inline-block', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}>
-                <img 
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=110x110&data=${encodeURIComponent(typeof window !== 'undefined' ? `${window.location.origin}/fila/registro` : 'https://yoy-ia-billar.vercel.app/fila/registro')}`} 
-                  alt="QR Registro"
-                  style={{ width: 110, height: 110, display: 'block' }}
-                />
-              </div>
-              <p style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.3, margin: '2px 0', maxWidth: 220 }}>
-                Los clientes pueden escanear este código QR para anotarse solos en la lista de espera.
-              </p>
-              <button 
-                className="btn btn-secondary btn-sm" 
-                onClick={imprimirQRRegistroVirtual}
-                style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 11 }}
-              >
-                <i className="ri-printer-line" /> Imprimir QR de Fila
-              </button>
+          </div>
+
+          {/* Panel Derecho: QR Autoservicio */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, textAlign: 'center', borderLeft: '1px solid var(--border)', paddingLeft: 20 }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--bronze-light)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Registro Autoservicio (QR)</span>
+            <div style={{ background: '#fff', padding: 8, borderRadius: 10, display: 'inline-block', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', marginTop: 8 }}>
+              <img 
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=130x130&data=${encodeURIComponent(typeof window !== 'undefined' ? `${window.location.origin}/fila/registro` : 'https://yoy-ia-billar.vercel.app/fila/registro')}`} 
+                alt="QR Registro"
+                style={{ width: 130, height: 130, display: 'block' }}
+              />
             </div>
+            <p style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.3, margin: '8px 0', maxWidth: 180 }}>
+              Los clientes pueden escanear este código QR para anotarse solos en la lista de espera desde su celular.
+            </p>
+            <button 
+              className="btn btn-secondary btn-sm" 
+              onClick={imprimirQRRegistroVirtual}
+              style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 11, marginTop: 4 }}
+            >
+              <i className="ri-printer-line" /> Imprimir QR de Fila
+            </button>
           </div>
         </div>
         <div className="modal-footer">
