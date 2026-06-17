@@ -253,30 +253,6 @@ export default function LoginScreen({ showToast }) {
     }
   };
 
-  const quickLogin = async (role) => {
-    if (bloqueado) return;
-    const clientDomain = getClientDomain();
-    const creds = {
-      admin:   { e: `admin@${clientDomain}`, p: '1234' },
-      gerente: { e: `gerente@${clientDomain}`, p: '1234' },
-      cajero:  { e: `cajero@${clientDomain}`, p: '1234' },
-      mesero:  { e: `mesero@${clientDomain}`, p: '1234' },
-    };
-    setLoading(true);
-    try {
-      await login(creds[role].e, creds[role].p);
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem('yoy_lockout_penalties');
-        localStorage.removeItem('yoy_lockout_until');
-      }
-      await logAccessAttempt(creds[role].e, 'demo_quick', true, 'demo_success');
-    } catch(e) {
-      showToast(e.message, 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <div style={{
       minHeight: '100vh',
@@ -396,39 +372,6 @@ export default function LoginScreen({ showToast }) {
               )}
             </button>
           </form>
-
-          {/* Quick Access (dev mode) */}
-          <div style={{ marginTop: 24, paddingTop: 20, borderTop: '1px solid var(--border)' }}>
-            <p style={{ fontSize: 10, color: 'var(--text-muted)', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 12, textAlign: 'center' }}>
-              Acceso rápido (Demo)
-            </p>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-              {[
-                { role: 'admin',   label: 'Admin',   icon: 'ri-shield-star-line',    color: 'var(--bronze-light)' },
-                { role: 'gerente', label: 'Gerente', icon: 'ri-user-star-line',       color: 'var(--silver)' },
-                { role: 'cajero',  label: 'Cajero',  icon: 'ri-money-dollar-circle-line', color: 'var(--success)' },
-                { role: 'mesero',  label: 'Mesero',  icon: 'ri-restaurant-line',      color: 'var(--blue-light)' },
-              ].map(({ role, label, icon, color }) => (
-                <button
-                  key={role}
-                  onClick={() => quickLogin(role)}
-                  disabled={loading || bloqueado}
-                  style={{
-                    background: 'var(--bg-elevated)', border: '1px solid var(--border)',
-                    borderRadius: 10, padding: '8px 12px', cursor: 'pointer',
-                    display: 'flex', alignItems: 'center', gap: 7,
-                    fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)',
-                    transition: 'all 0.15s',
-                  }}
-                  onMouseEnter={e => { e.currentTarget.style.borderColor = color; e.currentTarget.style.color = color; }}
-                  onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
-                >
-                  <i className={icon} style={{ fontSize: 14, color }} />
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
         </div>
 
         <p style={{ textAlign: 'center', fontSize: 10, color: 'var(--text-muted)', marginTop: 20, letterSpacing: '0.1em' }}>
