@@ -4465,6 +4465,59 @@ export default function MesasPanel({ showToast }) {
       }
       setCuentasActivas(updatedCuentas);
 
+      // CALCULO DE COMISIONES PARA MESEROS ASIGNADOS A LA MESA
+      if (mesa) {
+        const costoMesa = mesa.socios ? 0 : calcCosto(mesa);
+        const consumosFinal = cuentaAsociada ? (cuentaAsociada.consumos || []) : [];
+        const costoBar = consumosFinal.reduce((sum, item) => sum + ((item.precio || item.precioVenta || 0) * (item.cantidad || 0)), 0);
+        
+        const waiterIds = mesa.meseroIds && Array.isArray(mesa.meseroIds) && mesa.meseroIds.length > 0 
+          ? mesa.meseroIds 
+          : (mesa.meseroId ? [mesa.meseroId] : []);
+
+        if (waiterIds.length > 0) {
+          for (const wId of waiterIds) {
+            const emp = empleadosTodos.find(e => e.id === wId);
+            if (emp) {
+              let comisionMesa = 0;
+              if (emp.comisionMesas > 0) {
+                const val = emp.comisionMesasTipo === 'porcentaje'
+                  ? (costoMesa * Number(emp.comisionMesas)) / 100
+                  : Number(emp.comisionMesas);
+                comisionMesa = val / waiterIds.length;
+              }
+              
+              let comisionBar = 0;
+              if (emp.comisionBar > 0) {
+                const val = emp.comisionBarTipo === 'porcentaje'
+                  ? (costoBar * Number(emp.comisionBar)) / 100
+                  : Number(emp.comisionBar);
+                comisionBar = val / waiterIds.length;
+              }
+
+              if (comisionMesa > 0 || comisionBar > 0) {
+                try {
+                  await addDoc(collection(db, 'nomina_comisiones'), {
+                    empleadoId: emp.id,
+                    empleadoNombre: `${emp.nombre} ${emp.apellido || ''}`.trim(),
+                    fecha: new Date().toISOString().slice(0, 10),
+                    mesaId: mesaId,
+                    montoMesa: costoMesa,
+                    montoBar: costoBar,
+                    comisionMesa: Number(comisionMesa.toFixed(2)),
+                    comisionBar: Number(comisionBar.toFixed(2)),
+                    comisionTotal: Number((comisionMesa + comisionBar).toFixed(2)),
+                    createdAt: serverTimestamp()
+                  });
+                } catch (commErr) {
+                  console.error("Error al registrar comisión para empleado:", emp.id, commErr);
+                }
+              }
+            }
+          }
+        }
+      }
+
       // Desactivar/atender/finalizar todas las alertas y consumos de la mesa en Firestore en lote (batch)
       const qAlerts = query(
         collection(db, 'mesa_pedidos'),
@@ -5172,41 +5225,91 @@ export default function MesasPanel({ showToast }) {
                       marginTop: 8, 
                       marginBottom: 8,
                       display: 'flex', 
-                      alignItems: 'center', 
-                      gap: 6, 
+                      flexDirection: 'column',
+                      gap: 4, 
                       width: '100%', 
                       background: 'rgba(255, 255, 255, 0.03)', 
                       border: '1px solid rgba(255, 255, 255, 0.05)', 
                       borderRadius: 8, 
-                      padding: '4px 8px',
-                      boxSizing: 'border-box'
+                      padding: '6px 8px',
+                      boxSizing: 'border-box',
+                      position: 'relative'
                     }}
                     onClick={e => e.stopPropagation()}
                   >
-                    <i className="ri-user-star-line" style={{ fontSize: 12, color: 'var(--bronze-light)' }} />
-                    <select
-                      value={mesa.meseroId || ''}
-                      onChange={(e) => handleAsignarMeseroMesa(mesa.id, e.target.value)}
-                      style={{
-                        background: 'transparent',
-                        border: 'none',
-                        color: mesa.meseroId ? '#fff' : 'var(--text-muted)',
-                        fontSize: 11,
-                        fontWeight: 600,
-                        outline: 'none',
-                        width: '100%',
+                    <div 
+                      style={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        justifyContent: 'space-between', 
                         cursor: 'pointer',
-                        padding: 0
-                      }}
-                      onClick={e => e.stopPropagation()}
+                        width: '100%'
+                      }} 
+                      onClick={() => setDropdownOpenMesa(dropdownOpenMesa === mesa.id ? null : mesa.id)}
                     >
-                      <option value="" style={{ background: '#111', color: 'var(--text-muted)' }}>— Sin Mesero —</option>
-                      {meserosPresentes.map(m => (
-                        <option key={m.id} value={m.id} style={{ background: '#111', color: '#fff' }}>
-                          {m.nombre}
-                        </option>
-                      ))}
-                    </select>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '90%' }}>
+                        <i className="ri-user-star-line" style={{ fontSize: 12, color: 'var(--bronze-light)' }} />
+                        <span style={{ fontSize: 11, fontWeight: 600, color: (mesa.meseroIds && mesa.meseroIds.length > 0) || mesa.meseroId ? '#fff' : 'var(--text-muted)' }}>
+                          {(mesa.meseroIds && mesa.meseroIds.length > 0) 
+                            ? mesa.meseroNombres.join(', ') 
+                            : (mesa.meseroNombre || '— Sin Mesero —')}
+                        </span>
+                      </div>
+                      <i className={dropdownOpenMesa === mesa.id ? "ri-arrow-up-s-line" : "ri-arrow-down-s-line"} style={{ fontSize: 12, color: 'var(--text-muted)' }} />
+                    </div>
+
+                    {dropdownOpenMesa === mesa.id && (
+                      <div style={{
+                        position: 'absolute',
+                        bottom: '100%',
+                        left: 0,
+                        right: 0,
+                        background: 'var(--bg-card)',
+                        border: '1px solid var(--border-bronze)',
+                        borderRadius: 8,
+                        boxShadow: '0 8px 16px rgba(0,0,0,0.6)',
+                        zIndex: 100,
+                        maxHeight: 150,
+                        overflowY: 'auto',
+                        padding: 6,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 4
+                      }}>
+                        {meserosPresentes.map(m => {
+                          const isAssigned = (mesa.meseroIds || []).includes(m.id) || mesa.meseroId === m.id;
+                          return (
+                            <label 
+                              key={m.id} 
+                              style={{ 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                gap: 6, 
+                                fontSize: 11, 
+                                color: '#fff', 
+                                cursor: 'pointer', 
+                                padding: '4px 6px', 
+                                borderRadius: 4, 
+                                background: isAssigned ? 'rgba(197, 168, 128, 0.15)' : 'transparent',
+                                margin: 0
+                              }}
+                            >
+                              <input 
+                                type="checkbox" 
+                                checked={isAssigned} 
+                                onChange={() => handleToggleMeseroMesa(mesa.id, m.id, m.nombre)}
+                                style={{ accentColor: 'var(--bronze-light)', cursor: 'pointer' }}
+                                onClick={e => e.stopPropagation()}
+                              />
+                              {m.nombre}
+                            </label>
+                          );
+                        })}
+                        {meserosPresentes.length === 0 && (
+                          <span style={{ fontSize: 10, color: 'var(--text-muted)', textAlign: 'center', padding: '6px 0' }}>No hay meseros activos</span>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -7517,6 +7620,28 @@ function ModalRegistrarComanda({ mesas, setMesas, cuentasActivas, actualizarCuen
         if (destinoTipo === 'llevar') {
           showToast(`Comanda registrada Para Llevar. Total: $${total} MXN ✓`, 'success');
           registrarEvento('Venta Barra', `Comanda Para Llevar: ${carrito.map(i=>`${i.cantidad}x ${i.nombre}`).join(', ')} liquidada al momento`, total);
+          
+          if (meseroId) {
+            const emp = empleadosTodos.find(e => e.id === meseroId);
+            if (emp && emp.comisionBar > 0) {
+              const comisionBar = emp.comisionBarTipo === 'porcentaje'
+                ? (total * Number(emp.comisionBar)) / 100
+                : Number(emp.comisionBar);
+
+              addDoc(collection(db, 'nomina_comisiones'), {
+                empleadoId: emp.id,
+                empleadoNombre: `${emp.nombre} ${emp.apellido || ''}`.trim(),
+                fecha: new Date().toISOString().slice(0, 10),
+                mesaId: 0,
+                montoMesa: 0,
+                montoBar: total,
+                comisionMesa: 0,
+                comisionBar: Number(comisionBar.toFixed(2)),
+                comisionTotal: Number(comisionBar.toFixed(2)),
+                createdAt: serverTimestamp()
+              }).catch(errComm => console.error("Error al registrar comision bar para llevar:", errComm));
+            }
+          }
         } else {
           showToast(`Comanda de ${finalCliente} registrada y enviada a cocina/mesero ✓`, 'success');
           registrarEvento('Comanda Registrada', `Comanda de ${carrito.map(i=>`${i.cantidad}x ${i.nombre}`).join(', ')} enviada para ${finalCliente}`, total);
