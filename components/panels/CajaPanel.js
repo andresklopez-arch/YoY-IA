@@ -1362,15 +1362,22 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
       }
     });
 
-    // Mantenimiento Preventivo JIT (Sugerencia 3)
-    const horasMesa = { 1: 485, 2: 120, 3: 512, 4: 95, 5: 310, 6: 415, 7: 80, 8: 150 };
-    Object.keys(horasMesa).forEach(mId => {
-      if (horasMesa[mId] >= 500) {
+    // Mantenimiento Preventivo JIT y Desgaste Crítico (Sugerencia 2 del Auditor)
+    analisisMesas.forEach(m => {
+      if (m.porcentajePaño < 20) {
         list.push({
-          id: `mantenimiento-mesa-${mId}`,
+          id: `mantenimiento-mesa-${m.id}-critico`,
           tipo: 'mantenimiento',
-          titulo: `Mesa ${mId} requiere Manto.`,
-          desc: `Uso acumulado de ${horasMesa[mId]} hrs (Límite: 500 hrs). Requiere rectificación de paño.`,
+          titulo: `${m.nombre} - Desgaste Crítico`,
+          desc: `Integridad del paño al ${m.porcentajePaño}%. Requiere cepillado y rectificación urgente.`,
+          gravedad: 'alta'
+        });
+      } else if (m.porcentajePaño < 50) {
+        list.push({
+          id: `mantenimiento-mesa-${m.id}-preventivo`,
+          tipo: 'mantenimiento',
+          titulo: `${m.nombre} - Manto. Próximo`,
+          desc: `Integridad del paño al ${m.porcentajePaño}%. Se sugiere programar mantenimiento preventivo.`,
           gravedad: 'media'
         });
       }
@@ -1425,7 +1432,7 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
     });
 
     return list.slice(0, 10); // max 10
-  }, [inconsistenciasEnVivo, bitacora, limiteFecha, staffRendimiento]);
+  }, [inconsistenciasEnVivo, bitacora, limiteFecha, staffRendimiento, analisisMesas]);
 
   // Salud del Negocio (Sugerencia 1)
   const healthScore = useMemo(() => {
@@ -1750,6 +1757,8 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
         nombre: m.nombre || `Mesa ${m.id}`,
         tipo: m.tipo || 'Pool 9B',
         tarifa: m.tarifa || 60,
+        horasJugadasEnMantenimiento: m.horasJugadasEnMantenimiento || 0,
+        ultimoMantenimientoAt: m.ultimoMantenimientoAt || null,
         ingresosTotales: 0,
         tiempoHoras: 0,
         cantidadUsos: 0,
@@ -1857,8 +1866,8 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
       }
 
       // 1. Alertas de mantenimiento preventivo (límite 50h por paño)
-      const horasJugadasCiclo = s.tiempoHoras % 50;
-      s.porcentajePaño = Math.max(0, Math.min(100, Math.round(((50 - horasJugadasCiclo) / 50) * 100)));
+      const horasDesdeMantenimiento = Math.max(0, s.tiempoHoras - s.horasJugadasEnMantenimiento);
+      s.porcentajePaño = Math.max(0, Math.min(100, Math.round(((50 - horasDesdeMantenimiento) / 50) * 100)));
 
       // 2. IA Tarifa Dinámica sugerida
       if (s.tiempoHoras > 6.0) {
@@ -1869,11 +1878,32 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
         s.tarifaSugerida = s.tarifa;
       }
 
-      // 3. Tendencia semanal de demanda (7 días)
-      const baseDemand = [20, 35, 50, 45, 75, 95, 80];
-      s.tendenciaDemanda = baseDemand.map(val => {
-        const variance = ((s.id * 13 + val) % 20) - 10;
-        return Math.max(10, Math.min(100, val + variance));
+      // 3. Tendencia semanal de demanda (7 días) basada en ocupación real de bitácora
+      const demandByDay = [0, 0, 0, 0, 0, 0, 0];
+      bitacora.forEach(e => {
+        const det = (e.detalle || '').toLowerCase();
+        const acc = e.accion || '';
+        const mName = s.nombre.toLowerCase();
+        const isForThisMesa = det.includes(`mesa ${s.id}`) || det.includes(mName);
+        
+        if (isForThisMesa && (acc === 'Cierre Directo' || acc === 'Mesa a Cuenta' || acc === 'Mesa a Cuenta Nueva' || acc === 'Liquidar Cuenta')) {
+          if (e.fecha) {
+            const date = new Date(e.fecha);
+            const dayOfWeek = date.getDay(); // 0 = Dom, 1 = Lun, ..., 6 = Sab
+            const idxDay = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Mon=0, ..., Sun=6
+            demandByDay[idxDay] += 1;
+          }
+        }
+      });
+      
+      const maxCount = Math.max(...demandByDay);
+      s.tendenciaDemanda = demandByDay.map((count, idxDay) => {
+        if (maxCount === 0) {
+          const baseDemand = [20, 35, 50, 45, 75, 95, 80];
+          const variance = ((s.id * 13 + idxDay) % 20) - 10;
+          return Math.max(10, Math.min(100, (baseDemand[idxDay] || 50) + variance));
+        }
+        return Math.max(15, Math.min(100, Math.round((count / maxCount) * 80) + 20));
       });
     });
 
@@ -1931,6 +1961,70 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
           <circle cx="16.4" cy="15.5" r="1.8" fill="#fd79a8" />
         </svg>
       );
+    }
+  };
+
+  const resetearMantenimientoMesa = async (mesaId, tiempoHorasActual) => {
+    const pin = prompt('Ingrese el PIN de Administrador para confirmar el mantenimiento del paño:');
+    if (!pin) return;
+    if (hashPassword(pin) !== adminPinHash) {
+      showToast('PIN de administrador incorrecto', 'danger');
+      return;
+    }
+    
+    try {
+      const updatedMesas = mesas.map(m => {
+        if (m.id === mesaId) {
+          return {
+            ...m,
+            horasJugadasEnMantenimiento: tiempoHorasActual,
+            ultimoMantenimientoAt: new Date().toISOString()
+          };
+        }
+        return m;
+      });
+
+      await setDoc(doc(db, 'config', 'mesas_estado'), { mesas: updatedMesas }, { merge: true });
+      await registrarEvento(
+        'Mantenimiento Mesa', 
+        `Se registró mantenimiento y cepillado de paño para la Mesa ${mesaId}. Horas acumuladas: ${tiempoHorasActual}h`,
+        0,
+        'info'
+      );
+      
+      showToast(`¡Mantenimiento de Mesa ${mesaId} registrado con éxito! Paño al 100% 🧼`, 'success');
+    } catch (err) {
+      console.error(err);
+      showToast('Error al guardar el mantenimiento en Firestore', 'danger');
+    }
+  };
+
+  const aplicarTarifaDinamica = async (mesaId, nuevaTarifaSugerida) => {
+    const confirmacion = window.confirm(`¿Desea aplicar la tarifa dinámica sugerida de $${nuevaTarifaSugerida}/h a la Mesa ${mesaId}?`);
+    if (!confirmacion) return;
+    
+    try {
+      const updatedMesas = mesas.map(m => {
+        if (m.id === mesaId) {
+          return {
+            ...m,
+            tarifa: nuevaTarifaSugerida
+          };
+        }
+        return m;
+      });
+
+      await setDoc(doc(db, 'config', 'mesas_estado'), { mesas: updatedMesas }, { merge: true });
+      await registrarEvento(
+        'Ajuste Tarifa Dinámica', 
+        `Se aplicó la tarifa dinámica sugerida de $${nuevaTarifaSugerida}/h a la Mesa ${mesaId} debido a la afluencia registrada.`,
+        0,
+        'info'
+      );
+      showToast(`¡Tarifa dinámica de Mesa ${mesaId} actualizada a $${nuevaTarifaSugerida}/h! ⚡`, 'success');
+    } catch (err) {
+      console.error(err);
+      showToast('Error al guardar la tarifa en Firestore', 'danger');
     }
   };
 
@@ -2073,7 +2167,20 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
                       <div style={{ fontSize: 7, color: 'var(--text-muted)' }}>
                         {m.tipo} · <span style={{ textDecoration: m.tarifaSugerida !== m.tarifa ? 'line-through' : 'none' }}>${m.tarifa}/h</span>
                         {m.tarifaSugerida !== m.tarifa && (
-                          <span style={{ color: m.tarifaSugerida > m.tarifa ? 'var(--success)' : 'var(--bronze-light)', marginLeft: 3, fontWeight: 700 }}>
+                          <span 
+                            onClick={() => aplicarTarifaDinamica(m.id, m.tarifaSugerida)}
+                            title="Haz clic para aplicar esta tarifa dinámica sugerida"
+                            style={{ 
+                              color: m.tarifaSugerida > m.tarifa ? 'var(--success)' : 'var(--bronze-light)', 
+                              marginLeft: 3, 
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              background: 'rgba(255,255,255,0.05)',
+                              padding: '1px 3px',
+                              borderRadius: 3,
+                              border: '1px solid rgba(255,255,255,0.1)'
+                            }}
+                          >
                             💡 ${m.tarifaSugerida}/h
                           </span>
                         )}
@@ -2107,12 +2214,32 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 1, fontSize: 7, color: 'var(--text-muted)', marginTop: 1 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span>🧼 Integridad del Paño: <strong>{m.porcentajePaño}%</strong></span>
-                    <span style={{ 
-                      color: m.porcentajePaño < 20 ? 'var(--danger)' : m.porcentajePaño < 50 ? 'var(--bronze-light)' : 'var(--success)',
-                      fontWeight: 700
-                    }}>
-                      {m.porcentajePaño < 20 ? '¡Cepillado Urgente!' : m.porcentajePaño < 50 ? 'Mant. Próximo' : 'Óptimo'}
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <span style={{ 
+                        color: m.porcentajePaño < 20 ? 'var(--danger)' : m.porcentajePaño < 50 ? 'var(--bronze-light)' : 'var(--success)',
+                        fontWeight: 700
+                      }}>
+                        {m.porcentajePaño < 20 ? '¡Cepillado Urgente!' : m.porcentajePaño < 50 ? 'Mant. Próximo' : 'Óptimo'}
+                      </span>
+                      <button 
+                        onClick={() => resetearMantenimientoMesa(m.id, m.tiempoHoras)} 
+                        title="Registrar Mantenimiento y resetear integridad"
+                        style={{ 
+                          background: 'rgba(255,255,255,0.04)', 
+                          border: '1px solid rgba(255,255,255,0.1)', 
+                          borderRadius: 3, 
+                          color: 'var(--bronze-light)', 
+                          fontSize: 6.5, 
+                          padding: '1px 3px', 
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 1
+                        }}
+                      >
+                        <i className="ri-refresh-line" style={{ fontSize: 6 }} /> Reset
+                      </button>
+                    </div>
                   </div>
                   <div style={{ width: '100%', height: 3, background: 'rgba(255,255,255,0.05)', borderRadius: 2, overflow: 'hidden' }}>
                     <div style={{ 
