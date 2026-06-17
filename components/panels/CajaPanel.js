@@ -21,7 +21,7 @@ const hashPassword = (pwd) => {
   return Math.abs(hash).toString(16);
 };
 
-const adminPinHash = '8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92'; // fallback hashed
+const adminPinHash = '170440'; // fallback hashed (for '1111')
 
 // Chart helper
 function BarChart({ data, height = 90, color = 'var(--bronze)' }) {
