@@ -2824,7 +2824,16 @@ export default function MesasPanel({ showToast }) {
       setFila([...localFila]);
       
       runTransaction(db, async (transaction) => {
+        const mesasDocRef = doc(db, 'config', 'mesas_estado');
+        const mesasSnap = await transaction.get(mesasDocRef);
+        if (!mesasSnap.exists()) {
+          throw new Error("Mesas configuration document does not exist in Firestore.");
+        }
+        
+        const currentMesas = mesasSnap.data().mesas || [];
+        const updatedMesas = [...currentMesas];
         const docsData = [];
+
         for (const up of updates) {
           const docRef = doc(db, 'fila_espera', String(up.id));
           const docSnap = await transaction.get(docRef);
@@ -2834,6 +2843,29 @@ export default function MesasPanel({ showToast }) {
           if (docSnap.data().estado !== 'espera') {
             throw new Error(`Waitlist entry ${up.id} is no longer in wait state.`);
           }
+
+          const mesaIdx = updatedMesas.findIndex(m => m.id === up.mesaId);
+          if (mesaIdx === -1) {
+            throw new Error(`Mesa ${up.mesaId} not found in configuration.`);
+          }
+
+          const targetMesa = updatedMesas[mesaIdx];
+
+          // Si la mesa ya tiene asignada una filaId localmente en la base de datos
+          if (targetMesa.filaId) {
+            const otherDocRef = doc(db, 'fila_espera', String(targetMesa.filaId));
+            const otherDocSnap = await transaction.get(otherDocRef);
+            if (otherDocSnap.exists() && otherDocSnap.data().estado === 'asignada') {
+              throw new Error(`Mesa ${up.mesaNombreStr} is already assigned to active client ${targetMesa.filaId}.`);
+            }
+          }
+
+          // Asignar el nuevo cliente a la mesa en el array de mesas
+          updatedMesas[mesaIdx] = {
+            ...targetMesa,
+            filaId: up.id
+          };
+
           docsData.push({ docRef, up });
         }
 
@@ -2844,6 +2876,12 @@ export default function MesasPanel({ showToast }) {
             assignedAt: serverTimestamp()
           });
         });
+
+        transaction.set(mesasDocRef, {
+          mesas: updatedMesas,
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+
       }).then(() => {
         updates.forEach(up => {
           playCashierNotificationSound();
@@ -3304,7 +3342,7 @@ export default function MesasPanel({ showToast }) {
       finalCliente = `Mesa ${mesaId}`;
     }
     setMesas(prev => prev.map(m => m.id === mesaId
-      ? { ...m, estado: 'ocupada', cliente: finalCliente, inicio: Date.now(), socios: esSocio, rentarTaco, rentarBolas, rentarTiza, clienteUid: '', preTicketImpreso: false, reservadaAt: null, limiteReservaMs: null, telefono: '' }
+      ? { ...m, estado: 'ocupada', cliente: finalCliente, inicio: Date.now(), socios: esSocio, rentarTaco, rentarBolas, rentarTiza, clienteUid: '', preTicketImpreso: false, reservadaAt: null, limiteReservaMs: null, telefono: '', filaId: null }
       : m
     ));
 
@@ -3518,7 +3556,7 @@ export default function MesasPanel({ showToast }) {
     }
 
     setMesas(prev => prev.map(m => m.id === modalCerrar.id
-      ? { ...m, estado: 'libre', cliente: null, telefono: '', inicio: null, socios: false, clienteUid: '', preTicketImpreso: false, reservadaAt: null, limiteReservaMs: null }
+      ? { ...m, estado: 'libre', cliente: null, telefono: '', inicio: null, socios: false, clienteUid: '', preTicketImpreso: false, reservadaAt: null, limiteReservaMs: null, filaId: null }
       : m
     ));
 
@@ -4303,7 +4341,7 @@ export default function MesasPanel({ showToast }) {
       }
 
       setMesas(prev => prev.map(m => m.id === mesaId
-        ? { ...m, estado: 'libre', cliente: null, telefono: '', inicio: null, socios: false, clienteUid: '', preTicketImpreso: false, reservadaAt: null, limiteReservaMs: null }
+        ? { ...m, estado: 'libre', cliente: null, telefono: '', inicio: null, socios: false, clienteUid: '', preTicketImpreso: false, reservadaAt: null, limiteReservaMs: null, filaId: null }
         : m
       ));
       setModalCerrar(null);
