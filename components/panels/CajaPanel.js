@@ -1547,11 +1547,17 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
   useEffect(() => {
     if (!tarifaAutopilotActivo || analisisMesas.length === 0) return;
     
+    // SUGERENCIA 2: Restricción Horaria (Autopilot sólo opera de 12:00 PM a 2:00 AM)
+    const nowLocal = new Date();
+    const currentHour = nowLocal.getHours();
+    const esHorarioOperacion = currentHour >= 12 || currentHour < 2;
+    if (!esHorarioOperacion) return;
+    
     // Check if any mesa needs its tariff updated to the suggested one
     const mesasADiferentes = analisisMesas.filter(m => m.tarifaSugerida !== m.tarifa);
     if (mesasADiferentes.length === 0) return;
 
-    // SUGERENCIA 2: Límite de cambios/histéresis (no actualizar si hubo cambio de Autopilot en las últimas 2 horas)
+    // SUGERENCIA 2 (continuación): Límite de cambios/histéresis (no actualizar si hubo cambio de Autopilot en las últimas 2 horas)
     const now = Date.now();
     const twoHoursAgo = now - 2 * 60 * 60 * 1000;
     const recentAutopilotUpdates = bitacora.filter(e => {
@@ -1584,8 +1590,21 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
       try {
         await setDoc(doc(db, 'config', 'mesas_estado'), { mesas: updatedMesas }, { merge: true });
         
-        // Register events for each updated table
+        // Register events for each updated table and write to audit logs
         for (let mDiff of mesasADiferentesFiltradas) {
+          // SUGERENCIA 1: Guardar en tarifas_cambios_log
+          await addDoc(collection(db, 'tarifas_cambios_log'), {
+            mesaId: mDiff.id,
+            nombreMesa: mDiff.nombre,
+            tarifaAnterior: mDiff.tarifa,
+            tarifaNueva: mDiff.tarifaSugerida,
+            motivo: `Autopilot aplicó tarifa dinámica sugerida por tiempo de uso (${mDiff.tiempoHoras}h).`,
+            fecha: new Date().toISOString(),
+            tipoCambio: 'autopilot',
+            operador: 'Sistema Autopilot',
+            rolOperador: 'system'
+          });
+
           await registrarEvento(
             'Autopilot Tarifa', 
             `Autopilot aplicó tarifa dinámica de $${mDiff.tarifaSugerida}/h a la Mesa ${mDiff.id} (tarifa previa: $${mDiff.tarifa}/h).`,
@@ -2107,6 +2126,8 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
     if (!confirmacion) return;
     
     try {
+      const tarifaPrevia = mesas.find(m => m.id === mesaId)?.tarifa || 60;
+
       const updatedMesas = mesas.map(m => {
         if (m.id === mesaId) {
           return {
@@ -2119,6 +2140,20 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
       });
 
       await setDoc(doc(db, 'config', 'mesas_estado'), { mesas: updatedMesas }, { merge: true });
+      
+      // SUGERENCIA 1: Registrar en tarifas_cambios_log
+      await addDoc(collection(db, 'tarifas_cambios_log'), {
+        mesaId,
+        nombreMesa: `Mesa ${mesaId}`,
+        tarifaAnterior: tarifaPrevia,
+        tarifaNueva: nuevaTarifaSugerida,
+        motivo: `Ajuste manual de tarifa dinámica sugerida.`,
+        fecha: new Date().toISOString(),
+        tipoCambio: 'manual',
+        operador: user ? (user.name || user.alias || user.email) : 'Administrador',
+        rolOperador: user ? (user.role || 'admin') : 'admin'
+      });
+
       await registrarEvento(
         'Ajuste Tarifa Dinámica', 
         `Se aplicó la tarifa dinámica sugerida de $${nuevaTarifaSugerida}/h a la Mesa ${mesaId} debido a la afluencia registrada.`,
@@ -2143,6 +2178,12 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
     const nuevoEstado = !tarifaAutopilotActivo;
     try {
       await setDoc(doc(db, 'config', 'mesas_estado'), { tarifaAutopilotActivo: nuevoEstado }, { merge: true });
+      await addDoc(collection(db, 'auditoria_sistema'), {
+        accion: 'Toggle Autopilot',
+        estado: nuevoEstado ? 'Activado' : 'Desactivado',
+        usuario: user?.email || 'Admin',
+        fecha: new Date().toISOString()
+      });
       showToast(`¡Autopilot de tarifas ${nuevoEstado ? 'activado 🤖' : 'desactivado 👤'}!`, 'info');
     } catch (err) {
       console.error(err);
@@ -2315,18 +2356,32 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
                         {m.tarifaSugerida !== m.tarifa && (
                           <span 
                             onClick={() => aplicarTarifaDinamica(m.id, m.tarifaSugerida)}
-                            title="Haz clic para aplicar esta tarifa dinámica sugerida"
+                            title={tarifaAutopilotActivo ? "Tarifa dinámica siendo ajustada por el Autopilot" : "Haz clic para aplicar esta tarifa dinámica sugerida"}
                             style={{ 
                               color: m.tarifaSugerida > m.tarifa ? 'var(--success)' : 'var(--bronze-light)', 
                               marginLeft: 3, 
                               fontWeight: 700,
                               cursor: 'pointer',
-                              background: 'rgba(255,255,255,0.05)',
-                              padding: '1px 3px',
-                              borderRadius: 3,
-                              border: '1px solid rgba(255,255,255,0.1)'
+                              background: tarifaAutopilotActivo ? 'rgba(0,230,118,0.1)' : 'rgba(255,255,255,0.05)',
+                              padding: '1px 4px',
+                              borderRadius: 4,
+                              border: tarifaAutopilotActivo ? '1px solid rgba(0,230,118,0.4)' : '1px solid rgba(255,255,255,0.1)',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 1.5,
+                              boxShadow: tarifaAutopilotActivo ? '0 0 5px rgba(0,230,118,0.15)' : 'none'
                             }}
                           >
+                            {tarifaAutopilotActivo && (
+                              <span style={{ 
+                                width: 3.5, 
+                                height: 3.5, 
+                                background: 'var(--success)', 
+                                borderRadius: '50%', 
+                                display: 'inline-block',
+                                boxShadow: '0 0 4px var(--success)'
+                              }} />
+                            )}
                             💡 ${m.tarifaSugerida}/h
                           </span>
                         )}

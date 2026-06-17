@@ -120,5 +120,20 @@ service cloud.firestore {
     match /mermas_auditoria/{document} {
       allow read, write: if true;
     }
+    match /auditoria_sistema/{document} {
+      allow read, write: if true;
+    }
+    match /cupones_retencion/{document} {
+      allow read, write: if true;
+    }
+    match /clientes_vip/{document} {
+      allow read, write: if true;
+    }
+    match /mantenimientos_historicos/{document} {
+      allow read, write: if true;
+    }
+    match /tarifas_cambios_log/{document} {
+      allow read, write: if true;
+    }
   }
 }
