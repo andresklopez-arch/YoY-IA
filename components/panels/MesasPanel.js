@@ -1755,6 +1755,23 @@ export default function MesasPanel({ showToast }) {
   useEffect(() => {
     mesasRef.current = mesas;
   }, [mesas]);
+
+  const enviarAlertaMesero = async (mesaId, cliente, etiqueta, tipo = 'asistencia', icono = '🔔') => {
+    try {
+      await addDoc(collection(db, 'mesa_pedidos'), {
+        mesaId: String(mesaId),
+        cliente: cliente || 'Cliente',
+        etiqueta: etiqueta,
+        tipo: tipo,
+        icono: icono,
+        estado: 'pendiente',
+        atendidoMesero: false,
+        createdAt: serverTimestamp()
+      });
+    } catch (err) {
+      console.error("Error al enviar alerta a meseros:", err);
+    }
+  };
   const [filtro, setFiltro] = useState('todas');
   const [animacionesActivas, setAnimacionesActivas] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -2014,6 +2031,7 @@ export default function MesasPanel({ showToast }) {
       } : m));
       registrarEvento('Reservación Mesa', `Mesa ${mesa.id} reservada a nombre de ${clienteName} (${telefono.trim() || 'Sin tel'}) por ${limiteMinutos} minutos.`);
       showToast(`Mesa ${mesa.id} reservada a nombre de ${clienteName} (${limiteMinutos} min).`, "success");
+      enviarAlertaMesero(mesa.id, clienteName, 'Mesa Reservada', 'asistencia', '📅');
     } else {
       const motivo = valor.trim();
       const logEntrada = {
@@ -2160,6 +2178,7 @@ export default function MesasPanel({ showToast }) {
       setMesas(updatedMesas);
       localStorage.setItem('yoy_billar_mesas', obfuscate(updatedMesas));
       registrarEvento('Apertura Auto', `Mesa ${mesaId} abierta automáticamente por pedido de cliente (${clienteName})`);
+      enviarAlertaMesero(mesaId, clienteName, 'Mesa Abierta (Pedido)', 'asistencia', '🎮');
     }
 
     // 3. Guardar inventario y cuentas actualizado en Firestore, registrar auditoría y marcar como entregado de forma atómica
@@ -2888,6 +2907,7 @@ export default function MesasPanel({ showToast }) {
           playCashierNotificationSound();
           registrarEvento('Asignación Automática', `Mesa ${up.mesaId} (${up.mesaTipo}) asignada automáticamente a ${up.cliente} (Fila Virtual).`);
           showToast(`Mesa ${up.mesaId} asignada automáticamente a ${up.cliente}`, 'success');
+          enviarAlertaMesero(up.mesaId, up.cliente, 'Mesa Asignada (Fila)', 'asistencia', '⏳');
         });
       }).catch(err => {
         console.error("Error en transacción de asignación automática de fila:", err);
@@ -3370,6 +3390,7 @@ export default function MesasPanel({ showToast }) {
     setModalAbrir(null);
     showToast(`Mesa ${mesaId} iniciada para ${finalCliente}`, 'success');
     registrarEvento('Apertura', `Mesa ${mesaId} abierta para ${finalCliente}${esSocio ? ' (Socio)' : ''} ${rentarTaco ? '[Taco Premium] ' : ''}${rentarBolas ? '[Bolas Aramith] ' : ''}${rentarTiza ? '[Tiza Kamui]' : ''}`);
+    enviarAlertaMesero(mesaId, finalCliente, 'Mesa Abierta (Juego)', 'asistencia', '🎮');
   };
 
   const registrarNuevaMesa = (nueva) => {
@@ -5177,6 +5198,7 @@ export default function MesasPanel({ showToast }) {
           showToast={showToast}
           abrirMesa={abrirMesa}
           imprimirComprobanteReserva={imprimirComprobanteReserva}
+          enviarAlertaMesero={enviarAlertaMesero}
         />
       )}
 
@@ -5197,6 +5219,7 @@ export default function MesasPanel({ showToast }) {
           onClose={() => setModalAvisar(null)}
           registrarEvento={registrarEvento}
           showToast={showToast}
+          enviarAlertaMesero={enviarAlertaMesero}
         />
       )}
 
@@ -7826,7 +7849,7 @@ function ModalHistorial({ mesa, onClose }) {
   );
 }
 
-function ModalReservasCentral({ mesas, setMesas, onClose, registrarEvento, showToast, abrirMesa, imprimirComprobanteReserva }) {
+function ModalReservasCentral({ mesas, setMesas, onClose, registrarEvento, showToast, abrirMesa, imprimirComprobanteReserva, enviarAlertaMesero }) {
   const [cliente, setCliente] = useState('');
   const [telefono, setTelefono] = useState('');
   const [limiteMinutos, setLimiteMinutos] = useState(30);
@@ -7896,6 +7919,12 @@ function ModalReservasCentral({ mesas, setMesas, onClose, registrarEvento, showT
     const mesasNombres = mesasSeleccionadas.map(id => `Mesa ${id}`).join(', ');
     registrarEvento('Reservación Múltiple', `Reservación de ${mesasNombres} para ${cliente.trim()} (${telefono.trim() || 'Sin tel'}) por ${limiteMinutos} min.`);
     showToast(`Mesa(s) ${mesasNombres} reservada(s) con éxito.`, "success");
+
+    if (enviarAlertaMesero) {
+      mesasSeleccionadas.forEach(id => {
+        enviarAlertaMesero(id, cliente.trim(), 'Mesa Reservada', 'asistencia', '📅');
+      });
+    }
 
     // Reset form
     setCliente('');
@@ -8103,7 +8132,7 @@ function ModalReservasCentral({ mesas, setMesas, onClose, registrarEvento, showT
   );
 }
 
-function ModalAvisarCliente({ mesa, fila, onClose, registrarEvento, showToast }) {
+function ModalAvisarCliente({ mesa, fila, onClose, registrarEvento, showToast, enviarAlertaMesero }) {
   const [selectedFilaId, setSelectedFilaId] = useState('');
   const [cliente, setCliente] = useState('');
   const [isClosing, setIsClosing] = useState(false);
@@ -8129,6 +8158,9 @@ function ModalAvisarCliente({ mesa, fila, onClose, registrarEvento, showToast })
 
       registrarEvento('Aviso Disponibilidad', `Alerta digital enviada a ${cliente || 'Cliente'} para ocupar ${mesa.nombre || `Mesa ${mesa.id}`}`);
       showToast(`Alerta digital enviada al celular del cliente ✓`, "success");
+      if (enviarAlertaMesero) {
+        await enviarAlertaMesero(mesa.id, cliente, 'Mesa Asignada (Fila)', 'asistencia', '⏳');
+      }
       handleClose();
     } catch (err) {
       console.error("Error al enviar alerta digital:", err);
