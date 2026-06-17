@@ -135,6 +135,7 @@ export default function CajaPanel({ showToast }) {
   // Simulador de Tarifas
   const [surgePercent, setSurgePercent] = useState(20);
   const [discountPercent, setDiscountPercent] = useState(15);
+  const [mesaExpandidaId, setMesaExpandidaId] = useState(null);
 
   // Metas y Subpestañas IA
   const [metaMensual, setMetaMensual] = useState(100000);
@@ -2322,187 +2323,286 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
               diagnosticTextColor = "#f1c40f";
             }
 
+            const isExpanded = mesaExpandidaId === m.id;
+
             return (
               <div 
                 key={m.id} 
+                onClick={() => setMesaExpandidaId(isExpanded ? null : m.id)}
                 style={{ 
                   display: 'flex', 
                   flexDirection: 'column', 
-                  gap: 4,
-                  padding: 6, 
-                  background: 'rgba(255,255,255,0.02)', 
-                  border: '1px solid rgba(255,255,255,0.05)', 
-                  borderRadius: 8
+                  gap: isExpanded ? 8 : 4,
+                  padding: isExpanded ? 12 : 6, 
+                  background: isExpanded ? 'linear-gradient(135deg, rgba(255,255,255,0.05), rgba(0,0,0,0.35))' : 'rgba(255,255,255,0.02)', 
+                  border: isExpanded ? '1px solid var(--border-bronze)' : '1px solid rgba(255,255,255,0.05)', 
+                  borderRadius: 12,
+                  gridColumn: isExpanded ? '1 / -1' : 'span 1',
+                  boxShadow: isExpanded ? '0 8px 24px rgba(0,0,0,0.4), var(--shadow-bronze)' : 'none',
+                  transition: 'all 0.25s ease-in-out',
+                  cursor: 'pointer',
+                  position: 'relative',
+                  overflow: 'hidden'
                 }}
               >
-                {/* Fila 1: Logo, Nombre, Tarifa actual y sugerida, Calificación */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <div style={{ 
-                      background: 'rgba(255,255,255,0.03)', 
-                      border: '1px solid rgba(255,255,255,0.08)', 
-                      borderRadius: 6, 
-                      padding: 2, 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      justifyContent: 'center',
-                      width: 26,
-                      height: 26
-                    }}>
-                      {renderMesaLogo(m.tipo)}
-                    </div>
-                    <div>
-                      <div style={{ fontSize: 9.5, fontWeight: 800, color: '#fff', lineHeight: 1.1 }}>{m.nombre}</div>
-                      <div style={{ fontSize: 7, color: 'var(--text-muted)' }}>
-                        {m.tipo} · <span style={{ textDecoration: m.tarifaSugerida !== m.tarifa ? 'line-through' : 'none' }}>${Math.round(m.tarifa)}/h</span>
-                        {m.tarifaSugerida !== m.tarifa && (
-                          <span 
-                            onClick={() => aplicarTarifaDinamica(m.id, m.tarifaSugerida)}
-                            title={tarifaAutopilotActivo ? "Tarifa dinámica siendo ajustada por el Autopilot" : "Haz clic para aplicar esta tarifa dinámica sugerida"}
-                            style={{ 
-                              color: m.tarifaSugerida > m.tarifa ? 'var(--success)' : 'var(--bronze-light)', 
-                              marginLeft: 3, 
-                              fontWeight: 700,
-                              cursor: 'pointer',
-                              background: tarifaAutopilotActivo ? 'rgba(0,230,118,0.1)' : 'rgba(255,255,255,0.05)',
-                              padding: '1px 4px',
-                              borderRadius: 4,
-                              border: tarifaAutopilotActivo ? '1px solid rgba(0,230,118,0.4)' : '1px solid rgba(255,255,255,0.1)',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: 1.5,
-                              boxShadow: tarifaAutopilotActivo ? '0 0 5px rgba(0,230,118,0.15)' : 'none'
-                            }}
-                          >
-                            {tarifaAutopilotActivo && (
-                              <span style={{ 
-                                width: 3.5, 
-                                height: 3.5, 
-                                background: 'var(--success)', 
-                                borderRadius: '50%', 
-                                display: 'inline-block',
-                                boxShadow: '0 0 4px var(--success)'
-                              }} />
+                {isExpanded && (
+                  <div style={{ position: 'absolute', top: 10, right: 10, color: 'var(--text-muted)', fontSize: 12, fontWeight: 'bold' }}>
+                    ✕
+                  </div>
+                )}
+
+                <div style={{ display: 'flex', flexDirection: 'row', gap: 16, flexWrap: 'wrap', width: '100%' }}>
+                  {/* Left Column: Standard Card Content */}
+                  <div style={{ flex: '1 1 200px', display: 'flex', flexDirection: 'column', gap: isExpanded ? 6 : 4 }}>
+                    {/* Fila 1: Logo, Nombre, Tarifa actual y sugerida, Calificación */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <div style={{ 
+                          background: 'rgba(255,255,255,0.03)', 
+                          border: '1px solid rgba(255,255,255,0.08)', 
+                          borderRadius: 6, 
+                          padding: 2, 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          justifyContent: 'center',
+                          width: 26,
+                          height: 26
+                        }}>
+                          {renderMesaLogo(m.tipo)}
+                        </div>
+                        <div>
+                          <div style={{ fontSize: isExpanded ? 11 : 9.5, fontWeight: 800, color: '#fff', lineHeight: 1.1 }}>{m.nombre}</div>
+                          <div style={{ fontSize: isExpanded ? 8.5 : 7, color: 'var(--text-muted)' }}>
+                            {m.tipo} · <span style={{ textDecoration: m.tarifaSugerida !== m.tarifa ? 'line-through' : 'none' }}>${Math.round(m.tarifa)}/h</span>
+                            {m.tarifaSugerida !== m.tarifa && (
+                              <span 
+                                onClick={(e) => { e.stopPropagation(); aplicarTarifaDinamica(m.id, m.tarifaSugerida); }}
+                                title={tarifaAutopilotActivo ? "Tarifa dinámica siendo ajustada por el Autopilot" : "Haz clic para aplicar esta tarifa dinámica sugerida"}
+                                style={{ 
+                                  color: m.tarifaSugerida > m.tarifa ? 'var(--success)' : 'var(--bronze-light)', 
+                                  marginLeft: 3, 
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                  background: tarifaAutopilotActivo ? 'rgba(0,230,118,0.1)' : 'rgba(255,255,255,0.05)',
+                                  padding: '1px 4px',
+                                  borderRadius: 4,
+                                  border: tarifaAutopilotActivo ? '1px solid rgba(0,230,118,0.4)' : '1px solid rgba(255,255,255,0.1)',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: 1.5,
+                                  boxShadow: tarifaAutopilotActivo ? '0 0 5px rgba(0,230,118,0.15)' : 'none'
+                                }}
+                              >
+                                {tarifaAutopilotActivo && (
+                                  <span style={{ 
+                                    width: 3.5, 
+                                    height: 3.5, 
+                                    background: 'var(--success)', 
+                                    borderRadius: '50%', 
+                                    display: 'inline-block',
+                                    boxShadow: '0 0 4px var(--success)'
+                                  }} />
+                                )}
+                                💡 ${Math.round(m.tarifaSugerida)}/h
+                              </span>
                             )}
-                            💡 ${Math.round(m.tarifaSugerida)}/h
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 1, background: 'rgba(241,196,15,0.08)', border: '1px solid rgba(241,196,15,0.15)', borderRadius: 4, padding: '1px 3px', fontSize: isExpanded ? 9.5 : 8.5, fontWeight: 700, color: '#f1c40f' }}>
+                        <span>★</span>
+                        <span>{m.calificacionPromedio.toFixed(1)}</span>
+                      </div>
+                    </div>
+
+                    {/* Fila 2: Grid de Métricas */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1.3fr', gap: 3, background: 'rgba(0,0,0,0.1)', borderRadius: 5, padding: '3px 5px', fontSize: isExpanded ? 9.5 : 8.5 }}>
+                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <span style={{ fontSize: 6, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Dinero</span>
+                        <strong style={{ color: 'var(--success)' }}>${Math.round(m.ingresosTotales)}</strong>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <span style={{ fontSize: 6, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Uso</span>
+                        <strong style={{ color: '#fff' }}>{m.tiempoHoras}h <span style={{ fontSize: 7, fontWeight: 400, color: 'var(--text-muted)' }}>({m.cantidadUsos})</span></strong>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <span style={{ fontSize: 6, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Consumos</span>
+                        <strong style={{ color: 'var(--text-secondary)' }}>🍹{m.consumoBebidas} · 🍔{m.consumoComida}</strong>
+                      </div>
+                    </div>
+
+                    {/* Fila 3: Mantenimiento preventivo del paño */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 1, fontSize: isExpanded ? 8 : 7, color: 'var(--text-muted)', marginTop: 1 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span>🧼 Integridad del Paño: <strong>{m.porcentajePaño}%</strong></span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <span style={{ 
+                            color: m.porcentajePaño < 20 ? 'var(--danger)' : m.porcentajePaño < 50 ? 'var(--bronze-light)' : 'var(--success)',
+                            fontWeight: 700
+                          }}>
+                            {m.porcentajePaño < 20 ? '¡Cepillado Urgente!' : m.porcentajePaño < 50 ? 'Mant. Próximo' : 'Óptimo'}
                           </span>
-                        )}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); abrirHistorialMantenimiento(m.id, m.nombre); }}
+                              title="Ver historial de mantenimientos registrados"
+                              style={{
+                                background: 'rgba(255,255,255,0.03)',
+                                border: '1px solid rgba(255,255,255,0.08)',
+                                borderRadius: 3,
+                                color: 'var(--text-secondary)',
+                                fontSize: 7,
+                                cursor: 'pointer',
+                                padding: '2px 4px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                outline: 'none'
+                              }}
+                            >
+                              <i className="ri-history-line" />
+                            </button>
+                            <button 
+                              onClick={(e) => { e.stopPropagation(); resetearMantenimientoMesa(m.id, m.tiempoHoras); }} 
+                              title="Registrar Mantenimiento y resetear integridad"
+                              style={{ 
+                                background: 'rgba(255,255,255,0.04)', 
+                                border: '1px solid rgba(255,255,255,0.1)', 
+                                borderRadius: 3, 
+                                color: 'var(--bronze-light)', 
+                                fontSize: 6.5, 
+                                padding: '1px 3px', 
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 1,
+                                outline: 'none'
+                              }}
+                            >
+                              <i className="ri-refresh-line" style={{ fontSize: 6 }} /> Reset
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                      <div style={{ width: '100%', height: 3, background: 'rgba(255,255,255,0.05)', borderRadius: 2, overflow: 'hidden' }}>
+                        <div style={{ 
+                          width: `${m.porcentajePaño}%`, 
+                          height: '100%', 
+                          background: m.porcentajePaño < 20 ? 'var(--danger)' : m.porcentajePaño < 50 ? 'var(--bronze-light)' : 'var(--success)',
+                          borderRadius: 2
+                        }} />
                       </div>
                     </div>
-                  </div>
-                  
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 1, background: 'rgba(241,196,15,0.08)', border: '1px solid rgba(241,196,15,0.15)', borderRadius: 4, padding: '1px 3px', fontSize: 8.5, fontWeight: 700, color: '#f1c40f' }}>
-                    <span>★</span>
-                    <span>{m.calificacionPromedio.toFixed(1)}</span>
-                  </div>
-                </div>
 
-                {/* Fila 2: Grid de Métricas */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1.3fr', gap: 3, background: 'rgba(0,0,0,0.1)', borderRadius: 5, padding: '3px 5px', fontSize: 8.5 }}>
-                  <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    <span style={{ fontSize: 6, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Dinero</span>
-                    <strong style={{ color: 'var(--success)' }}>${Math.round(m.ingresosTotales)}</strong>
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    <span style={{ fontSize: 6, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Uso</span>
-                    <strong style={{ color: '#fff' }}>{m.tiempoHoras}h <span style={{ fontSize: 7, fontWeight: 400, color: 'var(--text-muted)' }}>({m.cantidadUsos})</span></strong>
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    <span style={{ fontSize: 6, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Consumos</span>
-                    <strong style={{ color: 'var(--text-secondary)' }}>🍹{m.consumoBebidas} · 🍔{m.consumoComida}</strong>
-                  </div>
-                </div>
-
-                {/* Fila 3: Mantenimiento preventivo del paño */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 1, fontSize: 7, color: 'var(--text-muted)', marginTop: 1 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span>🧼 Integridad del Paño: <strong>{m.porcentajePaño}%</strong></span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <span style={{ 
-                        color: m.porcentajePaño < 20 ? 'var(--danger)' : m.porcentajePaño < 50 ? 'var(--bronze-light)' : 'var(--success)',
-                        fontWeight: 700
-                      }}>
-                        {m.porcentajePaño < 20 ? '¡Cepillado Urgente!' : m.porcentajePaño < 50 ? 'Mant. Próximo' : 'Óptimo'}
-                      </span>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                        <button
-                          onClick={() => abrirHistorialMantenimiento(m.id, m.nombre)}
-                          title="Ver historial de mantenimientos registrados"
-                          style={{
-                            background: 'rgba(255,255,255,0.03)',
-                            border: '1px solid rgba(255,255,255,0.08)',
-                            borderRadius: 3,
-                            color: 'var(--text-secondary)',
-                            fontSize: 7,
-                            cursor: 'pointer',
-                            padding: '2px 4px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            outline: 'none'
-                          }}
-                        >
-                          <i className="ri-history-line" />
-                        </button>
-                        <button 
-                          onClick={() => resetearMantenimientoMesa(m.id, m.tiempoHoras)} 
-                          title="Registrar Mantenimiento y resetear integridad"
-                          style={{ 
-                            background: 'rgba(255,255,255,0.04)', 
-                            border: '1px solid rgba(255,255,255,0.1)', 
-                            borderRadius: 3, 
-                            color: 'var(--bronze-light)', 
-                            fontSize: 6.5, 
-                            padding: '1px 3px', 
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 1,
-                            outline: 'none'
-                          }}
-                        >
-                          <i className="ri-refresh-line" style={{ fontSize: 6 }} /> Reset
-                        </button>
+                    {/* Fila 4: Tendencia de demanda semanal (Sparkline) */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 1 }}>
+                      <span style={{ fontSize: 7, color: 'var(--text-muted)' }}>Tendencia Semanal:</span>
+                      <div style={{ display: 'flex', gap: 1.5, alignItems: 'flex-end', height: 10 }}>
+                        {m.tendenciaDemanda.map((val, idx) => (
+                          <div key={idx} style={{ 
+                            width: isExpanded ? 4.5 : 3.5, 
+                            height: `${val * 0.09}px`, 
+                            background: val > 80 ? 'var(--success)' : val > 50 ? 'var(--bronze-light)' : 'var(--text-muted)',
+                            borderRadius: 0.5
+                          }} title={`Día ${idx + 1}: ${val}% demanda`} />
+                        ))}
                       </div>
                     </div>
-                  </div>
-                  <div style={{ width: '100%', height: 3, background: 'rgba(255,255,255,0.05)', borderRadius: 2, overflow: 'hidden' }}>
+
+                    {/* Fila 5: Diagnostic Tag */}
                     <div style={{ 
-                      width: `${m.porcentajePaño}%`, 
-                      height: '100%', 
-                      background: m.porcentajePaño < 20 ? 'var(--danger)' : m.porcentajePaño < 50 ? 'var(--bronze-light)' : 'var(--success)',
-                      borderRadius: 2
-                    }} />
+                      background: diagnosticColor, 
+                      color: diagnosticTextColor, 
+                      borderRadius: 3, 
+                      padding: '1px 4px', 
+                      fontSize: 7, 
+                      fontWeight: 700,
+                      alignSelf: 'flex-start',
+                      marginTop: 1
+                    }}>
+                      {diagnosticText}
+                    </div>
                   </div>
-                </div>
 
-                {/* Fila 4: Tendencia de demanda semanal (Sparkline) */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 1 }}>
-                  <span style={{ fontSize: 7, color: 'var(--text-muted)' }}>Tendencia Semanal:</span>
-                  <div style={{ display: 'flex', gap: 1.5, alignItems: 'flex-end', height: 9 }}>
-                    {m.tendenciaDemanda.map((val, idx) => (
-                      <div key={idx} style={{ 
-                        width: 3.5, 
-                        height: `${val * 0.08}px`, 
-                        background: val > 80 ? 'var(--success)' : val > 50 ? 'var(--bronze-light)' : 'var(--text-muted)',
-                        borderRadius: 0.5
-                      }} title={`Día ${idx + 1}: ${val}% demanda`} />
-                    ))}
-                  </div>
-                </div>
+                  {/* Right Column: Advanced Analytics & AI recommendation (only visible when expanded) */}
+                  {isExpanded && (
+                    <div style={{ 
+                      flex: '1 1 200px', 
+                      borderLeft: '1px solid rgba(255,255,255,0.08)', 
+                      paddingLeft: 12, 
+                      display: 'flex', 
+                      flexDirection: 'column', 
+                      gap: 8,
+                      justifyContent: 'center'
+                    }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        <span style={{ fontSize: 8, color: 'var(--bronze-light)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                          ⚡ Métricas Avanzadas IA
+                        </span>
+                        
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, fontSize: 9 }}>
+                          <div style={{ background: 'rgba(255,255,255,0.02)', padding: '4px 6px', borderRadius: 4, border: '1px solid rgba(255,255,255,0.04)' }}>
+                            <div style={{ fontSize: 6.5, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Ticket Promedio</div>
+                            <strong style={{ color: 'var(--success)' }}>
+                              ${Math.round(m.ingresosTotales / Math.max(1, m.cantidadUsos))} MXN
+                            </strong>
+                          </div>
+                          
+                          <div style={{ background: 'rgba(255,255,255,0.02)', padding: '4px 6px', borderRadius: 4, border: '1px solid rgba(255,255,255,0.04)' }}>
+                            <div style={{ fontSize: 6.5, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Duración Promedio</div>
+                            <strong style={{ color: '#fff' }}>
+                              {(m.tiempoHoras / Math.max(1, m.cantidadUsos)).toFixed(1)} hrs/sesión
+                            </strong>
+                          </div>
 
-                {/* Fila 5: Diagnostic Tag */}
-                <div style={{ 
-                  background: diagnosticColor, 
-                  color: diagnosticTextColor, 
-                  borderRadius: 3, 
-                  padding: '1px 4px', 
-                  fontSize: 7, 
-                  fontWeight: 700,
-                  alignSelf: 'flex-start',
-                  marginTop: 1
-                }}>
-                  {diagnosticText}
+                          <div style={{ background: 'rgba(255,255,255,0.02)', padding: '4px 6px', borderRadius: 4, border: '1px solid rgba(255,255,255,0.04)' }}>
+                            <div style={{ fontSize: 6.5, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Frecuencia de Uso</div>
+                            <strong style={{ color: 'var(--bronze-light)' }}>
+                              {(m.cantidadUsos / diasFiltro).toFixed(1)} usos/día
+                            </strong>
+                          </div>
+
+                          <div style={{ background: 'rgba(255,255,255,0.02)', padding: '4px 6px', borderRadius: 4, border: '1px solid rgba(255,255,255,0.04)' }}>
+                            <div style={{ fontSize: 6.5, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Consumos Promedio</div>
+                            <strong style={{ color: 'var(--text-secondary)' }}>
+                              {((m.consumoBebidas + m.consumoComida) / Math.max(1, m.cantidadUsos)).toFixed(1)} art/sesión
+                            </strong>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 3, background: 'rgba(205,127,50,0.04)', border: '1px solid rgba(205,127,50,0.15)', borderRadius: 6, padding: 8 }}>
+                        <span style={{ fontSize: 8, color: 'var(--bronze-light)', fontWeight: 800, textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <i className="ri-brain-line" /> Diagnóstico y Recomendación IA
+                        </span>
+                        <p style={{ fontSize: 8.5, color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4, fontWeight: 500 }}>
+                          {(() => {
+                            const rateDiff = m.tarifaSugerida - m.tarifa;
+                            if (isTop) {
+                              return `Mesa líder en facturación ($${Math.round(m.ingresosTotales)}). Su alta demanda justifica mantener una tarifa premium. Se sugiere Surge Pricing (+${surgePercent}%) en horas pico para maximizar el margen.`;
+                            }
+                            if (isBottom) {
+                              return `Rendimiento mínimo ($${Math.round(m.ingresosTotales)}). Se sugiere aplicar descuento Happy Hour (-${discountPercent}%) durante mañanas o asociarla a torneos rápidos para reactivar su uso.`;
+                            }
+                            if (isMostPlayed) {
+                              return `Uso acumulado crítico (${m.tiempoHoras}h). Se sugiere realizar cepillado preventivo pronto. La tarifa sugerida de $${m.tarifaSugerida}/h compensa adecuadamente el desgaste de bandas.`;
+                            }
+                            if (m.consumoBebidas > 6) {
+                              return `Consumo de barra destacado (${m.consumoBebidas} bebidas). Los clientes de esta mesa gastan un ticket alto de consumibles; se sugiere promover paquetes combinados de tiempo de juego + snacks.`;
+                            }
+                            if (rateDiff > 0) {
+                              return `Demanda saludable. La IA recomienda aplicar la tarifa dinámica de $${Math.round(m.tarifaSugerida)}/h (+${surgePercent}%) para aprovechar el ritmo de afluencia.`;
+                            }
+                            if (rateDiff < 0) {
+                              return `Afluencia moderada. La IA sugiere reducir temporalmente a $${Math.round(m.tarifaSugerida)}/h (-${discountPercent}%) para incentivar un mayor tiempo de renta.`;
+                            }
+                            return `Rendimiento equilibrado dentro de los promedios del club. Mantener tarifa de $${m.tarifa}/h y monitorear la tendencia de ocupación semanal.`;
+                          })()}
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
               </div>
