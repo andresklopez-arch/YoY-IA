@@ -123,6 +123,7 @@ export default function CajaPanel({ showToast }) {
   const [empleadosList, setEmpleadosList] = useState([]);
   const [encuestasList, setEncuestasList] = useState([]);
   const [pedidosList, setPedidosList] = useState([]);
+  const [fichajesLogs, setFichajesLogs] = useState([]);
   const [descartadas, setDescartadas] = useState({});
   const [productos, setProductos] = useState([]);
   const [mesas, setMesas] = useState([]);
@@ -336,6 +337,9 @@ export default function CajaPanel({ showToast }) {
       }),
       onSnapshot(query(collection(db, 'mesa_pedidos')), snap => {
         setPedidosList(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      }),
+      onSnapshot(query(collection(db, 'nomina_asistencia_log'), orderBy('createdAt', 'desc'), limit(500)), snap => {
+        setFichajesLogs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
       }),
       onSnapshot(doc(db, 'config', 'inventario'), snap => {
         if (snap.exists()) setProductos(snap.data().productos || []);
@@ -1275,9 +1279,18 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
     };
   }, [bitacora, cobros, totalGastosPeriodo, totalNominaPeriodo, limiteFecha, totalHoy, diasFiltro, ahora]);
 
+  // Satisfacción
+  const totalEncuestas = encuestasList.length;
+  const promedioAtencion = totalEncuestas > 0 ? encuestasList.reduce((acc, curr) => acc + (curr.calificaciones?.atencion || 0), 0) / totalEncuestas : 4.6;
+  const promedioRapidez = totalEncuestas > 0 ? encuestasList.reduce((acc, curr) => acc + (curr.calificaciones?.rapidez || 0), 0) / totalEncuestas : 4.4;
+  const promedioLimpieza = totalEncuestas > 0 ? encuestasList.reduce((acc, curr) => acc + (curr.calificaciones?.limpieza || 0), 0) / totalEncuestas : 4.7;
+  const promedioEquipo = totalEncuestas > 0 ? encuestasList.reduce((acc, curr) => acc + (curr.calificaciones?.equipo || 0), 0) / totalEncuestas : 4.8;
+  const promedioGeneral = (promedioAtencion + promedioRapidez + promedioLimpieza + promedioEquipo) / 4;
+
   // Rendimiento de Staff
   const staffRendimiento = useMemo(() => {
     if (empleadosList.length === 0) return [];
+    const startPeriodTime = ultimoCorteFecha ? new Date(ultimoCorteFecha).getTime() : 0;
     return empleadosList.map(emp => {
       const encuestasMesero = encuestasList.filter(e => e.meseroId === emp.id || (e.meseroNombre && e.meseroNombre.toLowerCase().includes(emp.nombre.toLowerCase())));
       const esServicio = ['mesero', 'bartender', 'cajero'].includes(emp.rol?.toLowerCase());
@@ -1291,24 +1304,42 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
       const asistenciasEmp = bitacora.filter(b => b.operador && b.operador.toLowerCase().includes(emp.nombre.toLowerCase()));
       const turnosTrabajados = Math.max(1, asistenciasEmp.filter(b => b.accion?.includes('Fichaje') || b.accion?.includes('Entrada')).length);
 
+      // Calcular horas reales trabajadas en el período del corte actual usando nomina_asistencia_log
+      const empLogs = fichajesLogs
+        .filter(log => log.empleadoId === emp.id)
+        .map(log => {
+          const t = log.createdAt?.toDate ? log.createdAt.toDate().getTime() : (log.createdAt ? new Date(log.createdAt).getTime() : new Date(`${log.fecha}T${log.hora || '12:00:00'}`).getTime());
+          return { ...log, time: t };
+        })
+        .filter(log => log.time >= startPeriodTime)
+        .sort((a, b) => a.time - b.time);
+
+      let totalMs = 0;
+      let lastEntradaTime = null;
+      empLogs.forEach(log => {
+        if (log.tipo === 'entrada') {
+          lastEntradaTime = log.time;
+        } else if (log.tipo === 'salida' && lastEntradaTime !== null) {
+          totalMs += (log.time - lastEntradaTime);
+          lastEntradaTime = null;
+        }
+      });
+      if (lastEntradaTime !== null) {
+        totalMs += (Date.now() - lastEntradaTime);
+      }
+      const horasTrabajadas = totalMs / 3600000;
+
       return {
         id: emp.id,
         nombre: `${emp.nombre} ${emp.apellido || ''}`.trim(),
         rol: emp.rol || 'Staff',
         turnos: turnosTrabajados,
+        horas: horasTrabajadas,
         comisiones: comisionesReales,
         satisfaccion: promedioSatis
       };
     });
-  }, [empleadosList, encuestasList, nominaPagosList, bitacora]);
-
-  // Satisfacción
-  const totalEncuestas = encuestasList.length;
-  const promedioAtencion = totalEncuestas > 0 ? encuestasList.reduce((acc, curr) => acc + (curr.calificaciones?.atencion || 0), 0) / totalEncuestas : 4.6;
-  const promedioRapidez = totalEncuestas > 0 ? encuestasList.reduce((acc, curr) => acc + (curr.calificaciones?.rapidez || 0), 0) / totalEncuestas : 4.4;
-  const promedioLimpieza = totalEncuestas > 0 ? encuestasList.reduce((acc, curr) => acc + (curr.calificaciones?.limpieza || 0), 0) / totalEncuestas : 4.7;
-  const promedioEquipo = totalEncuestas > 0 ? encuestasList.reduce((acc, curr) => acc + (curr.calificaciones?.equipo || 0), 0) / totalEncuestas : 4.8;
-  const promedioGeneral = (promedioAtencion + promedioRapidez + promedioLimpieza + promedioEquipo) / 4;
+  }, [empleadosList, encuestasList, nominaPagosList, bitacora, fichajesLogs, ultimoCorteFecha, promedioAtencion]);
 
   // 9. Live Auditor Anomalies
   const anomalidadesAuditor = useMemo(() => {
@@ -1384,8 +1415,57 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
       });
     });
 
+    // Discrepancias de comisiones vs asistencia (Sugerencia 2)
+    staffRendimiento.forEach(staff => {
+      if (staff.comisiones > 0 && staff.horas === 0) {
+        list.push({
+          id: `discrepancia-comision-${staff.id}`,
+          tipo: 'seguridad',
+          titulo: `Comisión sin Fichaje: ${staff.nombre}`,
+          desc: `Registra comisión de $${staff.comisiones.toLocaleString()} pero tiene 0 horas de fichaje en el periodo actual.`,
+          gravedad: 'alta'
+        });
+      }
+    });
+
     return list.slice(0, 10); // max 10
-  }, [inconsistenciasEnVivo, bitacora, limiteFecha]);
+  }, [inconsistenciasEnVivo, bitacora, limiteFecha, staffRendimiento]);
+
+  // Salud del Negocio (Sugerencia 1)
+  const healthScore = useMemo(() => {
+    let score = 100;
+    anomalidadesAuditor.forEach(anom => {
+      if (anom.gravedad === 'alta') score -= 15;
+      else if (anom.gravedad === 'media') score -= 5;
+      else score -= 2;
+    });
+    return Math.max(0, score);
+  }, [anomalidadesAuditor]);
+
+  const scoreDetails = useMemo(() => {
+    if (healthScore >= 90) {
+      return {
+        bg: 'rgba(34, 197, 94, 0.08)',
+        border: 'rgba(34, 197, 94, 0.3)',
+        text: 'var(--success)',
+        bullet: 'var(--success)'
+      };
+    } else if (healthScore >= 70) {
+      return {
+        bg: 'rgba(234, 179, 8, 0.08)',
+        border: 'rgba(234, 179, 8, 0.3)',
+        text: 'var(--warning)',
+        bullet: 'var(--warning)'
+      };
+    } else {
+      return {
+        bg: 'rgba(239, 68, 68, 0.08)',
+        border: 'rgba(239, 68, 68, 0.3)',
+        text: 'var(--danger)',
+        bullet: 'var(--danger)'
+      };
+    }
+  }, [healthScore]);
 
   // 10. Forecasting Data
   const pronostico = useMemo(() => {
@@ -2015,10 +2095,27 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
             onClick={() => setSeccionIaAbierta(!seccionIaAbierta)} 
             style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
           >
-            <h3 className="card-title" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 800 }}>
-              <i className="ri-robot-line" style={{ color: 'var(--bronze-light)', fontSize: 16 }} />
-              EL CEREBRO IA: AUDITORÍA Y SIMULADORES FINANCIEROS
-            </h3>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <h3 className="card-title" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 800 }}>
+                <i className="ri-robot-line" style={{ color: 'var(--bronze-light)', fontSize: 16 }} />
+                EL CEREBRO IA: AUDITORÍA Y SIMULADORES FINANCIEROS
+              </h3>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 5,
+                background: scoreDetails.bg,
+                border: `1px solid ${scoreDetails.border}`,
+                color: scoreDetails.text,
+                padding: '2px 8px',
+                borderRadius: 99,
+                fontSize: 10,
+                fontWeight: 700
+              }}>
+                <span className="pulse-dot" style={{ background: scoreDetails.bullet, width: 6, height: 6, borderRadius: '50%' }} />
+                Salud: {healthScore}%
+              </div>
+            </div>
             <i className={seccionIaAbierta ? "ri-arrow-up-s-line" : "ri-arrow-down-s-line"} style={{ fontSize: 16, color: 'var(--text-muted)' }} />
           </div>
           {seccionIaAbierta && (
@@ -2826,7 +2923,7 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
                         <tr>
                           <th style={{ padding: '3px 4px', fontSize: 9 }}>Nombre</th>
                           <th style={{ padding: '3px 4px', fontSize: 9 }}>Rol</th>
-                          <th style={{ textAlign: 'center', padding: '3px 4px', fontSize: 9 }}>Turnos</th>
+                          <th style={{ textAlign: 'center', padding: '3px 4px', fontSize: 9 }}>Hrs (Turnos)</th>
                           <th style={{ textAlign: 'right', padding: '3px 4px', fontSize: 9 }}>Comisión</th>
                           <th style={{ textAlign: 'right', padding: '3px 4px', fontSize: 9 }}>Satisfacción</th>
                         </tr>
@@ -2836,8 +2933,15 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
                           <tr key={staff.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
                             <td style={{ fontWeight: 600, padding: '3px 4px' }}>{staff.nombre}</td>
                             <td style={{ color: 'var(--text-secondary)', padding: '3px 4px' }}>{staff.rol}</td>
-                            <td style={{ textAlign: 'center', padding: '3px 4px' }}>{staff.turnos}</td>
-                            <td style={{ textAlign: 'right', color: 'var(--success)', fontWeight: 700, padding: '3px 4px' }}>${staff.comisiones.toLocaleString()}</td>
+                            <td style={{ textAlign: 'center', padding: '3px 4px' }}>
+                              {staff.horas.toFixed(1)}h ({staff.turnos})
+                            </td>
+                            <td style={{ textAlign: 'right', color: 'var(--success)', fontWeight: 700, padding: '3px 4px' }}>
+                              ${staff.comisiones.toLocaleString()}
+                              {staff.comisiones > 0 && staff.horas === 0 && (
+                                <span title="Advertencia: Comisión asignada sin registros de fichaje de entrada en el período del corte." style={{ color: 'var(--danger)', marginLeft: 4, cursor: 'help' }}>⚠️</span>
+                              )}
+                            </td>
                             <td style={{ textAlign: 'right', padding: '3px 4px' }}>
                               <span style={{ 
                                 color: staff.satisfaccion >= 4.5 ? 'var(--success)' : staff.satisfaccion >= 4.0 ? 'var(--warning)' : 'var(--danger)',
