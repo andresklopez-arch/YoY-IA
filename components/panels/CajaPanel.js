@@ -1729,6 +1729,7 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
   }, [bitacora, cobros]);
 
   // Análisis inteligente de mesas en tiempo real
+  // Análisis inteligente de mesas en tiempo real
   const analisisMesas = useMemo(() => {
     const stats = {};
     
@@ -1854,6 +1855,26 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
         s.consumoBebidas = 3 + ((s.id * 4) % 10);
         s.consumoComida = 1 + ((s.id * 3) % 7);
       }
+
+      // 1. Alertas de mantenimiento preventivo (límite 50h por paño)
+      const horasJugadasCiclo = s.tiempoHoras % 50;
+      s.porcentajePaño = Math.max(0, Math.min(100, Math.round(((50 - horasJugadasCiclo) / 50) * 100)));
+
+      // 2. IA Tarifa Dinámica sugerida
+      if (s.tiempoHoras > 6.0) {
+        s.tarifaSugerida = Math.round(s.tarifa * 1.15); // +15% alta demanda
+      } else if (s.tiempoHoras < 3.5) {
+        s.tarifaSugerida = Math.round(s.tarifa * 0.90); // -10% descuento promocional
+      } else {
+        s.tarifaSugerida = s.tarifa;
+      }
+
+      // 3. Tendencia semanal de demanda (7 días)
+      const baseDemand = [20, 35, 50, 45, 75, 95, 80];
+      s.tendenciaDemanda = baseDemand.map(val => {
+        const variance = ((s.id * 13 + val) % 20) - 10;
+        return Math.max(10, Math.min(100, val + variance));
+      });
     });
 
     return items;
@@ -2031,6 +2052,7 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
                   borderRadius: 8
                 }}
               >
+                {/* Fila 1: Logo, Nombre, Tarifa actual y sugerida, Calificación */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <div style={{ 
@@ -2048,7 +2070,14 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
                     </div>
                     <div>
                       <div style={{ fontSize: 9.5, fontWeight: 800, color: '#fff', lineHeight: 1.1 }}>{m.nombre}</div>
-                      <div style={{ fontSize: 7, color: 'var(--text-muted)' }}>{m.tipo} · ${m.tarifa}/h</div>
+                      <div style={{ fontSize: 7, color: 'var(--text-muted)' }}>
+                        {m.tipo} · <span style={{ textDecoration: m.tarifaSugerida !== m.tarifa ? 'line-through' : 'none' }}>${m.tarifa}/h</span>
+                        {m.tarifaSugerida !== m.tarifa && (
+                          <span style={{ color: m.tarifaSugerida > m.tarifa ? 'var(--success)' : 'var(--bronze-light)', marginLeft: 3, fontWeight: 700 }}>
+                            💡 ${m.tarifaSugerida}/h
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                   
@@ -2058,6 +2087,7 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
                   </div>
                 </div>
 
+                {/* Fila 2: Grid de Métricas */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1.3fr', gap: 3, background: 'rgba(0,0,0,0.1)', borderRadius: 5, padding: '3px 5px', fontSize: 8.5 }}>
                   <div style={{ display: 'flex', flexDirection: 'column' }}>
                     <span style={{ fontSize: 6, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Dinero</span>
@@ -2073,6 +2103,43 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
                   </div>
                 </div>
 
+                {/* Fila 3: Mantenimiento preventivo del paño */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 1, fontSize: 7, color: 'var(--text-muted)', marginTop: 1 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>🧼 Integridad del Paño: <strong>{m.porcentajePaño}%</strong></span>
+                    <span style={{ 
+                      color: m.porcentajePaño < 20 ? 'var(--danger)' : m.porcentajePaño < 50 ? 'var(--bronze-light)' : 'var(--success)',
+                      fontWeight: 700
+                    }}>
+                      {m.porcentajePaño < 20 ? '¡Cepillado Urgente!' : m.porcentajePaño < 50 ? 'Mant. Próximo' : 'Óptimo'}
+                    </span>
+                  </div>
+                  <div style={{ width: '100%', height: 3, background: 'rgba(255,255,255,0.05)', borderRadius: 2, overflow: 'hidden' }}>
+                    <div style={{ 
+                      width: `${m.porcentajePaño}%`, 
+                      height: '100%', 
+                      background: m.porcentajePaño < 20 ? 'var(--danger)' : m.porcentajePaño < 50 ? 'var(--bronze-light)' : 'var(--success)',
+                      borderRadius: 2
+                    }} />
+                  </div>
+                </div>
+
+                {/* Fila 4: Tendencia de demanda semanal (Sparkline) */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 1 }}>
+                  <span style={{ fontSize: 7, color: 'var(--text-muted)' }}>Tendencia Semanal:</span>
+                  <div style={{ display: 'flex', gap: 1.5, alignItems: 'flex-end', height: 9 }}>
+                    {m.tendenciaDemanda.map((val, idx) => (
+                      <div key={idx} style={{ 
+                        width: 3.5, 
+                        height: `${val * 0.08}px`, 
+                        background: val > 80 ? 'var(--success)' : val > 50 ? 'var(--bronze-light)' : 'var(--text-muted)',
+                        borderRadius: 0.5
+                      }} title={`Día ${idx + 1}: ${val}% demanda`} />
+                    ))}
+                  </div>
+                </div>
+
+                {/* Fila 5: Diagnostic Tag */}
                 <div style={{ 
                   background: diagnosticColor, 
                   color: diagnosticTextColor, 
@@ -2080,7 +2147,8 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
                   padding: '1px 4px', 
                   fontSize: 7, 
                   fontWeight: 700,
-                  alignSelf: 'flex-start'
+                  alignSelf: 'flex-start',
+                  marginTop: 1
                 }}>
                   {diagnosticText}
                 </div>
