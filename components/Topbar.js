@@ -6,7 +6,7 @@ import { useAlertasNomina } from '@/components/panels/NominaPanel';
 import { QRCodeSVG } from 'qrcode.react';
 import { collection, query, where, onSnapshot, doc, getDoc, setDoc, addDoc, getDocs, serverTimestamp, updateDoc, orderBy, limit } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { deobfuscate } from '@/lib/crypto';
+import { deobfuscate, obfuscate } from '@/lib/crypto';
 
 
 // Hook: pedidos pendientes de clientes via QR
@@ -64,6 +64,21 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
   const [focusedEmpleadoQR, setFocusedEmpleadoQR] = useState(null);
   const [qrCountdown, setQrCountdown] = useState(0);
   const [recentFichajes, setRecentFichajes] = useState([]);
+
+  // Estados para asignación interactiva de mesas en pase de lista
+  const [todasLasMesas, setTodasLasMesas] = useState([]);
+  const [asignacionPaseEmpleado, setAsignacionPaseEmpleado] = useState(null);
+  const [mesasAsignadasPase, setMesasAsignadasPase] = useState([]);
+
+  useEffect(() => {
+    if (!showModalPaseLista) return;
+    const docRef = doc(db, 'config', 'mesas_estado');
+    getDoc(docRef).then(snap => {
+      if (snap.exists()) {
+        setTodasLasMesas(snap.data().mesas || []);
+      }
+    }).catch(err => console.error("Error loading tables for Topbar:", err));
+  }, [showModalPaseLista]);
 
   const regenerarQROnTimeout = async () => {
     if (!focusedEmpleadoQR) return;
@@ -190,6 +205,65 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
       console.error(err);
       showToast('Error al registrar pase de lista: ' + err.message, 'error');
     }
+  };
+
+  const processAttendanceAndAssignments = async (emp, selectedMesaIds) => {
+    // 1. Registrar asistencia
+    await handlePaseListaClick(emp);
+
+    // 2. Registrar asignaciones de mesas
+    if (selectedMesaIds.length > 0) {
+      try {
+        const docRef = doc(db, 'config', 'mesas_estado');
+        const snap = await getDoc(docRef);
+        if (snap.exists()) {
+          const currentMesas = snap.data().mesas || [];
+          const updatedMesas = currentMesas.map(m => {
+            if (selectedMesaIds.includes(m.id)) {
+              let currentIds = m.meseroIds || [];
+              let currentNombres = m.meseroNombres || [];
+              
+              if (m.meseroId && !currentIds.includes(m.meseroId)) {
+                currentIds = [m.meseroId, ...currentIds];
+                currentNombres = [m.meseroNombre || 'Mesero', ...currentNombres];
+              }
+
+              if (!currentIds.includes(emp.id)) {
+                currentIds = [...currentIds, emp.id];
+                currentNombres = [...currentNombres, emp.nombre];
+              }
+
+              const firstId = currentIds[0] || null;
+              const firstNombre = currentNombres[0] || null;
+
+              return {
+                ...m,
+                meseroIds: currentIds,
+                meseroNombres: currentNombres,
+                meseroId: firstId,
+                meseroNombre: firstNombre
+              };
+            }
+            return m;
+          });
+
+          await setDoc(docRef, {
+            mesas: updatedMesas,
+            updatedAt: serverTimestamp()
+          }, { merge: true });
+
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('yoy_billar_mesas', obfuscate(updatedMesas));
+          }
+          
+          showToast(`Mesas asignadas a ${emp.nombre} exitosamente`, 'success');
+        }
+      } catch (err) {
+        console.error("Error al asignar mesas en el pase de lista:", err);
+        showToast("Error al asignar las mesas.", "danger");
+      }
+    }
+    setAsignacionPaseEmpleado(null);
   };
 
   const alertasNomina = useAlertasNomina();
@@ -883,138 +957,287 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
             </div>
 
             {/* Cuerpo con scroll */}
-            <div style={{ flex: 1, overflowY: 'auto', padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
-                Selecciona tu código QR para registrar tu hora de entrada y activar tu sesión de trabajo en este dispositivo.
-              </p>
-
-              {/* Buscador */}
-              <div style={{ position: 'relative' }}>
-                <input
-                  type="text"
-                  placeholder="Buscar empleado por nombre..."
-                  value={busquedaPaseLista}
-                  onChange={e => setBusquedaPaseLista(e.target.value)}
-                  style={{
-                    width: '100%', boxSizing: 'border-box',
-                    paddingLeft: 36, height: 38,
-                    background: 'var(--bg-elevated)',
-                    border: '1px solid var(--border)',
-                    borderRadius: 10,
-                    color: 'var(--text-primary)',
-                    fontSize: 13,
-                    outline: 'none',
-                  }}
-                />
-                <i className="ri-search-line" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontSize: 16 }} />
-              </div>
-
-              {/* Lista de empleados */}
-              {empleadosPaseLista.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '60px 10px', color: 'var(--text-muted)' }}>
-                  <i className="ri-loader-4-line" style={{ fontSize: 36, display: 'block', marginBottom: 10, animation: 'spin 1s linear infinite' }} />
-                  Cargando empleados activos...
+            {asignacionPaseEmpleado ? (
+              /* PASO 2: ASIGNACIÓN DE MESAS */
+              <div style={{ flex: 1, overflowY: 'auto', padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div style={{ background: 'rgba(197, 168, 128, 0.08)', border: '1px solid rgba(197, 168, 128, 0.2)', borderRadius: 12, padding: 14 }}>
+                  <h3 style={{ fontSize: 14, fontWeight: 800, color: 'var(--bronze-light)', margin: 0, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    ¿Qué mesas se asignan a {asignacionPaseEmpleado.nombre}?
+                  </h3>
+                  <p style={{ fontSize: 11, color: 'var(--text-secondary)', margin: '6px 0 0 0', lineHeight: 1.4 }}>
+                    Seleccione las mesas asignadas. Si el empleado es mesero, las alertas y comisiones de las ventas se le asociarán automáticamente.
+                  </p>
                 </div>
-              ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 14 }}>
-                  {empleadosPaseLista
-                    .filter(emp =>
-                      emp.nombre.toLowerCase().includes(busquedaPaseLista.toLowerCase()) ||
-                      (emp.apellido || '').toLowerCase().includes(busquedaPaseLista.toLowerCase())
-                    )
-                    .map(emp => (
-                      <div
-                        key={emp.id}
-                        onClick={() => handlePaseListaClick(emp)}
-                        onMouseEnter={e => {
-                          e.currentTarget.style.borderColor = 'var(--bronze-light)';
-                          e.currentTarget.style.transform = 'translateY(-3px)';
-                          e.currentTarget.style.boxShadow = '0 6px 16px rgba(205,127,50,0.2)';
-                        }}
-                        onMouseLeave={e => {
-                          e.currentTarget.style.borderColor = 'var(--border)';
-                          e.currentTarget.style.transform = 'none';
-                          e.currentTarget.style.boxShadow = 'none';
-                        }}
-                        style={{
-                          background: 'var(--bg-elevated)',
-                          border: '1px solid var(--border)',
-                          borderRadius: 14,
-                          padding: 12,
-                          textAlign: 'center',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          alignItems: 'center',
-                          gap: 10,
-                          cursor: 'pointer',
-                          transition: 'all 0.18s ease',
-                        }}
-                      >
-                        <div style={{
-                          width: 48, height: 48, borderRadius: '50%',
-                          background: 'var(--bg-card)', border: '1px solid var(--border)',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          fontSize: 20, color: 'var(--bronze-light)'
-                        }}>
-                          <i className="ri-user-line" />
-                        </div>
-                        <div style={{ width: '100%' }}>
-                          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            {emp.nombre}
-                          </div>
-                          <div style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', marginTop: 2 }}>
-                            {emp.rol || 'Mesero'}
-                          </div>
-                        </div>
-                        <button
-                          onClick={async (e) => {
-                            e.stopPropagation(); // Evitar registrar asistencia al hacer clic en ver QR
-                            
-                            try {
-                              const res = await fetch('/api/nomina/generate-qr-token', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ empleadoId: emp.id })
-                              });
-                              const data = await res.json();
-                              if (!res.ok || !data.success) {
-                                throw new Error(data.error || 'Error en servidor');
-                              }
-                              setFocusedEmpleadoQR({
-                                ...emp,
-                                qrToken: data.token,
-                                qrTokenExpires: data.expires
-                              });
-                            } catch (err) {
-                              console.error("Error al generar token QR:", err);
-                              showToast('Error al generar token QR: ' + err.message, 'error');
+
+                {/* Accesos rápidos */}
+                <div>
+                  <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Selección Rápida</label>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                    <button 
+                      className="btn btn-secondary btn-sm"
+                      style={{ fontSize: 11, padding: '6px 12px', background: 'rgba(255,255,255,0.04)', borderColor: 'rgba(255,255,255,0.08)', color: '#fff', cursor: 'pointer', borderRadius: 8 }}
+                      onClick={() => {
+                        if (mesasAsignadasPase.length === todasLasMesas.length) {
+                          setMesasAsignadasPase([]);
+                        } else {
+                          setMesasAsignadasPase(todasLasMesas.map(m => m.id));
+                        }
+                      }}
+                    >
+                      {mesasAsignadasPase.length === todasLasMesas.length ? '❌ Deseleccionar Todas' : '✅ Seleccionar Todas'}
+                    </button>
+
+                    {Array.from(new Set(todasLasMesas.map(m => m.tipo || 'Carambola'))).filter(Boolean).map(tipo => {
+                      const mesasDeTipo = todasLasMesas.filter(m => (m.tipo || 'Carambola') === tipo);
+                      const idsDeTipo = mesasDeTipo.map(m => m.id);
+                      const todasDeTipoSeleccionadas = idsDeTipo.every(id => mesasAsignadasPase.includes(id));
+                      
+                      return (
+                        <button 
+                          key={tipo}
+                          className="btn btn-secondary btn-sm"
+                          style={{ 
+                            fontSize: 11, 
+                            padding: '6px 12px', 
+                            background: todasDeTipoSeleccionadas ? 'rgba(197, 168, 128, 0.15)' : 'rgba(255,255,255,0.04)', 
+                            borderColor: todasDeTipoSeleccionadas ? 'var(--border-bronze)' : 'rgba(255,255,255,0.08)', 
+                            color: todasDeTipoSeleccionadas ? 'var(--bronze-light)' : '#fff',
+                            cursor: 'pointer',
+                            borderRadius: 8
+                          }}
+                          onClick={() => {
+                            if (todasDeTipoSeleccionadas) {
+                              setMesasAsignadasPase(prev => prev.filter(id => !idsDeTipo.includes(id)));
+                            } else {
+                              setMesasAsignadasPase(prev => Array.from(new Set([...prev, ...idsDeTipo])));
+                            }
+                          }}
+                        >
+                          ⚡ {tipo}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Cuadrícula de mesas */}
+                <div>
+                  <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Mesas Individuales</label>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: 10 }}>
+                    {todasLasMesas.map(mesa => {
+                      const isSelected = mesasAsignadasPase.includes(mesa.id);
+                      return (
+                        <div 
+                          key={mesa.id}
+                          onClick={() => {
+                            if (isSelected) {
+                              setMesasAsignadasPase(prev => prev.filter(id => id !== mesa.id));
+                            } else {
+                              setMesasAsignadasPase(prev => [...prev, mesa.id]);
                             }
                           }}
                           style={{
-                            marginTop: 4,
-                            width: '100%',
-                            background: 'rgba(205,127,50,0.1)',
-                            border: '1px solid rgba(205,127,50,0.2)',
-                            borderRadius: 8,
-                            color: 'var(--bronze-light)',
-                            padding: '6px 8px',
-                            fontSize: 10,
-                            fontWeight: 700,
+                            background: isSelected ? 'rgba(197, 168, 128, 0.12)' : 'var(--bg-elevated)',
+                            border: isSelected ? '1px solid var(--border-bronze)' : '1px solid var(--border)',
+                            borderRadius: 10,
+                            padding: '10px 12px',
                             cursor: 'pointer',
                             display: 'flex',
                             alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: 4,
-                            transition: 'all 0.2s'
+                            gap: 8,
+                            transition: 'all 0.15s'
                           }}
                         >
-                          <i className="ri-qr-code-line" /> Acceso Móvil
-                        </button>
-                      </div>
-                    ))}
+                          <input 
+                            type="checkbox" 
+                            checked={isSelected}
+                            onChange={() => {}} 
+                            style={{ accentColor: 'var(--bronze-light)', cursor: 'pointer' }}
+                          />
+                          <div style={{ display: 'flex', flexDirection: 'column' }}>
+                            <span style={{ fontSize: 12, fontWeight: 700, color: isSelected ? 'var(--bronze-light)' : '#fff' }}>Mesa {mesa.id}</span>
+                            <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>{mesa.tipo || 'Carambola'}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
-              )}
-            </div>
+
+                {/* Botones de acción */}
+                <div style={{ display: 'flex', gap: 12, marginTop: 16, borderTop: '1px solid var(--border)', paddingTop: 16 }}>
+                  <button 
+                    className="btn btn-secondary" 
+                    style={{ flex: 1, cursor: 'pointer' }}
+                    onClick={() => processAttendanceAndAssignments(asignacionPaseEmpleado, [])}
+                  >
+                    Omitir y Fichar Entrada
+                  </button>
+                  <button 
+                    className="btn btn-success" 
+                    style={{ flex: 1, cursor: 'pointer' }}
+                    onClick={() => processAttendanceAndAssignments(asignacionPaseEmpleado, mesasAsignadasPase)}
+                  >
+                    Asignar y Fichar Entrada
+                  </button>
+                  <button 
+                    className="btn btn-danger" 
+                    style={{ cursor: 'pointer' }}
+                    onClick={() => {
+                      setAsignacionPaseEmpleado(null);
+                      setMesasAsignadasPase([]);
+                    }}
+                  >
+                    Volver
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* PASO 1: LISTADO DE EMPLEADOS */
+              <div style={{ flex: 1, overflowY: 'auto', padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
+                  Selecciona tu código QR para registrar tu hora de entrada y activar tu sesión de trabajo en este dispositivo.
+                </p>
+
+                {/* Buscador */}
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type="text"
+                    placeholder="Buscar empleado por nombre..."
+                    value={busquedaPaseLista}
+                    onChange={e => setBusquedaPaseLista(e.target.value)}
+                    style={{
+                      width: '100%', boxSizing: 'border-box',
+                      paddingLeft: 36, height: 38,
+                      background: 'var(--bg-elevated)',
+                      border: '1px solid var(--border)',
+                      borderRadius: 10,
+                      color: 'var(--text-primary)',
+                      fontSize: 13,
+                      outline: 'none',
+                    }}
+                  />
+                  <i className="ri-search-line" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontSize: 16 }} />
+                </div>
+
+                {/* Lista de empleados */}
+                {empleadosPaseLista.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '60px 10px', color: 'var(--text-muted)' }}>
+                    <i className="ri-loader-4-line" style={{ fontSize: 36, display: 'block', marginBottom: 10, animation: 'spin 1s linear infinite' }} />
+                    Cargando empleados activos...
+                  </div>
+                ) : (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 14 }}>
+                    {empleadosPaseLista
+                      .filter(emp =>
+                        emp.nombre.toLowerCase().includes(busquedaPaseLista.toLowerCase()) ||
+                        (emp.apellido || '').toLowerCase().includes(busquedaPaseLista.toLowerCase())
+                      )
+                      .map(emp => (
+                        <div
+                          key={emp.id}
+                          onClick={() => {
+                            const isMeseroOStaff = (emp.rol || emp.role || '').toLowerCase().includes('mesero') || 
+                                                   (emp.rol || emp.role || '').toLowerCase().includes('staff') || 
+                                                   (emp.rol || emp.role || '').toLowerCase().includes('mesera') || 
+                                                   !(emp.rol || emp.role);
+                            if (isMeseroOStaff) {
+                              setAsignacionPaseEmpleado(emp);
+                              setMesasAsignadasPase([]);
+                            } else {
+                              handlePaseListaClick(emp);
+                            }
+                          }}
+                          onMouseEnter={e => {
+                            e.currentTarget.style.borderColor = 'var(--bronze-light)';
+                            e.currentTarget.style.transform = 'translateY(-3px)';
+                            e.currentTarget.style.boxShadow = '0 6px 16px rgba(205,127,50,0.2)';
+                          }}
+                          onMouseLeave={e => {
+                            e.currentTarget.style.borderColor = 'var(--border)';
+                            e.currentTarget.style.transform = 'none';
+                            e.currentTarget.style.boxShadow = 'none';
+                          }}
+                          style={{
+                            background: 'var(--bg-elevated)',
+                            border: '1px solid var(--border)',
+                            borderRadius: 14,
+                            padding: 12,
+                            textAlign: 'center',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            gap: 10,
+                            cursor: 'pointer',
+                            transition: 'all 0.18s ease',
+                          }}
+                        >
+                          <div style={{
+                            width: 48, height: 48, borderRadius: '50%',
+                            background: 'var(--bg-card)', border: '1px solid var(--border)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontSize: 20, color: 'var(--bronze-light)'
+                          }}>
+                            <i className="ri-user-line" />
+                          </div>
+                          <div style={{ width: '100%' }}>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {emp.nombre}
+                            </div>
+                            <div style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', marginTop: 2 }}>
+                              {emp.rol || 'Mesero'}
+                            </div>
+                          </div>
+                          <button
+                            onClick={async (e) => {
+                              e.stopPropagation(); // Evitar registrar asistencia al hacer clic en ver QR
+                              
+                              try {
+                                const res = await fetch('/api/nomina/generate-qr-token', {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ empleadoId: emp.id })
+                                });
+                                const data = await res.json();
+                                if (!res.ok || !data.success) {
+                                  throw new Error(data.error || 'Error en servidor');
+                                }
+                                setFocusedEmpleadoQR({
+                                  ...emp,
+                                  qrToken: data.token,
+                                  qrTokenExpires: data.expires
+                                });
+                              } catch (err) {
+                                console.error("Error al generar token QR:", err);
+                                showToast('Error al generar token QR: ' + err.message, 'error');
+                              }
+                            }}
+                            style={{
+                              marginTop: 4,
+                              width: '100%',
+                              background: 'rgba(205,127,50,0.1)',
+                              border: '1px solid rgba(205,127,50,0.2)',
+                              borderRadius: 8,
+                              color: 'var(--bronze-light)',
+                              padding: '6px 8px',
+                              fontSize: 10,
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: 4,
+                              transition: 'all 0.2s'
+                            }}
+                          >
+                            <i className="ri-qr-code-line" /> Acceso Móvil
+                          </button>
+                        </div>
+                      ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Pie */}
             <div style={{ padding: '14px 24px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', flexShrink: 0 }}>
