@@ -1657,57 +1657,62 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       
       {/* CABECERA */}
-      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 0 }}>
+      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, gap: 12 }}>
         <div>
-          <h1 className="page-title gradient-bronze" style={{ margin: 0 }}>
+          <h1 className="page-title gradient-bronze" style={{ margin: 0, fontSize: esCajero ? 20 : 15, whiteSpace: 'nowrap' }}>
             {esCajero ? 'Caja y POS Operativo' : 'INTELIGENCIA DE NEGOCIO'}
           </h1>
-          <p className="page-subtitle" style={{ margin: '4px 0 0 0', fontSize: 11 }}>
-            {esCajero ? 'Turno en curso · Reconciliación de egresos y arqueo' : 'Dashboard inteligente unificado de utilidades, control y auditoría IA'}
+          <p className="page-subtitle" style={{ margin: '2px 0 0 0', fontSize: 10, whiteSpace: 'nowrap' }}>
+            {esCajero ? 'Turno en curso · Reconciliación' : 'Control y auditoría IA'}
           </p>
         </div>
+
+        {/* 5 TARJETAS EN EL CENTRO DE LA CABECERA (Extremadamente pequeñas y compactas) */}
+        {!esCajero && (
+          <div style={{ display: 'flex', gap: 6, flex: 1, justifyContent: 'center', maxWidth: 620, margin: '0 10px' }}>
+            <div className="stat-card" style={{ padding: '4px 6px', display: 'flex', flexDirection: 'column', justifyContent: 'center', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 6, minWidth: 80, flex: 1 }}>
+              <span style={{ fontSize: 7, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.02em', whiteSpace: 'nowrap' }}>Tkt Prom.</span>
+              <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--bronze-light)', marginTop: 1 }}>
+                ${metricasRendimiento.ticketPromedio.toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+              </span>
+            </div>
+            
+            <div className="stat-card" style={{ padding: '4px 6px', display: 'flex', flexDirection: 'column', justifyContent: 'center', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 6, minWidth: 80, flex: 1 }}>
+              <span style={{ fontSize: 7, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.02em', whiteSpace: 'nowrap' }}>Gasto Diar.</span>
+              <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--danger)', marginTop: 1 }}>
+                ${metricasRendimiento.gastoDiarioPromedio.toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+              </span>
+            </div>
+            
+            <div className="stat-card" style={{ padding: '4px 6px', display: 'flex', flexDirection: 'column', justifyContent: 'center', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 6, minWidth: 80, flex: 1 }}>
+              <span style={{ fontSize: 7, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.02em', whiteSpace: 'nowrap' }}>Op. Mensual</span>
+              <span style={{ fontSize: 11, fontWeight: 800, color: '#fff', marginTop: 1 }}>
+                ${metricasRendimiento.gastoMensualProyectado.toLocaleString('es-MX', { maximumFractionDigits: 0, maximumFractionDigits: 0 })}
+              </span>
+            </div>
+
+            <div className="stat-card" style={{ padding: '4px 6px', display: 'flex', flexDirection: 'column', justifyContent: 'center', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 6, minWidth: 80, flex: 1 }}>
+              <span style={{ fontSize: 7, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.02em', whiteSpace: 'nowrap' }}>Util. Diaria</span>
+              <span style={{ fontSize: 11, fontWeight: 800, color: metricasRendimiento.utilidadDiariaPromedio >= 0 ? 'var(--success)' : 'var(--danger)', marginTop: 1 }}>
+                ${metricasRendimiento.utilidadDiariaPromedio.toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+              </span>
+            </div>
+
+            <div className="stat-card" style={{ padding: '4px 6px', display: 'flex', flexDirection: 'column', justifyContent: 'center', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 6, minWidth: 80, flex: 1 }}>
+              <span style={{ fontSize: 7, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.02em', whiteSpace: 'nowrap' }}>Util. Fin Mes</span>
+              <span style={{ fontSize: 11, fontWeight: 800, color: metricasRendimiento.utilidadMensualProyectada >= 0 ? 'var(--success)' : 'var(--danger)', marginTop: 1 }}>
+                ${metricasRendimiento.utilidadMensualProyectada.toLocaleString('es-MX', { maximumFractionDigits: 0, maximumFractionDigits: 0 })}
+              </span>
+            </div>
+          </div>
+        )}
+
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <button className="btn btn-secondary btn-sm" onClick={() => setMostrarBitacora(true)} style={{ height: 32, fontSize: 11 }}>
             <i className="ri-history-line" /> Bitácora
           </button>
         </div>
       </div>
-
-      {/* 5 TARJETAS DE MÉTRICAS RÁPIDAS (Colocadas después del título) */}
-      {!esCajero && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10, marginBottom: 8 }}>
-          <div className="stat-card" style={{ padding: '8px 10px', display: 'flex', flexDirection: 'column', justifyContent: 'center', background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-            <span style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.04em' }}>Ticket Promedio Client</span>
-            <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--bronze-light)', marginTop: 2 }}>
-              ${metricasRendimiento.ticketPromedio.toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-            </span>
-          </div>
-          <div className="stat-card" style={{ padding: '8px 10px', display: 'flex', flexDirection: 'column', justifyContent: 'center', background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-            <span style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.04em' }}>Gasto Diario Promedio</span>
-            <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--danger)', marginTop: 2 }}>
-              ${metricasRendimiento.gastoDiarioPromedio.toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-            </span>
-          </div>
-          <div className="stat-card" style={{ padding: '8px 10px', display: 'flex', flexDirection: 'column', justifyContent: 'center', background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-            <span style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.04em' }}>Operación Mensual Est.</span>
-            <span style={{ fontSize: 14, fontWeight: 800, color: '#fff', marginTop: 2 }}>
-              ${metricasRendimiento.gastoMensualProyectado.toLocaleString('es-MX', { maximumFractionDigits: 0, maximumFractionDigits: 0 })}
-            </span>
-          </div>
-          <div className="stat-card" style={{ padding: '8px 10px', display: 'flex', flexDirection: 'column', justifyContent: 'center', background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-            <span style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.04em' }}>Utilidad Diaria Prom.</span>
-            <span style={{ fontSize: 14, fontWeight: 800, color: metricasRendimiento.utilidadDiariaPromedio >= 0 ? 'var(--success)' : 'var(--danger)', marginTop: 2 }}>
-              ${metricasRendimiento.utilidadDiariaPromedio.toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-            </span>
-          </div>
-          <div className="stat-card" style={{ padding: '8px 10px', display: 'flex', flexDirection: 'column', justifyContent: 'center', background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-            <span style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.04em' }}>Utilidad Fin de Mes Est.</span>
-            <span style={{ fontSize: 14, fontWeight: 800, color: metricasRendimiento.utilidadMensualProyectada >= 0 ? 'var(--success)' : 'var(--danger)', marginTop: 2 }}>
-              ${metricasRendimiento.utilidadMensualProyectada.toLocaleString('es-MX', { maximumFractionDigits: 0, maximumFractionDigits: 0 })}
-            </span>
-          </div>
-        </div>
-      )}
 
       {/* SECCIÓN PRINCIPAL: MÓDULOS Y KPIS A LA IZQUIERDA, CORTE Y HISTORIAL A LA DERECHA */}
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 240px', gap: 16, alignItems: 'flex-start' }}>
