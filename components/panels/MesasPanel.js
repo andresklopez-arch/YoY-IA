@@ -1660,11 +1660,11 @@ function useLiveTick() {
 }
 
 // Helper para obtener el icono visual del juego según el tipo de mesa
-function getGameIcon(tipo) {
+function getGameIcon(tipo, size = 18) {
   const t = (tipo || '').toLowerCase();
   if (t.includes('pool')) {
     return (
-      <svg width="18" height="18" viewBox="0 0 24 22" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginRight: 6, opacity: 0.85, flexShrink: 0 }}>
+      <svg width={size} height={size} viewBox="0 0 24 22" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginRight: 6, opacity: 0.85, flexShrink: 0 }}>
         <polygon points="12,1 23,20 1,20" stroke="var(--bronze-light, #c5a880)" strokeWidth="1.8" strokeLinejoin="round" fill="rgba(197,168,128,0.05)" />
         <circle cx="12" cy="7.5" r="2.2" fill="#eab308" />
         <circle cx="9.5" cy="12" r="2.2" fill="#3b82f6" />
@@ -1677,7 +1677,7 @@ function getGameIcon(tipo) {
   }
   if (t.includes('carambola')) {
     return (
-      <svg width="18" height="18" viewBox="0 0 24 22" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginRight: 6, opacity: 0.9, flexShrink: 0 }}>
+      <svg width={size} height={size} viewBox="0 0 24 22" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginRight: 6, opacity: 0.9, flexShrink: 0 }}>
         <defs>
           <radialGradient id="redBall" cx="30%" cy="30%" r="70%">
             <stop offset="0%" stopColor="#ff8888" />
@@ -1704,7 +1704,7 @@ function getGameIcon(tipo) {
   }
   if (t.includes('snooker')) {
     return (
-      <svg width="18" height="18" viewBox="0 0 24 22" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginRight: 6, opacity: 0.85, flexShrink: 0 }}>
+      <svg width={size} height={size} viewBox="0 0 24 22" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginRight: 6, opacity: 0.85, flexShrink: 0 }}>
         <polygon points="12,1 23,20 1,20" stroke="var(--bronze-light, #c5a880)" strokeWidth="1.2" strokeLinejoin="round" strokeDasharray="2 1.5" fill="rgba(197,168,128,0.03)" />
         <circle cx="12" cy="5.5" r="1.6" fill="#ef4444" />
         <circle cx="10" cy="9" r="1.6" fill="#ef4444" />
@@ -1721,7 +1721,7 @@ function getGameIcon(tipo) {
   }
   if (t.includes('domino') || t.includes('dominó')) {
     return (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginRight: 6, opacity: 0.85, flexShrink: 0 }}>
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginRight: 6, opacity: 0.85, flexShrink: 0 }}>
         <rect x="3" y="6" width="18" height="12" rx="2" stroke="var(--bronze-light, #c5a880)" strokeWidth="1.5" fill="rgba(255,255,255,0.05)" />
         <line x1="12" y1="6" x2="12" y2="18" stroke="var(--bronze-light, #c5a880)" strokeWidth="1.5" />
         <circle cx="6.5" cy="9" r="1" fill="var(--bronze-light, #c5a880)" />
@@ -1735,7 +1735,7 @@ function getGameIcon(tipo) {
   }
   // Fallback: Tacos cruzados
   return (
-    <svg width="18" height="18" viewBox="0 0 24 22" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginRight: 6, opacity: 0.7, flexShrink: 0 }}>
+    <svg width={size} height={size} viewBox="0 0 24 22" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginRight: 6, opacity: 0.7, flexShrink: 0 }}>
       <line x1="2" y1="20" x2="22" y2="2" stroke="var(--bronze-light, #c5a880)" strokeWidth="1.5" strokeLinecap="round" />
       <line x1="2" y1="2" x2="22" y2="20" stroke="var(--bronze-light, #c5a880)" strokeWidth="1.5" strokeLinecap="round" />
       <circle cx="12" cy="11" r="3" fill="#fff" />
@@ -2751,13 +2751,21 @@ export default function MesasPanel({ showToast }) {
 
     if (mesasDisponibles.length === 0 || fila.length === 0) return;
 
+    // Hacemos una copia local de la fila para ir consumiendo a los clientes asignados en esta tanda
+    let localFila = [...fila];
+
     mesasDisponibles.forEach(async (m) => {
-      const elegible = fila.find(f => f.estado === 'espera' && matchesTableType(f.tipo, m.tipo));
+      const idx = localFila.findIndex(f => f.estado === 'espera' && matchesTableType(f.tipo, m.tipo));
       
-      if (elegible) {
+      if (idx !== -1) {
+        const elegible = localFila[idx];
+        // Remove from local list so the next table in this loop cannot choose this client
+        localFila.splice(idx, 1);
+        
         const mesaNombreStr = m.nombre || `Mesa ${m.id}`;
-        // Para evitar condiciones de carrera, quitamos temporalmente el cliente de la lista local
-        setFila(prev => prev.filter(item => item.id !== elegible.id));
+        
+        // Actualizar el estado local fila para evitar parpadeos
+        setFila([...localFila]);
         
         try {
           await updateDoc(doc(db, 'fila_espera', String(elegible.id)), {
@@ -4643,37 +4651,40 @@ export default function MesasPanel({ showToast }) {
           const mergedStyle = { ...baseStyle, ...dynamicStyle };
 
           return (
-              <div
-                key={mesa.id}
-                className={`mesa-card ${mesa.estado} ${isPorCobrar ? 'por-cobrar' : ''} ${hasAlert ? 'has-alert' : ''} ${!animacionesActivas ? 'sin-animaciones' : ''}`}
-                onClick={() => abrirMesa(mesa)}
-                style={mergedStyle}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
-                  <div>
-                    <div className="mesa-number" style={{ lineHeight: 1.1 }}>{mesa.id}</div>
-                    {mesa.nombre && mesa.nombre.trim().toLowerCase() !== `mesa ${mesa.id}`.toLowerCase() && mesa.nombre.trim().toLowerCase() !== `mesa${mesa.id}`.toLowerCase() && (
-                      <div style={{ fontSize: 11, fontWeight: 500, color: 'var(--bronze-light)', marginTop: 2, maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={mesa.nombre}>
-                        {mesa.nombre}
-                      </div>
-                    )}
+            <div
+              key={mesa.id}
+              className={`mesa-card ${mesa.estado} ${isPorCobrar ? 'por-cobrar' : ''} ${hasAlert ? 'has-alert' : ''} ${!animacionesActivas ? 'sin-animaciones' : ''}`}
+              onClick={() => abrirMesa(mesa)}
+              style={mergedStyle}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div className="mesa-number" style={{ lineHeight: 1.1, marginBottom: 0 }}>{mesa.id}</div>
+                    {getGameIcon(mesa.tipo, 24)}
                   </div>
+                  {mesa.nombre && mesa.nombre.trim().toLowerCase() !== `mesa ${mesa.id}`.toLowerCase() && mesa.nombre.trim().toLowerCase() !== `mesa${mesa.id}`.toLowerCase() && (
+                    <div style={{ fontSize: 11, fontWeight: 500, color: 'var(--bronze-light)', marginTop: 2, maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={mesa.nombre}>
+                      {mesa.nombre}
+                    </div>
+                  )}
+                </div>
+                <span 
+                  className={`mesa-status-badge ${mesa.estado}`}
+                  style={badgeStyle}
+                >
                   <span 
-                    className={`mesa-status-badge ${mesa.estado}`}
-                    style={badgeStyle}
-                  >
-                    <span 
-                      className={mesa.estado === 'ocupada' && !isPorCobrar ? 'dot-live' : ''} 
-                      style={{ width: 6, height: 6, borderRadius: '50%', background: badgeDotColor, flexShrink: 0 }} 
-                    />
-                    {badgeText}
-                  </span>
-                </div>
+                    className={mesa.estado === 'ocupada' && !isPorCobrar ? 'dot-live' : ''} 
+                    style={{ width: 6, height: 6, borderRadius: '50%', background: badgeDotColor, flexShrink: 0 }} 
+                  />
+                  {badgeText}
+                </span>
+              </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 6, minHeight: 18 }}>
-                  {getGameIcon(mesa.tipo)}
-                  <span>{mesa.tipo}</span>
-                </div>
+              <div style={{ display: 'flex', alignItems: 'center', fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 6, minHeight: 18 }}>
+                <span>{mesa.tipo}</span>
+              </div>
+
 
                 {mesa.estado === 'libre' && (
                   (() => {
