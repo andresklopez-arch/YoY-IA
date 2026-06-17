@@ -1659,6 +1659,90 @@ function useLiveTick() {
   return tick;
 }
 
+// Helper para obtener el icono visual del juego según el tipo de mesa
+function getGameIcon(tipo) {
+  const t = (tipo || '').toLowerCase();
+  if (t.includes('pool')) {
+    return (
+      <svg width="18" height="18" viewBox="0 0 24 22" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginRight: 6, opacity: 0.85, flexShrink: 0 }}>
+        <polygon points="12,1 23,20 1,20" stroke="var(--bronze-light, #c5a880)" strokeWidth="1.8" strokeLinejoin="round" fill="rgba(197,168,128,0.05)" />
+        <circle cx="12" cy="7.5" r="2.2" fill="#eab308" />
+        <circle cx="9.5" cy="12" r="2.2" fill="#3b82f6" />
+        <circle cx="14.5" cy="12" r="2.2" fill="#ef4444" />
+        <circle cx="7" cy="16.5" r="2.2" fill="#8b5cf6" />
+        <circle cx="12" cy="16.5" r="2.2" fill="#f97316" />
+        <circle cx="17" cy="16.5" r="2.2" fill="#22c55e" />
+      </svg>
+    );
+  }
+  if (t.includes('carambola')) {
+    return (
+      <svg width="18" height="18" viewBox="0 0 24 22" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginRight: 6, opacity: 0.9, flexShrink: 0 }}>
+        <defs>
+          <radialGradient id="redBall" cx="30%" cy="30%" r="70%">
+            <stop offset="0%" stopColor="#ff8888" />
+            <stop offset="65%" stopColor="#dc2626" />
+            <stop offset="100%" stopColor="#7f1d1d" />
+          </radialGradient>
+          <radialGradient id="yellowBall" cx="30%" cy="30%" r="70%">
+            <stop offset="0%" stopColor="#fef08a" />
+            <stop offset="65%" stopColor="#ca8a04" />
+            <stop offset="100%" stopColor="#713f12" />
+          </radialGradient>
+          <radialGradient id="whiteBall" cx="30%" cy="30%" r="70%">
+            <stop offset="0%" stopColor="#ffffff" />
+            <stop offset="65%" stopColor="#cbd5e1" />
+            <stop offset="100%" stopColor="#475569" />
+          </radialGradient>
+        </defs>
+        <circle cx="12" cy="15" r="4.8" fill="url(#redBall)" />
+        <circle cx="8.2" cy="9" r="4.8" fill="url(#yellowBall)" />
+        <circle cx="15.8" cy="10" r="4.8" fill="url(#whiteBall)" />
+        <circle cx="15.3" cy="9.5" r="0.7" fill="#ef4444" opacity="0.8" />
+      </svg>
+    );
+  }
+  if (t.includes('snooker')) {
+    return (
+      <svg width="18" height="18" viewBox="0 0 24 22" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginRight: 6, opacity: 0.85, flexShrink: 0 }}>
+        <polygon points="12,1 23,20 1,20" stroke="var(--bronze-light, #c5a880)" strokeWidth="1.2" strokeLinejoin="round" strokeDasharray="2 1.5" fill="rgba(197,168,128,0.03)" />
+        <circle cx="12" cy="5.5" r="1.6" fill="#ef4444" />
+        <circle cx="10" cy="9" r="1.6" fill="#ef4444" />
+        <circle cx="14" cy="9" r="1.6" fill="#ef4444" />
+        <circle cx="8" cy="12.5" r="1.6" fill="#ef4444" />
+        <circle cx="12" cy="12.5" r="1.6" fill="#d97706" />
+        <circle cx="16" cy="12.5" r="1.6" fill="#ef4444" />
+        <circle cx="6" cy="16" r="1.6" fill="#ef4444" />
+        <circle cx="10" cy="16" r="1.6" fill="#ef4444" />
+        <circle cx="14" cy="16" r="1.6" fill="#ef4444" />
+        <circle cx="18" cy="16" r="1.6" fill="#ef4444" />
+      </svg>
+    );
+  }
+  if (t.includes('domino') || t.includes('dominó')) {
+    return (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginRight: 6, opacity: 0.85, flexShrink: 0 }}>
+        <rect x="3" y="6" width="18" height="12" rx="2" stroke="var(--bronze-light, #c5a880)" strokeWidth="1.5" fill="rgba(255,255,255,0.05)" />
+        <line x1="12" y1="6" x2="12" y2="18" stroke="var(--bronze-light, #c5a880)" strokeWidth="1.5" />
+        <circle cx="6.5" cy="9" r="1" fill="var(--bronze-light, #c5a880)" />
+        <circle cx="8.5" cy="12" r="1" fill="var(--bronze-light, #c5a880)" />
+        <circle cx="15.5" cy="9" r="1" fill="var(--bronze-light, #c5a880)" />
+        <circle cx="15.5" cy="15" r="1" fill="var(--bronze-light, #c5a880)" />
+        <circle cx="17.5" cy="9" r="1" fill="var(--bronze-light, #c5a880)" />
+        <circle cx="17.5" cy="15" r="1" fill="var(--bronze-light, #c5a880)" />
+      </svg>
+    );
+  }
+  // Fallback: Tacos cruzados
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 22" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginRight: 6, opacity: 0.7, flexShrink: 0 }}>
+      <line x1="2" y1="20" x2="22" y2="2" stroke="var(--bronze-light, #c5a880)" strokeWidth="1.5" strokeLinecap="round" />
+      <line x1="2" y1="2" x2="22" y2="20" stroke="var(--bronze-light, #c5a880)" strokeWidth="1.5" strokeLinecap="round" />
+      <circle cx="12" cy="11" r="3" fill="#fff" />
+    </svg>
+  );
+}
+
 // ── PANEL PRINCIPAL DE MESAS ──────────────────────────────
 export default function MesasPanel({ showToast }) {
   const { user } = useAuth();
@@ -4572,8 +4656,9 @@ export default function MesasPanel({ showToast }) {
                   </span>
                 </div>
 
-                <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 3 }}>
-                  {mesa.tipo}
+                <div style={{ display: 'flex', alignItems: 'center', fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 6, minHeight: 18 }}>
+                  {getGameIcon(mesa.tipo)}
+                  <span>{mesa.tipo}</span>
                 </div>
 
                 {mesa.estado === 'libre' && (
