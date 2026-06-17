@@ -5554,12 +5554,8 @@ function ModalFilaVirtual({ fila, setFila, mesas, onAssign, onClose, showToast, 
     setContacto('');
     showToast(`${cliente} agregado a la lista de espera.`, 'success');
 
-    // Imprimir el comprobante térmico con el código QR
-    try {
-      imprimirComprobanteEspera(nuevo);
-    } catch (printErr) {
-      console.error("Error al imprimir comprobante de espera:", printErr);
-    }
+    // No imprimir comprobante automático al añadir manualmente
+    // El cliente puede ver su turno escaneando el QR principal del local
   };
 
   const quitarFila = async (id) => {
