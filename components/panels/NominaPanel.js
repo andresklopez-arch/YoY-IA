@@ -585,6 +585,7 @@ export default function NominaPanel({ showToast }) {
 
   // Hook comisiones
   const { ventasMesas, ventasBar } = useVentasReales(fechaInicio, fechaFin);
+  const [comisionesRegistradas, setComisionesRegistradas] = useState([]);
 
   // 2. Carga reactiva de datos
   useEffect(() => {
@@ -603,6 +604,9 @@ export default function NominaPanel({ showToast }) {
       }),
       onSnapshot(query(collection(db, 'nomina_asistencia_log'), orderBy('createdAt', 'desc'), limit(500)), snap => {
         setFichajesLogs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      }),
+      onSnapshot(query(collection(db, 'nomina_comisiones')), snap => {
+        setComisionesRegistradas(snap.docs.map(d => ({ id: d.id, ...d.data() })));
       }),
       onSnapshot(query(collection(db, 'presupuestos')), snap => {
         const map = {};
@@ -639,17 +643,29 @@ export default function NominaPanel({ showToast }) {
       const sueldoProp = sueldoBase > 0 ? (sueldoBase / dias) * diasTrabajados : 0;
       const deduccionesBase = tardanzas * (sueldoBase / dias / 2);
 
+      const comisionesEmp = comisionesRegistradas.filter(c => 
+        c.empleadoId === emp.id && 
+        c.fecha >= fechaInicio && 
+        c.fecha <= fechaFin
+      );
+
       let comisionMesas = 0;
-      if (emp.comisionMesas > 0 && ventasMesas > 0) {
-        comisionMesas = emp.comisionMesasTipo === 'porcentaje'
-          ? (ventasMesas * Number(emp.comisionMesas)) / 100
-          : Number(emp.comisionMesas) * diasTrabajados;
-      }
       let comisionBar = 0;
-      if (emp.comisionBar > 0 && ventasBar > 0) {
-        comisionBar = emp.comisionBarTipo === 'porcentaje'
-          ? (ventasBar * Number(emp.comisionBar)) / 100
-          : Number(emp.comisionBar) * diasTrabajados;
+
+      if (comisionesEmp.length > 0) {
+        comisionMesas = comisionesEmp.reduce((s, c) => s + (Number(c.comisionMesa) || 0), 0);
+        comisionBar = comisionesEmp.reduce((s, c) => s + (Number(c.comisionBar) || 0), 0);
+      } else {
+        if (emp.comisionMesas > 0 && ventasMesas > 0) {
+          comisionMesas = emp.comisionMesasTipo === 'porcentaje'
+            ? (ventasMesas * Number(emp.comisionMesas)) / 100
+            : Number(emp.comisionMesas) * diasTrabajados;
+        }
+        if (emp.comisionBar > 0 && ventasBar > 0) {
+          comisionBar = emp.comisionBarTipo === 'porcentaje'
+            ? (ventasBar * Number(emp.comisionBar)) / 100
+            : Number(emp.comisionBar) * diasTrabajados;
+        }
       }
 
       const bonoTurno = (Number(emp.bonoTurno) || 0) * diasTrabajados;
@@ -905,6 +921,7 @@ export default function NominaPanel({ showToast }) {
           empleadoId: item.emp.id, nombreEmpleado: `${item.emp.nombre} ${item.emp.apellido}`,
           fechaInicio, fechaFin, periodo, diasTrabajados: item.diasTrabajados,
           sueldoProp: item.sueldoProp, comisionMesas: item.comisionMesas, comisionBar: item.comisionBar,
+          comisionTotal: Number((item.comisionMesas + item.comisionBar).toFixed(2)),
           bonoTurno: item.bonoTurno, deducciones: item.deducciones, total: item.pendiente,
           descontoDeCaja: descontarCaja, fecha: today(), createdAt: serverTimestamp(),
         });
