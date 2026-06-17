@@ -7,6 +7,7 @@ import {
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth-context';
 import { AuthProvider } from '@/lib/auth-context';
+import { getBusinessDate } from '@/lib/date-utils';
 
 const normalizeText = (str) => {
   if (!str) return '';
@@ -64,6 +65,42 @@ function MeseroContent() {
   // Sincronización y estados de mesas/cuentas
   const [mesas, setMesas] = useState([]);
   const [cuentas, setCuentas] = useState([]);
+
+  // Estados para avisar a otro mesero
+  const [showModalAvisarMesero, setShowModalAvisarMesero] = useState(false);
+  const [alertaDestinatarioId, setAlertaDestinatarioId] = useState('');
+  const [alertaMesaId, setAlertaMesaId] = useState('');
+  const [todosLosMeseros, setTodosLosMeseros] = useState([]);
+
+  useEffect(() => {
+    let unsubAsist = null;
+    const qEmp = query(collection(db, 'nomina_empleados'), where('estado', '==', 'activo'));
+    const unsubEmp = onSnapshot(qEmp, snapEmp => {
+      const activeEmployees = snapEmp.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      
+      if (unsubAsist) unsubAsist();
+      
+      const fechaHoy = getBusinessDate();
+      const qAsist = query(collection(db, 'nomina_asistencia'), where('fecha', '==', fechaHoy));
+      unsubAsist = onSnapshot(qAsist, snapAsist => {
+        const presentIds = snapAsist.docs
+          .map(doc => doc.data())
+          .filter(a => a.estado === 'presente' || a.estado === 'tardanza')
+          .map(a => a.empleadoId);
+
+        const presentWaiters = activeEmployees.filter(emp => 
+          presentIds.includes(emp.id) &&
+          ((emp.rol || emp.role || '').toLowerCase().includes('mesero') || (emp.rol || emp.role || '').toLowerCase().includes('staff') || !(emp.rol || emp.role))
+        );
+        setTodosLosMeseros(presentWaiters);
+      }, err => console.warn("Error loading attendance in waiter view:", err));
+    }, err => console.warn("Error loading employees in waiter view:", err));
+
+    return () => {
+      unsubEmp();
+      if (unsubAsist) unsubAsist();
+    };
+  }, []);
 
   // Buscar mesa asociada a una cuenta
   const findMesaAsociada = (c) => {
@@ -619,6 +656,43 @@ function MeseroContent() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [showCapturarModal, capturaCarrito, handleCloseCapturarModal]);
 
+  const handleEnviarAvisoOtroMesero = async () => {
+    if (!alertaDestinatarioId) {
+      showToast('Selecciona un mesero para avisar.', 'warning');
+      return;
+    }
+    if (!alertaMesaId) {
+      showToast('Selecciona una mesa.', 'warning');
+      return;
+    }
+
+    const destinatario = todosLosMeseros.find(m => m.id === alertaDestinatarioId);
+    const mesa = mesas.find(m => m.id === parseInt(alertaMesaId));
+
+    try {
+      await addDoc(collection(db, 'mesa_pedidos'), {
+        mesaId: String(alertaMesaId),
+        cliente: 'Te llaman para asistir en esta mesa.',
+        etiqueta: `Llamado de Mesero (por ${user?.nombre || user?.name || 'compañero'})`,
+        tipo: 'asistencia',
+        icono: '📢',
+        estado: 'pendiente',
+        atendidoMesero: false,
+        meseroId: alertaDestinatarioId,
+        creadoPorNombre: user?.nombre || user?.name || 'Mesero',
+        createdAt: serverTimestamp()
+      });
+
+      showToast('Aviso enviado con éxito.', 'success');
+      setShowModalAvisarMesero(false);
+      setAlertaDestinatarioId('');
+      setAlertaMesaId('');
+    } catch (err) {
+      console.error("Error al enviar aviso a otro mesero:", err);
+      showToast('Error al enviar aviso: ' + err.message, 'error');
+    }
+  };
+
   // ── Acciones del mesero ───────────────────────────────────
   const marcarEnCamino = async (id) => {
     await updateDoc(doc(db, 'mesa_pedidos', id), {
@@ -737,6 +811,8 @@ function MeseroContent() {
         origen: 'mesero_captura',
         atendidoAdmin: false,
         atendidoMesero: false,
+        meseroId: user?.uid || null,
+        meseroNombre: user?.nombre || user?.name || null,
         createdAt: serverTimestamp(),
       });
       
@@ -856,7 +932,14 @@ function MeseroContent() {
   };
 
   const getCuentasDirectasFiltradas = () => {
-    const list = getCuentasActivasUnificadas().filter(c => !c.mesaId && !findMesaAsociada(c));
+    let list = getCuentasActivasUnificadas().filter(c => !c.mesaId && !findMesaAsociada(c));
+    
+    const rolLower = (user?.role || user?.rol || '').toLowerCase();
+    const esMesero = rolLower.includes('mesero');
+    if ((esMesero || verSoloMisMesas) && user?.uid) {
+      list = list.filter(c => c.meseroId === user.uid);
+    }
+
     const term = filtroCuentaTexto.trim().toLowerCase();
     if (!term) return list;
     return list.filter(c => c.cliente.toLowerCase().includes(term));
@@ -885,6 +968,31 @@ function MeseroContent() {
             </p>
           </div>
           <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            {/* Botón Avisar a Mesero */}
+            <button
+              onClick={() => setShowModalAvisarMesero(true)}
+              style={{
+                background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+                border: 'none',
+                borderRadius: 10,
+                padding: '8px 16px',
+                cursor: 'pointer',
+                color: '#0d0d0f',
+                fontSize: 13,
+                fontWeight: 700,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                boxShadow: '0 2px 10px rgba(245,158,11,0.3)',
+                transition: 'all 0.2s',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-1px)'; }}
+              onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; }}
+            >
+              <i className="ri-megaphone-line" />
+              Avisar Mesero
+            </button>
+
             {/* Botón Capturar Venta */}
             <button
               onClick={() => setShowCapturarModal(true)}
@@ -1405,7 +1513,7 @@ function MeseroContent() {
                             )}
                           </div>
                           <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 1 }}>
-                            👤 Cuenta Directa · Consumo: ${consumosTotal}
+                            👤 Cuenta Directa · Consumo: ${consumosTotal} {c.meseroNombre ? `· Mesero: ${c.meseroNombre}` : ''}
                           </div>
                         </div>
                         
@@ -1697,6 +1805,79 @@ function MeseroContent() {
           </div>
         </div>
       )}
+
+      {/* ── MODAL: AVISAR A OTRO MESERO ── */}
+      {showModalAvisarMesero && (
+        <div className="modal-overlay" onClick={() => setShowModalAvisarMesero(false)} style={{ zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)' }}>
+          <div className="modal" style={{ maxWidth: 400, width: '90%', background: 'var(--bg-card)', borderRadius: 12, padding: 20 }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: 10, marginBottom: 16 }}>
+              <span className="modal-title" style={{ fontSize: 16, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
+                📢 Avisar a Compañero
+              </span>
+              <button onClick={() => setShowModalAvisarMesero(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 20, cursor: 'pointer' }}>
+                <i className="ri-close-line" />
+              </button>
+            </div>
+            
+            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <label className="form-label" style={{ fontSize: 12, fontWeight: 600 }}>Seleccionar Mesero Destinatario</label>
+                <select 
+                  className="form-select" 
+                  value={alertaDestinatarioId} 
+                  onChange={e => setAlertaDestinatarioId(e.target.value)} 
+                  style={{ width: '100%', padding: 8, borderRadius: 8, background: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
+                >
+                  <option value="">Seleccionar mesero...</option>
+                  {todosLosMeseros.filter(m => m.id !== user?.uid).map(m => (
+                    <option key={m.id} value={m.id}>{m.nombre}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <label className="form-label" style={{ fontSize: 12, fontWeight: 600 }}>Seleccionar Mesa de Referencia</label>
+                <select 
+                  className="form-select" 
+                  value={alertaMesaId} 
+                  onChange={e => setAlertaMesaId(e.target.value)} 
+                  style={{ width: '100%', padding: 8, borderRadius: 8, background: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
+                >
+                  <option value="">Seleccionar mesa...</option>
+                  {[...mesas].sort((a,b) => a.id - b.id).map(m => (
+                    <option key={m.id} value={m.id}>
+                      Mesa {m.id} {m.estado === 'ocupada' ? `(Ocupada - ${m.cliente})` : '(Libre)'}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            
+            <div className="modal-footer" style={{ borderTop: '1px solid var(--border)', paddingTop: 12, marginTop: 16, display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+              <button className="btn btn-secondary" onClick={() => setShowModalAvisarMesero(false)} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border)', background: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}>
+                Cancelar
+              </button>
+              <button 
+                className="btn btn-primary" 
+                onClick={handleEnviarAvisoOtroMesero} 
+                disabled={!alertaDestinatarioId || !alertaMesaId}
+                style={{ 
+                  padding: '8px 16px', 
+                  borderRadius: 8, 
+                  border: 'none', 
+                  background: (!alertaDestinatarioId || !alertaMesaId) ? 'var(--bg-hover)' : 'linear-gradient(135deg, var(--bronze), var(--bronze-light))', 
+                  color: '#0d0d0f', 
+                  fontWeight: 700,
+                  cursor: (!alertaDestinatarioId || !alertaMesaId) ? 'not-allowed' : 'pointer'
+                }}
+              >
+                Enviar Aviso
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {toast && (
         <div style={{
           position: 'fixed',

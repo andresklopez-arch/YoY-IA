@@ -2358,7 +2358,12 @@ export default function MesasPanel({ showToast }) {
                   });
                 }
               });
-              return { ...c, consumos: nuevosConsumos };
+              return { 
+                ...c, 
+                consumos: nuevosConsumos,
+                meseroId: c.meseroId || pedidoDoc.meseroId || null,
+                meseroNombre: c.meseroNombre || pedidoDoc.meseroNombre || null
+              };
             }
             return c;
           });
@@ -2375,7 +2380,9 @@ export default function MesasPanel({ showToast }) {
               precio: item.precio,
               cantidad: item.cantidad
             })),
-            inicio: Date.now()
+            inicio: Date.now(),
+            meseroId: pedidoDoc.meseroId || null,
+            meseroNombre: pedidoDoc.meseroNombre || null
           };
           nuevasCuentas.push(nuevaCuenta);
         }
@@ -5624,6 +5631,7 @@ export default function MesasPanel({ showToast }) {
           onClose={() => setModalCuentas(false)}
           showToast={showToast}
           registrarEvento={registrarEvento}
+          meserosPresentes={meserosPresentes}
         />
       )}
       {modalAbrirCuenta && (
@@ -5635,6 +5643,7 @@ export default function MesasPanel({ showToast }) {
           onClose={() => setModalAbrirCuenta(false)}
           showToast={showToast}
           registrarEvento={registrarEvento}
+          meserosPresentes={meserosPresentes}
         />
       )}
       {modalCambiarMesa && (
@@ -6066,7 +6075,8 @@ function ModalCuentasActivas({
   hashPassword, 
   onClose, 
   showToast, 
-  registrarEvento 
+  registrarEvento,
+  meserosPresentes
 }) {
   const [activeTab, setActiveTab] = useState('cuentas'); // 'cuentas' o 'mesas'
   const [cuentaSel, setCuentaSel] = useState(null);
@@ -6637,7 +6647,7 @@ function ModalCuentasActivas({
                             <span style={{ color: 'var(--bronze-light)' }}>${calcTotal(c)} MXN</span>
                           </div>
                           <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4, display: 'flex', justifyContent: 'space-between' }}>
-                            <span>Juego: ${c.tiempoJuego} MXN</span>
+                            <span>Juego: ${c.tiempoJuego} MXN {c.meseroNombre ? `· Mesero: ${c.meseroNombre}` : ''}</span>
                             <span>{c.consumos.length} consumos</span>
                           </div>
                         </div>
@@ -6674,6 +6684,46 @@ function ModalCuentasActivas({
                       </button>
                     )}
                   </div>
+
+                  {!isMesaTab && cuentaSel && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--bg-elevated)', padding: '6px 10px', borderRadius: 8, border: '1px solid var(--border)', marginTop: 2 }}>
+                      <label style={{ fontSize: 11, color: 'var(--text-secondary)', margin: 0, whiteSpace: 'nowrap' }}>
+                        <i className="ri-user-follow-line" style={{ marginRight: 4 }} /> Mesero Asignado:
+                      </label>
+                      <select 
+                        value={cuentaSel.meseroId || ''} 
+                        onChange={async (e) => {
+                          const mId = e.target.value;
+                          const targetWaiter = (meserosPresentes || []).find(w => w.id === mId);
+                          
+                          await setCuentas((prev) => prev.map(c => {
+                            if (c.id === cuentaSel.id) {
+                              return { 
+                                ...c, 
+                                meseroId: mId || null, 
+                                meseroNombre: targetWaiter ? targetWaiter.nombre : null 
+                              };
+                            }
+                            return c;
+                          }));
+                          
+                          setCuentaSel(prev => ({ 
+                            ...prev, 
+                            meseroId: mId || null, 
+                            meseroNombre: targetWaiter ? targetWaiter.nombre : null 
+                          }));
+                          showToast('Mesero asignado a la cuenta.', 'success');
+                        }}
+                        className="form-select"
+                        style={{ padding: '2px 8px', fontSize: 11, background: 'none', border: 'none', flex: 1, color: 'var(--bronze-light)', cursor: 'pointer' }}
+                      >
+                        <option value="">-- Sin Mesero --</option>
+                        {(meserosPresentes || []).map(m => (
+                          <option key={m.id} value={m.id}>{m.nombre}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
 
                   {/* Consumos */}
                   <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 220, overflowY: 'auto' }}>
@@ -7031,8 +7081,9 @@ function ModalCuentasActivas({
 }
 
 // ── MODAL ABRIR CUENTA DIRECTA ───────────────────────────
-function ModalAbrirCuentaDirecta({ cuentas, setCuentas, clientesRegistrados = [], registrarNuevoClienteDirectorio, onClose, showToast, registrarEvento }) {
+function ModalAbrirCuentaDirecta({ cuentas, setCuentas, clientesRegistrados = [], registrarNuevoClienteDirectorio, onClose, showToast, registrarEvento, meserosPresentes }) {
   const [cliente, setCliente] = useState('');
+  const [meseroId, setMeseroId] = useState('');
 
   const getFilteredClientes = (queryText) => {
     const term = (queryText || '').trim().toLowerCase();
@@ -7049,8 +7100,8 @@ function ModalAbrirCuentaDirecta({ cuentas, setCuentas, clientesRegistrados = []
         const now = Date.now();
         if (document.activeElement && 
             (document.activeElement.tagName === 'INPUT' || 
-             document.activeElement.tagName === 'SELECT' || 
-             document.activeElement.tagName === 'TEXTAREA')) {
+            document.activeElement.tagName === 'SELECT' || 
+            document.activeElement.tagName === 'TEXTAREA')) {
           const activeEl = document.activeElement;
           activeEl.blur();
           
@@ -7096,17 +7147,20 @@ function ModalAbrirCuentaDirecta({ cuentas, setCuentas, clientesRegistrados = []
       return;
     }
     registrarNuevoClienteDirectorio(cleanCliente);
+    const targetMesero = (meserosPresentes || []).find(m => m.id === meseroId);
     const nueva = {
       id: Date.now(),
       cliente: cleanCliente,
       tiempoJuego: 0,
       consumos: [],
-      inicio: Date.now()
+      inicio: Date.now(),
+      meseroId: meseroId || null,
+      meseroNombre: targetMesero ? targetMesero.nombre : null
     };
     setCuentas(prev => [...prev, nueva]);
     showToast(`Cuenta creada para ${cleanCliente} ✓`, 'success');
     if (registrarEvento) {
-      registrarEvento('Crear Cuenta', `Cuenta abierta manualmente para ${cleanCliente}`);
+      registrarEvento('Crear Cuenta', `Cuenta abierta manualmente para ${cleanCliente}${targetMesero ? ` (Mesero: ${targetMesero.nombre})` : ''}`);
     }
     onClose();
   };
@@ -7165,6 +7219,21 @@ function ModalAbrirCuentaDirecta({ cuentas, setCuentas, clientesRegistrados = []
                 Debe ingresar un nombre real y no genérico.
               </div>
             )}
+          </div>
+
+          <div className="form-group" style={{ marginTop: 12 }}>
+            <label className="form-label" style={{ fontSize: 11, fontWeight: 600 }}>Mesero Asignado (Opcional)</label>
+            <select 
+              className="form-select" 
+              value={meseroId} 
+              onChange={e => setMeseroId(e.target.value)}
+              style={{ width: '100%', padding: '6px 10px', borderRadius: 8, background: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-primary)', fontSize: 12 }}
+            >
+              <option value="">-- Sin mesero asignado --</option>
+              {(meserosPresentes || []).map(m => (
+                <option key={m.id} value={m.id}>{m.nombre}</option>
+              ))}
+            </select>
           </div>
         </div>
         <div className="modal-footer">
