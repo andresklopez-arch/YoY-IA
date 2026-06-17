@@ -192,6 +192,32 @@ export default function CajaPanel({ showToast }) {
     };
   }, [esCajero]);
 
+  // Modal Historial de Mantenimientos (Sugerencia 1)
+  const [mostrarHistorialMantenimientoModal, setMostrarHistorialMantenimientoModal] = useState(false);
+  const [mesaHistorialMantenimiento, setMesaHistorialMantenimiento] = useState(null);
+  const [historialMantenimientosMesaList, setHistorialMantenimientosMesaList] = useState([]);
+
+  const abrirHistorialMantenimiento = async (mesaId, nombreMesa) => {
+    setMesaHistorialMantenimiento({ id: mesaId, nombre: nombreMesa });
+    setHistorialMantenimientosMesaList([]);
+    setMostrarHistorialMantenimientoModal(true);
+    
+    try {
+      const q = query(
+        collection(db, 'mantenimientos_historicos'),
+        where('mesaId', '==', mesaId),
+        orderBy('fecha', 'desc'),
+        limit(20)
+      );
+      const snap = await getDocs(q);
+      const list = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setHistorialMantenimientosMesaList(list);
+    } catch (err) {
+      console.error('Error al cargar historial de mantenimientos:', err);
+      showToast('Error al cargar el historial de mantenimientos', 'danger');
+    }
+  };
+
   // Modal cobro manual
   const [mostrarCobroManual, setMostrarCobroManual] = useState(false);
   const [nuevoMonto, setNuevoMonto] = useState('');
@@ -1362,7 +1388,8 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
         id: m.id,
         nombre: m.nombre || `Mesa ${m.id}`,
         tipo: m.tipo || 'Pool 9B',
-        tarifa: m.tarifa || 60,
+        tarifa: m.tarifa !== undefined ? m.tarifa : 60,
+        tarifaBase: m.tarifaBase !== undefined ? m.tarifaBase : (m.tarifa !== undefined ? m.tarifa : 60),
         horasJugadasEnMantenimiento: m.horasJugadasEnMantenimiento || 0,
         ultimoMantenimientoAt: m.ultimoMantenimientoAt || null,
         ingresosTotales: 0,
@@ -1464,7 +1491,7 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
       s.tiempoHoras = parseFloat(s.tiempoHoras.toFixed(1));
       
       if (s.ingresosTotales === 0) {
-        s.ingresosTotales = s.tarifa * 3 + ((s.id * 140) % 500);
+        s.ingresosTotales = s.tarifaBase * 3 + ((s.id * 140) % 500);
         s.tiempoHoras = 2.5 + ((s.id * 2) % 6);
         s.cantidadUsos = 1 + (s.id % 3);
         s.consumoBebidas = 3 + ((s.id * 4) % 10);
@@ -1475,13 +1502,13 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
       const horasDesdeMantenimiento = Math.max(0, s.tiempoHoras - s.horasJugadasEnMantenimiento);
       s.porcentajePaño = Math.max(0, Math.min(100, Math.round(((50 - horasDesdeMantenimiento) / 50) * 100)));
 
-      // 2. IA Tarifa Dinámica sugerida
+      // 2. IA Tarifa Dinámica sugerida (basada en tarifaBase para evitar feedback loops exponenciales)
       if (s.tiempoHoras > 6.0) {
-        s.tarifaSugerida = Math.round(s.tarifa * 1.15); // +15% alta demanda
+        s.tarifaSugerida = Math.round(s.tarifaBase * 1.15); // +15% alta demanda
       } else if (s.tiempoHoras < 3.5) {
-        s.tarifaSugerida = Math.round(s.tarifa * 0.90); // -10% descuento promocional
+        s.tarifaSugerida = Math.round(s.tarifaBase * 0.90); // -10% descuento promocional
       } else {
-        s.tarifaSugerida = s.tarifa;
+        s.tarifaSugerida = s.tarifaBase;
       }
 
       // 3. Tendencia semanal de demanda (7 días) basada en ocupación real de bitácora
@@ -1524,13 +1551,30 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
     const mesasADiferentes = analisisMesas.filter(m => m.tarifaSugerida !== m.tarifa);
     if (mesasADiferentes.length === 0) return;
 
+    // SUGERENCIA 2: Límite de cambios/histéresis (no actualizar si hubo cambio de Autopilot en las últimas 2 horas)
+    const now = Date.now();
+    const twoHoursAgo = now - 2 * 60 * 60 * 1000;
+    const recentAutopilotUpdates = bitacora.filter(e => {
+      if (e.accion !== 'Autopilot Tarifa') return false;
+      const t = e.fecha ? new Date(e.fecha).getTime() : 0;
+      return t >= twoHoursAgo;
+    });
+
+    const mesasADiferentesFiltradas = mesasADiferentes.filter(m => {
+      const isRecentlyUpdated = recentAutopilotUpdates.some(e => (e.detalle || '').includes(`Mesa ${m.id}`));
+      return !isRecentlyUpdated;
+    });
+
+    if (mesasADiferentesFiltradas.length === 0) return;
+
     // We have some tables that need update. Let's update them!
     const updatedMesas = mesas.map(m => {
-      const match = mesasADiferentes.find(mad => mad.id === m.id);
+      const match = mesasADiferentesFiltradas.find(mad => mad.id === m.id);
       if (match) {
         return {
           ...m,
-          tarifa: match.tarifaSugerida
+          tarifa: match.tarifaSugerida,
+          tarifaBase: m.tarifaBase !== undefined ? m.tarifaBase : m.tarifa
         };
       }
       return m;
@@ -1541,7 +1585,7 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
         await setDoc(doc(db, 'config', 'mesas_estado'), { mesas: updatedMesas }, { merge: true });
         
         // Register events for each updated table
-        for (let mDiff of mesasADiferentes) {
+        for (let mDiff of mesasADiferentesFiltradas) {
           await registrarEvento(
             'Autopilot Tarifa', 
             `Autopilot aplicó tarifa dinámica de $${mDiff.tarifaSugerida}/h a la Mesa ${mDiff.id} (tarifa previa: $${mDiff.tarifa}/h).`,
@@ -1549,14 +1593,14 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
             'info'
           );
         }
-        showToast(`💡 Autopilot actualizó tarifas en ${mesasADiferentes.length} mesa(s)`, 'info');
+        showToast(`💡 Autopilot actualizó tarifas en ${mesasADiferentesFiltradas.length} mesa(s)`, 'info');
       } catch (err) {
         console.error('Error en Autopilot de tarifas:', err);
       }
     };
 
     runAutopilotUpdate();
-  }, [analisisMesas, tarifaAutopilotActivo, mesas]);
+  }, [analisisMesas, tarifaAutopilotActivo, mesas, bitacora]);
 
   // 9. Live Auditor Anomalies
   const anomalidadesAuditor = useMemo(() => {
@@ -2067,7 +2111,8 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
         if (m.id === mesaId) {
           return {
             ...m,
-            tarifa: nuevaTarifaSugerida
+            tarifa: nuevaTarifaSugerida,
+            tarifaBase: m.tarifaBase !== undefined ? m.tarifaBase : m.tarifa
           };
         }
         return m;
@@ -2088,6 +2133,13 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
   };
 
   const toggleAutopilot = async () => {
+    const pin = prompt('Ingrese el PIN de Administrador para cambiar el modo de Autopilot:');
+    if (!pin) return;
+    if (hashPassword(pin) !== adminPinHash) {
+      showToast('PIN de administrador incorrecto', 'danger');
+      return;
+    }
+
     const nuevoEstado = !tarifaAutopilotActivo;
     try {
       await setDoc(doc(db, 'config', 'mesas_estado'), { tarifaAutopilotActivo: nuevoEstado }, { merge: true });
@@ -2315,24 +2367,46 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
                       }}>
                         {m.porcentajePaño < 20 ? '¡Cepillado Urgente!' : m.porcentajePaño < 50 ? 'Mant. Próximo' : 'Óptimo'}
                       </span>
-                      <button 
-                        onClick={() => resetearMantenimientoMesa(m.id, m.tiempoHoras)} 
-                        title="Registrar Mantenimiento y resetear integridad"
-                        style={{ 
-                          background: 'rgba(255,255,255,0.04)', 
-                          border: '1px solid rgba(255,255,255,0.1)', 
-                          borderRadius: 3, 
-                          color: 'var(--bronze-light)', 
-                          fontSize: 6.5, 
-                          padding: '1px 3px', 
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 1
-                        }}
-                      >
-                        <i className="ri-refresh-line" style={{ fontSize: 6 }} /> Reset
-                      </button>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                        <button
+                          onClick={() => abrirHistorialMantenimiento(m.id, m.nombre)}
+                          title="Ver historial de mantenimientos registrados"
+                          style={{
+                            background: 'rgba(255,255,255,0.03)',
+                            border: '1px solid rgba(255,255,255,0.08)',
+                            borderRadius: 3,
+                            color: 'var(--text-secondary)',
+                            fontSize: 7,
+                            cursor: 'pointer',
+                            padding: '2px 4px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            outline: 'none'
+                          }}
+                        >
+                          <i className="ri-history-line" />
+                        </button>
+                        <button 
+                          onClick={() => resetearMantenimientoMesa(m.id, m.tiempoHoras)} 
+                          title="Registrar Mantenimiento y resetear integridad"
+                          style={{ 
+                            background: 'rgba(255,255,255,0.04)', 
+                            border: '1px solid rgba(255,255,255,0.1)', 
+                            borderRadius: 3, 
+                            color: 'var(--bronze-light)', 
+                            fontSize: 6.5, 
+                            padding: '1px 3px', 
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 1,
+                            outline: 'none'
+                          }}
+                        >
+                          <i className="ri-refresh-line" style={{ fontSize: 6 }} /> Reset
+                        </button>
+                      </div>
                     </div>
                   </div>
                   <div style={{ width: '100%', height: 3, background: 'rgba(255,255,255,0.05)', borderRadius: 2, overflow: 'hidden' }}>
@@ -4194,6 +4268,62 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
             <div className="modal-footer">
               <button className="btn btn-secondary" onClick={() => setMostrarCorte(false)}>Cancelar</button>
               <button className="btn btn-primary" onClick={guardarCorteCaja}>Guardar y Cerrar Corte</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL HISTORIAL MANTENIMIENTO */}
+      {mostrarHistorialMantenimientoModal && (
+        <div className="modal-overlay" onClick={() => setMostrarHistorialMantenimientoModal(false)}>
+          <div className="modal" style={{ maxWidth: 450, background: '#1e272e', border: '1px solid var(--border)' }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header" style={{ borderBottom: '1px solid var(--border)' }}>
+              <span className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--bronze-light)' }}>
+                <i className="ri-history-line" /> Historial de Mantenimiento: {mesaHistorialMantenimiento ? mesaHistorialMantenimiento.nombre : ''}
+              </span>
+              <button onClick={() => setMostrarHistorialMantenimientoModal(false)} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 18 }}>✕</button>
+            </div>
+            <div className="modal-body" style={{ maxHeight: 300, overflowY: 'auto', padding: '12px 16px' }}>
+              {historialMantenimientosMesaList.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '20px 0', color: 'var(--text-muted)', fontSize: 11 }}>
+                  No se han registrado mantenimientos de paño para esta mesa.
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {historialMantenimientosMesaList.map((hist, idx) => (
+                    <div 
+                      key={hist.id || idx} 
+                      style={{ 
+                        background: 'rgba(255,255,255,0.02)', 
+                        border: '1px solid rgba(255,255,255,0.06)', 
+                        borderRadius: 6, 
+                        padding: '8px 10px',
+                        fontSize: 10
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                        <span style={{ fontWeight: 800, color: 'var(--success)' }}>🧼 Mantenimiento de Paño</span>
+                        <span style={{ color: 'var(--text-muted)', fontSize: 8 }}>
+                          {new Date(hist.fecha).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' })}
+                        </span>
+                      </div>
+                      <div style={{ color: 'var(--text-secondary)', marginBottom: 2 }}>
+                        Horas de juego al momento del reset: <strong>{hist.horasAcumuladas ? Number(hist.horasAcumuladas).toFixed(1) : '0'}h</strong>
+                      </div>
+                      <div style={{ fontSize: 9, color: 'var(--text-muted)', display: 'flex', gap: 4 }}>
+                        <span>👤 Registrado por:</span>
+                        <span style={{ color: '#fff', fontWeight: 600 }}>{hist.operador || 'Sistema'}</span>
+                        <span className="badge badge-bronze" style={{ fontSize: 6.5, padding: '0px 2px', textTransform: 'uppercase' }}>
+                          {hist.rolOperador || 'admin'}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="modal-footer" style={{ borderTop: '1px solid var(--border)', padding: 10 }}>
+              <button className="btn btn-secondary" style={{ fontSize: 10, padding: '4px 12px' }} onClick={() => setMostrarHistorialMantenimientoModal(false)}>Cerrar</button>
             </div>
           </div>
         </div>
