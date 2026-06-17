@@ -1734,6 +1734,128 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
 
   const fmt = (val) => `$${Number(val || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}`;
 
+  const renderPestanasMovimientos = (isReduced = false) => {
+    return (
+      <div style={{ background: 'rgba(0,0,0,0.15)', border: '1px solid var(--border)', borderRadius: 12, padding: isReduced ? 10 : 12 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: 8, marginBottom: 12 }}>
+          <div style={{ display: 'flex', gap: isReduced ? 8 : 12 }}>
+            <button
+              onClick={() => setTabActivo('caja')}
+              style={{
+                background: 'none', border: 'none', fontSize: isReduced ? 9.5 : 11, fontWeight: 800,
+                color: tabActivo === 'caja' ? 'var(--bronze-light)' : 'var(--text-muted)',
+                borderBottom: tabActivo === 'caja' ? '2px solid var(--bronze-light)' : 'none',
+                paddingBottom: 4, cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.05em'
+              }}
+            >
+              Transacciones
+            </button>
+            <button
+              onClick={() => setTabActivo('inventario')}
+              style={{
+                background: 'none', border: 'none', fontSize: isReduced ? 9.5 : 11, fontWeight: 800,
+                color: tabActivo === 'inventario' ? 'var(--bronze-light)' : 'var(--text-muted)',
+                borderBottom: tabActivo === 'inventario' ? '2px solid var(--bronze-light)' : 'none',
+                paddingBottom: 4, cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.05em'
+              }}
+            >
+              Inventario
+            </button>
+          </div>
+          <button
+            className="btn btn-secondary btn-xs"
+            onClick={() => showToast(tabActivo === 'caja' ? 'Exportando transacciones...' : 'Exportando bitácora...', 'info')}
+            style={{ fontSize: 8.5, padding: '3px 6px' }}
+          >
+            <i className="ri-download-line" /> Exportar
+          </button>
+        </div>
+
+        {tabActivo === 'caja' ? (
+          <div className="table-wrapper" style={{ border: 'none', maxHeight: 220, overflowY: 'auto' }}>
+            <table style={{ fontSize: isReduced ? 9 : 11 }}>
+              <thead>
+                <tr>
+                  <th>Hora</th>
+                  <th>Descripción</th>
+                  {!isReduced && <th>Cliente / Destino</th>}
+                  <th>Método</th>
+                  <th style={{ textAlign: 'right' }}>Monto</th>
+                </tr>
+              </thead>
+              <tbody>
+                {cobros.map(t => (
+                  <tr key={t.id} style={{ background: t.tipo === 'corte' ? 'rgba(205,127,50,0.04)' : 'none' }}>
+                    <td style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-display)', fontSize: isReduced ? 8.5 : 10 }}>{t.hora}</td>
+                    <td style={{ fontWeight: 600 }}>
+                      {t.tipo === 'corte' ? '📋 ' : ''}{t.descripcion}
+                    </td>
+                    {!isReduced && <td style={{ color: 'var(--text-secondary)' }}>{t.cliente}</td>}
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <i className={METODO_ICONS[t.metodo] || 'ri-cash-line'} style={{ fontSize: isReduced ? 10 : 12, color: 'var(--text-muted)' }} />
+                        {!isReduced && <span style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'capitalize' }}>{t.metodo}</span>}
+                      </div>
+                    </td>
+                    <td style={{ textAlign: 'right', fontFamily: 'var(--font-display)', fontSize: isReduced ? 10 : 12, fontWeight: 700, color: t.color }}>
+                      {t.monto > 0 ? '+' : ''}${t.monto.toLocaleString()}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 220, overflowY: 'auto', paddingRight: 4 }}>
+            {todosLosInventarioLogs.length === 0 ? (
+              <div style={{ fontSize: 9, color: 'var(--text-muted)', fontStyle: 'italic', textAlign: 'center', padding: '10px 0' }}>
+                No hay registros de stock.
+              </div>
+            ) : (
+              todosLosInventarioLogs.map(l => {
+                const isEntrada = l.tipo === 'entrada';
+                const isMerma = l.tipo === 'merma';
+                const isVentaQr = l.tipo === 'venta_qr';
+                const isCierre = l.tipo === 'cierre';
+                return (
+                  <div key={l.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 6px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 9 }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <span className={`badge ${isEntrada ? 'badge-success' : isMerma ? 'badge-danger' : isVentaQr ? 'badge-info' : isCierre ? 'badge-success' : 'badge-bronze'}`} style={{ fontSize: 6.5, padding: '0px 2px' }}>
+                          {l.tipo.toUpperCase()}
+                        </span>
+                        <span style={{ fontSize: 7, color: 'var(--text-muted)' }}>{new Date(l.fecha).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}</span>
+                      </div>
+                      <span style={{ fontWeight: 700 }}>{l.producto}</span>
+                    </div>
+                    <div style={{ fontSize: 10, fontWeight: 800, color: isEntrada || isCierre ? 'var(--success)' : isVentaQr ? 'var(--info)' : 'var(--danger)' }}>
+                      {isEntrada ? '+' : isCierre ? '+$' : '-'}{isCierre ? l.monto : l.cantidad}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+            {inventarioHasMoreLogs && (
+              <button 
+                onClick={cargarMasInventarioLogs}
+                disabled={loadingMoreInventario}
+                className="btn btn-secondary btn-xs" 
+                style={{ 
+                  marginTop: 4, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+                  color: 'var(--bronze-light)', borderColor: 'var(--border-bronze)', background: 'var(--bg-elevated)',
+                  opacity: loadingMoreInventario ? 0.7 : 1, cursor: loadingMoreInventario ? 'not-allowed' : 'pointer',
+                  fontSize: 8.5, height: 20
+                }}
+              >
+                {loadingMoreInventario ? 'Cargando...' : 'Ver más'}
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       
@@ -1749,47 +1871,18 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
             </p>
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)', borderRadius: 6, padding: '3px 6px', minWidth: 210, gap: 2 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: 8, fontWeight: 800, color: 'var(--bronze-light)' }}>SATISFACCIÓN: ★{promedioGeneral.toFixed(1)}/5.0</span>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2px 8px', fontSize: 6.5 }}>
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 6.5, color: 'var(--text-secondary)' }}>
-                  <span>Meseros:</span>
-                  <strong>★{promedioAtencion.toFixed(1)}</strong>
-                </div>
-                <div style={{ width: '100%', height: 2, background: 'rgba(255,255,255,0.05)', borderRadius: 1, overflow: 'hidden' }}>
-                  <div style={{ width: `${(promedioAtencion/5)*100}%`, height: '100%', background: 'var(--bronze)' }} />
-                </div>
-              </div>
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 6.5, color: 'var(--text-secondary)' }}>
-                  <span>Rapidez:</span>
-                  <strong>★{promedioRapidez.toFixed(1)}</strong>
-                </div>
-                <div style={{ width: '100%', height: 2, background: 'rgba(255,255,255,0.05)', borderRadius: 1, overflow: 'hidden' }}>
-                  <div style={{ width: `${(promedioRapidez/5)*100}%`, height: '100%', background: 'var(--success)' }} />
-                </div>
-              </div>
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 6.5, color: 'var(--text-secondary)' }}>
-                  <span>Limpieza:</span>
-                  <strong>★{promedioLimpieza.toFixed(1)}</strong>
-                </div>
-                <div style={{ width: '100%', height: 2, background: 'rgba(255,255,255,0.05)', borderRadius: 1, overflow: 'hidden' }}>
-                  <div style={{ width: `${(promedioLimpieza/5)*100}%`, height: '100%', background: 'var(--blue-light)' }} />
-                </div>
-              </div>
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 6.5, color: 'var(--text-secondary)' }}>
-                  <span>Equipos:</span>
-                  <strong>★{promedioEquipo.toFixed(1)}</strong>
-                </div>
-                <div style={{ width: '100%', height: 2, background: 'rgba(255,255,255,0.05)', borderRadius: 1, overflow: 'hidden' }}>
-                  <div style={{ width: `${(promedioEquipo/5)*100}%`, height: '100%', background: 'var(--warning)' }} />
-                </div>
-              </div>
+          <div style={{ display: 'flex', alignItems: 'center', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)', borderRadius: 6, padding: '4px 10px', gap: 10, whiteSpace: 'nowrap' }}>
+            <span style={{ fontSize: 10, fontWeight: 900, color: 'var(--bronze-light)' }}>
+              SATISFACCIÓN: ★{promedioGeneral.toFixed(1)}/5.0
+            </span>
+            <div style={{ display: 'flex', gap: 8, fontSize: 8.5, color: 'var(--text-secondary)' }}>
+              <span>Meseros: <strong>★{promedioAtencion.toFixed(1)}</strong></span>
+              <span>·</span>
+              <span>Rapidez: <strong>★{promedioRapidez.toFixed(1)}</strong></span>
+              <span>·</span>
+              <span>Limpieza: <strong>★{promedioLimpieza.toFixed(1)}</strong></span>
+              <span>·</span>
+              <span>Equipos: <strong>★{promedioEquipo.toFixed(1)}</strong></span>
             </div>
           </div>
         )}
@@ -2008,7 +2101,7 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
           {cortesFiltrados.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <span style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', textAlign: 'center', borderBottom: '1px solid var(--border)', paddingBottom: 4, marginBottom: 2 }}>Historial Cortes</span>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 280, overflowY: 'auto', paddingRight: 4 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 85, overflowY: 'auto', paddingRight: 4 }}>
                 {cortesFiltrados.slice(0, 15).map(c => {
                   const dateObj = new Date(c.fecha);
                   const dateStr = dateObj.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: '2-digit' });
@@ -2367,56 +2460,61 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
                       </div>
                     </div>
 
-                  </div>
-
-                  {/* Auditoría Cruzada de Inventario */}
-                  <div style={{ gridColumn: 'span 2', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--border-bronze)', borderRadius: 12, padding: 14, marginTop: 14 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                      <h4 style={{ margin: 0, fontSize: 12, fontWeight: 800, color: 'var(--bronze-light)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <i className="ri-shield-cross-line" style={{ fontSize: 16 }} />
-                        Auditoría Cruzada: Ventas en Caja vs. Salidas de Stock (Periodo Activo)
-                      </h4>
-                      <span className="badge badge-bronze" style={{ fontSize: 9 }}>Motor IA</span>
-                    </div>
-                    
-                    <p style={{ fontSize: 10, color: 'var(--text-muted)', margin: '0 0 12px 0', lineHeight: 1.4 }}>
-                      El motor IA compara los productos de bar agregados en comandas/cobros de mesas con los descuentos reales registrados en el inventario. Las discrepancias resaltan posibles mermas o fugas en barra.
-                    </p>
-
-                    {auditoriaCruzadaInventario.length === 0 ? (
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic', textAlign: 'center', padding: '16px 0' }}>
-                        No hay registros de consumo o inventario en el periodo de corte actual.
+                    {/* Auditoría Cruzada de Inventario */}
+                    <div style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid var(--border-bronze)', borderRadius: 12, padding: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <h4 style={{ margin: 0, fontSize: 10, fontWeight: 800, color: 'var(--bronze-light)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <i className="ri-shield-cross-line" style={{ fontSize: 12 }} />
+                          Auditoría Cruzada: Ventas vs. Stock
+                        </h4>
+                        <span className="badge badge-bronze" style={{ fontSize: 8 }}>Motor IA</span>
                       </div>
-                    ) : (
-                      <div className="table-wrapper" style={{ border: 'none', background: 'none' }}>
-                        <table style={{ fontSize: 10 }}>
-                          <thead>
-                            <tr>
-                              <th>Producto / Insumo</th>
-                              <th style={{ textAlign: 'center' }}>Vendido (Comandas)</th>
-                              <th style={{ textAlign: 'center' }}>Deducido (Inventario)</th>
-                              <th style={{ textAlign: 'center' }}>Discrepancia</th>
-                              <th>Análisis y Diagnóstico IA</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {auditoriaCruzadaInventario.map(item => (
-                              <tr key={item.id} style={{ background: item.diferencia !== 0 ? 'rgba(231, 76, 60, 0.02)' : 'none' }}>
-                                <td style={{ fontWeight: 700, color: '#fff' }}>{item.nombre}</td>
-                                <td style={{ textAlign: 'center', fontWeight: 600 }}>{item.comandas} pz</td>
-                                <td style={{ textAlign: 'center', fontWeight: 600 }}>{item.inventario} pz</td>
-                                <td style={{ textAlign: 'center', color: item.color, fontWeight: 800, fontSize: 11 }}>
-                                  {item.diferencia === 0 ? '✓ Conciliado' : `${item.diferencia > 0 ? '+' : ''}${item.diferencia} pz`}
-                                </td>
-                                <td style={{ color: item.diferencia !== 0 ? 'var(--text-primary)' : 'var(--text-muted)', fontSize: 9, fontStyle: item.diferencia === 0 ? 'italic' : 'normal' }}>
-                                  {item.desc}
-                                </td>
+                      
+                      <p style={{ fontSize: 8, color: 'var(--text-muted)', margin: '0 0 6px 0', lineHeight: 1.3 }}>
+                        El motor IA compara productos cobrados con el inventario físico en el corte actual para detectar mermas.
+                      </p>
+
+                      {auditoriaCruzadaInventario.length === 0 ? (
+                        <div style={{ fontSize: 9, color: 'var(--text-muted)', fontStyle: 'italic', textAlign: 'center', padding: '10px 0' }}>
+                          No hay registros de consumo o inventario en el corte actual.
+                        </div>
+                      ) : (
+                        <div className="table-wrapper" style={{ border: 'none', background: 'none' }}>
+                          <table style={{ fontSize: 8.5, width: '100%', borderCollapse: 'collapse', lineHeight: '1.2' }}>
+                            <thead>
+                              <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                                <th style={{ padding: '2px 3px', fontSize: 8, textAlign: 'left' }}>Insumo</th>
+                                <th style={{ textAlign: 'center', padding: '2px 3px', fontSize: 8 }}>Vend</th>
+                                <th style={{ textAlign: 'center', padding: '2px 3px', fontSize: 8 }}>Ded</th>
+                                <th style={{ textAlign: 'center', padding: '2px 3px', fontSize: 8 }}>Disc</th>
                               </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
+                            </thead>
+                            <tbody>
+                              {auditoriaCruzadaInventario.map(item => (
+                                <Fragment key={item.id}>
+                                  <tr style={{ background: item.diferencia !== 0 ? 'rgba(231, 76, 60, 0.04)' : 'none', borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
+                                    <td style={{ fontWeight: 700, color: '#fff', padding: '3px 3px' }}>{item.nombre}</td>
+                                    <td style={{ textAlign: 'center', padding: '3px 3px' }}>{item.comandas}</td>
+                                    <td style={{ textAlign: 'center', padding: '3px 3px' }}>{item.inventario}</td>
+                                    <td style={{ textAlign: 'center', color: item.color, fontWeight: 800, padding: '3px 3px' }}>
+                                      {item.diferencia === 0 ? '✓' : `${item.diferencia > 0 ? '+' : ''}${item.diferencia}`}
+                                    </td>
+                                  </tr>
+                                  {item.diferencia !== 0 && (
+                                    <tr style={{ background: 'rgba(231, 76, 60, 0.02)', borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
+                                      <td colSpan={4} style={{ color: 'var(--text-muted)', fontSize: 8, padding: '2px 4px 4px 4px', fontStyle: 'italic', lineHeight: 1.1 }}>
+                                        💡 {item.desc}
+                                      </td>
+                                    </tr>
+                                  )}
+                                </Fragment>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+
                   </div>
                 </div>
               </div>
@@ -2627,182 +2725,27 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
         </div>
       )}
 
-      {/* 3. SECCIÓN: OPERACIONES DE CAJA (COLAPSABLE - TODOS LOS ROLES) */}
-      <div className="card" style={{ padding: 14 }}>
-        <div 
-          onClick={() => setSeccionCajaAbierta(!seccionCajaAbierta)} 
-          style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
-        >
-          <h3 className="card-title" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 800 }}>
-            <i className="ri-receipt-line" style={{ color: 'var(--bronze-light)', fontSize: 16 }} />
-            OPERACIONES DE CAJA, POS Y MOVIMIENTOS
-          </h3>
-          <i className={seccionCajaAbierta ? "ri-arrow-up-s-line" : "ri-arrow-down-s-line"} style={{ fontSize: 16, color: 'var(--text-muted)' }} />
-        </div>
-
-        {seccionCajaAbierta && (
-          <div className="animate-fadeIn" style={{ display: 'flex', flexDirection: 'column', gap: 16, marginTop: 14 }}>
-            
-            {/* Impresoras y Colas */}
-            <div style={{ background: 'rgba(0,0,0,0.15)', border: '1px solid var(--border)', borderRadius: 12, padding: 12 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                <div>
-                  <h4 style={{ margin: 0, fontSize: 11, fontWeight: 800, color: '#fff' }}>Simulador de Impresión de Tickets Térmicos</h4>
-                  <p style={{ margin: '2px 0 0 0', fontSize: 9, color: 'var(--text-muted)' }}>Historial de impresión de comandas y recibos del negocio</p>
-                </div>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <button className="btn btn-secondary btn-xs" onClick={() => triggerSimulatedPrint('caja', 'Ticket de Prueba - Impresora Caja')} style={{ fontSize: 9, padding: '4px 8px' }}>Test Caja</button>
-                  <button className="btn btn-secondary btn-xs" onClick={() => triggerSimulatedPrint('cocina', 'Comanda de Prueba - Impresora Cocina')} style={{ fontSize: 9, padding: '4px 8px' }}>Test Cocina</button>
-                  <button className="btn btn-secondary btn-xs" onClick={() => triggerSimulatedPrint('barra', 'Comanda de Prueba - Impresora Barra')} style={{ fontSize: 9, padding: '4px 8px' }}>Test Barra</button>
-                </div>
-              </div>
-
-              {colaImpresion.length === 0 ? (
-                <div style={{ fontSize: 9, color: 'var(--text-muted)', fontStyle: 'italic', textAlign: 'center', padding: '10px 0' }}>
-                  No se han enviado tickets a las impresoras.
-                </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 5, maxHeight: 110, overflowY: 'auto', paddingRight: 4 }}>
-                  {colaImpresion.map(p => (
-                    <div key={p.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 10 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <i className="ri-printer-line" style={{ color: 'var(--bronze-light)', fontSize: 12 }} />
-                        <div>
-                          <span style={{ fontWeight: 700 }}>{p.detalle}</span>
-                          <span style={{ fontSize: 8, color: 'var(--text-muted)', marginLeft: 8 }}>{p.tipo.toUpperCase()} · {p.hora}</span>
-                        </div>
-                      </div>
-                      <span className={`badge ${p.estado.includes('Impreso') ? 'badge-success' : 'badge-warning'}`} style={{ fontSize: 8, padding: '2px 4px' }}>
-                        {p.estado}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Pestañas de Movimientos */}
-            <div style={{ background: 'rgba(0,0,0,0.15)', border: '1px solid var(--border)', borderRadius: 12, padding: 12 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: 8, marginBottom: 12 }}>
-                <div style={{ display: 'flex', gap: 12 }}>
-                  <button
-                    onClick={() => setTabActivo('caja')}
-                    style={{
-                      background: 'none', border: 'none', fontSize: 11, fontWeight: 800,
-                      color: tabActivo === 'caja' ? 'var(--bronze-light)' : 'var(--text-muted)',
-                      borderBottom: tabActivo === 'caja' ? '2px solid var(--bronze-light)' : 'none',
-                      paddingBottom: 4, cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.05em'
-                    }}
-                  >
-                    Transacciones de Caja
-                  </button>
-                  <button
-                    onClick={() => setTabActivo('inventario')}
-                    style={{
-                      background: 'none', border: 'none', fontSize: 11, fontWeight: 800,
-                      color: tabActivo === 'inventario' ? 'var(--bronze-light)' : 'var(--text-muted)',
-                      borderBottom: tabActivo === 'inventario' ? '2px solid var(--bronze-light)' : 'none',
-                      paddingBottom: 4, cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.05em'
-                    }}
-                  >
-                    Movimientos de Inventario
-                  </button>
-                </div>
-                <button
-                  className="btn btn-secondary btn-xs"
-                  onClick={() => showToast(tabActivo === 'caja' ? 'Exportando transacciones...' : 'Exportando bitácora...', 'info')}
-                  style={{ fontSize: 9, padding: '4px 8px' }}
-                >
-                  <i className="ri-download-line" /> Exportar
-                </button>
-              </div>
-
-              {tabActivo === 'caja' ? (
-                <div className="table-wrapper" style={{ border: 'none', maxHeight: 220, overflowY: 'auto' }}>
-                  <table style={{ fontSize: 11 }}>
-                    <thead>
-                      <tr>
-                        <th>Hora</th>
-                        <th>Descripción</th>
-                        <th>Cliente / Destino</th>
-                        <th>Método</th>
-                        <th style={{ textAlign: 'right' }}>Monto</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {cobros.map(t => (
-                        <tr key={t.id} style={{ background: t.tipo === 'corte' ? 'rgba(205,127,50,0.04)' : 'none' }}>
-                          <td style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-display)', fontSize: 10 }}>{t.hora}</td>
-                          <td style={{ fontWeight: 600 }}>
-                            {t.tipo === 'corte' ? '📋 ' : ''}{t.descripcion}
-                          </td>
-                          <td style={{ color: 'var(--text-secondary)' }}>{t.cliente}</td>
-                          <td>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                              <i className={METODO_ICONS[t.metodo] || 'ri-cash-line'} style={{ fontSize: 12, color: 'var(--text-muted)' }} />
-                              <span style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'capitalize' }}>{t.metodo}</span>
-                            </div>
-                          </td>
-                          <td style={{ textAlign: 'right', fontFamily: 'var(--font-display)', fontSize: 12, fontWeight: 700, color: t.color }}>
-                            {t.monto > 0 ? '+' : ''}${t.monto.toLocaleString()}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 220, overflowY: 'auto', paddingRight: 4 }}>
-                  {todosLosInventarioLogs.length === 0 ? (
-                    <div style={{ fontSize: 10, color: 'var(--text-muted)', fontStyle: 'italic', textAlign: 'center', padding: '10px 0' }}>
-                      No hay registros de auditoría de stock.
-                    </div>
-                  ) : (
-                    todosLosInventarioLogs.map(l => {
-                      const isEntrada = l.tipo === 'entrada';
-                      const isMerma = l.tipo === 'merma';
-                      const isVentaQr = l.tipo === 'venta_qr';
-                      const isCierre = l.tipo === 'cierre';
-                      return (
-                        <div key={l.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 10px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 10 }}>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                              <span className={`badge ${isEntrada ? 'badge-success' : isMerma ? 'badge-danger' : isVentaQr ? 'badge-info' : isCierre ? 'badge-success' : 'badge-bronze'}`} style={{ fontSize: 7, padding: '1px 3px' }}>
-                                {l.tipo.toUpperCase()}
-                              </span>
-                              <span style={{ fontSize: 8, color: 'var(--text-muted)' }}>{new Date(l.fecha).toLocaleString()}</span>
-                            </div>
-                            <span style={{ fontWeight: 700 }}>{l.producto}</span>
-                            <span style={{ color: 'var(--text-secondary)', fontSize: 9 }}>{l.detalle}</span>
-                          </div>
-                          <div style={{ fontSize: 12, fontWeight: 800, color: isEntrada || isCierre ? 'var(--success)' : isVentaQr ? 'var(--info)' : 'var(--danger)' }}>
-                            {isEntrada ? '+' : isCierre ? '+$' : '-'}{isCierre ? l.monto : l.cantidad}
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
-                  {inventarioHasMoreLogs && (
-                    <button 
-                      onClick={cargarMasInventarioLogs}
-                      disabled={loadingMoreInventario}
-                      className="btn btn-secondary btn-xs" 
-                      style={{ 
-                        marginTop: 6, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
-                        color: 'var(--bronze-light)', borderColor: 'var(--border-bronze)', background: 'var(--bg-elevated)',
-                        opacity: loadingMoreInventario ? 0.7 : 1, cursor: loadingMoreInventario ? 'not-allowed' : 'pointer'
-                      }}
-                    >
-                      {loadingMoreInventario ? 'Cargando...' : 'Cargar más registros de inventario'}
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-
+      {/* 3. SECCIÓN: OPERACIONES DE CAJA (COLAPSABLE - EXCLUSIVO CAJERO) */}
+      {esCajero && (
+        <div className="card" style={{ padding: 14 }}>
+          <div 
+            onClick={() => setSeccionCajaAbierta(!seccionCajaAbierta)} 
+            style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
+          >
+            <h3 className="card-title" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 800 }}>
+              <i className="ri-receipt-line" style={{ color: 'var(--bronze-light)', fontSize: 16 }} />
+              OPERACIONES DE CAJA, POS Y MOVIMIENTOS
+            </h3>
+            <i className={seccionCajaAbierta ? "ri-arrow-up-s-line" : "ri-arrow-down-s-line"} style={{ fontSize: 16, color: 'var(--text-muted)' }} />
           </div>
-        )}
-      </div>
+
+          {seccionCajaAbierta && (
+            <div className="animate-fadeIn" style={{ display: 'flex', flexDirection: 'column', gap: 16, marginTop: 14 }}>
+              {renderPestanasMovimientos(false)}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* 4. SECCIÓN: ANALÍTICA Y REPORTES FINANCIEROS (EXCLUSIVO ADMIN/GERENTE) */}
       {!esCajero && (
@@ -2819,144 +2762,144 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
           </div>
 
           {seccionReportesAbierta && (
-            <div className="animate-fadeIn" style={{ display: 'flex', flexDirection: 'column', gap: 16, marginTop: 14 }}>
+            <div className="animate-fadeIn" style={{ display: 'grid', gridTemplateColumns: '1.25fr 1fr 0.75fr', gap: 12, marginTop: 14, alignItems: 'start' }}>
               
-              {/* P&L Table */}
-              <div style={{ background: 'rgba(0,0,0,0.15)', border: '1px solid var(--border)', borderRadius: 12, padding: 12 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              {/* Columna 1: Movimientos (Transacciones de Caja y Bitácora Stock) */}
+              <div>
+                {renderPestanasMovimientos(true)}
+              </div>
+
+              {/* Columna 2: P&L Table */}
+              <div style={{ background: 'rgba(0,0,0,0.15)', border: '1px solid var(--border)', borderRadius: 12, padding: 10 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                   <h4 style={{ margin: 0, fontSize: 11, fontWeight: 800, color: 'var(--bronze-light)' }}>
-                    Pérdidas y Ganancias Consolidado (P&L)
+                    P&L Consolidado
                   </h4>
-                  <span style={{ fontSize: 9, color: 'var(--text-muted)', fontStyle: 'italic' }}>Filtro activo: {filtroGrafico.toUpperCase()}</span>
+                  <span style={{ fontSize: 8.5, color: 'var(--text-muted)', fontStyle: 'italic' }}>{filtroGrafico.toUpperCase()}</span>
                 </div>
 
                 <div className="table-wrapper" style={{ border: 'none' }}>
-                  <table style={{ fontSize: 10 }}>
+                  <table style={{ fontSize: 9, lineHeight: '1.2' }}>
                     <thead>
                       <tr>
-                        <th>Rubro / Concepto de Operación</th>
-                        <th style={{ textAlign: 'right' }}>Monto</th>
-                        <th style={{ textAlign: 'right' }}>Porcentaje</th>
+                        <th style={{ fontSize: 8.5 }}>Concepto / Rubro</th>
+                        <th style={{ textAlign: 'right', fontSize: 8.5 }}>Monto</th>
+                        <th style={{ textAlign: 'right', fontSize: 8.5 }}>%</th>
                       </tr>
                     </thead>
                     <tbody>
                       <tr style={{ background: 'rgba(255,255,255,0.01)', fontWeight: 700 }}>
-                        <td style={{ color: 'var(--success)' }}>1. INGRESOS OPERATIVOS</td>
+                        <td style={{ color: 'var(--success)', fontSize: 9.5 }}>1. INGRESOS OPERATIVOS</td>
                         <td style={{ textAlign: 'right', color: 'var(--success)' }}>{fmt(finanzas.totalIngresos)}</td>
-                        <td style={{ textAlign: 'right' }}>100.0%</td>
+                        <td style={{ textAlign: 'right' }}>100%</td>
                       </tr>
                       <tr>
-                        <td style={{ paddingLeft: 20 }}>Renta de Mesas de Billar</td>
+                        <td style={{ paddingLeft: 8 }}>Renta de Mesas</td>
                         <td style={{ textAlign: 'right' }}>{fmt(finanzas.rentasMesas)}</td>
-                        <td style={{ textAlign: 'right', color: 'var(--text-muted)' }}>{finanzas.totalIngresos > 0 ? ((finanzas.rentasMesas / finanzas.totalIngresos) * 100).toFixed(1) : 0}%</td>
+                        <td style={{ textAlign: 'right', color: 'var(--text-muted)' }}>{finanzas.totalIngresos > 0 ? ((finanzas.rentasMesas / finanzas.totalIngresos) * 100).toFixed(0) : 0}%</td>
                       </tr>
                       <tr>
-                        <td style={{ paddingLeft: 20 }}>Ventas de Bar (Bebidas/Snacks)</td>
+                        <td style={{ paddingLeft: 8 }}>Ventas de Bar</td>
                         <td style={{ textAlign: 'right' }}>{fmt(finanzas.ventasBar)}</td>
-                        <td style={{ textAlign: 'right', color: 'var(--text-muted)' }}>{finanzas.totalIngresos > 0 ? ((finanzas.ventasBar / finanzas.totalIngresos) * 100).toFixed(1) : 0}%</td>
+                        <td style={{ textAlign: 'right', color: 'var(--text-muted)' }}>{finanzas.totalIngresos > 0 ? ((finanzas.ventasBar / finanzas.totalIngresos) * 100).toFixed(0) : 0}%</td>
                       </tr>
                       <tr>
-                        <td style={{ paddingLeft: 20 }}>Inscripciones a Torneos</td>
+                        <td style={{ paddingLeft: 8 }}>Torneos</td>
                         <td style={{ textAlign: 'right' }}>{fmt(finanzas.inscripcionesTorneo)}</td>
-                        <td style={{ textAlign: 'right', color: 'var(--text-muted)' }}>{finanzas.totalIngresos > 0 ? ((finanzas.inscripcionesTorneo / finanzas.totalIngresos) * 100).toFixed(1) : 0}%</td>
+                        <td style={{ textAlign: 'right', color: 'var(--text-muted)' }}>{finanzas.totalIngresos > 0 ? ((finanzas.inscripcionesTorneo / finanzas.totalIngresos) * 100).toFixed(0) : 0}%</td>
                       </tr>
 
                       <tr style={{ background: 'rgba(255,255,255,0.01)', fontWeight: 700 }}>
-                        <td style={{ color: 'var(--danger)' }}>2. COSTO DE VENTAS (COGS)</td>
+                        <td style={{ color: 'var(--danger)', fontSize: 9.5 }}>2. COSTO VENTAS (COGS)</td>
                         <td style={{ textAlign: 'right', color: 'var(--danger)' }}>-{fmt(finanzas.totalCOGS)}</td>
-                        <td style={{ textAlign: 'right' }}>{finanzas.totalIngresos > 0 ? ((finanzas.totalCOGS / finanzas.totalIngresos) * 100).toFixed(1) : 0}%</td>
+                        <td style={{ textAlign: 'right' }}>{finanzas.totalIngresos > 0 ? ((finanzas.totalCOGS / finanzas.totalIngresos) * 100).toFixed(0) : 0}%</td>
                       </tr>
                       <tr>
-                        <td style={{ paddingLeft: 20 }}>Costo de Insumos (Bar)</td>
+                        <td style={{ paddingLeft: 8 }}>Insumos (Bar)</td>
                         <td style={{ textAlign: 'right' }}>-{fmt(finanzas.cogsBar)}</td>
-                        <td style={{ textAlign: 'right', color: 'var(--text-muted)' }}>35.0% (Bar)</td>
+                        <td style={{ textAlign: 'right', color: 'var(--text-muted)' }}>35% (Bar)</td>
                       </tr>
                       <tr>
-                        <td style={{ paddingLeft: 20 }}>Costo Logística y Premios de Torneo</td>
+                        <td style={{ paddingLeft: 8 }}>Premios Torneos</td>
                         <td style={{ textAlign: 'right' }}>-{fmt(finanzas.cogsTorneos)}</td>
-                        <td style={{ textAlign: 'right', color: 'var(--text-muted)' }}>40.0% (Torneos)</td>
+                        <td style={{ textAlign: 'right', color: 'var(--text-muted)' }}>40% (Torneo)</td>
                       </tr>
 
                       <tr style={{ background: 'rgba(255,255,255,0.02)', fontWeight: 700 }}>
-                        <td style={{ color: 'var(--bronze-light)' }}>UTILIDAD BRUTA (Margen Bruto)</td>
+                        <td style={{ color: 'var(--bronze-light)', fontSize: 9.5 }}>UTILIDAD BRUTA</td>
                         <td style={{ textAlign: 'right', color: 'var(--bronze-light)' }}>{fmt(finanzas.utilidadBruta)}</td>
-                        <td style={{ textAlign: 'right' }}>{finanzas.totalIngresos > 0 ? ((finanzas.utilidadBruta / finanzas.totalIngresos) * 100).toFixed(1) : 0}%</td>
+                        <td style={{ textAlign: 'right' }}>{finanzas.totalIngresos > 0 ? ((finanzas.utilidadBruta / finanzas.totalIngresos) * 100).toFixed(0) : 0}%</td>
                       </tr>
 
                       <tr style={{ background: 'rgba(255,255,255,0.01)', fontWeight: 700 }}>
-                        <td style={{ color: 'var(--danger)' }}>3. GASTOS OPERATIVOS (OPEX)</td>
+                        <td style={{ color: 'var(--danger)', fontSize: 9.5 }}>3. GASTOS OPER. (OPEX)</td>
                         <td style={{ textAlign: 'right', color: 'var(--danger)' }}>-{fmt(finanzas.totalOPEX)}</td>
-                        <td style={{ textAlign: 'right' }}>{finanzas.totalIngresos > 0 ? ((finanzas.totalOPEX / finanzas.totalIngresos) * 100).toFixed(1) : 0}%</td>
+                        <td style={{ textAlign: 'right' }}>{finanzas.totalIngresos > 0 ? ((finanzas.totalOPEX / finanzas.totalIngresos) * 100).toFixed(0) : 0}%</td>
                       </tr>
                       <tr>
-                        <td style={{ paddingLeft: 20 }}>Gastos de Mantenimiento y Servicios</td>
+                        <td style={{ paddingLeft: 8 }}>Mantenim. y Servicios</td>
                         <td style={{ textAlign: 'right' }}>-{fmt(finanzas.gastosG)}</td>
-                        <td style={{ textAlign: 'right', color: 'var(--text-muted)' }}>{finanzas.totalIngresos > 0 ? ((finanzas.gastosG / finanzas.totalIngresos) * 100).toFixed(1) : 0}%</td>
+                        <td style={{ textAlign: 'right', color: 'var(--text-muted)' }}>{finanzas.totalIngresos > 0 ? ((finanzas.gastosG / finanzas.totalIngresos) * 100).toFixed(0) : 0}%</td>
                       </tr>
                       <tr>
-                        <td style={{ paddingLeft: 20 }}>Nómina, Comisiones y Sueldos Base</td>
+                        <td style={{ paddingLeft: 8 }}>Nóminas y Sueldos</td>
                         <td style={{ textAlign: 'right' }}>-{fmt(finanzas.nominaS)}</td>
-                        <td style={{ textAlign: 'right', color: 'var(--text-muted)' }}>{finanzas.totalIngresos > 0 ? ((finanzas.nominaS / finanzas.totalIngresos) * 100).toFixed(1) : 0}%</td>
+                        <td style={{ textAlign: 'right', color: 'var(--text-muted)' }}>{finanzas.totalIngresos > 0 ? ((finanzas.nominaS / finanzas.totalIngresos) * 100).toFixed(0) : 0}%</td>
                       </tr>
 
-                      <tr style={{ background: 'var(--bg-elevated)', fontWeight: 800, fontSize: 11, borderTop: '1px solid var(--border)' }}>
-                        <td style={{ color: '#fff' }}>UTILIDAD NETA OPERATIVA</td>
+                      <tr style={{ background: 'var(--bg-elevated)', fontWeight: 800, fontSize: 9.5, borderTop: '1px solid var(--border)' }}>
+                        <td style={{ color: '#fff' }}>UTILIDAD NETA OPER.</td>
                         <td style={{ textAlign: 'right', color: 'var(--success)' }}>{fmt(finanzas.utilidadNeta)}</td>
-                        <td style={{ textAlign: 'right', color: 'var(--success)' }}>{finanzas.margenUtilidad.toFixed(1)}% margen</td>
+                        <td style={{ textAlign: 'right', color: 'var(--success)' }}>{finanzas.margenUtilidad.toFixed(0)}%</td>
                       </tr>
                     </tbody>
                   </table>
                 </div>
               </div>
 
-              {/* Staff */}
-              <div style={{ width: '100%' }}>
-                
-                {/* Staff metrics */}
-                <div style={{ background: 'rgba(0,0,0,0.15)', border: '1px solid var(--border)', borderRadius: 12, padding: 10 }}>
-                  <h4 style={{ margin: '0 0 8px 0', fontSize: 11, fontWeight: 800, color: 'var(--bronze-light)' }}>
-                    Desempeño y Comisiones del Staff
-                  </h4>
-                  <div className="table-wrapper" style={{ border: 'none' }}>
-                    <table style={{ fontSize: 9, lineHeight: '1.2', borderCollapse: 'collapse', width: '100%' }}>
-                      <thead>
-                        <tr>
-                          <th style={{ padding: '3px 4px', fontSize: 9 }}>Nombre</th>
-                          <th style={{ padding: '3px 4px', fontSize: 9 }}>Rol</th>
-                          <th style={{ textAlign: 'center', padding: '3px 4px', fontSize: 9 }}>Hrs (Turnos)</th>
-                          <th style={{ textAlign: 'right', padding: '3px 4px', fontSize: 9 }}>Comisión</th>
-                          <th style={{ textAlign: 'right', padding: '3px 4px', fontSize: 9 }}>Satisfacción</th>
+              {/* Columna 3: Staff performance */}
+              <div style={{ background: 'rgba(0,0,0,0.15)', border: '1px solid var(--border)', borderRadius: 12, padding: 10 }}>
+                <h4 style={{ margin: '0 0 8px 0', fontSize: 11, fontWeight: 800, color: 'var(--bronze-light)' }}>
+                  Desempeño y Comisiones Staff
+                </h4>
+                <div className="table-wrapper" style={{ border: 'none' }}>
+                  <table style={{ fontSize: 8.5, lineHeight: '1.2', borderCollapse: 'collapse', width: '100%' }}>
+                    <thead>
+                      <tr>
+                        <th style={{ padding: '3px 4px', fontSize: 8 }}>Nombre</th>
+                        <th style={{ padding: '3px 4px', fontSize: 8 }}>Rol</th>
+                        <th style={{ textAlign: 'center', padding: '3px 4px', fontSize: 8 }}>Hrs (T)</th>
+                        <th style={{ textAlign: 'right', padding: '3px 4px', fontSize: 8 }}>Com.</th>
+                        <th style={{ textAlign: 'right', padding: '3px 4px', fontSize: 8 }}>Satis.</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {staffRendimiento.map(staff => (
+                        <tr key={staff.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
+                          <td style={{ fontWeight: 600, padding: '3px 4px' }}>{staff.nombre}</td>
+                          <td style={{ color: 'var(--text-secondary)', padding: '3px 4px' }}>{staff.rol.slice(0, 7)}</td>
+                          <td style={{ textAlign: 'center', padding: '3px 4px' }}>
+                            {staff.horas.toFixed(0)}h ({staff.turnos})
+                          </td>
+                          <td style={{ textAlign: 'right', color: 'var(--success)', fontWeight: 700, padding: '3px 4px' }}>
+                            ${staff.comisiones}
+                            {staff.comisiones > 0 && staff.horas === 0 && (
+                              <span title="Sin fichaje" style={{ color: 'var(--danger)', marginLeft: 2 }}>⚠️</span>
+                            )}
+                          </td>
+                          <td style={{ textAlign: 'right', padding: '3px 4px' }}>
+                            <span style={{ 
+                              color: staff.satisfaccion >= 4.5 ? 'var(--success)' : staff.satisfaccion >= 4.0 ? 'var(--warning)' : 'var(--danger)',
+                              fontWeight: 700
+                            }}>
+                              ★{staff.satisfaccion.toFixed(1)}
+                            </span>
+                          </td>
                         </tr>
-                      </thead>
-                      <tbody>
-                        {staffRendimiento.map(staff => (
-                          <tr key={staff.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
-                            <td style={{ fontWeight: 600, padding: '3px 4px' }}>{staff.nombre}</td>
-                            <td style={{ color: 'var(--text-secondary)', padding: '3px 4px' }}>{staff.rol}</td>
-                            <td style={{ textAlign: 'center', padding: '3px 4px' }}>
-                              {staff.horas.toFixed(1)}h ({staff.turnos})
-                            </td>
-                            <td style={{ textAlign: 'right', color: 'var(--success)', fontWeight: 700, padding: '3px 4px' }}>
-                              ${staff.comisiones.toLocaleString()}
-                              {staff.comisiones > 0 && staff.horas === 0 && (
-                                <span title="Advertencia: Comisión asignada sin registros de fichaje de entrada en el período del corte." style={{ color: 'var(--danger)', marginLeft: 4, cursor: 'help' }}>⚠️</span>
-                              )}
-                            </td>
-                            <td style={{ textAlign: 'right', padding: '3px 4px' }}>
-                              <span style={{ 
-                                color: staff.satisfaccion >= 4.5 ? 'var(--success)' : staff.satisfaccion >= 4.0 ? 'var(--warning)' : 'var(--danger)',
-                                fontWeight: 700
-                              }}>
-                                ★ {staff.satisfaccion.toFixed(1)}
-                              </span>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
-
               </div>
 
             </div>
