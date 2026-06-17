@@ -545,6 +545,15 @@ input, select, textarea {
   box-shadow: 0 0 20px rgba(239, 68, 68, 0.2);
 }
 
+.mesa-game-icon {
+  transition: transform 0.25s ease, filter 0.25s ease;
+}
+
+.mesa-card:hover .mesa-game-icon {
+  transform: scale(1.15) rotate(4deg);
+  filter: drop-shadow(0 0 6px var(--bronze-light));
+}
+
 /* Soporte para Desactivar Animaciones (Accesibilidad y Preferencias de Usuario) */
 .mesa-card.sin-animaciones::before,
 .mesa-card.sin-animaciones::after {

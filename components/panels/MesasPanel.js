@@ -1664,7 +1664,7 @@ function getGameIcon(tipo, size = 18) {
   const t = (tipo || '').toLowerCase();
   if (t.includes('pool')) {
     return (
-      <svg width={size} height={size} viewBox="0 0 24 22" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginRight: 6, opacity: 0.85, flexShrink: 0 }}>
+      <svg className="mesa-game-icon" viewBox="0 0 24 22" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ width: size, height: size, marginRight: 6, opacity: 0.85, flexShrink: 0 }}>
         <polygon points="12,1 23,20 1,20" stroke="var(--bronze-light, #c5a880)" strokeWidth="1.8" strokeLinejoin="round" fill="rgba(197,168,128,0.05)" />
         <circle cx="12" cy="7.5" r="2.2" fill="#eab308" />
         <circle cx="9.5" cy="12" r="2.2" fill="#3b82f6" />
@@ -1677,7 +1677,7 @@ function getGameIcon(tipo, size = 18) {
   }
   if (t.includes('carambola')) {
     return (
-      <svg width={size} height={size} viewBox="0 0 24 22" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginRight: 6, opacity: 0.9, flexShrink: 0 }}>
+      <svg className="mesa-game-icon" viewBox="0 0 24 22" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ width: size, height: size, marginRight: 6, opacity: 0.9, flexShrink: 0 }}>
         <defs>
           <radialGradient id="redBall" cx="30%" cy="30%" r="70%">
             <stop offset="0%" stopColor="#ff8888" />
@@ -1704,7 +1704,7 @@ function getGameIcon(tipo, size = 18) {
   }
   if (t.includes('snooker')) {
     return (
-      <svg width={size} height={size} viewBox="0 0 24 22" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginRight: 6, opacity: 0.85, flexShrink: 0 }}>
+      <svg className="mesa-game-icon" viewBox="0 0 24 22" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ width: size, height: size, marginRight: 6, opacity: 0.85, flexShrink: 0 }}>
         <polygon points="12,1 23,20 1,20" stroke="var(--bronze-light, #c5a880)" strokeWidth="1.2" strokeLinejoin="round" strokeDasharray="2 1.5" fill="rgba(197,168,128,0.03)" />
         <circle cx="12" cy="5.5" r="1.6" fill="#ef4444" />
         <circle cx="10" cy="9" r="1.6" fill="#ef4444" />
@@ -1721,7 +1721,7 @@ function getGameIcon(tipo, size = 18) {
   }
   if (t.includes('domino') || t.includes('dominó')) {
     return (
-      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginRight: 6, opacity: 0.85, flexShrink: 0 }}>
+      <svg className="mesa-game-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ width: size, height: size, marginRight: 6, opacity: 0.85, flexShrink: 0 }}>
         <rect x="3" y="6" width="18" height="12" rx="2" stroke="var(--bronze-light, #c5a880)" strokeWidth="1.5" fill="rgba(255,255,255,0.05)" />
         <line x1="12" y1="6" x2="12" y2="18" stroke="var(--bronze-light, #c5a880)" strokeWidth="1.5" />
         <circle cx="6.5" cy="9" r="1" fill="var(--bronze-light, #c5a880)" />
@@ -1735,7 +1735,7 @@ function getGameIcon(tipo, size = 18) {
   }
   // Fallback: Tacos cruzados
   return (
-    <svg width={size} height={size} viewBox="0 0 24 22" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginRight: 6, opacity: 0.7, flexShrink: 0 }}>
+    <svg className="mesa-game-icon" viewBox="0 0 24 22" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ width: size, height: size, marginRight: 6, opacity: 0.7, flexShrink: 0 }}>
       <line x1="2" y1="20" x2="22" y2="2" stroke="var(--bronze-light, #c5a880)" strokeWidth="1.5" strokeLinecap="round" />
       <line x1="2" y1="2" x2="22" y2="20" stroke="var(--bronze-light, #c5a880)" strokeWidth="1.5" strokeLinecap="round" />
       <circle cx="12" cy="11" r="3" fill="#fff" />
@@ -2722,24 +2722,34 @@ export default function MesasPanel({ showToast }) {
   // Motor de Asignación Automática y Control de Fila Virtual
   useEffect(() => {
     // 1. Limpiar asignaciones inválidas (mesas que dejaron de estar libres o cambiaron)
-    assignedFila.forEach(async (f) => {
+    let invalidUpdates = [];
+    assignedFila.forEach((f) => {
       if (!f.mesaAsignada) return;
       const targetTable = mesas.find(m => (m.nombre || `Mesa ${m.id}`).toLowerCase() === f.mesaAsignada.toLowerCase());
       
       // Si la mesa de destino ya no está libre (ej: ocupada por bypass, mantenimiento, etc.)
       if (!targetTable || targetTable.estado !== 'libre') {
-        try {
-          await updateDoc(doc(db, 'fila_espera', String(f.id)), {
-            estado: 'espera',
-            mesaAsignada: '',
-            assignedAt: null
-          });
-          registrarEvento('Reencauzamiento Fila', `El cliente ${f.cliente} fue devuelto a la fila de espera porque la ${f.mesaAsignada} ya no está disponible.`);
-        } catch (err) {
-          console.error("Error al devolver cliente a fila:", err);
-        }
+        invalidUpdates.push(f);
       }
     });
+
+    if (invalidUpdates.length > 0) {
+      const batch = writeBatch(db);
+      invalidUpdates.forEach(f => {
+        batch.update(doc(db, 'fila_espera', String(f.id)), {
+          estado: 'espera',
+          mesaAsignada: '',
+          assignedAt: null
+        });
+      });
+      batch.commit().then(() => {
+        invalidUpdates.forEach(f => {
+          registrarEvento('Reencauzamiento Fila', `El cliente ${f.cliente} fue devuelto a la fila de espera porque la ${f.mesaAsignada} ya no está disponible.`);
+        });
+      }).catch(err => {
+        console.error("Error al devolver clientes a fila (batch):", err);
+      });
+    }
 
     // 2. Asignar mesas libres a clientes en espera
     const mesasDisponibles = mesas.filter(m => {
@@ -2753,8 +2763,9 @@ export default function MesasPanel({ showToast }) {
 
     // Hacemos una copia local de la fila para ir consumiendo a los clientes asignados en esta tanda
     let localFila = [...fila];
+    let updates = [];
 
-    mesasDisponibles.forEach(async (m) => {
+    mesasDisponibles.forEach((m) => {
       const idx = localFila.findIndex(f => f.estado === 'espera' && matchesTableType(f.tipo, m.tipo));
       
       if (idx !== -1) {
@@ -2763,24 +2774,39 @@ export default function MesasPanel({ showToast }) {
         localFila.splice(idx, 1);
         
         const mesaNombreStr = m.nombre || `Mesa ${m.id}`;
-        
-        // Actualizar el estado local fila para evitar parpadeos
-        setFila([...localFila]);
-        
-        try {
-          await updateDoc(doc(db, 'fila_espera', String(elegible.id)), {
-            estado: 'asignada',
-            mesaAsignada: mesaNombreStr,
-            assignedAt: serverTimestamp()
-          });
-          playCashierNotificationSound(); // Alerta sonora en caja
-          registrarEvento('Asignación Automática', `Mesa ${m.id} (${m.tipo}) asignada automáticamente a ${elegible.cliente} (Fila Virtual).`);
-          showToast(`Mesa ${m.id} asignada automáticamente a ${elegible.cliente}`, 'success');
-        } catch (err) {
-          console.error("Error en asignación automática de fila:", err);
-        }
+        updates.push({
+          id: elegible.id,
+          cliente: elegible.cliente,
+          mesaId: m.id,
+          mesaTipo: m.tipo,
+          mesaNombreStr: mesaNombreStr
+        });
       }
     });
+
+    if (updates.length > 0) {
+      // Actualizar el estado local fila para evitar parpadeos
+      setFila([...localFila]);
+      
+      const batch = writeBatch(db);
+      updates.forEach(up => {
+        batch.update(doc(db, 'fila_espera', String(up.id)), {
+          estado: 'asignada',
+          mesaAsignada: up.mesaNombreStr,
+          assignedAt: serverTimestamp()
+        });
+      });
+
+      batch.commit().then(() => {
+        updates.forEach(up => {
+          playCashierNotificationSound();
+          registrarEvento('Asignación Automática', `Mesa ${up.mesaId} (${up.mesaTipo}) asignada automáticamente a ${up.cliente} (Fila Virtual).`);
+          showToast(`Mesa ${up.mesaId} asignada automáticamente a ${up.cliente}`, 'success');
+        });
+      }).catch(err => {
+        console.error("Error en batch de asignación automática de fila:", err);
+      });
+    }
   }, [mesas, fila, assignedFila]);
 
   // Auto-liberador de reservaciones expiradas (tiempo configurable)
