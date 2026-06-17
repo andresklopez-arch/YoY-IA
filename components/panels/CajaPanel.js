@@ -131,6 +131,58 @@ export default function CajaPanel({ showToast }) {
   // Metas y Subpestañas IA
   const [metaMensual, setMetaMensual] = useState(100000);
   const [subTabIa, setSubTabIa] = useState('auditoria'); // 'auditoria' | 'predictivos'
+  const [metricasFila, setMetricasFila] = useState({
+    tiempoRespuestaPromedio: 0,
+    totalAlertas: 0,
+    tasaCancelaciones: 0,
+    totalRegistrosQR: 0
+  });
+
+  useEffect(() => {
+    if (esCajero) return;
+    
+    // Escuchar alertas de fila digital
+    const qLogs = query(collection(db, 'alertas_digitales_log'), orderBy('createdAt', 'desc'), limit(100));
+    const unsubLogs = onSnapshot(qLogs, (snap) => {
+      let sum = 0;
+      let count = 0;
+      snap.docs.forEach(doc => {
+        const d = doc.data();
+        if (d.duracionSegundos) {
+          sum += d.duracionSegundos;
+          count++;
+        }
+      });
+      setMetricasFila(prev => ({
+        ...prev,
+        tiempoRespuestaPromedio: count > 0 ? Math.round(sum / count) : 0,
+        totalAlertas: snap.size
+      }));
+    }, err => console.warn("Error loading queue response logs:", err));
+
+    // Escuchar fila_espera
+    const qFila = query(collection(db, 'fila_espera'), limit(200));
+    const unsubFila = onSnapshot(qFila, (snap) => {
+      let total = snap.size;
+      let timeouts = 0;
+      snap.docs.forEach(doc => {
+        const d = doc.data();
+        if (d.estado === 'retirado' && d.motivoRetiro === 'timeout') {
+          timeouts++;
+        }
+      });
+      setMetricasFila(prev => ({
+        ...prev,
+        totalRegistrosQR: total,
+        tasaCancelaciones: total > 0 ? Math.round((timeouts / total) * 100) : 0
+      }));
+    }, err => console.warn("Error loading queue waitlist:", err));
+
+    return () => {
+      unsubLogs();
+      unsubFila();
+    };
+  }, [esCajero]);
 
   // Modal cobro manual
   const [mostrarCobroManual, setMostrarCobroManual] = useState(false);
@@ -1223,6 +1275,44 @@ export default function CajaPanel({ showToast }) {
                           ))}
                         </div>
                       )}
+                    </div>
+
+                    {/* Metricas de Fila Virtual */}
+                    <div style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid var(--border)', borderRadius: 12, padding: 12 }}>
+                      <h4 style={{ margin: '0 0 10px 0', fontSize: 11, fontWeight: 800, color: 'var(--bronze-light)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <i className="ri-user-shared-line" />
+                        Rendimiento de Fila Virtual (QR)
+                      </h4>
+                      <p style={{ fontSize: 9, color: 'var(--text-muted)', margin: '0 0 10px 0', lineHeight: 1.4 }}>
+                        Estadísticas de respuesta del cliente recopiladas a partir de las alertas de autoservicio y tiempos de reclamo de mesa.
+                      </p>
+                      
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                        <div style={{ background: 'var(--bg-elevated)', borderRadius: 8, padding: '8px 10px', border: '1px solid rgba(255,255,255,0.03)' }}>
+                          <span style={{ fontSize: 8, color: 'var(--text-secondary)', display: 'block', textTransform: 'uppercase' }}>Resp. Promedio</span>
+                          <strong style={{ fontSize: 14, color: '#fff', display: 'block', marginTop: 2 }}>
+                            {metricasFila.tiempoRespuestaPromedio} <span style={{ fontSize: 9, fontWeight: 'normal', color: 'var(--text-muted)' }}>seg</span>
+                          </strong>
+                        </div>
+                        <div style={{ background: 'var(--bg-elevated)', borderRadius: 8, padding: '8px 10px', border: '1px solid rgba(255,255,255,0.03)' }}>
+                          <span style={{ fontSize: 8, color: 'var(--text-secondary)', display: 'block', textTransform: 'uppercase' }}>Tasa Deserción</span>
+                          <strong style={{ fontSize: 14, color: metricasFila.tasaCancelaciones > 20 ? 'var(--danger)' : 'var(--success)', display: 'block', marginTop: 2 }}>
+                            {metricasFila.tasaCancelaciones}%
+                          </strong>
+                        </div>
+                        <div style={{ background: 'var(--bg-elevated)', borderRadius: 8, padding: '8px 10px', border: '1px solid rgba(255,255,255,0.03)' }}>
+                          <span style={{ fontSize: 8, color: 'var(--text-secondary)', display: 'block', textTransform: 'uppercase' }}>Alertas Emitidas</span>
+                          <strong style={{ fontSize: 14, color: 'var(--blue-light)', display: 'block', marginTop: 2 }}>
+                            {metricasFila.totalAlertas}
+                          </strong>
+                        </div>
+                        <div style={{ background: 'var(--bg-elevated)', borderRadius: 8, padding: '8px 10px', border: '1px solid rgba(255,255,255,0.03)' }}>
+                          <span style={{ fontSize: 8, color: 'var(--text-secondary)', display: 'block', textTransform: 'uppercase' }}>Registros QR</span>
+                          <strong style={{ fontSize: 14, color: 'var(--bronze-light)', display: 'block', marginTop: 2 }}>
+                            {metricasFila.totalRegistrosQR}
+                          </strong>
+                        </div>
+                      </div>
                     </div>
 
                     {/* Price Optimizer */}

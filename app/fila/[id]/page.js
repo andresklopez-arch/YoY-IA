@@ -115,10 +115,23 @@ export default function FilaEsperaCliente() {
       const triggerNotification = () => {
         if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
           if (swRegistrationRef.current) {
-            swRegistrationRef.current.showNotification("¡TU MESA ESTÁ LISTA! 🔔", {
-              body: `Hola, ${data?.cliente || 'Cliente'}. Tu mesa asignada es la ${data?.mesaAsignada || ''}. Dirígete al personal de inmediato.`,
+            const assignedTime = data?.assignedAt ? (data.assignedAt.toMillis ? data.assignedAt.toMillis() : data.assignedAt) : Date.now();
+            const elapsedSeconds = Math.floor((Date.now() - assignedTime) / 1000);
+            const isCritical = elapsedSeconds > 120; // Más de 2 minutos sin reclamar la mesa
+
+            const titleText = isCritical ? "⚠️ ¡MESA POR EXPIRAR! 🔔" : "¡TU MESA ESTÁ LISTA! 🔔";
+            const bodyText = isCritical
+              ? `¡URGENTE! Hola, ${data?.cliente || 'Cliente'}. Tu mesa asignada es la ${data?.mesaAsignada || ''}. Dirígete a recepción ya o se liberará.`
+              : `Hola, ${data?.cliente || 'Cliente'}. Tu mesa asignada es la ${data?.mesaAsignada || ''}. Dirígete al personal.`;
+
+            const vibratePattern = isCritical
+              ? [1000, 100, 1000, 100, 1000, 100, 1000, 100, 1000] // Vibración larga y urgente
+              : [500, 200, 500, 200, 800]; // Vibración normal
+
+            swRegistrationRef.current.showNotification(titleText, {
+              body: bodyText,
               icon: "/icon.png",
-              vibrate: [500, 200, 500, 200, 800],
+              vibrate: vibratePattern,
               tag: "mesa-lista",
               renotify: true,
               requireInteraction: true,
