@@ -3,6 +3,8 @@ import { useState, useEffect, useRef } from 'react';
 import { db } from '@/lib/firebase';
 import { collection, getDocs, getDoc, addDoc, query, orderBy, deleteDoc, doc, where, setDoc, serverTimestamp, onSnapshot, writeBatch, limit } from 'firebase/firestore';
 import { obfuscate, deobfuscate, hashPasswordSecure } from '@/lib/crypto';
+import { QRCodeCanvas } from 'qrcode.react';
+import JSZip from 'jszip';
 
 function areMesasEqual(arr1, arr2) {
   if (!arr1 || !arr2) return arr1 === arr2;
@@ -661,30 +663,88 @@ export default function ConfigPanel({ showToast }) {
   };
 
   const descargarQR = (tipo, id = null) => {
-    const host = typeof window !== 'undefined' ? window.location.origin : 'https://yoy-ia-billar.vercel.app';
-    const qrUrl = tipo === 'fila' ? `${host}/fila/registro` : `${host}/mesa/${id}`;
     const filename = tipo === 'fila' ? 'qr_fila_virtual.png' : `qr_mesa_${id}.png`;
-    const qrServerUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrUrl)}`;
+    const canvasId = tipo === 'fila' ? 'qr-canvas-fila' : `qr-canvas-mesa-${id}`;
+    const canvas = document.getElementById(canvasId);
     
-    showToast('Iniciando descarga de QR...', 'info');
-    fetch(qrServerUrl)
-      .then(response => response.blob())
-      .then(blob => {
-        const blobURL = window.URL.createObjectURL(blob);
-        const tempLink = document.createElement('a');
-        tempLink.style.display = 'none';
-        tempLink.href = blobURL;
-        tempLink.setAttribute('download', filename);
-        document.body.appendChild(tempLink);
-        tempLink.click();
-        document.body.removeChild(tempLink);
-        window.URL.revokeObjectURL(blobURL);
-        showToast('QR descargado con éxito ✓', 'success');
-      })
-      .catch(err => {
-        console.error("Error al descargar QR:", err);
-        window.open(qrServerUrl, '_blank');
-      });
+    if (!canvas) {
+      showToast('Error al generar el QR localmente', 'error');
+      return;
+    }
+    
+    try {
+      showToast('Descargando QR...', 'info');
+      const dataUrl = canvas.toDataURL('image/png');
+      const tempLink = document.createElement('a');
+      tempLink.style.display = 'none';
+      tempLink.href = dataUrl;
+      tempLink.setAttribute('download', filename);
+      document.body.appendChild(tempLink);
+      tempLink.click();
+      document.body.removeChild(tempLink);
+      showToast('QR descargado con éxito ✓', 'success');
+    } catch (err) {
+      console.error("Error al descargar QR local:", err);
+      showToast('Error al descargar el código QR', 'error');
+    }
+  };
+
+  const descargarTodosLosQRsZIP = async () => {
+    const zip = new JSZip();
+    let count = 0;
+    
+    // 1. Fila Virtual
+    const canvasFila = document.getElementById('qr-canvas-fila');
+    if (canvasFila) {
+      try {
+        const dataUrl = canvasFila.toDataURL('image/png');
+        const base64Data = dataUrl.split(',')[1];
+        zip.file('qr_fila_virtual.png', base64Data, { base64: true });
+        count++;
+      } catch (err) {
+        console.error("Error al obtener canvas de fila virtual para ZIP:", err);
+      }
+    }
+    
+    // 2. Mesas
+    mesas.forEach(m => {
+      const canvasMesa = document.getElementById(`qr-canvas-mesa-${m.id}`);
+      if (canvasMesa) {
+        try {
+          const dataUrl = canvasMesa.toDataURL('image/png');
+          const base64Data = dataUrl.split(',')[1];
+          const safeName = m.nombre.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
+          const filename = `qr_mesa_${m.id.toString().padStart(2, '0')}_${safeName}.png`;
+          zip.file(filename, base64Data, { base64: true });
+          count++;
+        } catch (err) {
+          console.error(`Error al obtener canvas de mesa ${m.id} para ZIP:`, err);
+        }
+      }
+    });
+    
+    if (count === 0) {
+      showToast('No se encontraron códigos QR listos para descargar', 'error');
+      return;
+    }
+    
+    showToast('Generando archivo ZIP...', 'info');
+    try {
+      const content = await zip.generateAsync({ type: 'blob' });
+      const blobURL = window.URL.createObjectURL(content);
+      const tempLink = document.createElement('a');
+      tempLink.style.display = 'none';
+      tempLink.href = blobURL;
+      tempLink.setAttribute('download', 'qrs_billar_club.zip');
+      document.body.appendChild(tempLink);
+      tempLink.click();
+      document.body.removeChild(tempLink);
+      window.URL.revokeObjectURL(blobURL);
+      showToast('ZIP descargado con éxito ✓', 'success');
+    } catch (err) {
+      console.error("Error al generar ZIP:", err);
+      showToast('Error al generar el archivo ZIP', 'error');
+    }
   };
 
   const imprimirQRRegistroVirtual = () => {
@@ -975,6 +1035,24 @@ export default function ConfigPanel({ showToast }) {
 
   return (
     <div>
+      {/* Elementos QR Canvas ocultos para descarga local y empaquetado ZIP */}
+      <div style={{ display: 'none' }} aria-hidden="true">
+        <QRCodeCanvas
+          id="qr-canvas-fila"
+          value={typeof window !== 'undefined' ? `${window.location.origin}/fila/registro` : 'https://yoy-ia-billar.vercel.app/fila/registro'}
+          size={500}
+          level="H"
+        />
+        {mesas.map(m => (
+          <QRCodeCanvas
+            key={m.id}
+            id={`qr-canvas-mesa-${m.id}`}
+            value={typeof window !== 'undefined' ? `${window.location.origin}/mesa/${m.id}` : `https://yoy-ia-billar.vercel.app/mesa/${m.id}`}
+            size={500}
+            level="H"
+          />
+        ))}
+      </div>
       <div className="page-header">
         <div>
           <h1 className="page-title gradient-bronze">Configuración</h1>
@@ -1320,13 +1398,22 @@ export default function ConfigPanel({ showToast }) {
               <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 14 }}>
                 Genera y descarga códigos QR para pegar en las mesas. Permite a los clientes pedir servicio o recargar tiempo en su celular.
               </p>
-              <button
-                className="btn btn-primary"
-                onClick={() => imprimirQRs(null)}
-                style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 16 }}
-              >
-                <i className="ri-printer-line" /> Imprimir Todos los QRs
-              </button>
+              <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
+                <button
+                  className="btn btn-primary"
+                  onClick={() => imprimirQRs(null)}
+                  style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                >
+                  <i className="ri-printer-line" /> Imprimir Todos los QRs
+                </button>
+                <button
+                  className="btn btn-secondary"
+                  onClick={descargarTodosLosQRsZIP}
+                  style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                >
+                  <i className="ri-download-2-line" /> Descargar Todos (ZIP)
+                </button>
+              </div>
               
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 350, overflowY: 'auto' }}>
                 {/* QR de Fila Virtual - Autoservicio */}
