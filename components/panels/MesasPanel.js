@@ -2585,6 +2585,61 @@ export default function MesasPanel({ showToast }) {
     });
   }, [tick, assignedFila]);
 
+  // Motor de Asignación Automática y Control de Fila Virtual
+  useEffect(() => {
+    // 1. Limpiar asignaciones inválidas (mesas que dejaron de estar libres o cambiaron)
+    assignedFila.forEach(async (f) => {
+      if (!f.mesaAsignada) return;
+      const targetTable = mesas.find(m => (m.nombre || `Mesa ${m.id}`).toLowerCase() === f.mesaAsignada.toLowerCase());
+      
+      // Si la mesa de destino ya no está libre (ej: ocupada por bypass, mantenimiento, etc.)
+      if (!targetTable || targetTable.estado !== 'libre') {
+        try {
+          await updateDoc(doc(db, 'fila_espera', String(f.id)), {
+            estado: 'espera',
+            mesaAsignada: '',
+            assignedAt: null
+          });
+          registrarEvento('Reencauzamiento Fila', `El cliente ${f.cliente} fue devuelto a la fila de espera porque la ${f.mesaAsignada} ya no está disponible.`);
+        } catch (err) {
+          console.error("Error al devolver cliente a fila:", err);
+        }
+      }
+    });
+
+    // 2. Asignar mesas libres a clientes en espera
+    const mesasDisponibles = mesas.filter(m => {
+      if (m.estado !== 'libre') return false;
+      const mesaNombreStr = m.nombre || `Mesa ${m.id}`;
+      const isAlreadyAssigned = assignedFila.some(f => f.mesaAsignada && f.mesaAsignada.toLowerCase() === mesaNombreStr.toLowerCase());
+      return !isAlreadyAssigned;
+    });
+
+    if (mesasDisponibles.length === 0 || fila.length === 0) return;
+
+    mesasDisponibles.forEach(async (m) => {
+      const elegible = fila.find(f => f.estado === 'espera' && matchesTableType(f.tipo, m.tipo));
+      
+      if (elegible) {
+        const mesaNombreStr = m.nombre || `Mesa ${m.id}`;
+        // Para evitar condiciones de carrera, quitamos temporalmente el cliente de la lista local
+        setFila(prev => prev.filter(item => item.id !== elegible.id));
+        
+        try {
+          await updateDoc(doc(db, 'fila_espera', String(elegible.id)), {
+            estado: 'asignada',
+            mesaAsignada: mesaNombreStr,
+            assignedAt: serverTimestamp()
+          });
+          registrarEvento('Asignación Automática', `Mesa ${m.id} (${m.tipo}) asignada automáticamente a ${elegible.cliente} (Fila Virtual).`);
+          showToast(`Mesa ${m.id} asignada automáticamente a ${elegible.cliente}`, 'success');
+        } catch (err) {
+          console.error("Error en asignación automática de fila:", err);
+        }
+      }
+    });
+  }, [mesas, fila, assignedFila]);
+
   // Auto-liberador de reservaciones expiradas (tiempo configurable)
   useEffect(() => {
     const ahora = Date.now();
@@ -3104,29 +3159,7 @@ export default function MesasPanel({ showToast }) {
   };
 
   const verificarFilaYRecordar = (mesaId, mesaTipo, excluirFilaId = null) => {
-    let filaFiltrada = fila || [];
-    if (excluirFilaId) {
-      filaFiltrada = filaFiltrada.filter(f => f.id !== excluirFilaId);
-    }
-    
-    if (filaFiltrada.length > 0) {
-      const totalFila = filaFiltrada.length;
-      const clientesMismoTipo = filaFiltrada.filter(f => f.tipo === mesaTipo).length;
-      
-      let mensaje = `La Mesa ${mesaId} (${mesaTipo}) ahora está libre.\n\nHay ${totalFila} cliente(s) en la fila de espera`;
-      if (clientesMismoTipo > 0) {
-        mensaje += ` (${clientesMismoTipo} esperando una mesa de tipo "${mesaTipo}").`;
-      } else {
-        mensaje += `.`;
-      }
-      mensaje += `\n\n¿Deseas abrir la Fila Virtual para asignar esta mesa ahora?`;
-
-      setTimeout(() => {
-        if (window.confirm(mensaje)) {
-          setModalFila(true);
-        }
-      }, 600);
-    }
+    // La asignación ahora es automática, no se requiere popup.
   };
 
   const confirmarCambioMesa = (origenId, destinoId) => {
