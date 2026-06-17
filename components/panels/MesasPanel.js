@@ -2653,6 +2653,7 @@ export default function MesasPanel({ showToast }) {
   };
 
   const [assignedFila, setAssignedFila] = useState([]);
+  const pendingAssignmentsRef = useRef({}); // { [nombreMesa]: { clientId, timestamp } }
 
   // Escuchar Fila de Espera Asignada en tiempo real
   useEffect(() => {
@@ -2669,6 +2670,18 @@ export default function MesasPanel({ showToast }) {
           assignedAt: val.assignedAt ? (val.assignedAt.toMillis ? val.assignedAt.toMillis() : val.assignedAt) : Date.now()
         };
       });
+
+      // Limpiar asignaciones pendientes locales cuya sincronización con Firestore ya se completó
+      items.forEach(item => {
+        if (item.mesaAsignada) {
+          const key = item.mesaAsignada.toLowerCase();
+          const pending = pendingAssignmentsRef.current[key];
+          if (pending && pending.clientId === item.id) {
+            delete pendingAssignmentsRef.current[key];
+          }
+        }
+      });
+
       setAssignedFila(items);
     }, err => {
       console.error("Error al escuchar fila_espera asignada:", err);
@@ -2752,17 +2765,31 @@ export default function MesasPanel({ showToast }) {
     }
 
     // 2. Asignar mesas libres a clientes en espera
+    // Limpiar asignaciones pendientes locales con más de 15 segundos de antigüedad (evitar fugas o bloqueos persistentes)
+    const ahoraMs = Date.now();
+    Object.keys(pendingAssignmentsRef.current).forEach(key => {
+      if (ahoraMs - pendingAssignmentsRef.current[key].timestamp > 15000) {
+        delete pendingAssignmentsRef.current[key];
+      }
+    });
+
     const mesasDisponibles = mesas.filter(m => {
       if (m.estado !== 'libre') return false;
       const mesaNombreStr = m.nombre || `Mesa ${m.id}`;
-      const isAlreadyAssigned = assignedFila.some(f => f.mesaAsignada && f.mesaAsignada.toLowerCase() === mesaNombreStr.toLowerCase());
+      // Verificar si la mesa ya está asignada en Firestore o en nuestra cola de pendientes local
+      const isAlreadyAssigned = assignedFila.some(f => f.mesaAsignada && f.mesaAsignada.toLowerCase() === mesaNombreStr.toLowerCase())
+        || !!pendingAssignmentsRef.current[mesaNombreStr.toLowerCase()];
       return !isAlreadyAssigned;
     });
 
-    if (mesasDisponibles.length === 0 || fila.length === 0) return;
+    // Excluir de la fila clientes que tienen una asignación pendiente en memoria
+    const pendingClientIds = Object.values(pendingAssignmentsRef.current).map(p => p.clientId);
+    const availableFila = fila.filter(f => !pendingClientIds.includes(f.id));
+
+    if (mesasDisponibles.length === 0 || availableFila.length === 0) return;
 
     // Hacemos una copia local de la fila para ir consumiendo a los clientes asignados en esta tanda
-    let localFila = [...fila];
+    let localFila = [...availableFila];
     let updates = [];
 
     mesasDisponibles.forEach((m) => {
@@ -2785,6 +2812,14 @@ export default function MesasPanel({ showToast }) {
     });
 
     if (updates.length > 0) {
+      // Registrar asignaciones en la caché local para evitar condiciones de carrera por desfases de sincronización
+      updates.forEach(up => {
+        pendingAssignmentsRef.current[up.mesaNombreStr.toLowerCase()] = {
+          clientId: up.id,
+          timestamp: Date.now()
+        };
+      });
+
       // Actualizar el estado local fila para evitar parpadeos
       setFila([...localFila]);
       
@@ -2805,6 +2840,10 @@ export default function MesasPanel({ showToast }) {
         });
       }).catch(err => {
         console.error("Error en batch de asignación automática de fila:", err);
+        // Si hay error en la escritura, remover de la caché local de pendientes para reintentar
+        updates.forEach(up => {
+          delete pendingAssignmentsRef.current[up.mesaNombreStr.toLowerCase()];
+        });
       });
     }
   }, [mesas, fila, assignedFila]);
