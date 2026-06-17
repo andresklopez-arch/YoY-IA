@@ -825,7 +825,10 @@ function MeseroContent() {
   const getMesasFiltradas = () => {
     let list = getCuentasActivasUnificadas().filter(c => c.mesaId || findMesaAsociada(c));
     
-    if (verSoloMisMesas && user?.uid) {
+    const rolLower = (user?.role || user?.rol || '').toLowerCase();
+    const esMesero = rolLower.includes('mesero');
+
+    if ((esMesero || verSoloMisMesas) && user?.uid) {
       list = list.filter(c => {
         const mesaAsociada = findMesaAsociada(c);
         return mesaAsociada && (
@@ -1068,7 +1071,7 @@ function MeseroContent() {
               </div>
 
               {/* Toggle de Mis Mesas */}
-              {user && (
+              {user && !(user.role || user.rol || '').toLowerCase().includes('mesero') && (
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button
                     onClick={() => setVerSoloMisMesas(false)}
@@ -1579,7 +1582,14 @@ function MeseroContent() {
                   <label className="form-label">Seleccionar Destino de Comanda</label>
                   <select className="form-select" value={capturaMesaId} onChange={e => setCapturaMesaId(e.target.value)} style={{ width: '100%' }}>
                     {/* Mesas Ocupadas */}
-                    {mesas.filter(m => m.estado === 'ocupada').map(m => (
+                    {mesas.filter(m => {
+                      if (m.estado !== 'ocupada') return false;
+                      const rolLower = (user?.role || user?.rol || '').toLowerCase();
+                      if (rolLower.includes('mesero') && user?.uid) {
+                        return m.meseroId === user.uid || (m.meseroIds && Array.isArray(m.meseroIds) && m.meseroIds.includes(user.uid));
+                      }
+                      return true;
+                    }).map(m => (
                       <option key={`mesa_${m.id}`} value={`mesa_${m.id}`} style={{ color: 'var(--bronze-light)' }}>
                         🏓 Mesa {m.id} ({m.cliente})
                       </option>
