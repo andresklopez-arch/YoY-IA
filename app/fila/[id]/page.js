@@ -448,28 +448,52 @@ export default function FilaEsperaCliente() {
           </div>
 
           {posicionGeneral !== null && (
-            <div style={{
-              background: posicionGeneral === 1 ? 'rgba(34, 197, 94, 0.08)' : 'rgba(197, 168, 128, 0.08)',
-              border: posicionGeneral === 1 ? '1.5px solid rgba(34, 197, 94, 0.3)' : '1.5px solid rgba(197, 168, 128, 0.3)',
-              borderRadius: 20,
-              padding: '16px 24px',
-              marginBottom: 20,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: 4,
-              boxShadow: '0 4px 20px rgba(0,0,0,0.2)'
-            }}>
-              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 600 }}>Posición en Fila</span>
-              <span style={{ fontSize: 44, fontWeight: 800, color: posicionGeneral === 1 ? '#22c55e' : '#c5a880', lineHeight: 1 }}>#{posicionGeneral}</span>
-              {posicionGeneral === 1 ? (
-                <span style={{ fontSize: 11, color: '#22c55e', marginTop: 4, fontWeight: 700 }}>¡Eres el siguiente! Prepárate.</span>
-              ) : posicionTipo !== null && posicionTipo !== posicionGeneral ? (
-                <span style={{ fontSize: 11, color: 'rgba(197, 168, 128, 0.8)', marginTop: 4, fontWeight: 500 }}>
-                  (#{posicionTipo} para mesa tipo {data.tipo})
-                </span>
-              ) : null}
-            </div>
+            <>
+              <div style={{
+                background: posicionGeneral === 1 ? 'rgba(34, 197, 94, 0.08)' : 'rgba(197, 168, 128, 0.08)',
+                border: posicionGeneral === 1 ? '1.5px solid rgba(34, 197, 94, 0.3)' : '1.5px solid rgba(197, 168, 128, 0.3)',
+                borderRadius: 20,
+                padding: '16px 24px',
+                marginBottom: 20,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 4,
+                boxShadow: '0 4px 20px rgba(0,0,0,0.2)'
+              }}>
+                <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 600 }}>Posición en Fila</span>
+                <span style={{ fontSize: 44, fontWeight: 800, color: posicionGeneral === 1 ? '#22c55e' : '#c5a880', lineHeight: 1 }}>#{posicionGeneral}</span>
+                {posicionGeneral === 1 ? (
+                  <span style={{ fontSize: 11, color: '#22c55e', marginTop: 4, fontWeight: 700 }}>¡Eres el siguiente! Prepárate.</span>
+                ) : posicionTipo !== null && posicionTipo !== posicionGeneral ? (
+                  <span style={{ fontSize: 11, color: 'rgba(197, 168, 128, 0.8)', marginTop: 4, fontWeight: 500 }}>
+                    (#{posicionTipo} para mesa tipo {data.tipo})
+                  </span>
+                ) : null}
+              </div>
+
+              <div style={{
+                background: 'rgba(255, 255, 255, 0.02)',
+                border: '1px solid rgba(255, 255, 255, 0.05)',
+                borderRadius: 16,
+                padding: '12px 20px',
+                marginBottom: 20,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 10,
+                width: '100%',
+                boxShadow: '0 2px 10px rgba(0,0,0,0.1)'
+              }}>
+                <span style={{ fontSize: 18 }}>⏳</span>
+                <div style={{ textAlign: 'left' }}>
+                  <div style={{ fontSize: 11, color: 'rgba(255, 255, 255, 0.4)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Tiempo Estimado de Espera</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>
+                    {posicionGeneral === 1 ? 'Menos de 5 minutos' : `Aprox. ${Math.max(5, (posicionGeneral - 1) * 12)} - ${Math.max(5, (posicionGeneral - 1) * 12) + 8} min`}
+                  </div>
+                </div>
+              </div>
+            </>
           )}
 
           <div style={detailsContainerStyle}>

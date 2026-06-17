@@ -2823,23 +2823,35 @@ export default function MesasPanel({ showToast }) {
       // Actualizar el estado local fila para evitar parpadeos
       setFila([...localFila]);
       
-      const batch = writeBatch(db);
-      updates.forEach(up => {
-        batch.update(doc(db, 'fila_espera', String(up.id)), {
-          estado: 'asignada',
-          mesaAsignada: up.mesaNombreStr,
-          assignedAt: serverTimestamp()
-        });
-      });
+      runTransaction(db, async (transaction) => {
+        const docsData = [];
+        for (const up of updates) {
+          const docRef = doc(db, 'fila_espera', String(up.id));
+          const docSnap = await transaction.get(docRef);
+          if (!docSnap.exists) {
+            throw new Error(`Waitlist entry ${up.id} does not exist.`);
+          }
+          if (docSnap.data().estado !== 'espera') {
+            throw new Error(`Waitlist entry ${up.id} is no longer in wait state.`);
+          }
+          docsData.push({ docRef, up });
+        }
 
-      batch.commit().then(() => {
+        docsData.forEach(({ docRef, up }) => {
+          transaction.update(docRef, {
+            estado: 'asignada',
+            mesaAsignada: up.mesaNombreStr,
+            assignedAt: serverTimestamp()
+          });
+        });
+      }).then(() => {
         updates.forEach(up => {
           playCashierNotificationSound();
           registrarEvento('Asignación Automática', `Mesa ${up.mesaId} (${up.mesaTipo}) asignada automáticamente a ${up.cliente} (Fila Virtual).`);
           showToast(`Mesa ${up.mesaId} asignada automáticamente a ${up.cliente}`, 'success');
         });
       }).catch(err => {
-        console.error("Error en batch de asignación automática de fila:", err);
+        console.error("Error en transacción de asignación automática de fila:", err);
         // Si hay error en la escritura, remover de la caché local de pendientes para reintentar
         updates.forEach(up => {
           delete pendingAssignmentsRef.current[up.mesaNombreStr.toLowerCase()];
