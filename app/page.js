@@ -139,17 +139,181 @@ function AppContent() {
   const [alertasAsistencia, setAlertasAsistencia] = useState([]);
   const [sonidoAdmin, setSonidoAdmin] = useState(true);
   const [insumosBajos, setInsumosBajos] = useState([]);
+  const [iaPrevisiones, setIaPrevisiones] = useState({});
 
+  // 1. Escuchar inventario para insumos por debajo de stock óptimo
   useEffect(() => {
     if (!user) return;
     const unsub = onSnapshot(doc(db, 'config', 'inventario'), snap => {
       if (snap.exists()) {
         const prods = snap.data().productos || [];
-        const bajos = prods.filter(p => p.categoria === 'Insumo' && p.stock <= p.stockMin);
+        const bajos = prods.filter(p => p.categoria === 'Insumo' && p.stock < (p.stockOptimo || 0));
         setInsumosBajos(bajos);
       }
     });
     return unsub;
+  }, [user]);
+
+  // 2. Escuchar alertas predictivas de la IA
+  useEffect(() => {
+    if (!user) return;
+    const unsub = onSnapshot(doc(db, 'config', 'ia_prevision_insumos'), snap => {
+      if (snap.exists()) {
+        setIaPrevisiones(snap.data().previsiones || {});
+      }
+    });
+    return unsub;
+  }, [user]);
+
+  // Motor de Aprendizaje IA Diario
+  const ejecutarAprendizajeIA = async () => {
+    try {
+      const hoy = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD
+      const lastRun = localStorage.getItem('yoy_last_ia_learning_run');
+      if (lastRun === hoy) {
+        console.log("El aprendizaje diario de IA ya se ejecutó hoy.");
+        return;
+      }
+
+      console.log("Ejecutando motor de aprendizaje diario IA...");
+      
+      // 1. Obtener recetas de costeo unificadas desde localStorage (desofuscar)
+      let recetas = [];
+      try {
+        const savedRecetas = localStorage.getItem('yoy_recetas_costeo');
+        if (savedRecetas) {
+          const { deobfuscate } = await import('@/lib/crypto');
+          recetas = deobfuscate(savedRecetas) || [];
+        }
+      } catch (e) {
+        console.warn("No se pudieron leer recetas para aprendizaje IA:", e);
+      }
+
+      // 2. Consultar las últimas 150 comandas completadas
+      const q = query(
+        collection(db, 'mesa_pedidos'),
+        where('tipo', '==', 'pedido'),
+        where('estado', '==', 'entregado'),
+        orderBy('createdAt', 'desc'),
+        limit(150)
+      );
+      const snap = await getDocs(q);
+      const pedidosCompletados = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+      if (pedidosCompletados.length === 0) {
+        console.log("No hay comandas completadas suficientes para entrenar la IA.");
+        localStorage.setItem('yoy_last_ia_learning_run', hoy);
+        return;
+      }
+
+      // 3. Obtener el inventario actual
+      const invSnap = await getDoc(doc(db, 'config', 'inventario'));
+      if (!invSnap.exists()) return;
+      const productos = invSnap.data().productos || [];
+      const insumos = productos.filter(p => p.categoria === 'Insumo');
+
+      // 4. Calcular el consumo histórico de insumos agrupado por día de la semana
+      const consumosPorDiaSemana = Array.from({ length: 7 }, () => ({}));
+      const fechasUnicasPorDiaSemana = Array.from({ length: 7 }, () => new Set());
+
+      pedidosCompletados.forEach(p => {
+        const date = p.createdAt?.toDate ? p.createdAt.toDate() : new Date(p.createdAt);
+        if (isNaN(date.getTime())) return;
+        const dayOfWeek = date.getDay();
+        const dateStr = date.toDateString();
+        fechasUnicasPorDiaSemana[dayOfWeek].add(dateStr);
+
+        if (Array.isArray(p.items)) {
+          p.items.forEach(item => {
+            const recipe = recetas.find(r => r.productoId === item.productoId);
+            if (recipe && Array.isArray(recipe.ingredientes)) {
+              recipe.ingredientes.forEach(ing => {
+                const nameKey = ing.nombreInsumo || ing.insumoId;
+                if (!nameKey) return;
+                const qty = (item.cantidad || 0) * Number(ing.cantidad) * (1 + (Number(ing.mermaPct) || 0) / 100);
+                consumosPorDiaSemana[dayOfWeek][nameKey] = (consumosPorDiaSemana[dayOfWeek][nameKey] || 0) + qty;
+              });
+            }
+          });
+        }
+      });
+
+      // 5. Calcular promedios diarios de consumo
+      const promediosConsumo = {};
+      insumos.forEach(ins => {
+        promediosConsumo[ins.nombre] = Array.from({ length: 7 }, () => 0);
+        for (let d = 0; d < 7; d++) {
+          const numDias = fechasUnicasPorDiaSemana[d].size || 1;
+          const totalConsumo = consumosPorDiaSemana[d][ins.nombre] || consumosPorDiaSemana[d][ins.id] || 0;
+          promediosConsumo[ins.nombre][d] = totalConsumo / numDias;
+        }
+      });
+
+      // 6. Proyectar la demanda de las próximas 48 horas (hoy + mañana)
+      const hoyD = new Date().getDay();
+      const mananaD = (hoyD + 1) % 7;
+      const previsiones = {};
+
+      // 7. Cargar torneos para buscar eventos inusuales en las próximas 48 horas
+      let multiplierTorneo = 1.0;
+      try {
+        const rawTorneos = localStorage.getItem('yoy_billar_torneos');
+        if (rawTorneos) {
+          const { deobfuscate } = await import('@/lib/crypto');
+          const torneos = deobfuscate(rawTorneos) || [];
+          const ahoraMs = Date.now();
+          const limiteMs = ahoraMs + 48 * 60 * 60 * 1000;
+          const hayTorneoProximo = torneos.some(t => {
+            const tDate = new Date(t.fechaInicio).getTime();
+            return tDate >= ahoraMs && tDate <= limiteMs;
+          });
+          if (hayTorneoProximo) {
+            multiplierTorneo = 1.5;
+            console.log("¡Evento/Torneo detectado en las próximas 48h! Aplicando multiplicador IA de 1.5x.");
+          }
+        }
+      } catch (e) {
+        console.warn("Error evaluando torneos para predicción IA:", e);
+      }
+
+      insumos.forEach(ins => {
+        const promHoy = promediosConsumo[ins.nombre][hoyD] || 0;
+        const promManana = promediosConsumo[ins.nombre][mananaD] || 0;
+        const demandaProyectada = (promHoy + promManana) * multiplierTorneo;
+
+        const riesgo = ins.stock < demandaProyectada;
+        const motivo = riesgo 
+          ? `Demanda 48h estimada (${demandaProyectada.toFixed(1)} ${ins.unidad}) superará stock actual (${ins.stock} ${ins.unidad})${multiplierTorneo > 1.0 ? ' por torneo' : ''}.`
+          : `Stock suficiente para demanda 48h (${demandaProyectada.toFixed(1)} ${ins.unidad}).`;
+
+        previsiones[ins.nombre] = {
+          consumoDiarioPromedio: Number(((promHoy + promManana) / 2).toFixed(1)),
+          demandaProxima48h: Number(demandaProyectada.toFixed(1)),
+          riesgoDesabasto: riesgo,
+          motivo,
+          cantidadSugerida: riesgo ? Math.max(0, Math.ceil(ins.stockOptimo - ins.stock)) : 0
+        };
+      });
+
+      // 8. Guardar previsor en Firestore config/ia_prevision_insumos
+      await setDoc(doc(db, 'config', 'ia_prevision_insumos'), {
+        previsiones,
+        updatedAt: serverTimestamp(),
+        lastRunDate: hoy
+      });
+
+      localStorage.setItem('yoy_last_ia_learning_run', hoy);
+      console.log("¡Aprendizaje IA completado con éxito! Previsiones guardadas en Firestore.");
+    } catch (err) {
+      console.error("Error en ejecutarAprendizajeIA:", err);
+    }
+  };
+
+  // Ejecutar aprendizaje IA al iniciar sesión
+  useEffect(() => {
+    if (user && (user.role === 'admin' || user.role === 'cajero' || user.role === 'gerente')) {
+      ejecutarAprendizajeIA();
+    }
   }, [user]);
 
   // Redirigir si no tiene permisos para el panel activo
@@ -847,9 +1011,9 @@ function AppContent() {
         />
 
         {/* Banner de Insumos Críticos / Faltantes */}
-        {insumosBajos.length > 0 && (
+        {(insumosBajos.length > 0 || Object.entries(iaPrevisiones).some(([_, data]) => data.riesgoDesabasto === true)) && (
           <div style={{
-            background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.15), rgba(239, 68, 68, 0.05))',
+            background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.15), rgba(205, 127, 50, 0.08))',
             borderBottom: '1px solid rgba(239, 68, 68, 0.3)',
             padding: '10px 24px',
             display: 'flex',
@@ -858,18 +1022,31 @@ function AppContent() {
             gap: 12,
             animation: 'slideDownAlert 0.4s ease'
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ fontSize: 18, animation: 'pulse 1s infinite' }}>⚠️</span>
-              <span style={{ fontSize: 12, color: '#fff', fontWeight: 600 }}>
-                ALERTA DE COCINA: Hay <strong style={{ color: 'var(--danger)' }}>{insumosBajos.length} insumo(s) crítico(s)</strong> por debajo del mínimo ({insumosBajos.slice(0, 3).map(i => i.nombre).join(', ')}{insumosBajos.length > 3 ? '...' : ''}).
-              </span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, textAlign: 'left' }}>
+              {insumosBajos.length > 0 && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ fontSize: 16, animation: 'pulse 1s infinite' }}>⚠️</span>
+                  <span style={{ fontSize: 12, color: '#fff', fontWeight: 600 }}>
+                    MONITOREO DE INVENTARIO: Hay <strong style={{ color: 'var(--bronze-light)' }}>{insumosBajos.length} insumo(s)</strong> por debajo de su nivel óptimo ({insumosBajos.slice(0, 3).map(i => i.nombre).join(', ')}{insumosBajos.length > 3 ? '...' : ''}).
+                  </span>
+                </div>
+              )}
+              {Object.entries(iaPrevisiones).some(([_, data]) => data.riesgoDesabasto === true) && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--danger)', fontWeight: 700, paddingLeft: 26 }}>
+                  <i className="ri-brain-line" style={{ fontSize: 13 }} /> ALERTA IA: {Object.entries(iaPrevisiones)
+                    .filter(([_, data]) => data.riesgoDesabasto === true)
+                    .slice(0, 2)
+                    .map(([name, data]) => `Riesgo de desabasto en [${name}] (${data.motivo})`)
+                    .join(' | ')}
+                </div>
+              )}
             </div>
             <button 
-              className="btn btn-danger btn-xs" 
+              className="btn btn-secondary btn-xs" 
               onClick={() => setActivePanel('config')} 
-              style={{ padding: '4px 10px', fontSize: 10, borderRadius: 6 }}
+              style={{ padding: '4px 10px', fontSize: 10, borderRadius: 6, color: '#fff', borderColor: 'var(--border)' }}
             >
-              Ver en Recetario / Inventario
+              Ver Inventario
             </button>
           </div>
         )}

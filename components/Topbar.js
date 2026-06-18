@@ -382,14 +382,24 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
           const stockData = deobfuscate(savedStock);
           if (stockData) {
             const lowStockList = stockData
-              .filter(p => p.stock <= p.stockMin)
-              .map(p => ({
-                id: 'stock_' + p.id,
-                tipo: 'stock',
-                titulo: `Stock Bajo: ${p.nombre}`,
-                desc: `Existencia: ${p.stock} ${p.unidad} (Mínimo: ${p.stockMin})`,
-                fecha: 'Inventario'
-              }));
+              .filter(p => {
+                if (p.categoria === 'Insumo') {
+                  return p.stock < (p.stockOptimo || 0);
+                }
+                return p.stock <= p.stockMin;
+              })
+              .map(p => {
+                const isInsumo = p.categoria === 'Insumo';
+                return {
+                  id: 'stock_' + p.id,
+                  tipo: 'stock',
+                  titulo: isInsumo ? `Insumo Bajo Óptimo: ${p.nombre}` : `Stock Bajo: ${p.nombre}`,
+                  desc: isInsumo 
+                    ? `Existencia: ${p.stock} ${p.unidad} (Óptimo: ${p.stockOptimo})` 
+                    : `Existencia: ${p.stock} ${p.unidad} (Mínimo: ${p.stockMin})`,
+                  fecha: 'Inventario'
+                };
+              });
             setStockAlerts(lowStockList);
           }
         } catch (e) {

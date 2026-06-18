@@ -89,6 +89,7 @@ function CocinaContent() {
   const [showCierreTurnoModal, setShowCierreTurnoModal] = useState(false);
   const [cierreInsumos, setCierreInsumos] = useState([]);
   const [isClosing, setIsClosing] = useState(false);
+  const [iaPrevisiones, setIaPrevisiones] = useState({});
 
   const syncInsumoToInventario = async (insumoData, action = 'update') => {
     try {
@@ -250,6 +251,16 @@ function CocinaContent() {
       // Ordenar por nivel crítico primero
       items.sort((a, b) => (a.nivelActual / a.nivelMin) - (b.nivelActual / b.nivelMin));
       setInsumos(items);
+    });
+    return unsub;
+  }, []);
+
+  // Escuchar alertas predictivas de la IA para insumos
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, 'config', 'ia_prevision_insumos'), snap => {
+      if (snap.exists()) {
+        setIaPrevisiones(snap.data().previsiones || {});
+      }
     });
     return unsub;
   }, []);
@@ -678,7 +689,7 @@ function CocinaContent() {
         <div style={{ display: 'flex', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 14, padding: 4, marginBottom: 24 }}>
           {[
             { id: 'pedidos', label: 'Comandas Activas', icon: 'ri-restaurant-line', count: pedidos.length },
-            { id: 'insumos', label: 'Checklist de Insumos', icon: 'ri-checkbox-list-line', count: insumos.filter(i => i.nivelActual <= i.nivelMin).length },
+            { id: 'insumos', label: 'Checklist de Insumos', icon: 'ri-checkbox-list-line', count: insumos.filter(i => i.nivelActual < (i.nivelOptimo || 0)).length },
             { id: 'inventario', label: 'Inventario General', icon: 'ri-archive-line', count: productos.filter(p => p.stock <= p.stockMin).length }
           ].map(t => (
             <button
@@ -895,88 +906,117 @@ function CocinaContent() {
               </div>
             </div>
 
-            {/* Listado Visual de Insumos */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
-              {insumos.map(ins => {
-                const esCritico = ins.nivelActual <= ins.nivelMin;
-                const pct = getPorcentajeInsumo(ins);
-                const color = getColorInsumo(ins);
+            {/* Listado Visual de Insumos en Formato de Lista */}
+            <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, padding: '16px 20px', marginTop: 16 }}>
+              <div style={{ overflowX: 'auto' }}>
+                <table className="table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid var(--border)', textAlign: 'left', color: 'var(--text-muted)' }}>
+                      <th style={{ padding: '12px 8px' }}>Insumo</th>
+                      <th style={{ padding: '12px 8px' }}>Categoría</th>
+                      <th style={{ padding: '12px 8px', textAlign: 'center' }}>Nivel Actual / Óptimo</th>
+                      <th style={{ padding: '12px 8px', width: 180 }}>Progreso</th>
+                      <th style={{ padding: '12px 8px', textAlign: 'center' }}>Estado</th>
+                      <th style={{ padding: '12px 8px', textAlign: 'center' }}>Tolerancia IA</th>
+                      <th style={{ padding: '12px 8px', textAlign: 'center' }}>Ajustar Nivel</th>
+                      <th style={{ padding: '12px 8px', textAlign: 'center' }}>Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {insumos.map(ins => {
+                      const esCritico = ins.nivelActual <= ins.nivelMin;
+                      const pct = getPorcentajeInsumo(ins);
+                      const color = getColorInsumo(ins);
+                      const iaPrevision = iaPrevisiones[ins.nombre];
+                      const tieneRiesgoIA = iaPrevision && iaPrevision.riesgoDesabasto === true;
 
-                return (
-                  <div
-                    key={ins.id}
-                    style={{
-                      background: 'var(--bg-card)',
-                      border: `1px solid ${esCritico ? 'rgba(239,68,68,0.3)' : 'var(--border)'}`,
-                      borderRadius: 16, padding: 16, display: 'flex', flexDirection: 'column', gap: 12,
-                      boxShadow: esCritico ? '0 0 15px rgba(239,68,68,0.05)' : 'none'
-                    }}
-                  >
-                    {/* Header insumo */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                      <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <div style={{ fontSize: 14, fontWeight: 800, color: '#fff' }}>{ins.nombre}</div>
-                          <button
-                            onClick={() => setEditingInsumo(ins)}
-                            style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 2, fontSize: 11 }}
-                            title="Editar Insumo"
-                          >
-                            <i className="ri-edit-line" />
-                          </button>
-                        </div>
-                        <span style={{ fontSize: 9, background: 'var(--bg-elevated)', color: 'var(--text-muted)', padding: '2px 6px', borderRadius: 4, textTransform: 'uppercase', marginTop: 4, display: 'inline-block' }}>
-                          {ins.categoria}
-                        </span>
-                        <span style={{ fontSize: 8, color: 'var(--text-muted)', display: 'block', marginTop: 2 }}>
-                          Tolerancia IA: {ins.toleranciaDesviacion !== undefined ? ins.toleranciaDesviacion : 25}%
-                        </span>
-                      </div>
-                      <div style={{ textAlign: 'right' }}>
-                        <span style={{
-                          fontSize: 10, fontWeight: 900, padding: '2px 8px', borderRadius: 99,
-                          background: `${color}15`, color: color, border: `1px solid ${color}30`
-                        }}>
-                          {ins.nivelActual <= ins.nivelMin ? 'FALTANTE ⚠️' : ins.nivelActual <= ins.nivelMin * 1.5 ? 'BAJO 🚨' : 'SUFICIENTE ✓'}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Barra de progreso visual */}
-                    <div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4 }}>
-                        <span>Nivel: <strong>{ins.nivelActual} {ins.unidad}</strong></span>
-                        <span>Mín: {ins.nivelMin} / Óptimo: {ins.nivelOptimo}</span>
-                      </div>
-                      <div style={{ width: '100%', height: 8, background: 'var(--bg-elevated)', borderRadius: 99, overflow: 'hidden', border: '1px solid var(--border)' }}>
-                        <div style={{ width: `${pct}%`, height: '100%', background: color, borderRadius: 99, transition: 'width 0.3s ease' }} />
-                      </div>
-                    </div>
-
-                    {/* Acciones para modificar stock */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: 10, marginTop: 4 }}>
-                      <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Actualizar cantidad:</span>
-                      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                        <button
-                          className="btn btn-secondary btn-icon"
-                          style={{ width: 28, height: 28, minWidth: 28, padding: 0 }}
-                          onClick={() => modificarInsumoNivel(ins.id, -1)}
-                        >
-                          −
-                        </button>
-                        <span style={{ fontSize: 13, fontWeight: 700, minWidth: 24, textAlign: 'center' }}>{ins.nivelActual}</span>
-                        <button
-                          className="btn btn-secondary btn-icon"
-                          style={{ width: 28, height: 28, minWidth: 28, padding: 0 }}
-                          onClick={() => modificarInsumoNivel(ins.id, 1)}
-                        >
-                          +
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
+                      return (
+                        <tr key={ins.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', verticalAlign: 'middle' }}>
+                          <td style={{ padding: '10px 8px' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <span style={{ fontSize: 14, fontWeight: 800, color: '#fff' }}>{ins.nombre}</span>
+                                {tieneRiesgoIA && (
+                                  <span 
+                                    title={iaPrevision.motivo} 
+                                    style={{
+                                      display: 'inline-flex', alignItems: 'center', gap: 3,
+                                      fontSize: 9, background: 'rgba(239, 68, 68, 0.12)',
+                                      color: 'var(--danger)', border: '1px solid rgba(239, 68, 68, 0.3)',
+                                      borderRadius: 6, padding: '1px 6px', fontWeight: 800, cursor: 'help'
+                                    }}
+                                  >
+                                    <i className="ri-brain-line" /> IA RIESGO
+                                  </span>
+                                )}
+                              </div>
+                              {tieneRiesgoIA && (
+                                <span style={{ fontSize: 9, color: 'var(--danger)', fontWeight: 600 }}>
+                                  ⚠️ {iaPrevision.motivo}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td style={{ padding: '10px 8px' }}>
+                            <span style={{ fontSize: 9, background: 'var(--bg-elevated)', color: 'var(--text-muted)', padding: '2px 6px', borderRadius: 4, textTransform: 'uppercase' }}>
+                              {ins.categoria}
+                            </span>
+                          </td>
+                          <td style={{ padding: '10px 8px', textAlign: 'center', fontWeight: 600 }}>
+                            <span style={{ color: color }}>{ins.nivelActual}</span> / <span style={{ color: 'var(--text-muted)' }}>{ins.nivelOptimo} {ins.unidad}</span>
+                            <div style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 'normal' }}>Mínimo: {ins.nivelMin}</div>
+                          </td>
+                          <td style={{ padding: '10px 8px' }}>
+                            <div style={{ width: '100%', height: 6, background: 'var(--bg-elevated)', borderRadius: 99, overflow: 'hidden', border: '1px solid var(--border)' }}>
+                              <div style={{ width: `${pct}%`, height: '100%', background: color, borderRadius: 99, transition: 'width 0.3s ease' }} />
+                            </div>
+                          </td>
+                          <td style={{ padding: '10px 8px', textAlign: 'center' }}>
+                            <span style={{
+                              fontSize: 9, fontWeight: 900, padding: '2px 8px', borderRadius: 99,
+                              background: `${color}15`, color: color, border: `1px solid ${color}30`
+                            }}>
+                              {ins.nivelActual <= ins.nivelMin ? 'FALTANTE ⚠️' : ins.nivelActual < ins.nivelOptimo ? 'BAJO OPTIMO 🚨' : 'SUFICIENTE ✓'}
+                            </span>
+                          </td>
+                          <td style={{ padding: '10px 8px', textAlign: 'center', fontSize: 11, color: 'var(--text-secondary)' }}>
+                            {ins.toleranciaDesviacion !== undefined ? ins.toleranciaDesviacion : 25}%
+                          </td>
+                          <td style={{ padding: '10px 8px', textAlign: 'center' }}>
+                            <div style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+                              <button
+                                className="btn btn-secondary btn-icon"
+                                style={{ width: 26, height: 26, minWidth: 26, padding: 0 }}
+                                onClick={() => modificarInsumoNivel(ins.id, -1)}
+                              >
+                                −
+                              </button>
+                              <span style={{ fontSize: 13, fontWeight: 700, minWidth: 24, textAlign: 'center' }}>{ins.nivelActual}</span>
+                              <button
+                                className="btn btn-secondary btn-icon"
+                                style={{ width: 26, height: 26, minWidth: 26, padding: 0 }}
+                                onClick={() => modificarInsumoNivel(ins.id, 1)}
+                              >
+                                +
+                              </button>
+                            </div>
+                          </td>
+                          <td style={{ padding: '10px 8px', textAlign: 'center' }}>
+                            <button
+                              onClick={() => setEditingInsumo(ins)}
+                              className="btn btn-secondary btn-icon"
+                              style={{ width: 28, height: 28, minWidth: 28, padding: 0, color: 'var(--bronze-light)' }}
+                              title="Editar Insumo"
+                            >
+                              <i className="ri-settings-4-line" />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         )}
