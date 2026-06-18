@@ -4730,69 +4730,9 @@ export default function MesasPanel({ showToast }) {
           overflow: 'hidden',
           boxShadow: 'var(--shadow-sm)'
         }}>
-          {/* Ocupación */}
-          <div style={{
-            padding: '6px 12px',
-            fontSize: 10,
-            fontWeight: 700,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            height: 28,
-            borderRight: '1px solid var(--border-bronze)',
-            background: 'rgba(245, 158, 11, 0.02)',
-            color: '#f59e0b',
-            whiteSpace: 'nowrap'
-          }}>
-            <div style={{
-              width: 6,
-              height: 6,
-              borderRadius: '50%',
-              background: pctOcupacion > 70 ? 'var(--danger)' : (pctOcupacion > 30 ? '#f59e0b' : 'var(--success)'),
-              boxShadow: `0 0 6px ${pctOcupacion > 70 ? 'var(--danger)' : (pctOcupacion > 30 ? '#f59e0b' : 'var(--success)')}`
-            }} />
-            <span style={{ color: 'var(--text-secondary)' }}>OCUPACIÓN: <strong style={{ color: '#f59e0b' }}>{pctOcupacion}%</strong></span>
-          </div>
-
-          {/* Libres */}
-          <div style={{
-            padding: '6px 12px',
-            fontSize: 10,
-            fontWeight: 700,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            height: 28,
-            borderRight: '1px solid var(--border-bronze)',
-            background: 'rgba(34, 197, 94, 0.02)',
-            color: 'var(--success)',
-            whiteSpace: 'nowrap'
-          }}>
-            <i className="ri-checkbox-blank-circle-line" style={{ color: 'var(--success)', fontSize: 11 }} />
-            <span style={{ color: 'var(--text-secondary)' }}>LIBRES: <strong style={{ color: 'var(--success)' }}>{totales.libres}</strong></span>
-          </div>
-
-          {/* Ocupadas */}
-          <div style={{
-            padding: '6px 12px',
-            fontSize: 10,
-            fontWeight: 700,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            height: 28,
-            borderRight: '1px solid var(--border-bronze)',
-            background: 'rgba(239, 68, 68, 0.02)',
-            color: 'var(--danger)',
-            whiteSpace: 'nowrap'
-          }}>
-            <i className="ri-record-circle-line" style={{ color: 'var(--danger)', fontSize: 11 }} />
-            <span style={{ color: 'var(--text-secondary)' }}>OCUPADAS: <strong style={{ color: 'var(--danger)' }}>{totales.ocupadas}</strong></span>
-          </div>
-
-          {/* Reservadas (Interactiva) */}
+          {/* Todas / Ocupación */}
           <button
-            onClick={() => setModalReservasCentral(true)}
+            onClick={() => setFiltro('todas')}
             style={{
               padding: '6px 12px',
               fontSize: 10,
@@ -4801,18 +4741,178 @@ export default function MesasPanel({ showToast }) {
               alignItems: 'center',
               gap: 6,
               height: 28,
-              background: 'rgba(227, 168, 105, 0.02)',
               border: 'none',
+              borderRight: '1px solid var(--border-bronze)',
+              background: filtro === 'todas' ? 'rgba(245, 158, 11, 0.15)' : 'rgba(245, 158, 11, 0.02)',
+              color: '#f59e0b',
               cursor: 'pointer',
               transition: 'all 0.15s',
-              color: 'var(--bronze-light)',
               whiteSpace: 'nowrap'
             }}
-            onMouseEnter={e => e.currentTarget.style.background = 'rgba(227, 168, 105, 0.08)'}
-            onMouseLeave={e => e.currentTarget.style.background = 'rgba(227, 168, 105, 0.02)'}
+            onMouseEnter={e => {
+              if (filtro !== 'todas') e.currentTarget.style.background = 'rgba(245, 158, 11, 0.08)';
+            }}
+            onMouseLeave={e => {
+              if (filtro !== 'todas') e.currentTarget.style.background = 'rgba(245, 158, 11, 0.02)';
+            }}
+          >
+            <div style={{
+              width: 6,
+              height: 6,
+              borderRadius: '50%',
+              background: pctOcupacion > 70 ? 'var(--danger)' : (pctOcupacion > 30 ? '#f59e0b' : 'var(--success)'),
+              boxShadow: `0 0 6px ${pctOcupacion > 70 ? 'var(--danger)' : (pctOcupacion > 30 ? '#f59e0b' : 'var(--success)')}`
+            }} />
+            <span style={{ color: 'var(--text-secondary)' }}>TODAS: <strong style={{ color: '#f59e0b' }}>{pctOcupacion}% OCUPACIÓN</strong></span>
+          </button>
+
+          {/* Libres */}
+          <button
+            onClick={() => setFiltro('libre')}
+            style={{
+              padding: '6px 12px',
+              fontSize: 10,
+              fontWeight: 700,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              height: 28,
+              border: 'none',
+              borderRight: '1px solid var(--border-bronze)',
+              background: filtro === 'libre' ? 'rgba(34, 197, 94, 0.15)' : 'rgba(34, 197, 94, 0.02)',
+              color: 'var(--success)',
+              cursor: 'pointer',
+              transition: 'all 0.15s',
+              whiteSpace: 'nowrap'
+            }}
+            onMouseEnter={e => {
+              if (filtro !== 'libre') e.currentTarget.style.background = 'rgba(34, 197, 94, 0.08)';
+            }}
+            onMouseLeave={e => {
+              if (filtro !== 'libre') e.currentTarget.style.background = 'rgba(34, 197, 94, 0.02)';
+            }}
+          >
+            <i className="ri-checkbox-blank-circle-line" style={{ color: 'var(--success)', fontSize: 11 }} />
+            <span style={{ color: 'var(--text-secondary)' }}>LIBRES: <strong style={{ color: 'var(--success)' }}>{totales.libres}</strong></span>
+          </button>
+
+          {/* Ocupadas */}
+          <button
+            onClick={() => setFiltro('ocupada')}
+            style={{
+              padding: '6px 12px',
+              fontSize: 10,
+              fontWeight: 700,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              height: 28,
+              border: 'none',
+              borderRight: '1px solid var(--border-bronze)',
+              background: filtro === 'ocupada' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(239, 68, 68, 0.02)',
+              color: 'var(--danger)',
+              cursor: 'pointer',
+              transition: 'all 0.15s',
+              whiteSpace: 'nowrap'
+            }}
+            onMouseEnter={e => {
+              if (filtro !== 'ocupada') e.currentTarget.style.background = 'rgba(239, 68, 68, 0.08)';
+            }}
+            onMouseLeave={e => {
+              if (filtro !== 'ocupada') e.currentTarget.style.background = 'rgba(239, 68, 68, 0.02)';
+            }}
+          >
+            <i className="ri-record-circle-line" style={{ color: 'var(--danger)', fontSize: 11 }} />
+            <span style={{ color: 'var(--text-secondary)' }}>OCUPADAS: <strong style={{ color: 'var(--danger)' }}>{totales.ocupadas}</strong></span>
+          </button>
+
+          {/* Reservadas */}
+          <div
+            onClick={() => setFiltro('reservada')}
+            style={{
+              padding: '6px 12px',
+              fontSize: 10,
+              fontWeight: 700,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              height: 28,
+              borderRight: '1px solid var(--border-bronze)',
+              background: filtro === 'reservada' ? 'rgba(227, 168, 105, 0.15)' : 'rgba(227, 168, 105, 0.02)',
+              color: 'var(--bronze-light)',
+              cursor: 'pointer',
+              transition: 'all 0.15s',
+              whiteSpace: 'nowrap'
+            }}
+            onMouseEnter={e => {
+              if (filtro !== 'reservada') e.currentTarget.style.background = 'rgba(227, 168, 105, 0.08)';
+            }}
+            onMouseLeave={e => {
+              if (filtro !== 'reservada') e.currentTarget.style.background = 'rgba(227, 168, 105, 0.02)';
+            }}
           >
             <i className="ri-bookmark-fill" style={{ color: 'var(--bronze-light)', fontSize: 11 }} />
-            <span style={{ color: 'var(--text-secondary)' }}>RESERVADAS: <strong style={{ color: 'var(--bronze-light)' }}>{totales.reservadas}</strong></span>
+            <span style={{ color: 'var(--text-secondary)', marginRight: 6 }}>RESERVADAS: <strong style={{ color: 'var(--bronze-light)' }}>{totales.reservadas}</strong></span>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setModalReservasCentral(true);
+              }}
+              style={{
+                background: 'rgba(255,255,255,0.05)',
+                border: '1px solid rgba(227, 168, 105, 0.3)',
+                color: 'var(--bronze-light)',
+                borderRadius: 4,
+                padding: '1px 5px',
+                fontSize: 8,
+                fontWeight: 800,
+                cursor: 'pointer',
+                transition: 'all 0.15s',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.background = 'var(--bronze-light)';
+                e.currentTarget.style.color = '#000';
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
+                e.currentTarget.style.color = 'var(--bronze-light)';
+              }}
+              title="Administrar Reservas"
+            >
+              GESTIONAR
+            </button>
+          </div>
+
+          {/* Mantenimiento */}
+          <button
+            onClick={() => setFiltro('manten')}
+            style={{
+              padding: '6px 12px',
+              fontSize: 10,
+              fontWeight: 700,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              height: 28,
+              border: 'none',
+              background: filtro === 'manten' ? 'rgba(176, 184, 200, 0.18)' : 'rgba(176, 184, 200, 0.02)',
+              color: 'var(--text-muted)',
+              cursor: 'pointer',
+              transition: 'all 0.15s',
+              whiteSpace: 'nowrap'
+            }}
+            onMouseEnter={e => {
+              if (filtro !== 'manten') e.currentTarget.style.background = 'rgba(176, 184, 200, 0.08)';
+            }}
+            onMouseLeave={e => {
+              if (filtro !== 'manten') e.currentTarget.style.background = 'rgba(176, 184, 200, 0.02)';
+            }}
+          >
+            <i className="ri-tools-line" style={{ color: 'var(--text-muted)', fontSize: 11 }} />
+            <span style={{ color: 'var(--text-secondary)' }}>MANTENIMIENTO: <strong style={{ color: 'var(--text-muted)' }}>{totales.manten}</strong></span>
           </button>
         </div>
 
@@ -4850,28 +4950,7 @@ export default function MesasPanel({ showToast }) {
           <i className="ri-wallet-3-line" style={{ marginRight: 4 }} /> Gasto
         </button>
 
-        {/* Separador vertical */}
-        <div style={{ width: 1, height: 18, background: 'var(--border-bronze)', opacity: 0.3, margin: '0 4px' }} />
 
-        {/* Filtros de Estado de Mesa */}
-        {[
-          { id: 'todas', label: 'Todas' },
-          { id: 'libre', label: 'Libres' },
-          { id: 'ocupada', label: 'Ocupadas' },
-          { id: 'reservada', label: 'Reservadas' },
-          { id: 'manten', label: 'Mantenimiento' },
-        ].map(f => (
-          <button
-            key={f.id}
-            onClick={() => setFiltro(f.id)}
-            className={`btn btn-sm ${filtro === f.id ? 'btn-primary' : 'btn-secondary'}`}
-          >
-            {f.label}
-          </button>
-        ))}
-
-        {/* Separador vertical */}
-        <div style={{ width: 1, height: 18, background: 'var(--border-bronze)', opacity: 0.3, margin: '0 4px' }} />
 
         {/* Controles de Utilidad */}
         <button
