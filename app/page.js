@@ -825,7 +825,7 @@ function AppContent() {
             setActivePanel(panel);
           }}
         />
-        <div className="page-content">
+        <div className="page-content" style={activePanel === 'mesas' ? { display: 'flex', flexDirection: 'column', height: 'calc(100vh - 70px)', overflow: 'hidden' } : {}}>
           {user && user.permisos && user.permisos[activePanel] !== true ? (
             <div className="card" style={{ padding: 40, textAlign: 'center', border: '1px solid var(--border-bronze)', maxWidth: 500, margin: '40px auto' }}>
               <i className="ri-shield-keyhole-line" style={{ fontSize: 48, color: 'var(--bronze-light)', marginBottom: 16, display: 'block' }} />

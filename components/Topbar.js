@@ -59,6 +59,19 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
   const { logout, loginWithEmpleadoId } = useAuth();
   const [time, setTime] = useState(new Date());
   const [showMenu, setShowMenu] = useState(false);
+
+  // Cerrar menú de perfil al hacer clic fuera
+  useEffect(() => {
+    if (!showMenu) return;
+    const handleOutsideClick = (e) => {
+      const container = document.getElementById('profile-dropdown-container');
+      if (container && !container.contains(e.target)) {
+        setShowMenu(false);
+      }
+    };
+    document.addEventListener('click', handleOutsideClick);
+    return () => document.removeEventListener('click', handleOutsideClick);
+  }, [showMenu]);
   const [showModalPaseLista, setShowModalPaseLista] = useState(false);
   const [empleadosPaseLista, setEmpleadosPaseLista] = useState([]);
   const [busquedaPaseLista, setBusquedaPaseLista] = useState('');
@@ -798,7 +811,7 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
         </button>
 
         {/* Perfil */}
-        <div style={{ position: 'relative' }}>
+        <div id="profile-dropdown-container" style={{ position: 'relative' }}>
           <button
             onClick={() => setShowMenu(p => !p)}
             style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 10, padding: '6px 12px', cursor: 'pointer', transition: 'border-color 0.15s' }}

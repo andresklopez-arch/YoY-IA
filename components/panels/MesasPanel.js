@@ -4603,7 +4603,15 @@ export default function MesasPanel({ showToast }) {
   const pctOcupacion = Math.round((totales.ocupadas / totalMesasCount) * 100);
 
   return (
-    <div style={{ minHeight: isFullscreen ? '100vh' : 'auto', padding: isFullscreen ? '20px' : '0', background: isFullscreen ? 'var(--bg-main)' : 'transparent' }}>
+    <div style={{
+      display: 'flex',
+      flexDirection: 'column',
+      height: isFullscreen ? '100vh' : '100%',
+      minHeight: isFullscreen ? '100vh' : 'auto',
+      padding: isFullscreen ? '20px' : '0',
+      background: isFullscreen ? 'var(--bg-main)' : 'transparent',
+      overflow: 'hidden'
+    }}>
       <style>{`
         @keyframes pulseBorderGold {
           0% { border-color: rgba(197, 168, 128, 0.4); box-shadow: 0 0 5px rgba(197, 168, 128, 0.15); }
@@ -4895,39 +4903,10 @@ export default function MesasPanel({ showToast }) {
         </button>
       </div>
 
-      {/* Alerta de Inventario Crítico IA (Sugerencia 2) */}
-      {productosBajos.length > 0 && (
-        <div style={{
-          background: 'rgba(205,127,50,0.06)',
-          border: '1px solid rgba(205,127,50,0.25)',
-          borderRadius: 12,
-          padding: '12px 16px',
-          marginBottom: 20,
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          gap: 12,
-          animation: 'slideUp 0.3s ease'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <i className="ri-robot-line" style={{ fontSize: 18, color: 'var(--bronze-light)' }} />
-            <div style={{ fontSize: 12 }}>
-              <span style={{ fontWeight: 700, color: 'var(--bronze-light)' }}>Asistente IA de Stock:</span>{' '}
-              Se requiere reorden en {productosBajos.length} productos ({productosBajos.map(p=>p.nombre || p.producto).join(', ')}).
-            </div>
-          </div>
-          <button
-            className="btn btn-secondary btn-sm"
-            style={{ fontSize: 10, padding: '4px 10px', color: 'var(--bronze-light)', borderColor: 'var(--border-bronze)' }}
-            onClick={() => showToast('Diríjase al panel de Inventario IA para lanzar la orden de compra.', 'info')}
-          >
-            Lanzar Reorden IA
-          </button>
-        </div>
-      )}
+
 
       {/* Grid de mesas */}
-      <div className="mesa-grid">
+      <div className="mesa-grid" style={{ flex: 1, overflowY: 'auto', paddingRight: 4 }}>
         {mesasFiltradas.map(mesa => {
           const elapsed = mesa.inicio ? Date.now() - mesa.inicio : 0;
           const costo = calcCosto(mesa);
