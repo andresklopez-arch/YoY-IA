@@ -1115,56 +1115,57 @@ export default function ConfigPanel({ showToast }) {
       </div>
 
       {subTab === 'general' ? (
-        <>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, alignItems: 'start' }}>
+        <div style={{ maxWidth: '1200px', margin: '0 auto', width: '100%' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, alignItems: 'start' }}>
             
             {/* COLUMNA 1 */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {/* Sucursal */}
-            <div className="card">
-              <div className="card-header" style={{ marginBottom: 20 }}>
+            <div className="card" style={{ padding: '12px 14px' }}>
+              <div className="card-header" style={{ marginBottom: 12 }}>
                 <h3 className="card-title"><i className="ri-building-line" style={{ marginRight: 6 }} />Datos de Sucursal</h3>
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {[
                   { label: 'Nombre del Negocio', key: 'nombre', type: 'text' },
                   { label: 'Dirección', key: 'direccion', type: 'text' },
                   { label: 'Teléfono', key: 'telefono', type: 'text' },
                   { label: 'Meta de Ingresos Mensual ($)', key: 'metaMensual', type: 'number' },
                 ].map(f => (
-                  <div key={f.key} className="form-group">
+                  <div key={f.key} className="form-group" style={{ gap: 4 }}>
                     <label className="form-label">{f.label}</label>
                     <input 
                       type={f.type || 'text'} 
                       className="form-input" 
                       value={sucursal[f.key] || ''} 
                       onChange={e => setSucursal(p => ({ ...p, [f.key]: f.type === 'number' ? Number(e.target.value) : e.target.value }))} 
+                      style={{ padding: '8px 12px', fontSize: '13px' }}
                     />
                   </div>
                 ))}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                  <div className="form-group">
+                  <div className="form-group" style={{ gap: 4 }}>
                     <label className="form-label">Apertura</label>
-                    <input className="form-input" type="time" value={sucursal.horarioApertura || ''} onChange={e => setSucursal(p => ({ ...p, horarioApertura: e.target.value }))} />
+                    <input className="form-input" type="time" value={sucursal.horarioApertura || ''} onChange={e => setSucursal(p => ({ ...p, horarioApertura: e.target.value }))} style={{ padding: '8px 12px', fontSize: '13px' }} />
                   </div>
-                  <div className="form-group">
+                  <div className="form-group" style={{ gap: 4 }}>
                     <label className="form-label">Cierre</label>
-                    <input className="form-input" type="time" value={sucursal.horarioCierre || ''} onChange={e => setSucursal(p => ({ ...p, horarioCierre: e.target.value }))} />
+                    <input className="form-input" type="time" value={sucursal.horarioCierre || ''} onChange={e => setSucursal(p => ({ ...p, horarioCierre: e.target.value }))} style={{ padding: '8px 12px', fontSize: '13px' }} />
                   </div>
                 </div>
 
                 <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: 10, marginTop: 4 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--bronze-light)', marginBottom: 10 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--bronze-light)', marginBottom: 8 }}>
                     📍 Geocerca para Asistencia (QR)
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
-                    <div className="form-group">
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 8 }}>
+                    <div className="form-group" style={{ gap: 4 }}>
                       <label className="form-label">Latitud</label>
-                      <input className="form-input" type="number" step="any" value={sucursal.lat || ''} onChange={e => setSucursal(p => ({ ...p, lat: e.target.value }))} placeholder="20.659698" style={{ fontSize: 12 }} />
+                      <input className="form-input" type="number" step="any" value={sucursal.lat || ''} onChange={e => setSucursal(p => ({ ...p, lat: e.target.value }))} placeholder="20.659698" style={{ padding: '8px 12px', fontSize: '12px' }} />
                     </div>
-                    <div className="form-group">
+                    <div className="form-group" style={{ gap: 4 }}>
                       <label className="form-label">Longitud</label>
-                      <input className="form-input" type="number" step="any" value={sucursal.lng || ''} onChange={e => setSucursal(p => ({ ...p, lng: e.target.value }))} placeholder="-103.349609" style={{ fontSize: 12 }} />
+                      <input className="form-input" type="number" step="any" value={sucursal.lng || ''} onChange={e => setSucursal(p => ({ ...p, lng: e.target.value }))} placeholder="-103.349609" style={{ padding: '8px 12px', fontSize: '12px' }} />
                     </div>
                   </div>
                   <button className="btn btn-secondary btn-xs" onClick={obtenerUbicacionActualSucursal} style={{ display: 'flex', alignItems: 'center', gap: 4, width: '100%', justifyContent: 'center', height: 28, fontSize: 11 }}>
@@ -1172,21 +1173,21 @@ export default function ConfigPanel({ showToast }) {
                   </button>
                 </div>
 
-                <button className="btn btn-primary" onClick={handleSaveSucursal} style={{ marginTop: 6 }}>
+                <button className="btn btn-primary" onClick={handleSaveSucursal} style={{ marginTop: 6, padding: '8px 14px', fontSize: '12px' }}>
                   <i className="ri-save-line" /> Guardar Sucursal
                 </button>
               </div>
             </div>
-            <div className="card">
-              <div className="card-header" style={{ marginBottom: 20 }}>
+            <div className="card" style={{ padding: '12px 14px' }}>
+              <div className="card-header" style={{ marginBottom: 12 }}>
                 <h3 className="card-title"><i className="ri-robot-line" style={{ marginRight: 6 }} />Alertas IA</h3>
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {[
                   { label: 'Alerta de Stock Bajo', sub: 'Notificar cuando un producto esté bajo mínimo', state: notifStock, set: setNotifStock },
                   { label: 'Alerta de Alta Ocupación', sub: 'Sugerir surge pricing al superar 70%', state: notifOcupacion, set: setNotifOcupacion },
                 ].map((item, i) => (
-                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: i === 0 ? '1px solid var(--border)' : 'none' }}>
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: i === 0 ? '1px solid var(--border)' : 'none' }}>
                     <div>
                       <div style={{ fontSize: 13, fontWeight: 700 }}>{item.label}</div>
                       <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{item.sub}</div>
@@ -1201,12 +1202,12 @@ export default function ConfigPanel({ showToast }) {
                 ))}
               </div>
             </div>
-            <div className="card">
-              <div className="card-header" style={{ marginBottom: 20 }}>
+            <div className="card" style={{ padding: '12px 14px' }}>
+              <div className="card-header" style={{ marginBottom: 12 }}>
                 <h3 className="card-title"><i className="ri-shield-keyhole-line" style={{ marginRight: 6 }} />PIN de Administrador</h3>
               </div>
-              <form onSubmit={handleChangePin} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                <div className="form-group">
+              <form onSubmit={handleChangePin} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div className="form-group" style={{ gap: 4 }}>
                   <label className="form-label">PIN de Administrador Actual</label>
                   <input
                     type="password"
@@ -1215,11 +1216,12 @@ export default function ConfigPanel({ showToast }) {
                     value={actualPin}
                     onChange={e => setActualPin(e.target.value)}
                     maxLength={8}
+                    style={{ padding: '8px 12px', fontSize: '13px' }}
                     required
                   />
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                  <div className="form-group">
+                  <div className="form-group" style={{ gap: 4 }}>
                     <label className="form-label">Nuevo PIN</label>
                     <input
                       type="password"
@@ -1228,10 +1230,11 @@ export default function ConfigPanel({ showToast }) {
                       value={nuevoPin}
                       onChange={e => setNuevoPin(e.target.value)}
                       maxLength={8}
+                      style={{ padding: '8px 12px', fontSize: '13px' }}
                       required
                     />
                   </div>
-                  <div className="form-group">
+                  <div className="form-group" style={{ gap: 4 }}>
                     <label className="form-label">Confirmar PIN</label>
                     <input
                       type="password"
@@ -1240,17 +1243,18 @@ export default function ConfigPanel({ showToast }) {
                       value={confirmarPin}
                       onChange={e => setConfirmarPin(e.target.value)}
                       maxLength={8}
+                      style={{ padding: '8px 12px', fontSize: '13px' }}
                       required
                     />
                   </div>
                 </div>
-                <button type="submit" className="btn btn-primary">
+                <button type="submit" className="btn btn-primary" style={{ padding: '8px 14px', fontSize: '12px' }}>
                   <i className="ri-lock-unlock-line" /> Guardar Nuevo PIN
                 </button>
               </form>
             </div>
-            <div className="card">
-              <div className="card-header" style={{ marginBottom: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div className="card" style={{ padding: '12px 14px' }}>
+              <div className="card-header" style={{ marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <h3 className="card-title">
                   <i className="ri-telegram-line" style={{ marginRight: 6, color: '#24A1DE' }} />
                   Alertas Telegram
@@ -1268,12 +1272,12 @@ export default function ConfigPanel({ showToast }) {
                 </div>
               </div>
               
-              <p style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 14 }}>
+              <p style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 10, lineHeight: 1.4 }}>
                 Envía alertas en tiempo real al grupo o chat de la gerencia cuando ocurra un fichaje sospechoso (ej. celular inusual).
               </p>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                <div className="form-group">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div className="form-group" style={{ gap: 4 }}>
                   <label className="form-label">Token de Bot de Telegram</label>
                   <input
                     type="password"
@@ -1281,17 +1285,17 @@ export default function ConfigPanel({ showToast }) {
                     placeholder="1234567890:ABCDefGhIJK..."
                     value={telegramConfig.botToken}
                     onChange={e => setTelegramConfig(p => ({ ...p, botToken: e.target.value }))}
-                    style={{ fontSize: 11 }}
+                    style={{ padding: '8px 12px', fontSize: '11px' }}
                   />
                 </div>
-                <div className="form-group">
+                <div className="form-group" style={{ gap: 4 }}>
                   <label className="form-label">ID del Chat o Canal</label>
                   <input
                     className="form-input"
                     placeholder="Ej: -100123456789 o 123456789"
                     value={telegramConfig.chatId}
                     onChange={e => setTelegramConfig(p => ({ ...p, chatId: e.target.value }))}
-                    style={{ fontSize: 11 }}
+                    style={{ padding: '8px 12px', fontSize: '11px' }}
                   />
                 </div>
 
@@ -1300,7 +1304,7 @@ export default function ConfigPanel({ showToast }) {
                     type="button" 
                     className="btn btn-secondary" 
                     onClick={handleTestTelegram} 
-                    style={{ flex: 1, height: 36, fontSize: 11 }}
+                    style={{ flex: 1, height: 32, fontSize: 11, padding: '4px 8px' }}
                   >
                     <i className="ri-send-plane-line" /> Probar
                   </button>
@@ -1309,7 +1313,7 @@ export default function ConfigPanel({ showToast }) {
                     className="btn btn-primary" 
                     onClick={handleSaveTelegram} 
                     disabled={savingTelegram} 
-                    style={{ flex: 2, height: 36, fontSize: 11 }}
+                    style={{ flex: 2, height: 32, fontSize: 11, padding: '4px 8px' }}
                   >
                     <i className="ri-save-line" /> {savingTelegram ? 'Guardando...' : 'Guardar Telegram'}
                   </button>
@@ -1319,24 +1323,24 @@ export default function ConfigPanel({ showToast }) {
             </div>
 
             {/* COLUMNA 2 */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div className="card">
-              <div className="card-header" style={{ marginBottom: 20 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div className="card" style={{ padding: '12px 14px' }}>
+              <div className="card-header" style={{ marginBottom: 12 }}>
                 <h3 className="card-title"><i className="ri-price-tag-3-line" style={{ marginRight: 6 }} />Tarifas por Hora</h3>
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {[
                   { label: 'Carambola 3 Bandas ($/hr)', key: 'carambola' },
                   { label: 'Pool 9 Bolas ($/hr)', key: 'pool' },
                   { label: 'Snooker ($/hr)', key: 'snooker' },
                 ].map(f => (
-                  <div key={f.key} className="form-group">
+                  <div key={f.key} className="form-group" style={{ gap: 4 }}>
                     <label className="form-label">{f.label}</label>
-                    <input className="form-input" type="number" value={tarifas[f.key]} onChange={e => setTarifas(p => ({ ...p, [f.key]: Number(e.target.value) }))} />
+                    <input className="form-input" type="number" value={tarifas[f.key]} onChange={e => setTarifas(p => ({ ...p, [f.key]: Number(e.target.value) }))} style={{ padding: '8px 12px', fontSize: '13px' }} />
                   </div>
                 ))}
-                <div className="divider" />
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0' }}>
+                <div className="divider" style={{ margin: '6px 0' }} />
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0' }}>
                   <div>
                     <div style={{ fontSize: 13, fontWeight: 700 }}>Surge Pricing (Precio Pico)</div>
                     <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Tarifa automática en horas de alta demanda</div>
@@ -1354,66 +1358,66 @@ export default function ConfigPanel({ showToast }) {
                   </div>
                 </div>
                 {modoSurge && (
-                  <div style={{ background: 'var(--bronze-subtle)', border: '1px solid var(--border-bronze)', borderRadius: 10, padding: 12 }}>
-                    <div className="form-group">
+                  <div style={{ background: 'var(--bronze-subtle)', border: '1px solid var(--border-bronze)', borderRadius: 10, padding: 10 }}>
+                    <div className="form-group" style={{ gap: 4 }}>
                       <label className="form-label">Multiplicador ({((tarifas.surgeMulti - 1) * 100).toFixed(0)}% extra)</label>
-                      <input className="form-input" type="number" step="0.05" min="1" max="3" value={tarifas.surgeMulti} onChange={e => setTarifas(p => ({ ...p, surgeMulti: Number(e.target.value) }))} />
+                      <input className="form-input" type="number" step="0.05" min="1" max="3" value={tarifas.surgeMulti} onChange={e => setTarifas(p => ({ ...p, surgeMulti: Number(e.target.value) }))} style={{ padding: '6px 10px', fontSize: '13px' }} />
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 10 }}>
-                      <div className="form-group">
-                        <label className="form-label">Hora Inicio Pico</label>
-                        <input className="form-input" type="time" value={tarifas.horaPicoInicio} onChange={e => setTarifas(p => ({ ...p, horaPicoInicio: e.target.value }))} />
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 8 }}>
+                      <div className="form-group" style={{ gap: 4 }}>
+                        <label className="form-label">Hora Inicio</label>
+                        <input className="form-input" type="time" value={tarifas.horaPicoInicio} onChange={e => setTarifas(p => ({ ...p, horaPicoInicio: e.target.value }))} style={{ padding: '6px 10px', fontSize: '13px' }} />
                       </div>
-                      <div className="form-group">
-                        <label className="form-label">Hora Fin Pico</label>
-                        <input className="form-input" type="time" value={tarifas.horaPicoFin} onChange={e => setTarifas(p => ({ ...p, horaPicoFin: e.target.value }))} />
+                      <div className="form-group" style={{ gap: 4 }}>
+                        <label className="form-label">Hora Fin</label>
+                        <input className="form-input" type="time" value={tarifas.horaPicoFin} onChange={e => setTarifas(p => ({ ...p, horaPicoFin: e.target.value }))} style={{ padding: '6px 10px', fontSize: '13px' }} />
                       </div>
                     </div>
                   </div>
                 )}
-                <button className="btn btn-primary" onClick={() => guardar('tarifas')}>
+                <button className="btn btn-primary" onClick={() => guardar('tarifas')} style={{ padding: '8px 14px', fontSize: '12px' }}>
                   <i className="ri-save-line" /> Guardar Tarifas
                 </button>
               </div>
             </div>
-            <div className="card">
-              <div className="card-header" style={{ marginBottom: 20 }}>
+            <div className="card" style={{ padding: '12px 14px' }}>
+              <div className="card-header" style={{ marginBottom: 12 }}>
                 <h3 className="card-title"><i className="ri-qr-code-line" style={{ marginRight: 6 }} />Impresión de QRs por Mesa</h3>
               </div>
-              <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 14 }}>
+              <p style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 10, lineHeight: 1.4 }}>
                 Genera y descarga códigos QR para pegar en las mesas. Permite a los clientes pedir servicio o recargar tiempo en su celular.
               </p>
-              <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
                 <button
                   className="btn btn-primary"
                   onClick={() => imprimirQRs(null)}
-                  style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                  style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '8px 10px', fontSize: '11px' }}
                 >
-                  <i className="ri-printer-line" /> Imprimir Todos los QRs
+                  <i className="ri-printer-line" /> Imprimir Todos
                 </button>
                 <button
                   className="btn btn-secondary"
                   onClick={descargarTodosLosQRsZIP}
-                  style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                  style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '8px 10px', fontSize: '11px' }}
                 >
-                  <i className="ri-download-2-line" /> Descargar Todos (ZIP)
+                  <i className="ri-download-2-line" /> ZIP
                 </button>
               </div>
               
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 350, overflowY: 'auto' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 260, overflowY: 'auto' }}>
                 {/* QR de Fila Virtual - Autoservicio */}
                 <div style={{ 
                   display: 'flex', 
                   alignItems: 'center', 
                   justifyContent: 'space-between', 
-                  padding: '10px 12px', 
+                  padding: '6px 10px', 
                   background: 'rgba(197, 168, 128, 0.08)', 
                   border: '1.5px solid rgba(197, 168, 128, 0.3)', 
                   borderRadius: 10,
-                  marginBottom: 4
+                  marginBottom: 2
                 }}>
                   <div 
-                    style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}
                     onClick={() => setPreviewQr({
                       title: 'Fila Virtual (Autoservicio)',
                       value: typeof window !== 'undefined' ? `${window.location.origin}/fila/registro` : 'https://yoy-ia-billar.vercel.app/fila/registro',
@@ -1423,42 +1427,42 @@ export default function ConfigPanel({ showToast }) {
                   >
                     <img 
                       src={`https://api.qrserver.com/v1/create-qr-code/?size=60x60&data=${encodeURIComponent(typeof window !== 'undefined' ? `${window.location.origin}/fila/registro` : 'https://yoy-ia-billar.vercel.app/fila/registro')}`} 
-                      width="36" 
-                      height="36" 
+                      width="32" 
+                      height="32" 
                       style={{ borderRadius: 6, background: '#fff', padding: 2, border: '1px solid var(--border)' }} 
                       alt="QR Fila Virtual" 
                     />
                     <div>
-                      <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--bronze-light)' }}>Fila Virtual (Autoservicio)</span>
+                      <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--bronze-light)' }}>Fila Virtual</span>
                       <div style={{ fontSize: 10, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <span>Registro de clientes por QR</span>
-                        <i className="ri-eye-line" style={{ fontSize: 11 }} />
+                        <span>Registro por QR</span>
+                        <i className="ri-eye-line" style={{ fontSize: 10 }} />
                       </div>
                     </div>
                   </div>
-                  <div style={{ display: 'flex', gap: 6 }}>
+                  <div style={{ display: 'flex', gap: 4 }}>
                     <button
                       className="btn btn-secondary btn-sm"
                       onClick={() => descargarQR('fila')}
-                      style={{ fontSize: 11, padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 4 }}
+                      style={{ fontSize: 10, padding: '4px 6px', display: 'flex', alignItems: 'center', gap: 2 }}
                     >
-                      <i className="ri-download-2-line" /> Descargar
+                      <i className="ri-download-2-line" />
                     </button>
                     <button
                       className="btn btn-secondary btn-sm"
                       onClick={imprimirQRRegistroVirtual}
-                      style={{ fontSize: 11, padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 4 }}
+                      style={{ fontSize: 10, padding: '4px 6px', display: 'flex', alignItems: 'center', gap: 2 }}
                     >
-                      <i className="ri-printer-line" /> Imprimir
+                      <i className="ri-printer-line" />
                     </button>
                   </div>
                 </div>
 
                 {/* QRs de Mesas */}
                 {mesas.map(m => (
-                  <div key={m.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 10 }}>
+                  <div key={m.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 10 }}>
                     <div 
-                      style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}
+                      style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}
                       onClick={() => setPreviewQr({
                         title: m.nombre,
                         value: typeof window !== 'undefined' ? `${window.location.origin}/mesa/${m.id}` : `https://yoy-ia-billar.vercel.app/mesa/${m.id}`,
@@ -1467,120 +1471,121 @@ export default function ConfigPanel({ showToast }) {
                       })}
                       title="Previsualizar QR"
                     >
-                      <img src={`https://api.qrserver.com/v1/create-qr-code/?size=60x60&data=${encodeURIComponent(typeof window !== 'undefined' ? `${window.location.origin}/mesa/${m.id}` : `https://yoy-ia-billar.vercel.app/mesa/${m.id}`)}`} width="36" height="36" style={{ borderRadius: 6, background: '#fff', padding: 2, border: '1px solid var(--border)' }} alt="QR Mesa" />
+                      <img src={`https://api.qrserver.com/v1/create-qr-code/?size=60x60&data=${encodeURIComponent(typeof window !== 'undefined' ? `${window.location.origin}/mesa/${m.id}` : `https://yoy-ia-billar.vercel.app/mesa/${m.id}`)}`} width="32" height="32" style={{ borderRadius: 6, background: '#fff', padding: 2, border: '1px solid var(--border)' }} alt="QR Mesa" />
                       <div>
-                        <span style={{ fontSize: 13, fontWeight: 700 }}>{m.nombre}</span>
+                        <span style={{ fontSize: 12, fontWeight: 700 }}>{m.nombre}</span>
                         <div style={{ fontSize: 10, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
                           <span>Mesa ID: {m.id}</span>
-                          <i className="ri-eye-line" style={{ fontSize: 11 }} />
+                          <i className="ri-eye-line" style={{ fontSize: 10 }} />
                         </div>
                       </div>
                     </div>
-                    <div style={{ display: 'flex', gap: 6 }}>
+                    <div style={{ display: 'flex', gap: 4 }}>
                       <button
                         className="btn btn-secondary btn-sm"
                         onClick={() => descargarQR('mesa', m.id)}
-                        style={{ fontSize: 11, padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 4 }}
+                        style={{ fontSize: 10, padding: '4px 6px', display: 'flex', alignItems: 'center', gap: 2 }}
                       >
-                        <i className="ri-download-2-line" /> Descargar
+                        <i className="ri-download-2-line" />
                       </button>
                       <button
                         className="btn btn-secondary btn-sm"
                         onClick={() => imprimirQRs(m.id)}
-                        style={{ fontSize: 11, padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 4 }}
+                        style={{ fontSize: 10, padding: '4px 6px', display: 'flex', alignItems: 'center', gap: 2 }}
                       >
-                        <i className="ri-printer-line" /> Imprimir
+                        <i className="ri-printer-line" />
                       </button>
                     </div>
                   </div>
                 ))}
               </div>
             </div>
-          <div className="card">
-            <div className="card-header" style={{ marginBottom: 16 }}>
-              <h3 className="card-title"><i className="ri-hand-coin-line" style={{ marginRight: 6 }} />Control de Cortesías por Turno</h3>
-              <span className="badge badge-secondary">Anti-Fraude</span>
-            </div>
-            <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 14, lineHeight: 1.5 }}>
-              Define cuántas cortesías ($0 MXN) puede otorgar un mesero o staff por turno sin requerir autorización del administrador. Al superar este límite, el sistema solicitará el PIN de administrador para continuar.
-            </p>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-              <div className="form-group" style={{ flex: 1, margin: 0 }}>
-                <label className="form-label">Máximo de cortesías por turno</label>
-                <input
-                  type="number"
-                  className="form-input"
-                  min={0}
-                  max={20}
-                  value={maxCortesiasPorTurno}
-                  onChange={e => setMaxCortesiasPorTurno(Number(e.target.value) || 0)}
-                  style={{ width: 100, textAlign: 'center', fontSize: 18, fontWeight: 700 }}
-                />
-                <p style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>0 = siempre requiere PIN del admin</p>
+            <div className="card" style={{ padding: '12px 14px' }}>
+              <div className="card-header" style={{ marginBottom: 12 }}>
+                <h3 className="card-title"><i className="ri-hand-coin-line" style={{ marginRight: 6 }} />Cortesías por Turno</h3>
+                <span className="badge badge-secondary" style={{ fontSize: '9px', padding: '2px 6px' }}>Anti-Fraude</span>
               </div>
-              <button
-                className="btn btn-primary"
-                style={{ flexShrink: 0 }}
-                disabled={savingLimiteCortesias}
-                onClick={async () => {
-                  setSavingLimiteCortesias(true);
-                  try {
-                    const { db } = await import('@/lib/firebase');
-                    const { doc, setDoc, serverTimestamp } = await import('firebase/firestore');
-                    await setDoc(doc(db, 'config', 'operacion'), {
-                      maxCortesiasPorTurno: maxCortesiasPorTurno,
-                      updatedAt: serverTimestamp()
-                    }, { merge: true });
-                    showToast(`Límite de cortesías guardado: ${maxCortesiasPorTurno} por turno`, 'success');
-                  } catch (e) {
-                    console.error(e);
-                    showToast('Error al guardar el límite', 'danger');
-                  } finally {
-                    setSavingLimiteCortesias(false);
-                  }
-                }}
-              >
-                <i className="ri-save-line" /> {savingLimiteCortesias ? 'Guardando...' : 'Guardar Límite'}
-              </button>
-            </div>
-            <div style={{ marginTop: 14, background: 'rgba(249,115,22,0.08)', border: '1px solid rgba(249,115,22,0.2)', borderRadius: 10, padding: 12 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#f97316', fontSize: 12, fontWeight: 700 }}>
-                <i className="ri-information-line" />
-                Configuración actual: {maxCortesiasPorTurno === 0 ? 'Todas las cortesías requieren PIN del administrador' : `Hasta ${maxCortesiasPorTurno} cortesía${maxCortesiasPorTurno !== 1 ? 's' : ''} por turno sin PIN`}
+              <p style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 10, lineHeight: 1.4 }}>
+                Cortesías ($0) que puede otorgar un mesero por turno sin PIN. Al superar este límite, se solicitará el PIN del admin.
+              </p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div className="form-group" style={{ flex: 1, margin: 0, gap: 4 }}>
+                  <input
+                    type="number"
+                    className="form-input"
+                    min={0}
+                    max={20}
+                    value={maxCortesiasPorTurno}
+                    onChange={e => setMaxCortesiasPorTurno(Number(e.target.value) || 0)}
+                    style={{ width: 80, textAlign: 'center', fontSize: 16, fontWeight: 700, padding: '6px 10px' }}
+                  />
+                  <p style={{ fontSize: 9, color: 'var(--text-muted)', margin: 0 }}>0 = siempre requiere PIN</p>
+                </div>
+                <button
+                  className="btn btn-primary"
+                  style={{ flexShrink: 0, padding: '8px 12px', fontSize: '11px' }}
+                  disabled={savingLimiteCortesias}
+                  onClick={async () => {
+                    setSavingLimiteCortesias(true);
+                    try {
+                      const { db } = await import('@/lib/firebase');
+                      const { doc, setDoc, serverTimestamp } = await import('firebase/firestore');
+                      await setDoc(doc(db, 'config', 'operacion'), {
+                        maxCortesiasPorTurno: maxCortesiasPorTurno,
+                        updatedAt: serverTimestamp()
+                      }, { merge: true });
+                      showToast(`Límite guardado: ${maxCortesiasPorTurno} por turno`, 'success');
+                    } catch (e) {
+                      console.error(e);
+                      showToast('Error al guardar el límite', 'danger');
+                    } finally {
+                      setSavingLimiteCortesias(false);
+                    }
+                  }}
+                >
+                  <i className="ri-save-line" /> {savingLimiteCortesias ? '...' : 'Guardar'}
+                </button>
+              </div>
+              <div style={{ marginTop: 10, background: 'rgba(249,115,22,0.08)', border: '1px solid rgba(249,115,22,0.2)', borderRadius: 10, padding: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#f97316', fontSize: 11, fontWeight: 700, lineHeight: 1.3 }}>
+                  <i className="ri-information-line" />
+                  <span>{maxCortesiasPorTurno === 0 ? 'Requiere PIN del admin siempre' : `Hasta ${maxCortesiasPorTurno} cortesías sin PIN`}</span>
+                </div>
               </div>
             </div>
-          </div>
             </div>
 
             {/* COLUMNA 3 */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div className="card">
-              <div className="card-header" style={{ marginBottom: 20 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div className="card" style={{ padding: '12px 14px' }}>
+              <div className="card-header" style={{ marginBottom: 12 }}>
                 <h3 className="card-title"><i className="ri-grid-line" style={{ marginRight: 6 }} />Configuración de Mesas</h3>
               </div>
-              <form onSubmit={handleSaveMesa} style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20, background: 'var(--bg-elevated)', padding: 14, borderRadius: 12, border: '1px solid var(--border)' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr', gap: 10 }}>
-                  <div className="form-group">
+              <form onSubmit={handleSaveMesa} style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 12, background: 'var(--bg-elevated)', padding: '10px 12px', borderRadius: 12, border: '1px solid var(--border)' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '70px 1fr', gap: 10 }}>
+                  <div className="form-group" style={{ gap: 4 }}>
                     <label className="form-label">Número</label>
                     <input
                       type="number"
                       className="form-input"
                       value={editingMesaId !== null ? nuevaMesa.id : (mesas.length > 0 ? Math.max(...mesas.map(m => m.id)) + 1 : 1)}
                       disabled={true}
+                      style={{ padding: '6px 10px', fontSize: '13px', height: 32 }}
                     />
                   </div>
-                  <div className="form-group">
+                  <div className="form-group" style={{ gap: 4 }}>
                     <label className="form-label">Nombre (Opcional)</label>
                     <input
                       className="form-input"
                       placeholder={editingMesaId !== null ? "Ej: Mesa 1" : `Mesa ${(mesas.length > 0 ? Math.max(...mesas.map(m => m.id)) + 1 : 1)}`}
                       value={nuevaMesa.nombre}
                       onChange={e => setNuevaMesa(p => ({ ...p, nombre: e.target.value }))}
+                      style={{ padding: '6px 10px', fontSize: '13px', height: 32 }}
                     />
                   </div>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                  <div className="form-group">
+                  <div className="form-group" style={{ gap: 4 }}>
                     <label className="form-label">Tarifa ($/hr)</label>
                     <input
                       type="number"
@@ -1589,15 +1594,16 @@ export default function ConfigPanel({ showToast }) {
                       value={nuevaMesa.tarifa}
                       onChange={e => setNuevaMesa(p => ({ ...p, tarifa: e.target.value }))}
                       required
+                      style={{ padding: '6px 10px', fontSize: '13px', height: 32 }}
                     />
                   </div>
-                  <div className="form-group">
+                  <div className="form-group" style={{ gap: 4 }}>
                     <label className="form-label">Tipo de Mesa</label>
                     <select
                       className="form-select"
                       value={nuevaMesa.tipo}
                       onChange={e => setNuevaMesa(p => ({ ...p, tipo: e.target.value }))}
-                      style={{ background: 'var(--bg-elevated)', color: 'var(--text-main)', border: '1px solid var(--border)', height: 38 }}
+                      style={{ background: 'var(--bg-elevated)', color: 'var(--text-main)', border: '1px solid var(--border)', height: 32, padding: '4px 10px', fontSize: '13px' }}
                     >
                       <option value="Pool">Pool</option>
                       <option value="Carambola">Carambola</option>
@@ -1612,7 +1618,7 @@ export default function ConfigPanel({ showToast }) {
                     <button
                       type="button"
                       className="btn btn-secondary"
-                      style={{ flex: 1 }}
+                      style={{ flex: 1, height: 32, padding: '4px 8px', fontSize: '11px' }}
                       onClick={() => {
                         setEditingMesaId(null);
                         setNuevaMesa({ id: '', nombre: '', tarifa: '', tipo: 'Pool' });
@@ -1621,25 +1627,25 @@ export default function ConfigPanel({ showToast }) {
                       Cancelar
                     </button>
                   )}
-                  <button type="submit" className="btn btn-primary" style={{ flex: 2 }}>
+                  <button type="submit" className="btn btn-primary" style={{ flex: 2, height: 32, padding: '4px 8px', fontSize: '11px' }}>
                     {editingMesaId !== null ? 'Guardar Cambios' : 'Agregar Mesa'}
                   </button>
                 </div>
               </form>
 
               {/* Listado de Mesas */}
-              <div style={{ maxHeight: 220, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
+              <div style={{ maxHeight: 180, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
                 {mesas.map(m => (
-                  <div key={m.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)', borderRadius: 10 }}>
+                  <div key={m.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)', borderRadius: 10 }}>
                     <div>
-                      <div style={{ fontSize: 13, fontWeight: 700 }}>{m.nombre} <span style={{ fontSize: 10, color: 'var(--bronze-light)' }}>({m.tipo})</span></div>
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Tarifa: ${m.tarifa}/hr</div>
+                      <div style={{ fontSize: 12, fontWeight: 700 }}>{m.nombre} <span style={{ fontSize: 10, color: 'var(--bronze-light)' }}>({m.tipo})</span></div>
+                      <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Tarifa: ${m.tarifa}/hr</div>
                     </div>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      <button className="btn btn-secondary btn-icon" style={{ width: 28, height: 28, minWidth: 28, padding: 0 }} onClick={() => handleEditMesa(m)}>
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      <button className="btn btn-secondary btn-icon sm" style={{ width: 26, height: 26, minWidth: 26, padding: 0 }} onClick={() => handleEditMesa(m)}>
                         <i className="ri-pencil-line" />
                       </button>
-                      <button className="btn btn-secondary btn-icon" style={{ width: 28, height: 28, minWidth: 28, padding: 0, color: '#ef4444' }} onClick={() => handleDeleteMesa(m.id)}>
+                      <button className="btn btn-secondary btn-icon sm" style={{ width: 26, height: 26, minWidth: 26, padding: 0, color: '#ef4444' }} onClick={() => handleDeleteMesa(m.id)}>
                         <i className="ri-delete-bin-line" />
                       </button>
                     </div>
@@ -1647,36 +1653,36 @@ export default function ConfigPanel({ showToast }) {
                 ))}
               </div>
             </div>
-            <div className="card">
-              <div className="card-header" style={{ marginBottom: 20 }}>
+            <div className="card" style={{ padding: '12px 14px' }}>
+              <div className="card-header" style={{ marginBottom: 12 }}>
                 <h3 className="card-title"><i className="ri-shield-user-line" style={{ marginRight: 6 }} />Usuarios y Roles</h3>
-                <button className="btn btn-primary btn-sm" title="Agregar nuevo usuario" onClick={() => setShowAddUserModal(true)}>
+                <button className="btn btn-primary btn-sm" title="Agregar nuevo usuario" onClick={() => setShowAddUserModal(true)} style={{ padding: '4px 8px' }}>
                   <i className="ri-user-add-line" />
                 </button>
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {usuarios.length === 0 ? (
                   <>
-                    <div style={{ background: 'var(--bronze-subtle)', border: '1px solid var(--border-bronze)', borderRadius: 10, padding: 12, marginBottom: 8 }}>
+                    <div style={{ background: 'var(--bronze-subtle)', border: '1px solid var(--border-bronze)', borderRadius: 10, padding: 10, marginBottom: 4 }}>
                       <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--bronze-light)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                        ⚠️ Modo Acceso Libre Activo
+                        ⚠️ Acceso Libre Activo
                       </div>
-                      <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>
-                        El sistema entra directo sin login. Crea tu primer usuario haciendo clic en el botón de arriba (+) para activar la seguridad del negocio.
+                      <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>
+                        El sistema entra directo sin login. Crea tu primer usuario haciendo clic en (+) para activar la seguridad.
                       </div>
                     </div>
                     {defaultDemos.map((u, i) => {
                       const color = getRoleColor(u.role);
                       return (
-                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: i < 3 ? '1px solid var(--border)' : 'none', opacity: 0.65 }}>
-                          <div style={{ width: 30, height: 30, borderRadius: 8, background: `${color}22`, border: `1px solid ${color}44`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800, color }}>
+                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: i < 3 ? '1px solid var(--border)' : 'none', opacity: 0.65 }}>
+                          <div style={{ width: 26, height: 26, borderRadius: 6, background: `${color}22`, border: `1px solid ${color}44`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color }}>
                             {u.name[0]}
                           </div>
                           <div style={{ flex: 1 }}>
-                            <div style={{ fontSize: 13, fontWeight: 700 }}>{u.name} <span style={{ fontSize: 9, color: 'var(--bronze)', fontWeight: 600 }}>(Demo)</span></div>
-                            <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{u.email}</div>
+                            <div style={{ fontSize: 12, fontWeight: 700 }}>{u.name} <span style={{ fontSize: 9, color: 'var(--bronze)', fontWeight: 600 }}>(Demo)</span></div>
+                            <div style={{ fontSize: 9.5, color: 'var(--text-muted)' }}>{u.email}</div>
                           </div>
-                          <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: `${color}22`, color, border: `1px solid ${color}44`, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+                          <span style={{ fontSize: 8.5, fontWeight: 700, padding: '1px 6px', borderRadius: 20, background: `${color}22`, color, border: `1px solid ${color}44`, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
                             {u.role}
                           </span>
                         </div>
@@ -1687,15 +1693,15 @@ export default function ConfigPanel({ showToast }) {
                   usuarios.map((u, i) => {
                     const color = getRoleColor(u.role);
                     return (
-                      <div key={u.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: i < usuarios.length - 1 ? '1px solid var(--border)' : 'none' }}>
-                        <div style={{ width: 30, height: 30, borderRadius: 8, background: `${color}22`, border: `1px solid ${color}44`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800, color }}>
+                      <div key={u.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: i < usuarios.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                        <div style={{ width: 26, height: 26, borderRadius: 6, background: `${color}22`, border: `1px solid ${color}44`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color }}>
                           {u.name[0]}
                         </div>
                         <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 13, fontWeight: 700 }}>{u.name}</div>
-                          <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{u.email}</div>
+                          <div style={{ fontSize: 12, fontWeight: 700 }}>{u.name}</div>
+                          <div style={{ fontSize: 9.5, color: 'var(--text-muted)' }}>{u.email}</div>
                         </div>
-                        <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: `${color}22`, color, border: `1px solid ${color}44`, textTransform: 'uppercase', letterSpacing: '0.1em', marginRight: 10 }}>
+                        <span style={{ fontSize: 8.5, fontWeight: 700, padding: '1px 6px', borderRadius: 20, background: `${color}22`, color, border: `1px solid ${color}44`, textTransform: 'uppercase', letterSpacing: '0.08em', marginRight: 6 }}>
                           {u.role}
                         </span>
                         <button
@@ -1703,7 +1709,7 @@ export default function ConfigPanel({ showToast }) {
                           title="Eliminar usuario"
                           style={{
                             background: 'none', border: 'none', color: 'var(--text-muted)',
-                            cursor: 'pointer', fontSize: 16, padding: '4px 8px',
+                            cursor: 'pointer', fontSize: 14, padding: '2px 6px',
                             transition: 'color 0.15s',
                           }}
                           onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
@@ -1717,59 +1723,64 @@ export default function ConfigPanel({ showToast }) {
                 )}
               </div>
             </div>
-          <div className="card" style={{ border: '1px solid rgba(239,68,68,0.2)' }}>
-            <div className="card-header" style={{ marginBottom: 16 }}>
-              <h3 className="card-title" style={{ color: 'var(--danger)' }}><i className="ri-error-warning-line" style={{ marginRight: 6 }} />Mantenimiento y Depuración</h3>
-              <span className="badge badge-danger">Zona Peligrosa</span>
+            <div className="card" style={{ border: '1px solid rgba(239,68,68,0.2)', padding: '12px 14px' }}>
+              <div className="card-header" style={{ marginBottom: 12 }}>
+                <h3 className="card-title" style={{ color: 'var(--danger)' }}><i className="ri-error-warning-line" style={{ marginRight: 6 }} />Mantenimiento y Depuración</h3>
+                <span className="badge badge-danger" style={{ fontSize: '9px', padding: '2px 6px' }}>Zona Peligrosa</span>
+              </div>
+              <p style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 10, lineHeight: 1.4 }}>
+                Use esta herramienta para limpiar por completo todos los torneos, comandas, bitácora de caja, histórico y restablecer las mesas.
+              </p>
+              <form onSubmit={handleRestablecerTodo} style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <div className="form-group" style={{ margin: 0, gap: 4 }}>
+                  <label className="form-label">PIN Admin</label>
+                  <input
+                    type="password"
+                    className="form-input"
+                    placeholder="••••"
+                    value={resetPin}
+                    onChange={e => setResetPin(e.target.value)}
+                    maxLength={8}
+                    style={{ width: 90, letterSpacing: '0.2em', textAlign: 'center', padding: '6px 10px', fontSize: '13px' }}
+                    required
+                  />
+                </div>
+                <div className="form-group" style={{ flex: 1, minWidth: 150, margin: 0, gap: 4 }}>
+                  <label className="form-label">Escriba RESTABLECER</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="RESTABLECER"
+                    value={confirmWipeText}
+                    onChange={e => setConfirmWipeText(e.target.value)}
+                    style={{ textTransform: 'uppercase', padding: '6px 10px', fontSize: '13px' }}
+                    required
+                  />
+                </div>
+                <button 
+                  type="submit" 
+                  className="btn btn-danger" 
+                  disabled={isResetting || !resetPin || confirmWipeText.trim().toUpperCase() !== 'RESTABLECER'} 
+                  style={{ alignSelf: 'flex-end', height: 32, padding: '4px 8px', fontSize: '11px' }}
+                >
+                  <i className="ri-delete-bin-line" /> {isResetting ? 'Restableciendo...' : 'Restablecer Base de Datos'}
+                </button>
+              </form>
             </div>
-            <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 14, lineHeight: 1.5 }}>
-              Use esta herramienta para limpiar por completo todos los torneos, comandas, bitácora de caja, histórico y restablecer las mesas para pruebas manuales de flujo en limpio.
-            </p>
-            <form onSubmit={handleRestablecerTodo} style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
-              <div className="form-group" style={{ margin: 0 }}>
-                <label className="form-label">PIN de Administrador</label>
-                <input
-                  type="password"
-                  className="form-input"
-                  placeholder="••••"
-                  value={resetPin}
-                  onChange={e => setResetPin(e.target.value)}
-                  maxLength={8}
-                  style={{ width: 120, letterSpacing: '0.3em', textAlign: 'center' }}
-                  required
-                />
-              </div>
-              <div className="form-group" style={{ flex: 1, minWidth: 200, margin: 0 }}>
-                <label className="form-label">Escriba RESTABLECER para confirmar</label>
-                <input
-                  type="text"
-                  className="form-input"
-                  placeholder="RESTABLECER"
-                  value={confirmWipeText}
-                  onChange={e => setConfirmWipeText(e.target.value)}
-                  style={{ textTransform: 'uppercase' }}
-                  required
-                />
-              </div>
-              <button 
-                type="submit" 
-                className="btn btn-danger" 
-                disabled={isResetting || !resetPin || confirmWipeText.trim().toUpperCase() !== 'RESTABLECER'} 
-                style={{ alignSelf: 'flex-end', height: 38 }}
-              >
-                <i className="ri-delete-bin-line" /> {isResetting ? 'Restableciendo...' : 'Restablecer Base de Datos a Limpio'}
-              </button>
-            </form>
+            </div>
+
           </div>
+
           {/* Diseño de Tickets Térmicos */}
-          <div className="card">
-            <div className="card-header" style={{ marginBottom: 16 }}>
+          <div className="card" style={{ padding: '12px 14px', marginTop: 12 }}>
+            <div className="card-header" style={{ marginBottom: 12 }}>
               <h3 className="card-title"><i className="ri-file-text-line" style={{ marginRight: 6 }} />Diseño de Tickets Térmicos</h3>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <div>
-                <h4 style={{ fontSize: 13, fontWeight: 800, color: 'var(--bronze-light)', marginBottom: 10 }}>Campos Visibles en Ticket</h4>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 14 }}>
+            <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', alignItems: 'start' }}>
+              {/* Opciones a la izquierda */}
+              <div style={{ flex: '1 1 350px' }}>
+                <h4 style={{ fontSize: 13, fontWeight: 800, color: 'var(--bronze-light)', marginBottom: 8 }}>Campos Visibles en Ticket</h4>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 6, marginBottom: 12 }}>
                   {[
                     { id: 'showNombre', label: 'Nombre del Negocio' },
                     { id: 'showDireccion', label: 'Dirección física' },
@@ -1780,7 +1791,7 @@ export default function ConfigPanel({ showToast }) {
                     { id: 'showConsumos', label: 'Detalle de Consumos' },
                     { id: 'showQrRecibo', label: 'QR de Ticket Digital' },
                   ].map(item => (
-                    <label key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 10px', background: 'var(--bg-elevated)', borderRadius: 8, border: '1px solid var(--border)', cursor: 'pointer', margin: 0 }}>
+                    <label key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', background: 'var(--bg-elevated)', borderRadius: 8, border: '1px solid var(--border)', cursor: 'pointer', margin: 0 }}>
                       <input
                         type="checkbox"
                         checked={ticketConfig[item.id]}
@@ -1792,7 +1803,7 @@ export default function ConfigPanel({ showToast }) {
                   ))}
                 </div>
 
-                <h4 style={{ fontSize: 13, fontWeight: 800, color: 'var(--bronze-light)', marginBottom: 10 }}>Tamaño de Fuente</h4>
+                <h4 style={{ fontSize: 13, fontWeight: 800, color: 'var(--bronze-light)', marginBottom: 8 }}>Tamaño de Fuente</h4>
                 <div style={{ display: 'flex', gap: 8 }}>
                   {[
                     { id: '11px', label: 'Chica (11px)' },
@@ -1815,84 +1826,82 @@ export default function ConfigPanel({ showToast }) {
                 </p>
               </div>
 
-              {/* Vista Previa en Vivo */}
-              <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14 }}>
-                <h4 style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)', fontWeight: 800, marginBottom: 10, textAlign: 'center' }}>Vista Previa en Vivo</h4>
-                <div style={{ background: '#fff', color: '#000', padding: 14, fontFamily: 'monospace', fontSize: ticketConfig.fontSize, width: '100%', maxWidth: 240, margin: '0 auto', border: '1px solid #ccc', boxShadow: '0 4px 12px rgba(0,0,0,0.5)', borderRadius: 6 }}>
-                  <div style={{ textAlign: 'center', marginBottom: 8 }}>
-                    {ticketConfig.showNombre && <div style={{ fontWeight: 'bold', fontSize: '1.2em' }}>{sucursal.nombre}</div>}
-                    {ticketConfig.showDireccion && <div style={{ fontSize: '0.85em', marginTop: 2 }}>{sucursal.direccion}</div>}
-                    {ticketConfig.showTelefono && <div style={{ fontSize: '0.85em' }}>Tel: {sucursal.telefono}</div>}
+              {/* Vista Previa en Vivo a la derecha */}
+              <div style={{ flex: '0 0 240px', margin: '0 auto', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                <h4 style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)', fontWeight: 800, marginBottom: 8 }}>Vista Previa en Vivo</h4>
+                <div style={{ background: '#fff', color: '#000', padding: 12, fontFamily: 'monospace', fontSize: ticketConfig.fontSize, width: '100%', maxWidth: 230, border: '1px solid #ccc', boxShadow: '0 4px 12px rgba(0,0,0,0.5)', borderRadius: 6 }}>
+                  <div style={{ textAlign: 'center', marginBottom: 6 }}>
+                    {ticketConfig.showNombre && <div style={{ fontWeight: 'bold', fontSize: '1.1em' }}>{sucursal.nombre}</div>}
+                    {ticketConfig.showDireccion && <div style={{ fontSize: '0.8em', marginTop: 2 }}>{sucursal.direccion}</div>}
+                    {ticketConfig.showTelefono && <div style={{ fontSize: '0.8em' }}>Tel: {sucursal.telefono}</div>}
                   </div>
                   
-                  <div style={{ borderBottom: '1px dashed #000', margin: '6px 0' }} />
+                  <div style={{ borderBottom: '1px dashed #000', margin: '4px 0' }} />
                   
-                  <div style={{ fontSize: '0.85em', lineHeight: 1.3 }}>
+                  <div style={{ fontSize: '0.8em', lineHeight: 1.25 }}>
                     {ticketConfig.showCliente && <div>CLIENTE: Juan Pérez</div>}
                     {ticketConfig.showCuenta && <div>CUENTA: #1024</div>}
                     {ticketConfig.showFechaHora && <div>FECHA: {new Date().toLocaleString('es-MX')}</div>}
                   </div>
 
-                  <div style={{ borderBottom: '1px dashed #000', margin: '6px 0' }} />
+                  <div style={{ borderBottom: '1px dashed #000', margin: '4px 0' }} />
 
                   {ticketConfig.showConsumos && (
-                    <div style={{ fontSize: '0.85em' }}>
+                    <div style={{ fontSize: '0.8em' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold' }}>
                         <span>PRODUCTO</span>
                         <span>TOTAL</span>
                       </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', margin: '2px 0' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', margin: '1px 0' }}>
                         <span>2x Cerveza Corona</span>
                         <span>$90.00</span>
                       </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', margin: '2px 0' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', margin: '1px 0' }}>
                         <span>1x Papas Fritas</span>
                         <span>$55.00</span>
                       </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', margin: '2px 0' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', margin: '1px 0' }}>
                         <span>1.5h Mesa Pool</span>
                         <span>$90.00</span>
                       </div>
                     </div>
                   )}
 
-                  <div style={{ borderBottom: '1px dashed #000', margin: '6px 0' }} />
+                  <div style={{ borderBottom: '1px dashed #000', margin: '4px 0' }} />
                   
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '1.05em' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '1em' }}>
                     <span>TOTAL:</span>
                     <span>$235.00 MXN</span>
                   </div>
 
                   {ticketConfig.showQrRecibo && (
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', margin: '8px 0' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', margin: '6px 0' }}>
                       <img
                         src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent('https://yoy-ia-billar.vercel.app/recibo/1024')}`}
-                        width="64"
-                        height="64"
+                        width="54"
+                        height="54"
                         style={{ border: '1px solid #ccc', padding: 2, background: '#fff' }}
                         alt="QR Recibo"
                       />
-                      <span style={{ fontSize: '7px', color: '#666', marginTop: 2 }}>Escanea para ver ticket digital</span>
+                      <span style={{ fontSize: '6px', color: '#666', marginTop: 2 }}>Escanea para ver ticket digital</span>
                     </div>
                   )}
 
-                  <div style={{ borderBottom: '1px dashed #000', margin: '6px 0' }} />
+                  <div style={{ borderBottom: '1px dashed #000', margin: '4px 0' }} />
                   
-                  <div style={{ textAlign: 'center', fontSize: '8px', marginTop: 8, color: '#333', fontWeight: 'bold' }}>
+                  <div style={{ textAlign: 'center', fontSize: '8px', marginTop: 6, color: '#333', fontWeight: 'bold' }}>
                     *** GRACIAS POR SU VISITA ***
                   </div>
                   
-                  <div style={{ textAlign: 'center', fontSize: '7.5px', color: '#666', marginTop: 6, fontStyle: 'italic' }}>
+                  <div style={{ textAlign: 'center', fontSize: '7px', color: '#666', marginTop: 4, fontStyle: 'italic' }}>
                     YoY IA by Alfonso Iturbide
                   </div>
                 </div>
               </div>
             </div>
           </div>
-            </div>
+        </div>
 
-          </div>
-        </>
       ) : (
         /* MÓDULO DE RECETARIO Y COSTEO DINÁMICO */
         <div className="card">
