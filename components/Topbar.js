@@ -476,7 +476,7 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
     return () => clearInterval(t);
   }, []);
 
-  // Click-away to close profile menu
+  // Click-away and Esc key to close profile menu
   useEffect(() => {
     if (!showMenu) return;
     const handleOutsideClick = (e) => {
@@ -485,8 +485,17 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
         setShowMenu(false);
       }
     };
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setShowMenu(false);
+      }
+    };
     document.addEventListener('mousedown', handleOutsideClick);
-    return () => document.removeEventListener('mousedown', handleOutsideClick);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
   }, [showMenu]);
 
 
@@ -609,31 +618,33 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
           <i className="ri-home-4-line" />
         </button>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--success)', boxShadow: '0 0 6px var(--success)', animation: 'pulse 1.4s infinite' }} />
-          <span style={{ fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--bronze-light)' }}>
-            {PANEL_LABELS[activePanel] || activePanel}
-          </span>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'center', gap: 4 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--success)', boxShadow: '0 0 6px var(--success)', animation: 'pulse 1.4s infinite' }} />
+            <span style={{ fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--bronze-light)', lineHeight: 1 }}>
+              {PANEL_LABELS[activePanel] || activePanel}
+            </span>
+          </div>
           {activePanel === 'mesas' && (user?.permisos?.nomina === true || user?.role === 'admin') && (
             <button
               onClick={() => setShowModalPaseLista(true)}
               className="btn btn-secondary btn-xs"
               style={{
-                height: 28,
-                padding: '4px 14px',
-                fontSize: 11,
+                height: 24,
+                padding: '2px 10px',
+                fontSize: 10,
                 display: 'flex',
                 alignItems: 'center',
-                gap: 8,
+                gap: 6,
                 border: '1px solid rgba(227, 168, 105, 0.45)',
-                borderRadius: 8,
+                borderRadius: 6,
                 color: '#fff',
                 fontFamily: 'var(--font-display)',
-                fontWeight: 700,
+                fontWeight: 750,
                 textTransform: 'uppercase',
                 letterSpacing: '0.05em',
                 cursor: 'pointer',
-                marginLeft: 12,
+                marginLeft: 14,
                 transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
                 position: 'relative',
                 overflow: 'hidden',
@@ -685,6 +696,7 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
                     box-shadow: 0 0 6px #f59e0b, 0 0 12px #f59e0b;
                     transform: scale(1.15);
                   }
+                }
                 .led-color-pulse {
                   background-color: #10b981;
                   animation: led-color-cycle 4s infinite ease-in-out;
@@ -710,7 +722,7 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
         {[
           { label: 'Mesa', icon: 'ri-play-circle-line', color: 'var(--success)', nav: 'mesas', shortcut: 'Alt + 1' },
           { label: 'INTELIGENCIA', icon: 'ri-money-dollar-box-line', color: 'var(--bronze-light)', nav: 'caja', shortcut: 'Alt + 2' },
-          { label: 'Inventario', icon: 'ri-archive-line', color: 'var(--blue-light)', nav: 'bar', shortcut: 'Alt + 3' },
+          { label: 'Inventario', icon: 'ri-archive-line', color: 'var(--blue-light)', nav: 'bar', badge: stockAlerts.length, shortcut: 'Alt + 3' },
           { label: 'Torneos', icon: 'ri-trophy-line', color: '#ffd700', nav: 'torneos', shortcut: 'Alt + 4' },
           { label: 'Nómina', icon: 'ri-briefcase-4-line', color: 'var(--bronze-light)', nav: 'nomina', badge: alertasNomina.length, shortcut: 'Alt + 5' },
           { label: 'Ajustes', icon: 'ri-settings-4-line', color: 'var(--text-muted)', nav: 'config', shortcut: 'Alt + 6' },
