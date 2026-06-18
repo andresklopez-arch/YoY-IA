@@ -199,7 +199,7 @@ input, select, textarea {
 }
 
 .topbar {
-  height: 70px;
+  height: 60px;
   background: rgba(20, 20, 24, 0.92);
   backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--border);
@@ -217,10 +217,10 @@ input, select, textarea {
 
 .page-content {
   flex: 1;
-  padding: 0 24px 24px 24px;
+  padding: 0 24px 24px 24px !important;
   overflow-y: auto;
   overflow-x: hidden;
-  margin-top: 70px;
+  margin-top: 60px !important;
   min-width: 0;
   max-width: 100%;
   box-sizing: border-box;
@@ -1256,7 +1256,7 @@ tbody td {
   .mesa-grid { grid-template-columns: repeat(2, 1fr); }
   .stat-grid { grid-template-columns: repeat(2, 1fr); }
   .stat-grid-compact { grid-template-columns: repeat(2, 1fr); }
-  .page-content { padding: 0 16px 16px 16px; }
+  .page-content { padding: 0 16px 16px 16px !important; }
 }
 
 /* ── TOPBAR QUICK ACTIONS ─────────────────────────────────── */
