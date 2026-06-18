@@ -42,14 +42,7 @@ export default function ConfigPanel({ showToast }) {
   const [subTab, setSubTab] = useState('general'); // 'general' | 'recetario'
   const [previewQr, setPreviewQr] = useState(null);
 
-  const [tarifas, setTarifas] = useState({
-    carambola: 80,
-    pool: 60,
-    snooker: 100,
-    surgeMulti: 1.25,
-    horaPicoInicio: '18:00',
-    horaPicoFin: '22:00',
-  });
+
 
   const [sucursal, setSucursal] = useState({
     nombre: 'YoY Billar Sucursal 1',
@@ -61,7 +54,7 @@ export default function ConfigPanel({ showToast }) {
     metaMensual: 100000,
   });
 
-  const [modoSurge, setModoSurge] = useState(true);
+
   const [notifStock, setNotifStock] = useState(true);
   const [notifOcupacion, setNotifOcupacion] = useState(true);
 
@@ -1189,30 +1182,7 @@ export default function ConfigPanel({ showToast }) {
                 </button>
               </div>
             </div>
-            <div className="card" style={{ padding: '12px 14px' }}>
-              <div className="card-header" style={{ marginBottom: 12 }}>
-                <h3 className="card-title"><i className="ri-robot-line" style={{ marginRight: 6 }} />Alertas IA</h3>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {[
-                  { label: 'Alerta de Stock Bajo', sub: 'Notificar cuando un producto esté bajo mínimo', state: notifStock, set: setNotifStock },
-                  { label: 'Alerta de Alta Ocupación', sub: 'Sugerir surge pricing al superar 70%', state: notifOcupacion, set: setNotifOcupacion },
-                ].map((item, i) => (
-                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: i === 0 ? '1px solid var(--border)' : 'none' }}>
-                    <div>
-                      <div style={{ fontSize: 13, fontWeight: 700 }}>{item.label}</div>
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{item.sub}</div>
-                    </div>
-                    <div
-                      onClick={() => item.set(p => !p)}
-                      style={{ width: 44, height: 24, borderRadius: 12, cursor: 'pointer', transition: 'all 0.2s', background: item.state ? 'var(--bronze)' : 'var(--bg-elevated)', border: `1px solid ${item.state ? 'var(--bronze)' : 'var(--border)'}`, position: 'relative' }}
-                    >
-                      <div style={{ width: 18, height: 18, borderRadius: '50%', background: '#fff', position: 'absolute', top: 2, left: item.state ? 22 : 2, transition: 'left 0.2s' }} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+
             <div className="card" style={{ padding: '12px 14px' }}>
               <div className="card-header" style={{ marginBottom: 12 }}>
                 <h3 className="card-title"><i className="ri-shield-keyhole-line" style={{ marginRight: 6 }} />PIN de Administrador</h3>
@@ -1337,58 +1307,26 @@ export default function ConfigPanel({ showToast }) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div className="card" style={{ padding: '12px 14px' }}>
               <div className="card-header" style={{ marginBottom: 12 }}>
-                <h3 className="card-title"><i className="ri-price-tag-3-line" style={{ marginRight: 6 }} />Tarifas por Hora</h3>
+                <h3 className="card-title"><i className="ri-robot-line" style={{ marginRight: 6 }} />Alertas IA</h3>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {[
-                  { label: 'Carambola 3 Bandas ($/hr)', key: 'carambola' },
-                  { label: 'Pool 9 Bolas ($/hr)', key: 'pool' },
-                  { label: 'Snooker ($/hr)', key: 'snooker' },
-                ].map(f => (
-                  <div key={f.key} className="form-group" style={{ gap: 4 }}>
-                    <label className="form-label">{f.label}</label>
-                    <input className="form-input" type="number" value={tarifas[f.key]} onChange={e => setTarifas(p => ({ ...p, [f.key]: Number(e.target.value) }))} style={{ padding: '8px 12px', fontSize: '13px' }} />
+                  { label: 'Alerta de Stock Bajo', sub: 'Notificar cuando un producto esté bajo mínimo', state: notifStock, set: setNotifStock },
+                  { label: 'Alerta de Alta Ocupación', sub: 'Sugerir surge pricing al superar 70%', state: notifOcupacion, set: setNotifOcupacion },
+                ].map((item, i) => (
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: i === 0 ? '1px solid var(--border)' : 'none' }}>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700 }}>{item.label}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{item.sub}</div>
+                    </div>
+                    <div
+                      onClick={() => item.set(p => !p)}
+                      style={{ width: 44, height: 24, borderRadius: 12, cursor: 'pointer', transition: 'all 0.2s', background: item.state ? 'var(--bronze)' : 'var(--bg-elevated)', border: `1px solid ${item.state ? 'var(--bronze)' : 'var(--border)'}`, position: 'relative' }}
+                    >
+                      <div style={{ width: 18, height: 18, borderRadius: '50%', background: '#fff', position: 'absolute', top: 2, left: item.state ? 22 : 2, transition: 'left 0.2s' }} />
+                    </div>
                   </div>
                 ))}
-                <div className="divider" style={{ margin: '6px 0' }} />
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0' }}>
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 700 }}>Surge Pricing (Precio Pico)</div>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Tarifa automática en horas de alta demanda</div>
-                  </div>
-                  <div
-                    onClick={() => setModoSurge(p => !p)}
-                    style={{
-                      width: 44, height: 24, borderRadius: 12, cursor: 'pointer', transition: 'all 0.2s',
-                      background: modoSurge ? 'var(--bronze)' : 'var(--bg-elevated)',
-                      border: `1px solid ${modoSurge ? 'var(--bronze)' : 'var(--border)'}`,
-                      position: 'relative',
-                    }}
-                  >
-                    <div style={{ width: 18, height: 18, borderRadius: '50%', background: '#fff', position: 'absolute', top: 2, left: modoSurge ? 22 : 2, transition: 'left 0.2s' }} />
-                  </div>
-                </div>
-                {modoSurge && (
-                  <div style={{ background: 'var(--bronze-subtle)', border: '1px solid var(--border-bronze)', borderRadius: 10, padding: 10 }}>
-                    <div className="form-group" style={{ gap: 4 }}>
-                      <label className="form-label">Multiplicador ({((tarifas.surgeMulti - 1) * 100).toFixed(0)}% extra)</label>
-                      <input className="form-input" type="number" step="0.05" min="1" max="3" value={tarifas.surgeMulti} onChange={e => setTarifas(p => ({ ...p, surgeMulti: Number(e.target.value) }))} style={{ padding: '6px 10px', fontSize: '13px' }} />
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 8 }}>
-                      <div className="form-group" style={{ gap: 4 }}>
-                        <label className="form-label">Hora Inicio</label>
-                        <input className="form-input" type="time" value={tarifas.horaPicoInicio} onChange={e => setTarifas(p => ({ ...p, horaPicoInicio: e.target.value }))} style={{ padding: '6px 10px', fontSize: '13px' }} />
-                      </div>
-                      <div className="form-group" style={{ gap: 4 }}>
-                        <label className="form-label">Hora Fin</label>
-                        <input className="form-input" type="time" value={tarifas.horaPicoFin} onChange={e => setTarifas(p => ({ ...p, horaPicoFin: e.target.value }))} style={{ padding: '6px 10px', fontSize: '13px' }} />
-                      </div>
-                    </div>
-                  </div>
-                )}
-                <button className="btn btn-primary" onClick={() => guardar('tarifas')} style={{ padding: '8px 14px', fontSize: '12px' }}>
-                  <i className="ri-save-line" /> Guardar Tarifas
-                </button>
               </div>
             </div>
             <div className="card" style={{ padding: '12px 14px' }}>
