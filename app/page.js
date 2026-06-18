@@ -140,19 +140,102 @@ function AppContent() {
   const [sonidoAdmin, setSonidoAdmin] = useState(true);
   const [insumosBajos, setInsumosBajos] = useState([]);
   const [iaPrevisiones, setIaPrevisiones] = useState({});
+  const [cocinaSolicitudes, setCocinaSolicitudes] = useState([]);
 
-  // 1. Escuchar inventario para insumos por debajo de stock óptimo
+  // 1. Escuchar inventario para insumos por debajo de stock óptimo y sincronizar a cocina_insumos
   useEffect(() => {
     if (!user) return;
-    const unsub = onSnapshot(doc(db, 'config', 'inventario'), snap => {
+    const unsub = onSnapshot(doc(db, 'config', 'inventario'), async snap => {
       if (snap.exists()) {
         const prods = snap.data().productos || [];
         const bajos = prods.filter(p => p.categoria === 'Insumo' && p.stock < (p.stockOptimo || 0));
         setInsumosBajos(bajos);
+
+        // Sincronización automática de inventario general hacia cocina_insumos
+        try {
+          const insSnap = await getDocs(collection(db, 'cocina_insumos'));
+          const batchUpdates = [];
+          
+          insSnap.forEach(insDoc => {
+            const insData = insDoc.data();
+            const matchingProd = prods.find(p => p.nombre.toLowerCase() === insData.nombre.toLowerCase());
+            if (matchingProd) {
+              const stock = Number(matchingProd.stock);
+              const stockOptimo = Number(matchingProd.stockOptimo || 0);
+              
+              let needsUpdate = false;
+              const updates = {};
+              
+              if (insData.nivelActual !== stock) {
+                updates.nivelActual = stock;
+                needsUpdate = true;
+              }
+              
+              if (insData.surtidoSolicitado === true && stock >= stockOptimo) {
+                updates.surtidoSolicitado = false;
+                needsUpdate = true;
+              }
+              
+              if (needsUpdate) {
+                batchUpdates.push({ ref: doc(db, 'cocina_insumos', insDoc.id), data: updates });
+              }
+            }
+          });
+          
+          if (batchUpdates.length > 0) {
+            const { writeBatch } = await import('firebase/firestore');
+            const batch = writeBatch(db);
+            batchUpdates.forEach(u => {
+              batch.update(u.ref, { ...u.data, updatedAt: serverTimestamp() });
+            });
+            await batch.commit();
+          }
+        } catch (err) {
+          console.error("Error sincronizando a cocina_insumos:", err);
+        }
       }
     });
     return unsub;
   }, [user]);
+
+  // 1b. Escuchar solicitudes de surtido de cocina activas y reproducir alerta acústica
+  useEffect(() => {
+    if (!user) return;
+    const q = query(collection(db, 'cocina_insumos'), where('surtidoSolicitado', '==', true));
+    const unsub = onSnapshot(q, snap => {
+      const list = [];
+      snap.forEach(doc => {
+        list.push({ id: doc.id, ...doc.data() });
+      });
+      
+      // Si hay nuevas solicitudes, reproducir tono acústico
+      if (list.length > cocinaSolicitudes.length && list.length > 0 && sonidoAdmin) {
+        try {
+          const ctx = new (window.AudioContext || window.webkitAudioContext)();
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.frequency.setValueAtTime(659.25, ctx.currentTime);
+          gain.gain.setValueAtTime(0.12, ctx.currentTime);
+          osc.start();
+          osc.stop(ctx.currentTime + 0.1);
+          setTimeout(() => {
+            const osc2 = ctx.createOscillator();
+            const gain2 = ctx.createGain();
+            osc2.connect(gain2);
+            gain2.connect(ctx.destination);
+            osc2.frequency.setValueAtTime(659.25, ctx.currentTime);
+            gain2.gain.setValueAtTime(0.12, ctx.currentTime);
+            osc2.start();
+            osc2.stop(ctx.currentTime + 0.1);
+          }, 150);
+        } catch (e) {}
+      }
+      setCocinaSolicitudes(list);
+    });
+    return unsub;
+  }, [user, cocinaSolicitudes.length, sonidoAdmin]);
 
   // 2. Escuchar alertas predictivas de la IA
   useEffect(() => {
@@ -212,16 +295,37 @@ function AppContent() {
       const productos = invSnap.data().productos || [];
       const insumos = productos.filter(p => p.categoria === 'Insumo');
 
-      // 4. Calcular el consumo histórico de insumos agrupado por día de la semana
-      const consumosPorDiaSemana = Array.from({ length: 7 }, () => ({}));
-      const fechasUnicasPorDiaSemana = Array.from({ length: 7 }, () => new Set());
+      // 4. Helper para clasificar turnos horarios
+      const getShiftFromHour = (hour) => {
+        if (hour >= 10 && hour < 16) return 'manana';
+        if (hour >= 16 && hour < 20) return 'tarde';
+        if (hour >= 20 || hour < 2) return 'noche';
+        return 'cerrado';
+      };
+
+      // 5. Calcular el consumo histórico agrupado por día de la semana y turno
+      const consumosPorDiaTurno = Array.from({ length: 7 }, () => ({
+        manana: {},
+        tarde: {},
+        noche: {}
+      }));
+      
+      const fechasUnicasPorDiaTurno = Array.from({ length: 7 }, () => ({
+        manana: new Set(),
+        tarde: new Set(),
+        noche: new Set()
+      }));
 
       pedidosCompletados.forEach(p => {
         const date = p.createdAt?.toDate ? p.createdAt.toDate() : new Date(p.createdAt);
         if (isNaN(date.getTime())) return;
         const dayOfWeek = date.getDay();
-        const dateStr = date.toDateString();
-        fechasUnicasPorDiaSemana[dayOfWeek].add(dateStr);
+        const hour = date.getHours();
+        const shift = getShiftFromHour(hour);
+        if (shift === 'cerrado') return;
+
+        const dateStr = date.toLocaleDateString('en-CA');
+        fechasUnicasPorDiaTurno[dayOfWeek][shift].add(dateStr);
 
         if (Array.isArray(p.items)) {
           p.items.forEach(item => {
@@ -231,30 +335,73 @@ function AppContent() {
                 const nameKey = ing.nombreInsumo || ing.insumoId;
                 if (!nameKey) return;
                 const qty = (item.cantidad || 0) * Number(ing.cantidad) * (1 + (Number(ing.mermaPct) || 0) / 100);
-                consumosPorDiaSemana[dayOfWeek][nameKey] = (consumosPorDiaSemana[dayOfWeek][nameKey] || 0) + qty;
+                consumosPorDiaTurno[dayOfWeek][shift][nameKey] = (consumosPorDiaTurno[dayOfWeek][shift][nameKey] || 0) + qty;
               });
             }
           });
         }
       });
 
-      // 5. Calcular promedios diarios de consumo
-      const promediosConsumo = {};
+      // 6. Calcular promedios por día y turno
+      const promediosDiaTurno = {};
       insumos.forEach(ins => {
-        promediosConsumo[ins.nombre] = Array.from({ length: 7 }, () => 0);
+        promediosDiaTurno[ins.nombre] = Array.from({ length: 7 }, () => ({
+          manana: 0,
+          tarde: 0,
+          noche: 0
+        }));
         for (let d = 0; d < 7; d++) {
-          const numDias = fechasUnicasPorDiaSemana[d].size || 1;
-          const totalConsumo = consumosPorDiaSemana[d][ins.nombre] || consumosPorDiaSemana[d][ins.id] || 0;
-          promediosConsumo[ins.nombre][d] = totalConsumo / numDias;
+          for (const shift of ['manana', 'tarde', 'noche']) {
+            const numDias = fechasUnicasPorDiaTurno[d][shift].size || 1;
+            const totalConsumo = consumosPorDiaTurno[d][shift][ins.nombre] || consumosPorDiaTurno[d][ins.id] || 0;
+            promediosDiaTurno[ins.nombre][d][shift] = totalConsumo / numDias;
+          }
         }
       });
 
-      // 6. Proyectar la demanda de las próximas 48 horas (hoy + mañana)
+      // 7. Proyectar la demanda de las próximas 48 horas basadas en turnos/turnos
       const hoyD = new Date().getDay();
       const mananaD = (hoyD + 1) % 7;
+      const pasadomananaD = (hoyD + 2) % 7;
+      
+      const getProximosTurnos48h = () => {
+        const ahora = new Date();
+        const horaActual = ahora.getHours();
+        const turnos = [];
+        const shiftActual = getShiftFromHour(horaActual);
+        
+        if (shiftActual === 'manana') {
+          turnos.push({ day: hoyD, shift: 'manana' });
+          turnos.push({ day: hoyD, shift: 'tarde' });
+          turnos.push({ day: hoyD, shift: 'noche' });
+        } else if (shiftActual === 'tarde') {
+          turnos.push({ day: hoyD, shift: 'tarde' });
+          turnos.push({ day: hoyD, shift: 'noche' });
+        } else if (shiftActual === 'noche') {
+          turnos.push({ day: hoyD, shift: 'noche' });
+        } else {
+          // Cerrado/madrugada
+          turnos.push({ day: hoyD, shift: 'manana' });
+          turnos.push({ day: hoyD, shift: 'tarde' });
+          turnos.push({ day: hoyD, shift: 'noche' });
+        }
+        
+        // Mañana (completo)
+        turnos.push({ day: mananaD, shift: 'manana' });
+        turnos.push({ day: mananaD, shift: 'tarde' });
+        turnos.push({ day: mananaD, shift: 'noche' });
+        
+        // Pasado mañana (completo)
+        turnos.push({ day: pasadomananaD, shift: 'manana' });
+        turnos.push({ day: pasadomananaD, shift: 'tarde' });
+        turnos.push({ day: pasadomananaD, shift: 'noche' });
+        
+        return turnos;
+      };
+
       const previsiones = {};
 
-      // 7. Cargar torneos para buscar eventos inusuales en las próximas 48 horas
+      // 8. Cargar torneos
       let multiplierTorneo = 1.0;
       try {
         const rawTorneos = localStorage.getItem('yoy_billar_torneos');
@@ -277,21 +424,41 @@ function AppContent() {
       }
 
       insumos.forEach(ins => {
-        const promHoy = promediosConsumo[ins.nombre][hoyD] || 0;
-        const promManana = promediosConsumo[ins.nombre][mananaD] || 0;
-        const demandaProyectada = (promHoy + promManana) * multiplierTorneo;
+        const turnos48h = getProximosTurnos48h();
+        let demandaProyectada = 0;
+        turnos48h.forEach(t => {
+          demandaProyectada += promediosDiaTurno[ins.nombre][t.day][t.shift] || 0;
+        });
+        demandaProyectada = demandaProyectada * multiplierTorneo;
+
+        // Comprobar si hay riesgo crítico en el turno pico de la noche
+        const turnosNoche = turnos48h.filter(t => t.shift === 'noche');
+        let demandaNoches = 0;
+        turnosNoche.forEach(t => {
+          demandaNoches += promediosDiaTurno[ins.nombre][t.day][t.shift] || 0;
+        });
+        const riesgoNoche = ins.stock < demandaNoches * multiplierTorneo && demandaNoches > 0;
 
         const riesgo = ins.stock < demandaProyectada;
-        const motivo = riesgo 
-          ? `Demanda 48h estimada (${demandaProyectada.toFixed(1)} ${ins.unidad}) superará stock actual (${ins.stock} ${ins.unidad})${multiplierTorneo > 1.0 ? ' por torneo' : ''}.`
-          : `Stock suficiente para demanda 48h (${demandaProyectada.toFixed(1)} ${ins.unidad}).`;
+        let motivo = '';
+        if (riesgo) {
+          motivo = `Demanda 48h estimada (${demandaProyectada.toFixed(1)} ${ins.unidad}) superará stock actual (${ins.stock} ${ins.unidad}).`;
+          if (riesgoNoche) {
+            motivo += ` Riesgo crítico en turno pico noche (demanda: ${(demandaNoches * multiplierTorneo).toFixed(1)} ${ins.unidad}).`;
+          }
+          if (multiplierTorneo > 1.0) {
+            motivo += ` Incrementado por torneo.`;
+          }
+        } else {
+          motivo = `Stock suficiente para demanda 48h (${demandaProyectada.toFixed(1)} ${ins.unidad}).`;
+        }
 
         previsiones[ins.nombre] = {
-          consumoDiarioPromedio: Number(((promHoy + promManana) / 2).toFixed(1)),
+          consumoDiarioPromedio: Number((demandaProyectada / 2).toFixed(1)),
           demandaProxima48h: Number(demandaProyectada.toFixed(1)),
-          riesgoDesabasto: riesgo,
+          riesgoDesabasto: riesgo || riesgoNoche,
           motivo,
-          cantidadSugerida: riesgo ? Math.max(0, Math.ceil(ins.stockOptimo - ins.stock)) : 0
+          cantidadSugerida: (riesgo || riesgoNoche) ? Math.max(0, Math.ceil(ins.stockOptimo - ins.stock)) : 0
         };
       });
 
@@ -1011,7 +1178,7 @@ function AppContent() {
         />
 
         {/* Banner de Insumos Críticos / Faltantes */}
-        {(insumosBajos.length > 0 || Object.entries(iaPrevisiones).some(([_, data]) => data.riesgoDesabasto === true)) && (
+        {(insumosBajos.length > 0 || cocinaSolicitudes.length > 0 || Object.entries(iaPrevisiones).some(([_, data]) => data.riesgoDesabasto === true)) && (
           <div style={{
             background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.15), rgba(205, 127, 50, 0.08))',
             borderBottom: '1px solid rgba(239, 68, 68, 0.3)',
@@ -1023,6 +1190,15 @@ function AppContent() {
             animation: 'slideDownAlert 0.4s ease'
           }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4, textAlign: 'left' }}>
+              {/* Cocina Solicitudes de Surtido URGENTE */}
+              {cocinaSolicitudes.length > 0 && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, animation: 'pulseRedAlert 1.5s infinite' }}>
+                  <i className="ri-broadcast-line" style={{ fontSize: 18, color: 'var(--danger)' }} />
+                  <span style={{ fontSize: 13, color: '#fff', fontWeight: 800 }}>
+                    ATENCIÓN: Cocina solicita surtir urgente: <strong style={{ color: 'var(--danger)', textDecoration: 'underline' }}>{cocinaSolicitudes.map(s => s.nombre).join(', ')}</strong>
+                  </span>
+                </div>
+              )}
               {insumosBajos.length > 0 && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <span style={{ fontSize: 16, animation: 'pulse 1s infinite' }}>⚠️</span>
@@ -1078,6 +1254,11 @@ function AppContent() {
         @keyframes scaleUpAlert {
           from { transform: scale(0.95); opacity: 0; }
           to { transform: scale(1); opacity: 1; }
+        }
+        @keyframes pulseRedAlert {
+          0% { opacity: 0.85; transform: scale(1); }
+          50% { opacity: 1; transform: scale(1.01); filter: brightness(1.25); }
+          100% { opacity: 0.85; transform: scale(1); }
         }
       `}</style>
 

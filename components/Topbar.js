@@ -279,6 +279,7 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
   const [pedidosAlerts, setPedidosAlerts] = useState([]);
   const [stockAlerts, setStockAlerts] = useState([]);
   const [dismissedAlerts, setDismissedAlerts] = useState([]);
+  const [cocinaSurtidoAlerts, setCocinaSurtidoAlerts] = useState([]);
 
   const playUISound = () => {
     try {
@@ -413,6 +414,29 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
     return () => clearInterval(intv);
   }, []);
 
+  // Escuchar alertas de surtido de cocina en tiempo real
+  useEffect(() => {
+    const q = query(collection(db, 'cocina_insumos'), where('surtidoSolicitado', '==', true));
+    const unsub = onSnapshot(q, snap => {
+      const list = [];
+      snap.forEach(doc => {
+        const data = doc.data();
+        list.push({
+          id: 'cocina_surtido_' + doc.id,
+          insumoId: doc.id,
+          tipo: 'cocina_surtido',
+          titulo: `Cocina solicita surtir: ${data.nombre}`,
+          desc: `Urgente: Hace falta en cocina. Cantidad actual: ${data.nivelActual} ${data.unidad} (Óptimo: ${data.nivelOptimo})`,
+          fecha: 'Cocina'
+        });
+      });
+      setCocinaSurtidoAlerts(list);
+    }, err => {
+      console.warn("Cocina surtido alerts offline:", err);
+    });
+    return unsub;
+  }, []);
+
   // Auto-ocultar onboarding
   useEffect(() => {
     if (showOnboarding && !isDismissing) {
@@ -535,6 +559,18 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
         console.error("Error al atender alerta en Firestore:", err);
         showToast('Error al atender alerta', 'danger');
       }
+    } else if (n.tipo === 'cocina_surtido') {
+      try {
+        const docRef = doc(db, 'cocina_insumos', n.insumoId);
+        await updateDoc(docRef, {
+          surtidoSolicitado: false,
+          updatedAt: serverTimestamp()
+        });
+        showToast('Solicitud de surtido cancelada', 'success');
+      } catch (err) {
+        console.error("Error al apagar solicitud en Firestore:", err);
+        showToast('Error al actualizar surtido', 'danger');
+      }
     } else {
       const updated = [...dismissedAlerts, n.id];
       setDismissedAlerts(updated);
@@ -592,7 +628,8 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
       fecha: 'Nómina'
     })),
     ...pedidosAlerts,
-    ...stockAlerts
+    ...stockAlerts,
+    ...cocinaSurtidoAlerts
   ];
 
   const allNotifications = rawNotifications.filter(n => Array.isArray(dismissedAlerts) && !dismissedAlerts.includes(n.id));
@@ -962,6 +999,7 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
                 let icon = 'ri-notification-line';
                 let color = 'var(--bronze-light)';
                 if (n.tipo === 'stock') { icon = 'ri-error-warning-line'; color = 'var(--danger)'; }
+                if (n.tipo === 'cocina_surtido') { icon = 'ri-broadcast-line'; color = 'var(--danger)'; }
                 if (n.tipo === 'nomina') { icon = 'ri-briefcase-line'; color = 'var(--warning)'; }
                 if (n.tipo === 'pedido') { icon = 'ri-restaurant-line'; color = 'var(--blue-light)'; }
                 if (n.tipo === 'asistencia') { icon = 'ri-user-voice-line'; color = 'var(--success)'; }
@@ -971,7 +1009,7 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
                     key={n.id}
                     onClick={() => {
                       setShowNotificationDrawer(false);
-                      if (n.tipo === 'stock') onNavigate('bar');
+                      if (n.tipo === 'stock' || n.tipo === 'cocina_surtido') onNavigate('bar');
                       if (n.tipo === 'nomina') onNavigate('nomina');
                       if (n.tipo === 'pedido' || n.tipo === 'asistencia') onNavigate('mesas');
                     }}

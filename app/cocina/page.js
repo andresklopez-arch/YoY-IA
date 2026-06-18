@@ -459,6 +459,17 @@ function CocinaContent() {
     }
   };
 
+  const toggleSolicitudSurtido = async (id, currentVal) => {
+    try {
+      await updateDoc(doc(db, 'cocina_insumos', id), {
+        surtidoSolicitado: !currentVal,
+        updatedAt: serverTimestamp()
+      });
+    } catch (err) {
+      console.error("Error al cambiar solicitud de surtido:", err);
+    }
+  };
+
   const handleAbrirCierreTurno = () => {
     const criticos = insumos.filter(ins => ins.nivelActual <= ins.nivelMin);
     const noCriticos = insumos.filter(ins => ins.nivelActual > ins.nivelMin);
@@ -613,6 +624,25 @@ function CocinaContent() {
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-primary)', padding: '0 0 50px' }}>
+      <style dangerouslySetInnerHTML={{ __html: `
+        @keyframes transmittingRadar {
+          0% {
+            transform: scale(1);
+            box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+          }
+          70% {
+            transform: scale(1.05);
+            box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
+          }
+          100% {
+            transform: scale(1);
+            box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+          }
+        }
+        .radar-active {
+          animation: transmittingRadar 1.5s infinite;
+        }
+      `}} />
       
       {/* ── HEADER ── */}
       <div style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border-bronze)', padding: '16px 24px', position: 'sticky', top: 0, zIndex: 100 }}>
@@ -918,6 +948,7 @@ function CocinaContent() {
                       <th style={{ padding: '12px 8px', width: 180 }}>Progreso</th>
                       <th style={{ padding: '12px 8px', textAlign: 'center' }}>Estado</th>
                       <th style={{ padding: '12px 8px', textAlign: 'center' }}>Tolerancia IA</th>
+                      <th style={{ padding: '12px 8px', textAlign: 'center' }}>Solicitar Surtido</th>
                       <th style={{ padding: '12px 8px', textAlign: 'center' }}>Ajustar Nivel</th>
                       <th style={{ padding: '12px 8px', textAlign: 'center' }}>Acciones</th>
                     </tr>
@@ -981,6 +1012,29 @@ function CocinaContent() {
                           </td>
                           <td style={{ padding: '10px 8px', textAlign: 'center', fontSize: 11, color: 'var(--text-secondary)' }}>
                             {ins.toleranciaDesviacion !== undefined ? ins.toleranciaDesviacion : 25}%
+                          </td>
+                          <td style={{ padding: '10px 8px', textAlign: 'center' }}>
+                            <button
+                              onClick={() => toggleSolicitudSurtido(ins.id, ins.surtidoSolicitado)}
+                              className={ins.surtidoSolicitado ? 'radar-active' : ''}
+                              style={{
+                                padding: '6px 12px',
+                                borderRadius: '8px',
+                                fontSize: '11px',
+                                fontWeight: 'bold',
+                                border: ins.surtidoSolicitado ? '1px solid #ef4444' : '1px solid var(--border)',
+                                background: ins.surtidoSolicitado ? '#ef4444' : 'var(--bg-elevated)',
+                                color: ins.surtidoSolicitado ? '#fff' : 'var(--text-secondary)',
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                transition: 'all 0.2s',
+                              }}
+                            >
+                              <i className={ins.surtidoSolicitado ? "ri-broadcast-line" : "ri-signal-tower-line"} style={{ fontSize: 13 }} />
+                              {ins.surtidoSolicitado ? 'Solicitado' : 'Solicitar'}
+                            </button>
                           </td>
                           <td style={{ padding: '10px 8px', textAlign: 'center' }}>
                             <div style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
@@ -1067,7 +1121,6 @@ function CocinaContent() {
                     <th style={{ padding: '10px 8px', textAlign: 'center' }}>Stock</th>
                     <th style={{ padding: '10px 8px', textAlign: 'center' }}>Mínimo</th>
                     <th style={{ padding: '10px 8px', textAlign: 'right' }}>Precio Venta</th>
-                    <th style={{ padding: '10px 8px', textAlign: 'center' }}>Actualizar Existencia</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1086,30 +1139,12 @@ function CocinaContent() {
                         </td>
                         <td style={{ padding: '12px 8px', textAlign: 'center', color: 'var(--text-muted)' }}>{p.stockMin}</td>
                         <td style={{ padding: '12px 8px', textAlign: 'right', fontWeight: 700 }}>${p.precioVenta}</td>
-                        <td style={{ padding: '12px 8px', textAlign: 'center' }}>
-                          <div style={{ display: 'flex', gap: 6, alignItems: 'center', justifyContent: 'center' }}>
-                            <button
-                              className="btn btn-secondary btn-icon"
-                              style={{ width: 24, height: 24, minWidth: 24, padding: 0, fontSize: 11 }}
-                              onClick={() => modificarProductoStock(p.id, -1)}
-                            >
-                              −
-                            </button>
-                            <button
-                              className="btn btn-secondary btn-icon"
-                              style={{ width: 24, height: 24, minWidth: 24, padding: 0, fontSize: 11 }}
-                              onClick={() => modificarProductoStock(p.id, 1)}
-                            >
-                              +
-                            </button>
-                          </div>
-                        </td>
                       </tr>
                     );
                   })}
                   {productosFiltrados.length === 0 && (
                     <tr>
-                      <td colSpan="6" style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '24px 0' }}>
+                      <td colSpan="5" style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '24px 0' }}>
                         No se encontraron productos en esta categoría.
                       </td>
                     </tr>
