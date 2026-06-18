@@ -2062,13 +2062,15 @@ export default function MesasPanel({ showToast }) {
     w.document.close();
   };
 
-  // Enviar notificación a Telegram al registrar un gasto de nómina
   const enviarNotificacionTelegramGasto = async (gastoData) => {
     try {
       const tgSnap = await getDoc(doc(db, 'config', 'telegram'));
       if (tgSnap.exists()) {
         const tgData = tgSnap.data();
-        if (tgData.enabled && tgData.botToken && tgData.chatId) {
+        const isSimplified = tgData.mode === 'simplified' || (!tgData.botToken && tgData.chatId);
+        const hasCustom = tgData.mode === 'custom' && tgData.botToken && tgData.chatId;
+
+        if (tgData.enabled && (isSimplified || hasCustom)) {
           let tipoText = '';
           if (gastoData.conceptoNomina === 'adelanto_nomina') tipoText = 'Adelanto de Nómina';
           else if (gastoData.conceptoNomina === 'prestamo') tipoText = 'Préstamo';
@@ -2083,14 +2085,14 @@ export default function MesasPanel({ showToast }) {
             (gastoData.notas ? `*Notas:* ${gastoData.notas}\n` : '') +
             `*Registrado por:* Caja / POS`;
 
-          const telegramUrl = `https://api.telegram.org/bot${tgData.botToken}/sendMessage`;
-          await fetch(telegramUrl, {
+          await fetch('/api/telegram/send-alert', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              chat_id: tgData.chatId,
-              text: text,
-              parse_mode: 'Markdown'
+              mode: tgData.mode || 'simplified',
+              token: tgData.botToken,
+              chatId: tgData.chatId,
+              text: text
             })
           });
         }

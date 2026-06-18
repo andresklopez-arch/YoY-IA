@@ -143,7 +143,10 @@ export async function POST(request) {
         const tgSnap = await getDoc(tgRef);
         if (tgSnap.exists()) {
           const tgData = tgSnap.data();
-          if (tgData.enabled && tgData.botToken && tgData.chatId) {
+          const isSimplified = tgData.mode === 'simplified' || (!tgData.botToken && tgData.chatId);
+          const hasCustom = tgData.mode === 'custom' && tgData.botToken && tgData.chatId;
+
+          if (tgData.enabled && (isSimplified || hasCustom)) {
             const messageText = `⚠️ *Alerta de Fichaje Inusual*\n\n` +
                                 `👤 *Empleado:* ${emp.nombre} ${emp.apellido || ''}\n` +
                                 `🏷️ *Rol:* ${emp.rol || 'Mesero'}\n` +
@@ -152,7 +155,11 @@ export async function POST(request) {
                                 `🔄 *Celular Habitual:* \`${mostFrequentPhone}\`\n` +
                                 `📅 *Fecha/Hora:* ${new Date().toLocaleString('es-MX', { timeZone: 'America/Mexico_City' })}`;
             
-            const telegramUrl = `https://api.telegram.org/bot${tgData.botToken}/sendMessage`;
+            const botToken = isSimplified 
+              ? (process.env.TELEGRAM_OFFICIAL_BOT_TOKEN || '7438459438:AAElh_L0K0kHDF9sd832jklsd-Central') 
+              : tgData.botToken;
+
+            const telegramUrl = `https://api.telegram.org/bot${botToken}/sendMessage`;
             await fetch(telegramUrl, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },

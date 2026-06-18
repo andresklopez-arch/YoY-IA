@@ -100,7 +100,14 @@ export default function ConfigPanel({ showToast }) {
   const [savingLimiteCortesias, setSavingLimiteCortesias] = useState(false);
 
   // --- Telegram config state ---
-  const [telegramConfig, setTelegramConfig] = useState({ enabled: false, botToken: '', chatId: '' });
+  const [telegramConfig, setTelegramConfig] = useState({ 
+    enabled: false, 
+    mode: 'simplified', 
+    botToken: '', 
+    chatId: '',
+    notifyStatements: true,
+    notifyPayments: true
+  });
   const [savingTelegram, setSavingTelegram] = useState(false);
 
   // --- Estados de Recetario y Costeo ---
@@ -254,8 +261,11 @@ export default function ConfigPanel({ showToast }) {
         const d = snap.data();
         setTelegramConfig({
           enabled: d.enabled || false,
+          mode: d.mode || 'simplified',
           botToken: d.botToken || '',
           chatId: d.chatId || '',
+          notifyStatements: d.notifyStatements !== undefined ? d.notifyStatements : true,
+          notifyPayments: d.notifyPayments !== undefined ? d.notifyPayments : true,
         });
       }
     }).catch(err => console.error("Error al cargar configuración de Telegram:", err));
@@ -459,27 +469,31 @@ export default function ConfigPanel({ showToast }) {
   };
 
   const handleTestTelegram = async () => {
-    if (!telegramConfig.botToken || !telegramConfig.chatId) {
+    if (telegramConfig.mode === 'custom' && (!telegramConfig.botToken || !telegramConfig.chatId)) {
       showToast('Ingresa el Token y Chat ID para enviar un mensaje de prueba', 'warning');
       return;
     }
+    if (telegramConfig.mode === 'simplified' && !telegramConfig.chatId) {
+      showToast('Primero debes vincular tu cuenta de Telegram', 'warning');
+      return;
+    }
     try {
-      const text = `🔔 *YoY Billar - Prueba de Notificaciones*\n\nSi estás viendo este mensaje, la integración con Telegram se ha configurado correctamente.`;
-      const url = `https://api.telegram.org/bot${telegramConfig.botToken}/sendMessage`;
-      const res = await fetch(url, {
+      const text = `🔔 *YoY Billar - Prueba de Notificaciones*\n\nSi estás viendo este mensaje, la integración con Telegram se ha configurado correctamente en modo ${telegramConfig.mode === 'simplified' ? 'Simplificado (Bot Oficial)' : 'Personalizado'}.`;
+      const res = await fetch('/api/telegram/send-alert', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          chat_id: telegramConfig.chatId,
-          text: text,
-          parse_mode: 'Markdown'
+          mode: telegramConfig.mode,
+          token: telegramConfig.botToken,
+          chatId: telegramConfig.chatId,
+          text: text
         })
       });
       if (res.ok) {
         showToast('Mensaje de prueba enviado con éxito ✓', 'success');
       } else {
         const data = await res.json();
-        throw new Error(data.description || 'Error de Telegram');
+        throw new Error(data.error || 'Error de Telegram');
       }
     } catch (err) {
       console.error("Error al enviar mensaje de prueba:", err);
@@ -1252,53 +1266,159 @@ export default function ConfigPanel({ showToast }) {
                   <div style={{ width: 18, height: 18, borderRadius: '50%', background: '#fff', position: 'absolute', top: 2, left: telegramConfig.enabled ? 22 : 2, transition: 'left 0.2s' }} />
                 </div>
               </div>
-              
-              <p style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 10, lineHeight: 1.4 }}>
-                Envía alertas en tiempo real al grupo o chat de la gerencia cuando ocurra un fichaje sospechoso (ej. celular inusual).
-              </p>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <div className="form-group" style={{ gap: 4 }}>
-                  <label className="form-label">Token de Bot de Telegram</label>
-                  <input
-                    type="password"
-                    className="form-input"
-                    placeholder="1234567890:ABCDefGhIJK..."
-                    value={telegramConfig.botToken}
-                    onChange={e => setTelegramConfig(p => ({ ...p, botToken: e.target.value }))}
-                    style={{ padding: '8px 12px', fontSize: '11px' }}
-                  />
+              {/* MODO DE TELEGRAM */}
+              <div style={{ display: 'flex', background: 'var(--bg-elevated)', padding: 2, borderRadius: 8, marginBottom: 12, border: '1px solid var(--border)' }}>
+                <button
+                  type="button"
+                  onClick={() => setTelegramConfig(p => ({ ...p, mode: 'simplified' }))}
+                  style={{
+                    flex: 1, padding: '6px 0', border: 'none', borderRadius: 6, fontSize: 10, fontWeight: 700, cursor: 'pointer', transition: 'all 0.15s',
+                    background: telegramConfig.mode !== 'custom' ? 'var(--border)' : 'transparent',
+                    color: telegramConfig.mode !== 'custom' ? '#fff' : 'var(--text-secondary)'
+                  }}
+                >
+                  Bot Oficial YoY (Fácil)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTelegramConfig(p => ({ ...p, mode: 'custom' }))}
+                  style={{
+                    flex: 1, padding: '6px 0', border: 'none', borderRadius: 6, fontSize: 10, fontWeight: 700, cursor: 'pointer', transition: 'all 0.15s',
+                    background: telegramConfig.mode === 'custom' ? 'var(--border)' : 'transparent',
+                    color: telegramConfig.mode === 'custom' ? '#fff' : 'var(--text-secondary)'
+                  }}
+                >
+                  Bot Personalizado
+                </button>
+              </div>
+
+              {telegramConfig.mode !== 'custom' ? (
+                // MODO SIMPLIFICADO
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 12 }}>
+                  <p style={{ fontSize: 11, color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>
+                    Conéctate al bot oficial sin configurar tokens. Haz clic en el botón para iniciar conversación en Telegram.
+                  </p>
+                  
+                  <a
+                    href={`https://t.me/YoYBillarBot?start=${sucursal.nombre ? encodeURIComponent(sucursal.nombre.replace(/\s+/g, '_')) : 'sucursal_yoy'}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn btn-secondary"
+                    style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, height: 36, fontSize: 12, fontWeight: 700,
+                      background: 'rgba(36, 161, 222, 0.1)', border: '1.5px dashed rgba(36, 161, 222, 0.4)', color: '#24A1DE', textDecoration: 'none'
+                    }}
+                  >
+                    <i className="ri-telegram-line" style={{ fontSize: 16 }} /> Vincular en 1 Clic
+                  </a>
+
+                  <div className="form-group" style={{ gap: 4 }}>
+                    <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span>Chat ID de Telegram</span>
+                      {telegramConfig.chatId ? (
+                        <span style={{ color: 'var(--success)', fontSize: 9, fontWeight: 700 }}>● VINCULADO</span>
+                      ) : (
+                        <span style={{ color: 'var(--warning)', fontSize: 9, fontWeight: 700 }}>● PENDIENTE</span>
+                      )}
+                    </label>
+                    <input
+                      className="form-input"
+                      placeholder="Se autocompletará, o ingrésalo manual"
+                      value={telegramConfig.chatId || ''}
+                      onChange={e => setTelegramConfig(p => ({ ...p, chatId: e.target.value }))}
+                      style={{ padding: '8px 12px', fontSize: '11px' }}
+                    />
+                  </div>
                 </div>
-                <div className="form-group" style={{ gap: 4 }}>
-                  <label className="form-label">ID del Chat o Canal</label>
-                  <input
-                    className="form-input"
-                    placeholder="Ej: -100123456789 o 123456789"
-                    value={telegramConfig.chatId}
-                    onChange={e => setTelegramConfig(p => ({ ...p, chatId: e.target.value }))}
-                    style={{ padding: '8px 12px', fontSize: '11px' }}
-                  />
+              ) : (
+                // MODO PERSONALIZADO
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 12 }}>
+                  <div className="form-group" style={{ gap: 4 }}>
+                    <label className="form-label">Token de Bot de Telegram</label>
+                    <input
+                      type="password"
+                      className="form-input"
+                      placeholder="1234567890:ABCDefGhIJK..."
+                      value={telegramConfig.botToken || ''}
+                      onChange={e => setTelegramConfig(p => ({ ...p, botToken: e.target.value }))}
+                      style={{ padding: '8px 12px', fontSize: '11px' }}
+                    />
+                  </div>
+                  <div className="form-group" style={{ gap: 4 }}>
+                    <label className="form-label">ID del Chat o Canal</label>
+                    <input
+                      className="form-input"
+                      placeholder="Ej: -100123456789 o 123456789"
+                      value={telegramConfig.chatId || ''}
+                      onChange={e => setTelegramConfig(p => ({ ...p, chatId: e.target.value }))}
+                      style={{ padding: '8px 12px', fontSize: '11px' }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* CONFIGURACIÓN ADICIONAL DE NOTIFICACIONES */}
+              <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: 10, marginTop: 4, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: 'var(--bronze-light)', letterSpacing: '0.06em' }}>
+                  Conexión y Mensajería Clientes
+                </div>
+                
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 700 }}>Enviar Estados de Cuenta</div>
+                    <div style={{ fontSize: 9.5, color: 'var(--text-muted)' }}>Manda tickets interactivos a clientes</div>
+                  </div>
+                  <div
+                    onClick={() => setTelegramConfig(p => ({ ...p, notifyStatements: !p.notifyStatements }))}
+                    style={{
+                      width: 38, height: 20, borderRadius: 10, cursor: 'pointer', transition: 'all 0.2s',
+                      background: telegramConfig.notifyStatements ? 'var(--bronze)' : 'var(--bg-elevated)',
+                      border: `1px solid ${telegramConfig.notifyStatements ? 'var(--bronze)' : 'var(--border)'}`,
+                      position: 'relative',
+                    }}
+                  >
+                    <div style={{ width: 14, height: 14, borderRadius: '50%', background: '#fff', position: 'absolute', top: 2, left: telegramConfig.notifyStatements ? 22 : 2, transition: 'left 0.2s' }} />
+                  </div>
                 </div>
 
-                <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                  <button 
-                    type="button" 
-                    className="btn btn-secondary" 
-                    onClick={handleTestTelegram} 
-                    style={{ flex: 1, height: 32, fontSize: 11, padding: '4px 8px' }}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 700 }}>Recordatorios de Pago</div>
+                    <div style={{ fontSize: 9.5, color: 'var(--text-muted)' }}>Avisos sobre licencias y pagos de la app</div>
+                  </div>
+                  <div
+                    onClick={() => setTelegramConfig(p => ({ ...p, notifyPayments: !p.notifyPayments }))}
+                    style={{
+                      width: 38, height: 20, borderRadius: 10, cursor: 'pointer', transition: 'all 0.2s',
+                      background: telegramConfig.notifyPayments ? 'var(--bronze)' : 'var(--bg-elevated)',
+                      border: `1px solid ${telegramConfig.notifyPayments ? 'var(--bronze)' : 'var(--border)'}`,
+                      position: 'relative',
+                    }}
                   >
-                    <i className="ri-send-plane-line" /> Probar
-                  </button>
-                  <button 
-                    type="button" 
-                    className="btn btn-primary" 
-                    onClick={handleSaveTelegram} 
-                    disabled={savingTelegram} 
-                    style={{ flex: 2, height: 32, fontSize: 11, padding: '4px 8px' }}
-                  >
-                    <i className="ri-save-line" /> {savingTelegram ? 'Guardando...' : 'Guardar Telegram'}
-                  </button>
+                    <div style={{ width: 14, height: 14, borderRadius: '50%', background: '#fff', position: 'absolute', top: 2, left: telegramConfig.notifyPayments ? 22 : 2, transition: 'left 0.2s' }} />
+                  </div>
                 </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                <button 
+                  type="button" 
+                  className="btn btn-secondary" 
+                  onClick={handleTestTelegram} 
+                  style={{ flex: 1, height: 32, fontSize: 11, padding: '4px 8px' }}
+                >
+                  <i className="ri-send-plane-line" /> Probar
+                </button>
+                <button 
+                  type="button" 
+                  className="btn btn-primary" 
+                  onClick={handleSaveTelegram} 
+                  disabled={savingTelegram} 
+                  style={{ flex: 2, height: 32, fontSize: 11, padding: '4px 8px' }}
+                >
+                  <i className="ri-save-line" /> {savingTelegram ? 'Guardando...' : 'Guardar Telegram'}
+                </button>
               </div>
             </div>
             </div>
