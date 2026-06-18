@@ -2639,6 +2639,44 @@ export default function MesasPanel({ showToast }) {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [modalComanda, modalNuevaMesa, modalFila, modalCuentas, modalAbrirCuenta, modalCerrar, mostrarCobroManual, modalVincular]);
 
+  // Atajos de teclado para filtrar la cuadrícula de mesas (Alt + Shift + T/L/O/R/M)
+  useEffect(() => {
+    const handleFilterShortcuts = (e) => {
+      const activeEl = document.activeElement;
+      if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.isContentEditable)) {
+        return;
+      }
+
+      if (e.altKey && e.shiftKey) {
+        const key = e.key.toLowerCase();
+        if (key === 't') {
+          e.preventDefault();
+          setFiltro('todas');
+          showToast("Filtro: Todas las mesas", "info");
+        } else if (key === 'l') {
+          e.preventDefault();
+          setFiltro('libre');
+          showToast("Filtro: Mesas Libres", "success");
+        } else if (key === 'o') {
+          e.preventDefault();
+          setFiltro('ocupada');
+          showToast("Filtro: Mesas Ocupadas", "danger");
+        } else if (key === 'r') {
+          e.preventDefault();
+          setFiltro('reservada');
+          showToast("Filtro: Mesas Reservadas", "warning");
+        } else if (key === 'm') {
+          e.preventDefault();
+          setFiltro('manten');
+          showToast("Filtro: Mesas en Mantenimiento", "secondary");
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleFilterShortcuts);
+    return () => window.removeEventListener('keydown', handleFilterShortcuts);
+  }, [setFiltro, showToast]);
+
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
       document.documentElement.requestFullscreen().then(() => {
@@ -4632,6 +4670,14 @@ export default function MesasPanel({ showToast }) {
         .mesa-card svg {
           transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
+        @keyframes filterPulse {
+          0% { transform: scale(1); }
+          50% { transform: scale(1.05); }
+          100% { transform: scale(1); }
+        }
+        .filter-active-pill {
+          animation: filterPulse 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
       `}</style>
 
       {/* Banner de Fila Virtual Activa (Visual Alert para el Cajero) */}
@@ -4733,6 +4779,8 @@ export default function MesasPanel({ showToast }) {
           {/* Todas / Ocupación */}
           <button
             onClick={() => setFiltro('todas')}
+            className={filtro === 'todas' ? 'filter-active-pill' : ''}
+            title="Ver Todas las Mesas [Alt + Shift + T]"
             style={{
               padding: '6px 12px',
               fontSize: 10,
@@ -4747,7 +4795,8 @@ export default function MesasPanel({ showToast }) {
               color: '#f59e0b',
               cursor: 'pointer',
               transition: 'all 0.15s',
-              whiteSpace: 'nowrap'
+              whiteSpace: 'nowrap',
+              boxShadow: filtro === 'todas' ? 'inset 0 -3px 0 #f59e0b, 0 0 8px rgba(245, 158, 11, 0.2)' : 'none'
             }}
             onMouseEnter={e => {
               if (filtro !== 'todas') e.currentTarget.style.background = 'rgba(245, 158, 11, 0.08)';
@@ -4761,7 +4810,9 @@ export default function MesasPanel({ showToast }) {
               height: 6,
               borderRadius: '50%',
               background: pctOcupacion > 70 ? 'var(--danger)' : (pctOcupacion > 30 ? '#f59e0b' : 'var(--success)'),
-              boxShadow: `0 0 6px ${pctOcupacion > 70 ? 'var(--danger)' : (pctOcupacion > 30 ? '#f59e0b' : 'var(--success)')}`
+              boxShadow: `0 0 6px ${pctOcupacion > 70 ? 'var(--danger)' : (pctOcupacion > 30 ? '#f59e0b' : 'var(--success)')}`,
+              transform: filtro === 'todas' ? 'scale(1.3)' : 'scale(1)',
+              transition: 'transform 0.2s ease'
             }} />
             <span style={{ color: 'var(--text-secondary)' }}>TODAS: <strong style={{ color: '#f59e0b' }}>{pctOcupacion}% OCUPACIÓN</strong></span>
           </button>
@@ -4769,6 +4820,8 @@ export default function MesasPanel({ showToast }) {
           {/* Libres */}
           <button
             onClick={() => setFiltro('libre')}
+            className={filtro === 'libre' ? 'filter-active-pill' : ''}
+            title="Ver Mesas Libres [Alt + Shift + L]"
             style={{
               padding: '6px 12px',
               fontSize: 10,
@@ -4783,7 +4836,8 @@ export default function MesasPanel({ showToast }) {
               color: 'var(--success)',
               cursor: 'pointer',
               transition: 'all 0.15s',
-              whiteSpace: 'nowrap'
+              whiteSpace: 'nowrap',
+              boxShadow: filtro === 'libre' ? 'inset 0 -3px 0 var(--success), 0 0 8px rgba(34, 197, 94, 0.2)' : 'none'
             }}
             onMouseEnter={e => {
               if (filtro !== 'libre') e.currentTarget.style.background = 'rgba(34, 197, 94, 0.08)';
@@ -4792,13 +4846,21 @@ export default function MesasPanel({ showToast }) {
               if (filtro !== 'libre') e.currentTarget.style.background = 'rgba(34, 197, 94, 0.02)';
             }}
           >
-            <i className="ri-checkbox-blank-circle-line" style={{ color: 'var(--success)', fontSize: 11 }} />
+            <i className="ri-checkbox-blank-circle-line" style={{ 
+              color: 'var(--success)', 
+              fontSize: 11,
+              transform: filtro === 'libre' ? 'scale(1.2)' : 'scale(1)',
+              display: 'inline-block',
+              transition: 'transform 0.2s ease'
+            }} />
             <span style={{ color: 'var(--text-secondary)' }}>LIBRES: <strong style={{ color: 'var(--success)' }}>{totales.libres}</strong></span>
           </button>
 
           {/* Ocupadas */}
           <button
             onClick={() => setFiltro('ocupada')}
+            className={filtro === 'ocupada' ? 'filter-active-pill' : ''}
+            title="Ver Mesas Ocupadas [Alt + Shift + O]"
             style={{
               padding: '6px 12px',
               fontSize: 10,
@@ -4813,7 +4875,8 @@ export default function MesasPanel({ showToast }) {
               color: 'var(--danger)',
               cursor: 'pointer',
               transition: 'all 0.15s',
-              whiteSpace: 'nowrap'
+              whiteSpace: 'nowrap',
+              boxShadow: filtro === 'ocupada' ? 'inset 0 -3px 0 var(--danger), 0 0 8px rgba(239, 68, 68, 0.2)' : 'none'
             }}
             onMouseEnter={e => {
               if (filtro !== 'ocupada') e.currentTarget.style.background = 'rgba(239, 68, 68, 0.08)';
@@ -4822,13 +4885,21 @@ export default function MesasPanel({ showToast }) {
               if (filtro !== 'ocupada') e.currentTarget.style.background = 'rgba(239, 68, 68, 0.02)';
             }}
           >
-            <i className="ri-record-circle-line" style={{ color: 'var(--danger)', fontSize: 11 }} />
+            <i className="ri-record-circle-line" style={{ 
+              color: 'var(--danger)', 
+              fontSize: 11,
+              transform: filtro === 'ocupada' ? 'scale(1.2)' : 'scale(1)',
+              display: 'inline-block',
+              transition: 'transform 0.2s ease'
+            }} />
             <span style={{ color: 'var(--text-secondary)' }}>OCUPADAS: <strong style={{ color: 'var(--danger)' }}>{totales.ocupadas}</strong></span>
           </button>
 
           {/* Reservadas */}
           <div
             onClick={() => setFiltro('reservada')}
+            className={filtro === 'reservada' ? 'filter-active-pill' : ''}
+            title="Ver Mesas Reservadas [Alt + Shift + R]"
             style={{
               padding: '6px 12px',
               fontSize: 10,
@@ -4842,7 +4913,8 @@ export default function MesasPanel({ showToast }) {
               color: 'var(--bronze-light)',
               cursor: 'pointer',
               transition: 'all 0.15s',
-              whiteSpace: 'nowrap'
+              whiteSpace: 'nowrap',
+              boxShadow: filtro === 'reservada' ? 'inset 0 -3px 0 var(--bronze-light), 0 0 8px rgba(227, 168, 105, 0.2)' : 'none'
             }}
             onMouseEnter={e => {
               if (filtro !== 'reservada') e.currentTarget.style.background = 'rgba(227, 168, 105, 0.08)';
@@ -4851,7 +4923,13 @@ export default function MesasPanel({ showToast }) {
               if (filtro !== 'reservada') e.currentTarget.style.background = 'rgba(227, 168, 105, 0.02)';
             }}
           >
-            <i className="ri-bookmark-fill" style={{ color: 'var(--bronze-light)', fontSize: 11 }} />
+            <i className="ri-bookmark-fill" style={{ 
+              color: 'var(--bronze-light)', 
+              fontSize: 11,
+              transform: filtro === 'reservada' ? 'scale(1.2)' : 'scale(1)',
+              display: 'inline-block',
+              transition: 'transform 0.2s ease'
+            }} />
             <span style={{ color: 'var(--text-secondary)', marginRight: 6 }}>RESERVADAS: <strong style={{ color: 'var(--bronze-light)' }}>{totales.reservadas}</strong></span>
             <button
               onClick={(e) => {
@@ -4889,6 +4967,8 @@ export default function MesasPanel({ showToast }) {
           {/* Mantenimiento */}
           <button
             onClick={() => setFiltro('manten')}
+            className={filtro === 'manten' ? 'filter-active-pill' : ''}
+            title="Ver Mesas en Mantenimiento [Alt + Shift + M]"
             style={{
               padding: '6px 12px',
               fontSize: 10,
@@ -4902,7 +4982,8 @@ export default function MesasPanel({ showToast }) {
               color: 'var(--text-muted)',
               cursor: 'pointer',
               transition: 'all 0.15s',
-              whiteSpace: 'nowrap'
+              whiteSpace: 'nowrap',
+              boxShadow: filtro === 'manten' ? 'inset 0 -3px 0 var(--text-muted), 0 0 8px rgba(176, 184, 200, 0.2)' : 'none'
             }}
             onMouseEnter={e => {
               if (filtro !== 'manten') e.currentTarget.style.background = 'rgba(176, 184, 200, 0.08)';
@@ -4911,7 +4992,13 @@ export default function MesasPanel({ showToast }) {
               if (filtro !== 'manten') e.currentTarget.style.background = 'rgba(176, 184, 200, 0.02)';
             }}
           >
-            <i className="ri-tools-line" style={{ color: 'var(--text-muted)', fontSize: 11 }} />
+            <i className="ri-tools-line" style={{ 
+              color: 'var(--text-muted)', 
+              fontSize: 11,
+              transform: filtro === 'manten' ? 'scale(1.2)' : 'scale(1)',
+              display: 'inline-block',
+              transition: 'transform 0.2s ease'
+            }} />
             <span style={{ color: 'var(--text-secondary)' }}>MANTENIMIENTO: <strong style={{ color: 'var(--text-muted)' }}>{totales.manten}</strong></span>
           </button>
         </div>
