@@ -557,10 +557,8 @@ export default function ConfigPanel({ showToast }) {
       setConfirmarPin('');
     }
   };
-
   const handleSaveMesa = (e) => {
     e.preventDefault();
-    const nextMesaId = mesas.length > 0 ? Math.max(...mesas.map(m => m.id)) + 1 : 1;
 
     if (editingMesaId !== null) {
       if (!nuevaMesa.nombre || !nuevaMesa.tarifa) {
@@ -596,7 +594,20 @@ export default function ConfigPanel({ showToast }) {
       setNuevaMesa({ id: '', nombre: '', tarifa: '', tipo: 'Pool' });
       showToast('Mesa modificada correctamente', 'success');
     } else {
-      const mesaId = nextMesaId;
+      let mesaId;
+      const parsedId = parseInt(nuevaMesa.id);
+      if (nuevaMesa.id && !isNaN(parsedId)) {
+        mesaId = parsedId;
+      } else {
+        mesaId = mesas.length > 0 ? Math.max(...mesas.map(m => m.id)) + 1 : 1;
+      }
+
+      // Validar si el ID ya existe
+      if (mesas.some(m => m.id === mesaId)) {
+        showToast(`El número de mesa ${mesaId} ya está en uso.`, 'danger');
+        return;
+      }
+
       const mesaNombre = nuevaMesa.nombre.trim() || `Mesa ${mesaId}`;
       const nueva = {
         id: mesaId,
@@ -1568,8 +1579,10 @@ export default function ConfigPanel({ showToast }) {
                     <input
                       type="number"
                       className="form-input"
-                      value={editingMesaId !== null ? nuevaMesa.id : (mesas.length > 0 ? Math.max(...mesas.map(m => m.id)) + 1 : 1)}
-                      disabled={true}
+                      placeholder="Auto"
+                      value={nuevaMesa.id || ''}
+                      onChange={e => setNuevaMesa(p => ({ ...p, id: e.target.value }))}
+                      disabled={editingMesaId !== null}
                       style={{ padding: '6px 10px', fontSize: '13px', height: 32 }}
                     />
                   </div>
@@ -1577,7 +1590,7 @@ export default function ConfigPanel({ showToast }) {
                     <label className="form-label">Nombre (Opcional)</label>
                     <input
                       className="form-input"
-                      placeholder={editingMesaId !== null ? "Ej: Mesa 1" : `Mesa ${(mesas.length > 0 ? Math.max(...mesas.map(m => m.id)) + 1 : 1)}`}
+                      placeholder={editingMesaId !== null ? "Ej: Mesa 1" : "Opcional (Ej: Mesa VIP)"}
                       value={nuevaMesa.nombre}
                       onChange={e => setNuevaMesa(p => ({ ...p, nombre: e.target.value }))}
                       style={{ padding: '6px 10px', fontSize: '13px', height: 32 }}
