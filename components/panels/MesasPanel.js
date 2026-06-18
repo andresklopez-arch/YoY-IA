@@ -1749,6 +1749,7 @@ function getGameIcon(tipo, size = 18) {
 export default function MesasPanel({ showToast }) {
   const { user } = useAuth();
   const [mesas, setMesas] = useState(INIT_MESAS);
+  const [compactHeader, setCompactHeader] = useState(false);
   const isIncomingUpdateRef = useRef(false);
   const hasLoadedFromFirestoreRef = useRef(false);
   const mesasRef = useRef(mesas);
@@ -4695,16 +4696,17 @@ export default function MesasPanel({ showToast }) {
       )}
 
         <div className="page-header" style={{
-        marginBottom: 16,
+        marginBottom: compactHeader ? 8 : 16,
         background: 'var(--bg-elevated)',
         border: '1px solid var(--border-bronze)',
         borderRadius: 12,
-        padding: '10px 14px',
+        padding: compactHeader ? '6px 10px' : '10px 14px',
         display: 'flex',
         flexWrap: 'wrap',
         alignItems: 'center',
-        gap: 8,
-        boxShadow: 'var(--shadow-sm)'
+        gap: compactHeader ? 4 : 8,
+        boxShadow: 'var(--shadow-sm)',
+        transition: 'all 0.2s ease'
       }}>
         {/* Cuentas Activas (Protagonista verde brillante con animación de pulso al inicio) */}
         <button
@@ -4724,30 +4726,23 @@ export default function MesasPanel({ showToast }) {
           <span>ACTIVAS: <strong style={{ fontSize: 12 }}>{cuentasActivas.length} CLS</strong></span>
         </button>
 
-        {/* Cápsula Segmentada Unificada (Sin espacios intermedios y con ligeros códigos de color) */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          background: 'var(--bg-elevated)',
-          border: '1px solid var(--border-bronze)',
-          borderRadius: 8,
-          overflow: 'hidden',
-          boxShadow: 'var(--shadow-sm)'
-        }}>
-          {/* Ocupación */}
+        {compactHeader ? (
+          /* Ocupación Compacta */
           <div style={{
-            padding: '6px 12px',
+            padding: '5px 10px',
             fontSize: 10,
             fontWeight: 700,
             display: 'flex',
             alignItems: 'center',
             gap: 6,
-            height: 28,
-            borderRight: '1px solid var(--border-bronze)',
-            background: 'rgba(245, 158, 11, 0.02)',
-            color: '#f59e0b',
-            whiteSpace: 'nowrap'
-          }}>
+            height: 24,
+            background: 'rgba(197, 168, 128, 0.05)',
+            border: '1px solid var(--border-bronze)',
+            borderRadius: 6,
+            color: 'var(--bronze-light)',
+            whiteSpace: 'nowrap',
+            boxShadow: 'var(--shadow-sm)'
+          }} title={`Libres: ${totales.libres} | Ocupadas: ${totales.ocupadas} | Reservadas: ${totales.reservadas}`}>
             <div style={{
               width: 6,
               height: 6,
@@ -4755,73 +4750,110 @@ export default function MesasPanel({ showToast }) {
               background: pctOcupacion > 70 ? 'var(--danger)' : (pctOcupacion > 30 ? '#f59e0b' : 'var(--success)'),
               boxShadow: `0 0 6px ${pctOcupacion > 70 ? 'var(--danger)' : (pctOcupacion > 30 ? '#f59e0b' : 'var(--success)')}`
             }} />
-            <span style={{ color: 'var(--text-secondary)' }}>OCUPACIÓN: <strong style={{ color: '#f59e0b' }}>{pctOcupacion}%</strong></span>
+            <span>OCUPADO: <strong style={{ color: 'var(--bronze-light)' }}>{pctOcupacion}%</strong> <span style={{ color: 'var(--text-muted)' }}>(L:{totales.libres} O:{totales.ocupadas} R:{totales.reservadas})</span></span>
           </div>
-
-          {/* Libres */}
-          <div style={{
-            padding: '6px 12px',
-            fontSize: 10,
-            fontWeight: 700,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            height: 28,
-            borderRight: '1px solid var(--border-bronze)',
-            background: 'rgba(34, 197, 94, 0.02)',
-            color: 'var(--success)',
-            whiteSpace: 'nowrap'
-          }}>
-            <i className="ri-checkbox-blank-circle-line" style={{ color: 'var(--success)', fontSize: 11 }} />
-            <span style={{ color: 'var(--text-secondary)' }}>LIBRES: <strong style={{ color: 'var(--success)' }}>{totales.libres}</strong></span>
-          </div>
-
-          {/* Ocupadas */}
-          <div style={{
-            padding: '6px 12px',
-            fontSize: 10,
-            fontWeight: 700,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            height: 28,
-            borderRight: '1px solid var(--border-bronze)',
-            background: 'rgba(239, 68, 68, 0.02)',
-            color: 'var(--danger)',
-            whiteSpace: 'nowrap'
-          }}>
-            <i className="ri-record-circle-line" style={{ color: 'var(--danger)', fontSize: 11 }} />
-            <span style={{ color: 'var(--text-secondary)' }}>OCUPADAS: <strong style={{ color: 'var(--danger)' }}>{totales.ocupadas}</strong></span>
-          </div>
-
-          {/* Reservadas (Interactiva) */}
-          <button
-            onClick={() => setModalReservasCentral(true)}
-            style={{
-              padding: '6px 12px',
-              fontSize: 10,
-              fontWeight: 700,
+        ) : (
+          <>
+            {/* Cápsula Segmentada Unificada (Sin espacios intermedios y con ligeros códigos de color) */}
+            <div style={{
               display: 'flex',
               alignItems: 'center',
-              gap: 6,
-              height: 28,
-              background: 'rgba(227, 168, 105, 0.02)',
-              border: 'none',
-              cursor: 'pointer',
-              transition: 'all 0.15s',
-              color: 'var(--bronze-light)',
-              whiteSpace: 'nowrap'
-            }}
-            onMouseEnter={e => e.currentTarget.style.background = 'rgba(227, 168, 105, 0.08)'}
-            onMouseLeave={e => e.currentTarget.style.background = 'rgba(227, 168, 105, 0.02)'}
-          >
-            <i className="ri-bookmark-fill" style={{ color: 'var(--bronze-light)', fontSize: 11 }} />
-            <span style={{ color: 'var(--text-secondary)' }}>RESERVADAS: <strong style={{ color: 'var(--bronze-light)' }}>{totales.reservadas}</strong></span>
-          </button>
-        </div>
+              background: 'var(--bg-elevated)',
+              border: '1px solid var(--border-bronze)',
+              borderRadius: 8,
+              overflow: 'hidden',
+              boxShadow: 'var(--shadow-sm)'
+            }}>
+              {/* Ocupación */}
+              <div style={{
+                padding: '6px 12px',
+                fontSize: 10,
+                fontWeight: 700,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                height: 28,
+                borderRight: '1px solid var(--border-bronze)',
+                background: 'rgba(245, 158, 11, 0.02)',
+                color: '#f59e0b',
+                whiteSpace: 'nowrap'
+              }}>
+                <div style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: '50%',
+                  background: pctOcupacion > 70 ? 'var(--danger)' : (pctOcupacion > 30 ? '#f59e0b' : 'var(--success)'),
+                  boxShadow: `0 0 6px ${pctOcupacion > 70 ? 'var(--danger)' : (pctOcupacion > 30 ? '#f59e0b' : 'var(--success)')}`
+                }} />
+                <span style={{ color: 'var(--text-secondary)' }}>OCUPACIÓN: <strong style={{ color: '#f59e0b' }}>{pctOcupacion}%</strong></span>
+              </div>
 
-        {/* Separador vertical */}
-        <div style={{ width: 1, height: 18, background: 'var(--border-bronze)', opacity: 0.3, margin: '0 4px' }} />
+              {/* Libres */}
+              <div style={{
+                padding: '6px 12px',
+                fontSize: 10,
+                fontWeight: 700,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                height: 28,
+                borderRight: '1px solid var(--border-bronze)',
+                background: 'rgba(34, 197, 94, 0.02)',
+                color: 'var(--success)',
+                whiteSpace: 'nowrap'
+              }}>
+                <i className="ri-checkbox-blank-circle-line" style={{ color: 'var(--success)', fontSize: 11 }} />
+                <span style={{ color: 'var(--text-secondary)' }}>LIBRES: <strong style={{ color: 'var(--success)' }}>{totales.libres}</strong></span>
+              </div>
+
+              {/* Ocupadas */}
+              <div style={{
+                padding: '6px 12px',
+                fontSize: 10,
+                fontWeight: 700,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                height: 28,
+                borderRight: '1px solid var(--border-bronze)',
+                background: 'rgba(239, 68, 68, 0.02)',
+                color: 'var(--danger)',
+                whiteSpace: 'nowrap'
+              }}>
+                <i className="ri-record-circle-line" style={{ color: 'var(--danger)', fontSize: 11 }} />
+                <span style={{ color: 'var(--text-secondary)' }}>OCUPADAS: <strong style={{ color: 'var(--danger)' }}>{totales.ocupadas}</strong></span>
+              </div>
+
+              {/* Reservadas (Interactiva) */}
+              <button
+                onClick={() => setModalReservasCentral(true)}
+                style={{
+                  padding: '6px 12px',
+                  fontSize: 10,
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  height: 28,
+                  background: 'rgba(227, 168, 105, 0.02)',
+                  border: 'none',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s',
+                  color: 'var(--bronze-light)',
+                  whiteSpace: 'nowrap'
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = 'rgba(227, 168, 105, 0.08)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'rgba(227, 168, 105, 0.02)'}
+              >
+                <i className="ri-bookmark-fill" style={{ color: 'var(--bronze-light)', fontSize: 11 }} />
+                <span style={{ color: 'var(--text-secondary)' }}>RESERVADAS: <strong style={{ color: 'var(--bronze-light)' }}>{totales.reservadas}</strong></span>
+              </button>
+            </div>
+
+            {/* Separador vertical */}
+            <div style={{ width: 1, height: 18, background: 'var(--border-bronze)', opacity: 0.3, margin: '0 4px' }} />
+          </>
+        )}
 
         {/* Botones de Acción */}
         <button className="btn btn-secondary btn-sm" onClick={toggleFullscreen} title="Activar Modo Kiosco">
@@ -4874,39 +4906,52 @@ export default function MesasPanel({ showToast }) {
           </button>
         ))}
 
-        {/* Separador vertical */}
-        <div style={{ width: 1, height: 18, background: 'var(--border-bronze)', opacity: 0.3, margin: '0 4px' }} />
-
         {/* Controles de Utilidad */}
-        <button
-          onClick={() => setAnimacionesActivas(prev => !prev)}
-          className="btn btn-secondary btn-sm"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            color: animacionesActivas ? 'var(--bronze-light)' : 'var(--text-muted)',
-            borderColor: animacionesActivas ? 'var(--border-bronze)' : 'var(--border)'
-          }}
-          title="Activar/Desactivar efectos de cometa animados"
-        >
-          <i className={animacionesActivas ? "ri-sparkling-fill" : "ri-sparkling-line"} />
-          {animacionesActivas ? 'Animaciones: ON' : 'Animaciones: OFF'}
-        </button>
+        {!compactHeader && (
+          <>
+            <div style={{ width: 1, height: 18, background: 'var(--border-bronze)', opacity: 0.3, margin: '0 4px' }} />
+            <button
+              onClick={() => setAnimacionesActivas(prev => !prev)}
+              className="btn btn-secondary btn-sm"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                color: animacionesActivas ? 'var(--bronze-light)' : 'var(--text-muted)',
+                borderColor: animacionesActivas ? 'var(--border-bronze)' : 'var(--border)'
+              }}
+              title="Activar/Desactivar efectos de cometa animados"
+            >
+              <i className={animacionesActivas ? "ri-sparkling-fill" : "ri-sparkling-line"} />
+              {animacionesActivas ? 'Animaciones: ON' : 'Animaciones: OFF'}
+            </button>
 
-        <button
-          onClick={imprimirTodosLosQRs}
-          className="btn btn-secondary btn-sm"
-          style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--bronze-light)', borderColor: 'var(--border-bronze)' }}
-        >
-          <i className="ri-qr-code-line" /> Imprimir todos los QRs
-        </button>
+            <button
+              onClick={imprimirTodosLosQRs}
+              className="btn btn-secondary btn-sm"
+              style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--bronze-light)', borderColor: 'var(--border-bronze)' }}
+            >
+              <i className="ri-qr-code-line" /> Imprimir todos los QRs
+            </button>
+          </>
+        )}
       </div>
 
 
 
       {/* Grid de mesas */}
-      <div className="mesa-grid" style={{ flex: 1, overflowY: 'auto', paddingRight: 4 }}>
+      <div
+        className="mesa-grid"
+        onScroll={(e) => {
+          const scrollTop = e.currentTarget.scrollTop;
+          if (scrollTop > 20) {
+            if (!compactHeader) setCompactHeader(true);
+          } else {
+            if (compactHeader) setCompactHeader(false);
+          }
+        }}
+        style={{ flex: 1, overflowY: 'auto', paddingRight: 4, WebkitOverflowScrolling: 'touch' }}
+      >
         {mesasFiltradas.map(mesa => {
           const elapsed = mesa.inicio ? Date.now() - mesa.inicio : 0;
           const costo = calcCosto(mesa);
