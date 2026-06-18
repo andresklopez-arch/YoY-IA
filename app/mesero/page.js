@@ -48,6 +48,7 @@ function MeseroContent() {
   const [rawPedidos, setRawPedidos] = useState([]);
   const [sonido, setSonido] = useState(true);
   const [ultimoCount, setUltimoCount] = useState(0);
+  const [showAsistenciaModal, setShowAsistenciaModal] = useState(false);
   
   const [toast, setToast] = useState(null);
   const showToast = (message, type = 'success') => {
@@ -355,6 +356,16 @@ function MeseroContent() {
   };
 
   const alertasAsistenciaParaMi = alertasAsistencia.filter(isAlertaParaMi);
+
+  const prevAlertasCountRef = useRef(0);
+  useEffect(() => {
+    if (alertasAsistenciaParaMi.length > prevAlertasCountRef.current) {
+      setShowAsistenciaModal(true);
+    } else if (alertasAsistenciaParaMi.length === 0) {
+      setShowAsistenciaModal(false);
+    }
+    prevAlertasCountRef.current = alertasAsistenciaParaMi.length;
+  }, [alertasAsistenciaParaMi.length]);
 
   // Estados para el panel de Cuentas Activas integrado
   const [expandedIds, setExpandedIds] = useState({});
@@ -960,10 +971,35 @@ function MeseroContent() {
                 </span>
               )}
             </h1>
-            <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
-              {pedidos.length > 0
-                ? <><span style={{ color: 'var(--danger)', fontWeight: 700 }}>{pedidos.length} pendiente(s)</span> · Activo</>
-                : <><span style={{ color: 'var(--success)' }}>✓</span> Sin pedidos pendientes</>
+            <p 
+              onClick={() => {
+                if (alertasAsistenciaParaMi.length > 0) {
+                  setShowAsistenciaModal(true);
+                }
+              }}
+              style={{ 
+                fontSize: 12, 
+                color: 'var(--text-muted)', 
+                marginTop: 4, 
+                cursor: alertasAsistenciaParaMi.length > 0 ? 'pointer' : 'default',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                userSelect: 'none',
+                transition: 'all 0.15s'
+              }}
+              onMouseEnter={e => {
+                if (alertasAsistenciaParaMi.length > 0) {
+                  e.currentTarget.style.color = 'var(--bronze-light)';
+                }
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.color = 'var(--text-muted)';
+              }}
+            >
+              {alertasAsistenciaParaMi.length > 0
+                ? <><span style={{ color: 'var(--danger)', fontWeight: 700, textDecoration: 'underline' }}>{alertasAsistenciaParaMi.length} pendiente(s)</span> · Activo <i className="ri-arrow-right-s-line" style={{ fontSize: 14 }} /></>
+                : <><span style={{ color: 'var(--success)' }}>✓</span> Sin pendientes</>
               }
             </p>
           </div>
@@ -1018,15 +1054,14 @@ function MeseroContent() {
               Capturar Venta
             </button>
 
-            {/* Toggle sonido */}
-            <button
-              onClick={() => setSonido(!sonido)}
-              title={sonido ? 'Silenciar alertas' : 'Activar alertas de sonido'}
-              style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 10, padding: '8px 12px', cursor: 'pointer', color: sonido ? 'var(--bronze-light)' : 'var(--text-muted)', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}
+            {/* Sonido ON - Siempre activo en Vista Mesero */}
+            <div
+              title="El sonido de alertas está activado de forma permanente para no omitir solicitudes"
+              style={{ background: 'var(--bg-elevated)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 10, padding: '8px 12px', color: 'var(--success)', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, cursor: 'default', userSelect: 'none' }}
             >
-              <i className={sonido ? 'ri-volume-up-line' : 'ri-volume-mute-line'} />
-              {sonido ? 'Sonido ON' : 'Silencio'}
-            </button>
+              <i className="ri-volume-up-line" />
+              Sonido ON
+            </div>
 
             {/* Botón Cerrar Sesión */}
             <button
@@ -1602,16 +1637,38 @@ function MeseroContent() {
       </div>
 
       {/* ── VENTANA EMERGENTE: ALERTA DE ASISTENCIA / SERVICIOS ── */}
-      {alertasAsistenciaParaMi.length > 0 && (
+      {showAsistenciaModal && alertasAsistenciaParaMi.length > 0 && (
         <div className="modal-overlay" style={{ zIndex: 1000, background: 'rgba(13,13,15,0.85)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}>
           <div className="modal" style={{ maxWidth: 460, border: '2px solid var(--danger)', boxShadow: '0 0 30px rgba(239,68,68,0.35)', animation: 'scaleUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)' }}>
             <div className="modal-header" style={{ borderBottom: '1px solid rgba(239,68,68,0.2)', paddingBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span className="modal-title" style={{ color: 'var(--danger)', display: 'flex', alignItems: 'center', gap: 8, fontSize: 18, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
                 <span style={{ fontSize: 24, animation: 'pulse 1s infinite' }}>🚨</span> Alerta de Servicio
               </span>
-              <span style={{ fontSize: 11, background: 'rgba(239,68,68,0.15)', color: 'var(--danger)', padding: '2px 8px', borderRadius: 999, fontWeight: 800 }}>
-                {alertasAsistenciaParaMi.length} PENDIENTE(S)
-              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 11, background: 'rgba(239,68,68,0.15)', color: 'var(--danger)', padding: '2px 8px', borderRadius: 999, fontWeight: 800 }}>
+                  {alertasAsistenciaParaMi.length} PENDIENTE(S)
+                </span>
+                <button
+                  onClick={() => setShowAsistenciaModal(false)}
+                  title="Dejar pendientes y cerrar"
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--text-muted)',
+                    cursor: 'pointer',
+                    fontSize: 18,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: 4,
+                    transition: 'color 0.15s'
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.color = '#fff'}
+                  onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
+                >
+                  <i className="ri-close-line" />
+                </button>
+              </div>
             </div>
             <div className="modal-body" style={{ maxHeight: 360, overflowY: 'auto', padding: '16px 0' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -1661,13 +1718,13 @@ function MeseroContent() {
               </div>
             </div>
             <div className="modal-footer" style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <button
-                onClick={() => setSonido(!sonido)}
-                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+              <div
+                style={{ color: 'var(--success)', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6, userSelect: 'none' }}
+                title="Las alertas de sonido están activadas permanentemente"
               >
-                <i className={sonido ? 'ri-volume-up-line' : 'ri-volume-mute-line'} />
-                {sonido ? 'Alarma encendida' : 'Alarma silenciada'}
-              </button>
+                <i className="ri-volume-up-line" />
+                Alarma encendida
+              </div>
               <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>YoY IA Billar By Alfonso Iturbide</span>
             </div>
           </div>
