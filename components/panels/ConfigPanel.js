@@ -1088,34 +1088,38 @@ export default function ConfigPanel({ showToast }) {
           />
         ))}
       </div>
-      <div className="page-header">
-        <div>
-          <h1 className="page-title gradient-bronze">Configuración</h1>
-          <p className="page-subtitle">Ajustes del sistema, sucursal, tarifas y recetario de costeo</p>
+      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <h1 className="page-title gradient-bronze" style={{ margin: 0, fontSize: '18px', fontWeight: 800 }}>Configuración</h1>
+          <span style={{ height: 14, width: 1, background: 'var(--border)' }} />
+          <p className="page-subtitle" style={{ margin: 0, fontSize: '11px', color: 'var(--text-muted)' }}>Ajustes del sistema, sucursal, tarifas y recetario de costeo</p>
         </div>
-      </div>
 
-      {/* SELECTOR DE SUBTABS */}
-      <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
-        <button
-          className={`btn btn-sm ${subTab === 'general' ? 'btn-primary' : 'btn-secondary'}`}
-          onClick={() => setSubTab('general')}
-          style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-        >
-          <i className="ri-settings-4-line" /> Ajustes Generales
-        </button>
-        <button
-          className={`btn btn-sm ${subTab === 'recetario' ? 'btn-primary' : 'btn-secondary'}`}
-          onClick={() => setSubTab('recetario')}
-          style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-        >
-          <i className="ri-restaurant-line" /> Recetario y Costeo Dinámico
-        </button>
+        {/* SELECTOR DE SUBTABS COMPACTO */}
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            className={`btn btn-sm ${subTab === 'general' ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={() => setSubTab('general')}
+            style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', fontSize: '10px' }}
+          >
+            <i className="ri-settings-4-line" style={{ fontSize: '12px' }} /> Ajustes Generales
+          </button>
+          <button
+            className={`btn btn-sm ${subTab === 'recetario' ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={() => setSubTab('recetario')}
+            style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', fontSize: '10px' }}
+          >
+            <i className="ri-restaurant-line" style={{ fontSize: '12px' }} /> Recetario y Costeo Dinámico
+          </button>
+        </div>
       </div>
 
       {subTab === 'general' ? (
         <>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, alignItems: 'start' }}>
+            
+            {/* COLUMNA 1 */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             {/* Sucursal */}
             <div className="card">
               <div className="card-header" style={{ marginBottom: 20 }}>
@@ -1173,8 +1177,149 @@ export default function ConfigPanel({ showToast }) {
                 </button>
               </div>
             </div>
+            <div className="card">
+              <div className="card-header" style={{ marginBottom: 20 }}>
+                <h3 className="card-title"><i className="ri-robot-line" style={{ marginRight: 6 }} />Alertas IA</h3>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                {[
+                  { label: 'Alerta de Stock Bajo', sub: 'Notificar cuando un producto esté bajo mínimo', state: notifStock, set: setNotifStock },
+                  { label: 'Alerta de Alta Ocupación', sub: 'Sugerir surge pricing al superar 70%', state: notifOcupacion, set: setNotifOcupacion },
+                ].map((item, i) => (
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: i === 0 ? '1px solid var(--border)' : 'none' }}>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700 }}>{item.label}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{item.sub}</div>
+                    </div>
+                    <div
+                      onClick={() => item.set(p => !p)}
+                      style={{ width: 44, height: 24, borderRadius: 12, cursor: 'pointer', transition: 'all 0.2s', background: item.state ? 'var(--bronze)' : 'var(--bg-elevated)', border: `1px solid ${item.state ? 'var(--bronze)' : 'var(--border)'}`, position: 'relative' }}
+                    >
+                      <div style={{ width: 18, height: 18, borderRadius: '50%', background: '#fff', position: 'absolute', top: 2, left: item.state ? 22 : 2, transition: 'left 0.2s' }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="card">
+              <div className="card-header" style={{ marginBottom: 20 }}>
+                <h3 className="card-title"><i className="ri-shield-keyhole-line" style={{ marginRight: 6 }} />PIN de Administrador</h3>
+              </div>
+              <form onSubmit={handleChangePin} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div className="form-group">
+                  <label className="form-label">PIN de Administrador Actual</label>
+                  <input
+                    type="password"
+                    className="form-input"
+                    placeholder="••••"
+                    value={actualPin}
+                    onChange={e => setActualPin(e.target.value)}
+                    maxLength={8}
+                    required
+                  />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <div className="form-group">
+                    <label className="form-label">Nuevo PIN</label>
+                    <input
+                      type="password"
+                      className="form-input"
+                      placeholder="Ej: 4321"
+                      value={nuevoPin}
+                      onChange={e => setNuevoPin(e.target.value)}
+                      maxLength={8}
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Confirmar PIN</label>
+                    <input
+                      type="password"
+                      className="form-input"
+                      placeholder="Confirmar"
+                      value={confirmarPin}
+                      onChange={e => setConfirmarPin(e.target.value)}
+                      maxLength={8}
+                      required
+                    />
+                  </div>
+                </div>
+                <button type="submit" className="btn btn-primary">
+                  <i className="ri-lock-unlock-line" /> Guardar Nuevo PIN
+                </button>
+              </form>
+            </div>
+            <div className="card">
+              <div className="card-header" style={{ marginBottom: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h3 className="card-title">
+                  <i className="ri-telegram-line" style={{ marginRight: 6, color: '#24A1DE' }} />
+                  Alertas Telegram
+                </h3>
+                <div
+                  onClick={() => setTelegramConfig(p => ({ ...p, enabled: !p.enabled }))}
+                  style={{
+                    width: 44, height: 24, borderRadius: 12, cursor: 'pointer', transition: 'all 0.2s',
+                    background: telegramConfig.enabled ? '#24A1DE' : 'var(--bg-elevated)',
+                    border: `1px solid ${telegramConfig.enabled ? '#24A1DE' : 'var(--border)'}`,
+                    position: 'relative',
+                  }}
+                >
+                  <div style={{ width: 18, height: 18, borderRadius: '50%', background: '#fff', position: 'absolute', top: 2, left: telegramConfig.enabled ? 22 : 2, transition: 'left 0.2s' }} />
+                </div>
+              </div>
+              
+              <p style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 14 }}>
+                Envía alertas en tiempo real al grupo o chat de la gerencia cuando ocurra un fichaje sospechoso (ej. celular inusual).
+              </p>
 
-            {/* Tarifas */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div className="form-group">
+                  <label className="form-label">Token de Bot de Telegram</label>
+                  <input
+                    type="password"
+                    className="form-input"
+                    placeholder="1234567890:ABCDefGhIJK..."
+                    value={telegramConfig.botToken}
+                    onChange={e => setTelegramConfig(p => ({ ...p, botToken: e.target.value }))}
+                    style={{ fontSize: 11 }}
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">ID del Chat o Canal</label>
+                  <input
+                    className="form-input"
+                    placeholder="Ej: -100123456789 o 123456789"
+                    value={telegramConfig.chatId}
+                    onChange={e => setTelegramConfig(p => ({ ...p, chatId: e.target.value }))}
+                    style={{ fontSize: 11 }}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                  <button 
+                    type="button" 
+                    className="btn btn-secondary" 
+                    onClick={handleTestTelegram} 
+                    style={{ flex: 1, height: 36, fontSize: 11 }}
+                  >
+                    <i className="ri-send-plane-line" /> Probar
+                  </button>
+                  <button 
+                    type="button" 
+                    className="btn btn-primary" 
+                    onClick={handleSaveTelegram} 
+                    disabled={savingTelegram} 
+                    style={{ flex: 2, height: 36, fontSize: 11 }}
+                  >
+                    <i className="ri-save-line" /> {savingTelegram ? 'Guardando...' : 'Guardar Telegram'}
+                  </button>
+                </div>
+              </div>
+            </div>
+            </div>
+
+            {/* COLUMNA 2 */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div className="card">
               <div className="card-header" style={{ marginBottom: 20 }}>
                 <h3 className="card-title"><i className="ri-price-tag-3-line" style={{ marginRight: 6 }} />Tarifas por Hora</h3>
@@ -1231,201 +1376,6 @@ export default function ConfigPanel({ showToast }) {
                 </button>
               </div>
             </div>
-
-            {/* Alertas IA */}
-            <div className="card">
-              <div className="card-header" style={{ marginBottom: 20 }}>
-                <h3 className="card-title"><i className="ri-robot-line" style={{ marginRight: 6 }} />Alertas IA</h3>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                {[
-                  { label: 'Alerta de Stock Bajo', sub: 'Notificar cuando un producto esté bajo mínimo', state: notifStock, set: setNotifStock },
-                  { label: 'Alerta de Alta Ocupación', sub: 'Sugerir surge pricing al superar 70%', state: notifOcupacion, set: setNotifOcupacion },
-                ].map((item, i) => (
-                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: i === 0 ? '1px solid var(--border)' : 'none' }}>
-                    <div>
-                      <div style={{ fontSize: 13, fontWeight: 700 }}>{item.label}</div>
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{item.sub}</div>
-                    </div>
-                    <div
-                      onClick={() => item.set(p => !p)}
-                      style={{ width: 44, height: 24, borderRadius: 12, cursor: 'pointer', transition: 'all 0.2s', background: item.state ? 'var(--bronze)' : 'var(--bg-elevated)', border: `1px solid ${item.state ? 'var(--bronze)' : 'var(--border)'}`, position: 'relative' }}
-                    >
-                      <div style={{ width: 18, height: 18, borderRadius: '50%', background: '#fff', position: 'absolute', top: 2, left: item.state ? 22 : 2, transition: 'left 0.2s' }} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Roles del sistema */}
-            <div className="card">
-              <div className="card-header" style={{ marginBottom: 20 }}>
-                <h3 className="card-title"><i className="ri-shield-user-line" style={{ marginRight: 6 }} />Usuarios y Roles</h3>
-                <button className="btn btn-primary btn-sm" title="Agregar nuevo usuario" onClick={() => setShowAddUserModal(true)}>
-                  <i className="ri-user-add-line" />
-                </button>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {usuarios.length === 0 ? (
-                  <>
-                    <div style={{ background: 'var(--bronze-subtle)', border: '1px solid var(--border-bronze)', borderRadius: 10, padding: 12, marginBottom: 8 }}>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--bronze-light)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                        ⚠️ Modo Acceso Libre Activo
-                      </div>
-                      <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>
-                        El sistema entra directo sin login. Crea tu primer usuario haciendo clic en el botón de arriba (+) para activar la seguridad del negocio.
-                      </div>
-                    </div>
-                    {defaultDemos.map((u, i) => {
-                      const color = getRoleColor(u.role);
-                      return (
-                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: i < 3 ? '1px solid var(--border)' : 'none', opacity: 0.65 }}>
-                          <div style={{ width: 30, height: 30, borderRadius: 8, background: `${color}22`, border: `1px solid ${color}44`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800, color }}>
-                            {u.name[0]}
-                          </div>
-                          <div style={{ flex: 1 }}>
-                            <div style={{ fontSize: 13, fontWeight: 700 }}>{u.name} <span style={{ fontSize: 9, color: 'var(--bronze)', fontWeight: 600 }}>(Demo)</span></div>
-                            <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{u.email}</div>
-                          </div>
-                          <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: `${color}22`, color, border: `1px solid ${color}44`, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-                            {u.role}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </>
-                ) : (
-                  usuarios.map((u, i) => {
-                    const color = getRoleColor(u.role);
-                    return (
-                      <div key={u.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: i < usuarios.length - 1 ? '1px solid var(--border)' : 'none' }}>
-                        <div style={{ width: 30, height: 30, borderRadius: 8, background: `${color}22`, border: `1px solid ${color}44`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800, color }}>
-                          {u.name[0]}
-                        </div>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 13, fontWeight: 700 }}>{u.name}</div>
-                          <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{u.email}</div>
-                        </div>
-                        <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: `${color}22`, color, border: `1px solid ${color}44`, textTransform: 'uppercase', letterSpacing: '0.1em', marginRight: 10 }}>
-                          {u.role}
-                        </span>
-                        <button
-                          onClick={() => handleDeleteUser(u.id, u.name)}
-                          title="Eliminar usuario"
-                          style={{
-                            background: 'none', border: 'none', color: 'var(--text-muted)',
-                            cursor: 'pointer', fontSize: 16, padding: '4px 8px',
-                            transition: 'color 0.15s',
-                          }}
-                          onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
-                          onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
-                        >
-                          <i className="ri-delete-bin-line" />
-                        </button>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-
-            {/* Configuración de Mesas */}
-            <div className="card">
-              <div className="card-header" style={{ marginBottom: 20 }}>
-                <h3 className="card-title"><i className="ri-grid-line" style={{ marginRight: 6 }} />Configuración de Mesas</h3>
-              </div>
-              <form onSubmit={handleSaveMesa} style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20, background: 'var(--bg-elevated)', padding: 14, borderRadius: 12, border: '1px solid var(--border)' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr', gap: 10 }}>
-                  <div className="form-group">
-                    <label className="form-label">Número</label>
-                    <input
-                      type="number"
-                      className="form-input"
-                      value={editingMesaId !== null ? nuevaMesa.id : (mesas.length > 0 ? Math.max(...mesas.map(m => m.id)) + 1 : 1)}
-                      disabled={true}
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Nombre (Opcional)</label>
-                    <input
-                      className="form-input"
-                      placeholder={editingMesaId !== null ? "Ej: Mesa 1" : `Mesa ${(mesas.length > 0 ? Math.max(...mesas.map(m => m.id)) + 1 : 1)}`}
-                      value={nuevaMesa.nombre}
-                      onChange={e => setNuevaMesa(p => ({ ...p, nombre: e.target.value }))}
-                    />
-                  </div>
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                  <div className="form-group">
-                    <label className="form-label">Tarifa ($/hr)</label>
-                    <input
-                      type="number"
-                      className="form-input"
-                      placeholder="60"
-                      value={nuevaMesa.tarifa}
-                      onChange={e => setNuevaMesa(p => ({ ...p, tarifa: e.target.value }))}
-                      required
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Tipo de Mesa</label>
-                    <select
-                      className="form-select"
-                      value={nuevaMesa.tipo}
-                      onChange={e => setNuevaMesa(p => ({ ...p, tipo: e.target.value }))}
-                      style={{ background: 'var(--bg-elevated)', color: 'var(--text-main)', border: '1px solid var(--border)', height: 38 }}
-                    >
-                      <option value="Pool">Pool</option>
-                      <option value="Carambola">Carambola</option>
-                      <option value="Snooker">Snooker</option>
-                      <option value="Dominó">Dominó</option>
-                      <option value="Consumo">Consumo</option>
-                    </select>
-                  </div>
-                </div>
-                <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                  {editingMesaId !== null && (
-                    <button
-                      type="button"
-                      className="btn btn-secondary"
-                      style={{ flex: 1 }}
-                      onClick={() => {
-                        setEditingMesaId(null);
-                        setNuevaMesa({ id: '', nombre: '', tarifa: '', tipo: 'Pool' });
-                      }}
-                    >
-                      Cancelar
-                    </button>
-                  )}
-                  <button type="submit" className="btn btn-primary" style={{ flex: 2 }}>
-                    {editingMesaId !== null ? 'Guardar Cambios' : 'Agregar Mesa'}
-                  </button>
-                </div>
-              </form>
-
-              {/* Listado de Mesas */}
-              <div style={{ maxHeight: 220, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
-                {mesas.map(m => (
-                  <div key={m.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)', borderRadius: 10 }}>
-                    <div>
-                      <div style={{ fontSize: 13, fontWeight: 700 }}>{m.nombre} <span style={{ fontSize: 10, color: 'var(--bronze-light)' }}>({m.tipo})</span></div>
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Tarifa: ${m.tarifa}/hr</div>
-                    </div>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      <button className="btn btn-secondary btn-icon" style={{ width: 28, height: 28, minWidth: 28, padding: 0 }} onClick={() => handleEditMesa(m)}>
-                        <i className="ri-pencil-line" />
-                      </button>
-                      <button className="btn btn-secondary btn-icon" style={{ width: 28, height: 28, minWidth: 28, padding: 0, color: '#ef4444' }} onClick={() => handleDeleteMesa(m.id)}>
-                        <i className="ri-delete-bin-line" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Impresión de QRs por Mesa */}
             <div className="card">
               <div className="card-header" style={{ marginBottom: 20 }}>
                 <h3 className="card-title"><i className="ri-qr-code-line" style={{ marginRight: 6 }} />Impresión de QRs por Mesa</h3>
@@ -1546,129 +1496,7 @@ export default function ConfigPanel({ showToast }) {
                 ))}
               </div>
             </div>
-
-            {/* PIN de Administrador */}
-            <div className="card">
-              <div className="card-header" style={{ marginBottom: 20 }}>
-                <h3 className="card-title"><i className="ri-shield-keyhole-line" style={{ marginRight: 6 }} />PIN de Administrador</h3>
-              </div>
-              <form onSubmit={handleChangePin} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                <div className="form-group">
-                  <label className="form-label">PIN de Administrador Actual</label>
-                  <input
-                    type="password"
-                    className="form-input"
-                    placeholder="••••"
-                    value={actualPin}
-                    onChange={e => setActualPin(e.target.value)}
-                    maxLength={8}
-                    required
-                  />
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                  <div className="form-group">
-                    <label className="form-label">Nuevo PIN</label>
-                    <input
-                      type="password"
-                      className="form-input"
-                      placeholder="Ej: 4321"
-                      value={nuevoPin}
-                      onChange={e => setNuevoPin(e.target.value)}
-                      maxLength={8}
-                      required
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Confirmar PIN</label>
-                    <input
-                      type="password"
-                      className="form-input"
-                      placeholder="Confirmar"
-                      value={confirmarPin}
-                      onChange={e => setConfirmarPin(e.target.value)}
-                      maxLength={8}
-                      required
-                    />
-                  </div>
-                </div>
-                <button type="submit" className="btn btn-primary">
-                  <i className="ri-lock-unlock-line" /> Guardar Nuevo PIN
-                </button>
-              </form>
-            </div>
-
-            {/* Configuración de Telegram */}
-            <div className="card">
-              <div className="card-header" style={{ marginBottom: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h3 className="card-title">
-                  <i className="ri-telegram-line" style={{ marginRight: 6, color: '#24A1DE' }} />
-                  Alertas Telegram
-                </h3>
-                <div
-                  onClick={() => setTelegramConfig(p => ({ ...p, enabled: !p.enabled }))}
-                  style={{
-                    width: 44, height: 24, borderRadius: 12, cursor: 'pointer', transition: 'all 0.2s',
-                    background: telegramConfig.enabled ? '#24A1DE' : 'var(--bg-elevated)',
-                    border: `1px solid ${telegramConfig.enabled ? '#24A1DE' : 'var(--border)'}`,
-                    position: 'relative',
-                  }}
-                >
-                  <div style={{ width: 18, height: 18, borderRadius: '50%', background: '#fff', position: 'absolute', top: 2, left: telegramConfig.enabled ? 22 : 2, transition: 'left 0.2s' }} />
-                </div>
-              </div>
-              
-              <p style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 14 }}>
-                Envía alertas en tiempo real al grupo o chat de la gerencia cuando ocurra un fichaje sospechoso (ej. celular inusual).
-              </p>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                <div className="form-group">
-                  <label className="form-label">Token de Bot de Telegram</label>
-                  <input
-                    type="password"
-                    className="form-input"
-                    placeholder="1234567890:ABCDefGhIJK..."
-                    value={telegramConfig.botToken}
-                    onChange={e => setTelegramConfig(p => ({ ...p, botToken: e.target.value }))}
-                    style={{ fontSize: 11 }}
-                  />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">ID del Chat o Canal</label>
-                  <input
-                    className="form-input"
-                    placeholder="Ej: -100123456789 o 123456789"
-                    value={telegramConfig.chatId}
-                    onChange={e => setTelegramConfig(p => ({ ...p, chatId: e.target.value }))}
-                    style={{ fontSize: 11 }}
-                  />
-                </div>
-
-                <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                  <button 
-                    type="button" 
-                    className="btn btn-secondary" 
-                    onClick={handleTestTelegram} 
-                    style={{ flex: 1, height: 36, fontSize: 11 }}
-                  >
-                    <i className="ri-send-plane-line" /> Probar
-                  </button>
-                  <button 
-                    type="button" 
-                    className="btn btn-primary" 
-                    onClick={handleSaveTelegram} 
-                    disabled={savingTelegram} 
-                    style={{ flex: 2, height: 36, fontSize: 11 }}
-                  >
-                    <i className="ri-save-line" /> {savingTelegram ? 'Guardando...' : 'Guardar Telegram'}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Control de Cortesías por Turno */}
-          <div className="card" style={{ marginTop: 20 }}>
+          <div className="card">
             <div className="card-header" style={{ marginBottom: 16 }}>
               <h3 className="card-title"><i className="ri-hand-coin-line" style={{ marginRight: 6 }} />Control de Cortesías por Turno</h3>
               <span className="badge badge-secondary">Anti-Fraude</span>
@@ -1722,9 +1550,174 @@ export default function ConfigPanel({ showToast }) {
               </div>
             </div>
           </div>
+            </div>
 
-          {/* Mantenimiento y Depuración (Restablecer todo) */}
-          <div className="card" style={{ marginTop: 20, border: '1px solid rgba(239,68,68,0.2)' }}>
+            {/* COLUMNA 3 */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div className="card">
+              <div className="card-header" style={{ marginBottom: 20 }}>
+                <h3 className="card-title"><i className="ri-grid-line" style={{ marginRight: 6 }} />Configuración de Mesas</h3>
+              </div>
+              <form onSubmit={handleSaveMesa} style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20, background: 'var(--bg-elevated)', padding: 14, borderRadius: 12, border: '1px solid var(--border)' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr', gap: 10 }}>
+                  <div className="form-group">
+                    <label className="form-label">Número</label>
+                    <input
+                      type="number"
+                      className="form-input"
+                      value={editingMesaId !== null ? nuevaMesa.id : (mesas.length > 0 ? Math.max(...mesas.map(m => m.id)) + 1 : 1)}
+                      disabled={true}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Nombre (Opcional)</label>
+                    <input
+                      className="form-input"
+                      placeholder={editingMesaId !== null ? "Ej: Mesa 1" : `Mesa ${(mesas.length > 0 ? Math.max(...mesas.map(m => m.id)) + 1 : 1)}`}
+                      value={nuevaMesa.nombre}
+                      onChange={e => setNuevaMesa(p => ({ ...p, nombre: e.target.value }))}
+                    />
+                  </div>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <div className="form-group">
+                    <label className="form-label">Tarifa ($/hr)</label>
+                    <input
+                      type="number"
+                      className="form-input"
+                      placeholder="60"
+                      value={nuevaMesa.tarifa}
+                      onChange={e => setNuevaMesa(p => ({ ...p, tarifa: e.target.value }))}
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Tipo de Mesa</label>
+                    <select
+                      className="form-select"
+                      value={nuevaMesa.tipo}
+                      onChange={e => setNuevaMesa(p => ({ ...p, tipo: e.target.value }))}
+                      style={{ background: 'var(--bg-elevated)', color: 'var(--text-main)', border: '1px solid var(--border)', height: 38 }}
+                    >
+                      <option value="Pool">Pool</option>
+                      <option value="Carambola">Carambola</option>
+                      <option value="Snooker">Snooker</option>
+                      <option value="Dominó">Dominó</option>
+                      <option value="Consumo">Consumo</option>
+                    </select>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                  {editingMesaId !== null && (
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      style={{ flex: 1 }}
+                      onClick={() => {
+                        setEditingMesaId(null);
+                        setNuevaMesa({ id: '', nombre: '', tarifa: '', tipo: 'Pool' });
+                      }}
+                    >
+                      Cancelar
+                    </button>
+                  )}
+                  <button type="submit" className="btn btn-primary" style={{ flex: 2 }}>
+                    {editingMesaId !== null ? 'Guardar Cambios' : 'Agregar Mesa'}
+                  </button>
+                </div>
+              </form>
+
+              {/* Listado de Mesas */}
+              <div style={{ maxHeight: 220, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
+                {mesas.map(m => (
+                  <div key={m.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)', borderRadius: 10 }}>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700 }}>{m.nombre} <span style={{ fontSize: 10, color: 'var(--bronze-light)' }}>({m.tipo})</span></div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Tarifa: ${m.tarifa}/hr</div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button className="btn btn-secondary btn-icon" style={{ width: 28, height: 28, minWidth: 28, padding: 0 }} onClick={() => handleEditMesa(m)}>
+                        <i className="ri-pencil-line" />
+                      </button>
+                      <button className="btn btn-secondary btn-icon" style={{ width: 28, height: 28, minWidth: 28, padding: 0, color: '#ef4444' }} onClick={() => handleDeleteMesa(m.id)}>
+                        <i className="ri-delete-bin-line" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="card">
+              <div className="card-header" style={{ marginBottom: 20 }}>
+                <h3 className="card-title"><i className="ri-shield-user-line" style={{ marginRight: 6 }} />Usuarios y Roles</h3>
+                <button className="btn btn-primary btn-sm" title="Agregar nuevo usuario" onClick={() => setShowAddUserModal(true)}>
+                  <i className="ri-user-add-line" />
+                </button>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {usuarios.length === 0 ? (
+                  <>
+                    <div style={{ background: 'var(--bronze-subtle)', border: '1px solid var(--border-bronze)', borderRadius: 10, padding: 12, marginBottom: 8 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--bronze-light)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        ⚠️ Modo Acceso Libre Activo
+                      </div>
+                      <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>
+                        El sistema entra directo sin login. Crea tu primer usuario haciendo clic en el botón de arriba (+) para activar la seguridad del negocio.
+                      </div>
+                    </div>
+                    {defaultDemos.map((u, i) => {
+                      const color = getRoleColor(u.role);
+                      return (
+                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: i < 3 ? '1px solid var(--border)' : 'none', opacity: 0.65 }}>
+                          <div style={{ width: 30, height: 30, borderRadius: 8, background: `${color}22`, border: `1px solid ${color}44`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800, color }}>
+                            {u.name[0]}
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: 13, fontWeight: 700 }}>{u.name} <span style={{ fontSize: 9, color: 'var(--bronze)', fontWeight: 600 }}>(Demo)</span></div>
+                            <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{u.email}</div>
+                          </div>
+                          <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: `${color}22`, color, border: `1px solid ${color}44`, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+                            {u.role}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </>
+                ) : (
+                  usuarios.map((u, i) => {
+                    const color = getRoleColor(u.role);
+                    return (
+                      <div key={u.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: i < usuarios.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                        <div style={{ width: 30, height: 30, borderRadius: 8, background: `${color}22`, border: `1px solid ${color}44`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800, color }}>
+                          {u.name[0]}
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 13, fontWeight: 700 }}>{u.name}</div>
+                          <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{u.email}</div>
+                        </div>
+                        <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: `${color}22`, color, border: `1px solid ${color}44`, textTransform: 'uppercase', letterSpacing: '0.1em', marginRight: 10 }}>
+                          {u.role}
+                        </span>
+                        <button
+                          onClick={() => handleDeleteUser(u.id, u.name)}
+                          title="Eliminar usuario"
+                          style={{
+                            background: 'none', border: 'none', color: 'var(--text-muted)',
+                            cursor: 'pointer', fontSize: 16, padding: '4px 8px',
+                            transition: 'color 0.15s',
+                          }}
+                          onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
+                          onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
+                        >
+                          <i className="ri-delete-bin-line" />
+                        </button>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          <div className="card" style={{ border: '1px solid rgba(239,68,68,0.2)' }}>
             <div className="card-header" style={{ marginBottom: 16 }}>
               <h3 className="card-title" style={{ color: 'var(--danger)' }}><i className="ri-error-warning-line" style={{ marginRight: 6 }} />Mantenimiento y Depuración</h3>
               <span className="badge badge-danger">Zona Peligrosa</span>
@@ -1768,16 +1761,15 @@ export default function ConfigPanel({ showToast }) {
               </button>
             </form>
           </div>
-
           {/* Diseño de Tickets Térmicos */}
-          <div className="card" style={{ marginTop: 20 }}>
-            <div className="card-header" style={{ marginBottom: 20 }}>
-              <h3 className="card-title"><i className="ri-file-text-line" style={{ marginRight: 6 }} />Diseño de Tickets Tickets</h3>
+          <div className="card">
+            <div className="card-header" style={{ marginBottom: 16 }}>
+              <h3 className="card-title"><i className="ri-file-text-line" style={{ marginRight: 6 }} />Diseño de Tickets Térmicos</h3>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 20, alignItems: 'start' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div>
-                <h4 style={{ fontSize: 14, fontWeight: 800, color: 'var(--bronze-light)', marginBottom: 12 }}>Campos Visibles en Ticket</h4>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 20 }}>
+                <h4 style={{ fontSize: 13, fontWeight: 800, color: 'var(--bronze-light)', marginBottom: 10 }}>Campos Visibles en Ticket</h4>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 14 }}>
                   {[
                     { id: 'showNombre', label: 'Nombre del Negocio' },
                     { id: 'showDireccion', label: 'Dirección física' },
@@ -1788,20 +1780,20 @@ export default function ConfigPanel({ showToast }) {
                     { id: 'showConsumos', label: 'Detalle de Consumos' },
                     { id: 'showQrRecibo', label: 'QR de Ticket Digital' },
                   ].map(item => (
-                    <label key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: 'var(--bg-elevated)', borderRadius: 10, border: '1px solid var(--border)', cursor: 'pointer' }}>
+                    <label key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 10px', background: 'var(--bg-elevated)', borderRadius: 8, border: '1px solid var(--border)', cursor: 'pointer', margin: 0 }}>
                       <input
                         type="checkbox"
                         checked={ticketConfig[item.id]}
                         onChange={() => handleTicketToggle(item.id)}
                         style={{ accentColor: 'var(--bronze)' }}
                       />
-                      <span style={{ fontSize: 12, fontWeight: 600 }}>{item.label}</span>
+                      <span style={{ fontSize: 11, fontWeight: 600 }}>{item.label}</span>
                     </label>
                   ))}
                 </div>
 
-                <h4 style={{ fontSize: 14, fontWeight: 800, color: 'var(--bronze-light)', marginBottom: 12 }}>Tamaño de Fuente</h4>
-                <div style={{ display: 'flex', gap: 10 }}>
+                <h4 style={{ fontSize: 13, fontWeight: 800, color: 'var(--bronze-light)', marginBottom: 10 }}>Tamaño de Fuente</h4>
+                <div style={{ display: 'flex', gap: 8 }}>
                   {[
                     { id: '11px', label: 'Chica (11px)' },
                     { id: '14px', label: 'Mediana (14px)' },
@@ -1809,39 +1801,39 @@ export default function ConfigPanel({ showToast }) {
                   ].map(item => (
                     <button
                       key={item.id}
-                      className={`btn ${ticketConfig.fontSize === item.id ? 'btn-primary' : 'btn-secondary'}`}
+                      className={`btn btn-sm ${ticketConfig.fontSize === item.id ? 'btn-primary' : 'btn-secondary'}`}
                       onClick={() => handleTicketFontSize(item.id)}
-                      style={{ flex: 1, fontSize: 12 }}
+                      style={{ flex: 1, fontSize: 11, padding: '4px 6px' }}
                     >
                       {item.label}
                     </button>
                   ))}
                 </div>
                 
-                <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 16 }}>
+                <p style={{ fontSize: 9.5, color: 'var(--text-muted)', marginTop: 10, lineHeight: 1.3, marginBottom: 0 }}>
                   Nota: El pie de página centralizado <strong>{"\"YoY IA by Alfonso Iturbide\""}</strong> es un sello obligatorio de YoY IA y no puede ser alterado ni desactivado.
                 </p>
               </div>
 
               {/* Vista Previa en Vivo */}
-              <div>
-                <h4 style={{ fontSize: 13, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)', fontWeight: 800, marginBottom: 10, textAlign: 'center' }}>Vista Previa en Vivo</h4>
-                <div style={{ background: '#fff', color: '#000', padding: 20, fontFamily: 'monospace', fontSize: ticketConfig.fontSize, width: '100%', maxWidth: 280, margin: '0 auto', border: '1px solid #ccc', boxShadow: '0 4px 12px rgba(0,0,0,0.5)', borderRadius: 6 }}>
-                  <div style={{ textAlign: 'center', marginBottom: 10 }}>
+              <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14 }}>
+                <h4 style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)', fontWeight: 800, marginBottom: 10, textAlign: 'center' }}>Vista Previa en Vivo</h4>
+                <div style={{ background: '#fff', color: '#000', padding: 14, fontFamily: 'monospace', fontSize: ticketConfig.fontSize, width: '100%', maxWidth: 240, margin: '0 auto', border: '1px solid #ccc', boxShadow: '0 4px 12px rgba(0,0,0,0.5)', borderRadius: 6 }}>
+                  <div style={{ textAlign: 'center', marginBottom: 8 }}>
                     {ticketConfig.showNombre && <div style={{ fontWeight: 'bold', fontSize: '1.2em' }}>{sucursal.nombre}</div>}
                     {ticketConfig.showDireccion && <div style={{ fontSize: '0.85em', marginTop: 2 }}>{sucursal.direccion}</div>}
                     {ticketConfig.showTelefono && <div style={{ fontSize: '0.85em' }}>Tel: {sucursal.telefono}</div>}
                   </div>
                   
-                  <div style={{ borderBottom: '1px dashed #000', margin: '8px 0' }} />
+                  <div style={{ borderBottom: '1px dashed #000', margin: '6px 0' }} />
                   
-                  <div style={{ fontSize: '0.85em', lineHeight: 1.4 }}>
+                  <div style={{ fontSize: '0.85em', lineHeight: 1.3 }}>
                     {ticketConfig.showCliente && <div>CLIENTE: Juan Pérez</div>}
                     {ticketConfig.showCuenta && <div>CUENTA: #1024</div>}
                     {ticketConfig.showFechaHora && <div>FECHA: {new Date().toLocaleString('es-MX')}</div>}
                   </div>
 
-                  <div style={{ borderBottom: '1px dashed #000', margin: '8px 0' }} />
+                  <div style={{ borderBottom: '1px dashed #000', margin: '6px 0' }} />
 
                   {ticketConfig.showConsumos && (
                     <div style={{ fontSize: '0.85em' }}>
@@ -1849,22 +1841,22 @@ export default function ConfigPanel({ showToast }) {
                         <span>PRODUCTO</span>
                         <span>TOTAL</span>
                       </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', margin: '3px 0' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', margin: '2px 0' }}>
                         <span>2x Cerveza Corona</span>
                         <span>$90.00</span>
                       </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', margin: '3px 0' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', margin: '2px 0' }}>
                         <span>1x Papas Fritas</span>
                         <span>$55.00</span>
                       </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', margin: '3px 0' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', margin: '2px 0' }}>
                         <span>1.5h Mesa Pool</span>
                         <span>$90.00</span>
                       </div>
                     </div>
                   )}
 
-                  <div style={{ borderBottom: '1px dashed #000', margin: '8px 0' }} />
+                  <div style={{ borderBottom: '1px dashed #000', margin: '6px 0' }} />
                   
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '1.05em' }}>
                     <span>TOTAL:</span>
@@ -1872,30 +1864,33 @@ export default function ConfigPanel({ showToast }) {
                   </div>
 
                   {ticketConfig.showQrRecibo && (
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', margin: '10px 0' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', margin: '8px 0' }}>
                       <img
                         src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent('https://yoy-ia-billar.vercel.app/recibo/1024')}`}
-                        width="80"
-                        height="80"
+                        width="64"
+                        height="64"
                         style={{ border: '1px solid #ccc', padding: 2, background: '#fff' }}
                         alt="QR Recibo"
                       />
-                      <span style={{ fontSize: '8px', color: '#666', marginTop: 4 }}>Escanea para ver ticket digital</span>
+                      <span style={{ fontSize: '7px', color: '#666', marginTop: 2 }}>Escanea para ver ticket digital</span>
                     </div>
                   )}
 
-                  <div style={{ borderBottom: '1px dashed #000', margin: '8px 0' }} />
+                  <div style={{ borderBottom: '1px dashed #000', margin: '6px 0' }} />
                   
-                  <div style={{ textAlign: 'center', fontSize: '9px', marginTop: 10, color: '#333', fontWeight: 'bold' }}>
+                  <div style={{ textAlign: 'center', fontSize: '8px', marginTop: 8, color: '#333', fontWeight: 'bold' }}>
                     *** GRACIAS POR SU VISITA ***
                   </div>
                   
-                  <div style={{ textAlign: 'center', fontSize: '8px', color: '#666', marginTop: 8, fontStyle: 'italic' }}>
+                  <div style={{ textAlign: 'center', fontSize: '7.5px', color: '#666', marginTop: 6, fontStyle: 'italic' }}>
                     YoY IA by Alfonso Iturbide
                   </div>
                 </div>
               </div>
             </div>
+          </div>
+            </div>
+
           </div>
         </>
       ) : (
