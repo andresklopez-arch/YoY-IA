@@ -207,12 +207,13 @@ input, select, textarea {
   align-items: center;
   justify-content: space-between;
   padding: 0 24px;
-  position: fixed;
+  position: sticky;
   top: 0;
   left: 0;
   right: 0;
   z-index: 1000;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  flex-shrink: 0;
 }
 
 .page-content {
@@ -220,7 +221,7 @@ input, select, textarea {
   padding: 0 24px 24px 24px !important;
   overflow-y: auto;
   overflow-x: hidden;
-  margin-top: 60px !important;
+  margin-top: 0 !important;
   min-width: 0;
   max-width: 100%;
   box-sizing: border-box;
