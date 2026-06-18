@@ -110,7 +110,7 @@ const INIT_MESAS = [
 ];
 
 const ESTADO_CONFIG = {
-  libre:     { label: 'Libre',     color: 'var(--bronze-light)',   icon: 'ri-checkbox-blank-circle-line' },
+  libre:     { label: 'Libre',     color: '#22c55e',               icon: 'ri-checkbox-blank-circle-line' },
   ocupada:   { label: 'Ocupada',   color: 'var(--bronze-light)',   icon: 'ri-record-circle-line' },
   reservada: { label: 'Reservada', color: '#ffffff',               icon: 'ri-bookmark-fill' },
   manten:    { label: 'Mantenimiento', color: '#ef4444',            icon: 'ri-tools-line' },
@@ -1898,17 +1898,7 @@ export default function MesasPanel({ showToast }) {
   };
 
   const [filtro, setFiltro] = useState('todas');
-  const [animacionesActivas, setAnimacionesActivas] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('yoy_billar_animaciones_activas');
-      return saved !== 'false';
-    }
-    return true;
-  });
-
-  useEffect(() => {
-    localStorage.setItem('yoy_billar_animaciones_activas', animacionesActivas);
-  }, [animacionesActivas]);
+  const animacionesActivas = true;
   const [modalAbrir, setModalAbrir] = useState(null);
   const [modalCerrar, setModalCerrar] = useState(null);
   const [modalNuevaMesa, setModalNuevaMesa] = useState(false);
@@ -4832,28 +4822,28 @@ export default function MesasPanel({ showToast }) {
               height: 28,
               border: 'none',
               borderRight: '1px solid var(--border-bronze)',
-              background: filtro === 'libre' ? 'rgba(227, 168, 105, 0.15)' : 'rgba(227, 168, 105, 0.02)',
-              color: 'var(--bronze-light)',
+              background: filtro === 'libre' ? 'rgba(34, 197, 94, 0.15)' : 'rgba(34, 197, 94, 0.02)',
+              color: 'var(--success)',
               cursor: 'pointer',
               transition: 'all 0.15s',
               whiteSpace: 'nowrap',
-              boxShadow: filtro === 'libre' ? 'inset 0 -3px 0 var(--bronze-light), 0 0 8px rgba(227, 168, 105, 0.2)' : 'none'
+              boxShadow: filtro === 'libre' ? 'inset 0 -3px 0 var(--success), 0 0 8px rgba(34, 197, 94, 0.2)' : 'none'
             }}
             onMouseEnter={e => {
-              if (filtro !== 'libre') e.currentTarget.style.background = 'rgba(227, 168, 105, 0.08)';
+              if (filtro !== 'libre') e.currentTarget.style.background = 'rgba(34, 197, 94, 0.08)';
             }}
             onMouseLeave={e => {
-              if (filtro !== 'libre') e.currentTarget.style.background = 'rgba(227, 168, 105, 0.02)';
+              if (filtro !== 'libre') e.currentTarget.style.background = 'rgba(34, 197, 94, 0.02)';
             }}
           >
             <i className="ri-checkbox-blank-circle-line" style={{ 
-              color: 'var(--bronze-light)', 
+              color: 'var(--success)', 
               fontSize: 11,
               transform: filtro === 'libre' ? 'scale(1.2)' : 'scale(1)',
               display: 'inline-block',
               transition: 'transform 0.2s ease'
             }} />
-            <span style={{ color: 'var(--text-secondary)' }}>LIBRES: <strong style={{ color: 'var(--bronze-light)' }}>{totales.libres}</strong></span>
+            <span style={{ color: 'var(--text-secondary)' }}>LIBRES: <strong style={{ color: 'var(--success)' }}>{totales.libres}</strong></span>
           </button>
 
           {/* Ocupadas */}
@@ -5039,22 +5029,7 @@ export default function MesasPanel({ showToast }) {
 
 
 
-        {/* Controles de Utilidad */}
-        <button
-          onClick={() => setAnimacionesActivas(prev => !prev)}
-          className="btn btn-secondary btn-sm"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            color: animacionesActivas ? 'var(--bronze-light)' : 'var(--text-muted)',
-            borderColor: animacionesActivas ? 'var(--border-bronze)' : 'var(--border)'
-          }}
-          title="Activar/Desactivar efectos de cometa animados"
-        >
-          <i className={animacionesActivas ? "ri-sparkling-fill" : "ri-sparkling-line"} />
-          {animacionesActivas ? 'Animaciones: ON' : 'Animaciones: OFF'}
-        </button>
+
 
         <button
           onClick={imprimirTodosLosQRs}
@@ -5467,7 +5442,7 @@ export default function MesasPanel({ showToast }) {
               <div className="mesa-actions" onClick={e => e.stopPropagation()}>
                 {mesa.estado === 'libre' && (
                   <div style={{ display: 'flex', gap: 6, width: '100%' }}>
-                    <button className="btn btn-primary btn-sm" style={{ flex: 1 }} onClick={() => abrirMesa(mesa)}>
+                    <button className="btn btn-success btn-sm" style={{ flex: 1 }} onClick={() => abrirMesa(mesa)}>
                       <i className="ri-play-fill" /> Abrir
                     </button>
                     <button 
@@ -5542,7 +5517,7 @@ export default function MesasPanel({ showToast }) {
                 <span style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Estado:</span>
                 <div style={{ display: 'flex', gap: 4 }}>
                   {[
-                    { estado: 'libre', icon: 'ri-checkbox-blank-circle-line', color: 'var(--bronze-light)', title: 'Disponible' },
+                    { estado: 'libre', icon: 'ri-checkbox-blank-circle-line', color: '#22c55e', title: 'Disponible' },
                     { estado: 'reservada', icon: 'ri-bookmark-fill', color: '#ffffff', title: 'Reservar' },
                     { estado: 'manten', icon: 'ri-tools-line', color: '#ef4444', title: 'Mantenimiento' },
                     { estado: 'fuera', icon: 'ri-close-circle-line', color: '#ef4444', title: 'Fuera de Servicio' }

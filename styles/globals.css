@@ -458,9 +458,9 @@ input, select, textarea {
 }
 
 /* Colores de Cometa específicos según el estado */
-/* disponible (libre) ➔ bronce */
+/* disponible (libre) ➔ verde */
 .mesa-card.libre::before {
-  background: conic-gradient(from 0deg, var(--bronze-light, #c5a880) 0%, transparent 25%, transparent 100%);
+  background: conic-gradient(from 0deg, #22c55e 0%, transparent 25%, transparent 100%);
 }
 /* ocupada ➔ bronce */
 .mesa-card.ocupada::before {
@@ -597,7 +597,7 @@ input, select, textarea {
 
 /* Bordes y barras superiores estáticos de colores para cuando las animaciones estén apagadas */
 .mesa-card.sin-animaciones.libre {
-  border-color: rgba(197, 168, 128, 0.35) !important;
+  border-color: rgba(34, 197, 94, 0.35) !important;
 }
 .mesa-card.sin-animaciones.libre::before {
   display: block !important;
@@ -605,8 +605,8 @@ input, select, textarea {
   position: absolute;
   top: 0; left: 0; right: 0;
   height: 3px;
-  background: var(--bronze-light);
-  box-shadow: 0 0 12px var(--bronze-light);
+  background: #22c55e;
+  box-shadow: 0 0 12px #22c55e;
   border-radius: var(--r-lg) var(--r-lg) 0 0;
 }
 
@@ -719,7 +719,7 @@ input, select, textarea {
   border-radius: var(--r-full);
 }
 
-.mesa-status-badge.libre     { background: rgba(197, 168, 128, 0.15); color: var(--bronze-light); }
+.mesa-status-badge.libre     { background: rgba(34, 197, 94, 0.15); color: #22c55e; }
 .mesa-status-badge.ocupada   { background: rgba(197, 168, 128, 0.15); color: var(--bronze-light); }
 .mesa-status-badge.reservada { background: rgba(255, 255, 255, 0.15); color: #ffffff; }
 .mesa-status-badge.manten    { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
