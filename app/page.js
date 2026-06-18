@@ -138,6 +138,19 @@ function AppContent() {
   // Alertas de asistencia pendientes para popup principal
   const [alertasAsistencia, setAlertasAsistencia] = useState([]);
   const [sonidoAdmin, setSonidoAdmin] = useState(true);
+  const [insumosBajos, setInsumosBajos] = useState([]);
+
+  useEffect(() => {
+    if (!user) return;
+    const unsub = onSnapshot(doc(db, 'config', 'inventario'), snap => {
+      if (snap.exists()) {
+        const prods = snap.data().productos || [];
+        const bajos = prods.filter(p => p.categoria === 'Insumo' && p.stock <= p.stockMin);
+        setInsumosBajos(bajos);
+      }
+    });
+    return unsub;
+  }, [user]);
 
   // Redirigir si no tiene permisos para el panel activo
   useEffect(() => {
@@ -832,6 +845,35 @@ function AppContent() {
             setActivePanel(panel);
           }}
         />
+
+        {/* Banner de Insumos Críticos / Faltantes */}
+        {insumosBajos.length > 0 && (
+          <div style={{
+            background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.15), rgba(239, 68, 68, 0.05))',
+            borderBottom: '1px solid rgba(239, 68, 68, 0.3)',
+            padding: '10px 24px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: 12,
+            animation: 'slideDownAlert 0.4s ease'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontSize: 18, animation: 'pulse 1s infinite' }}>⚠️</span>
+              <span style={{ fontSize: 12, color: '#fff', fontWeight: 600 }}>
+                ALERTA DE COCINA: Hay <strong style={{ color: 'var(--danger)' }}>{insumosBajos.length} insumo(s) crítico(s)</strong> por debajo del mínimo ({insumosBajos.slice(0, 3).map(i => i.nombre).join(', ')}{insumosBajos.length > 3 ? '...' : ''}).
+              </span>
+            </div>
+            <button 
+              className="btn btn-danger btn-xs" 
+              onClick={() => setActivePanel('config')} 
+              style={{ padding: '4px 10px', fontSize: 10, borderRadius: 6 }}
+            >
+              Ver en Recetario / Inventario
+            </button>
+          </div>
+        )}
+
         <div className="page-content">
           {user && user.permisos && user.permisos[activePanel] !== true ? (
             <div className="card" style={{ padding: 40, textAlign: 'center', border: '1px solid var(--border-bronze)', maxWidth: 500, margin: '40px auto' }}>

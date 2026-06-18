@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 import { useState, useEffect } from 'react';
 import { db } from '@/lib/firebase';
 import { collection, query, onSnapshot, orderBy, limit, doc, setDoc, addDoc, serverTimestamp } from 'firebase/firestore';
@@ -256,7 +256,7 @@ export default function ReportesPanel({ showToast }) {
     };
   }, []);
 
-  // Cruce concurrente de inconsistencias en vivo
+  // Cruce concurrente de inconsistencias en vivo (Mesas y Desviaciones de Insumos)
   useEffect(() => {
     const calcularInconsistencias = () => {
       const incs = [];
@@ -276,13 +276,67 @@ export default function ReportesPanel({ showToast }) {
           }
         }
       });
+
+      // Cruce de Desviaciones de Insumos (Ventas vs Consumo Físico)
+      let recetas = [];
+      try {
+        const savedRecetas = localStorage.getItem('yoy_recetas_costeo');
+        if (savedRecetas) {
+          recetas = deobfuscate(savedRecetas) || [];
+        }
+      } catch (e) {
+        console.warn("Error leyendo recetas en Cruce Concurrente:", e);
+      }
+
+      const ventasPorProducto = {};
+      pedidosList.forEach(p => {
+        if (p.tipo === 'pedido' && Array.isArray(p.items)) {
+          p.items.forEach(item => {
+            const pid = item.productoId;
+            if (pid) {
+              ventasPorProducto[pid] = (ventasPorProducto[pid] || 0) + (item.cantidad || 0);
+            }
+          });
+        }
+      });
+
+      const insumos = productos.filter(p => p.categoria === 'Insumo');
+      insumos.forEach(ins => {
+        let theoreticalConsumption = 0;
+        recetas.forEach(rec => {
+          if (Array.isArray(rec.ingredientes)) {
+            rec.ingredientes.forEach(ing => {
+              const matches = (ing.insumoId === ins.id) || 
+                              (ing.nombreInsumo && ins.nombre && ing.nombreInsumo.trim().toLowerCase() === ins.nombre.trim().toLowerCase());
+              if (matches) {
+                const sales = ventasPorProducto[rec.productoId] || 0;
+                theoreticalConsumption += sales * Number(ing.cantidad) * (1 + (Number(ing.mermaPct) || 0) / 100);
+              }
+            });
+          }
+        });
+
+        const physicalDecrease = Math.max(0, (ins.stockOptimo || 0) - (ins.stock || 0));
+        if (physicalDecrease > theoreticalConsumption) {
+          const diff = physicalDecrease - theoreticalConsumption;
+          const pctDiff = theoreticalConsumption > 0 ? (diff / theoreticalConsumption) * 100 : 100;
+
+          if (diff > 0.5 && pctDiff > 25) {
+            incs.push({
+              nombre: `Desviación [${ins.nombre}]`,
+              motivo: `Consumo real superó al teórico en ${diff.toFixed(1)} ${ins.unidad} (Posible robo hormiga)`
+            });
+          }
+        }
+      });
+
       setInconsistenciasEnVivo(incs);
     };
 
     calcularInconsistencias();
     const interval = setInterval(calcularInconsistencias, 5000);
     return () => clearInterval(interval);
-  }, [mesas, cuentasActivas]);
+  }, [mesas, cuentasActivas, productos, pedidosList]);
 
   // Auxiliar para registrar en bit├ícora general de caja
   const registrarEnBitacoraGeneral = async (accion, detalle, monto = 0) => {
@@ -378,9 +432,9 @@ export default function ReportesPanel({ showToast }) {
       }
     });
 
-    // 2. Alertas din├ímicas de margen depreciado (bajo del 25%) - Omitir si ya est├í en stock cr├¡tico
+    // 2. Alertas dinámicas de margen depreciado (bajo del 25%) - Omitir si ya está en stock crítico
     productos.forEach(p => {
-      if (stockCriticoIds.includes(p.id)) return; // Priorizaci├│n: Saltar advertencias de margen si el producto necesita reabastecerse
+      if (stockCriticoIds.includes(p.id)) return; // Priorización: Saltar advertencias de margen si el producto necesita reabastecerse
       if (p.precioVenta > 0 && p.precioCosto > 0 && p.activoIA !== false) {
         const margen = (p.precioVenta - p.precioCosto) / p.precioVenta;
         if (margen < 0.25) {
@@ -395,6 +449,68 @@ export default function ReportesPanel({ showToast }) {
               onAction: () => aplicarAjustePrecioIA(p.id, nuevoPrecioSugerido)
             });
           }
+        }
+      }
+    });
+
+    // 3. Alertas dinámicas de desviación de insumos (Robo hormiga / Desperdicio)
+    let recetas = [];
+    try {
+      const savedRecetas = localStorage.getItem('yoy_recetas_costeo');
+      if (savedRecetas) {
+        recetas = deobfuscate(savedRecetas) || [];
+      }
+    } catch (e) {}
+
+    const ventasPorProducto = {};
+    pedidosList.forEach(p => {
+      if (p.tipo === 'pedido' && Array.isArray(p.items)) {
+        p.items.forEach(item => {
+          const pid = item.productoId;
+          if (pid) {
+            ventasPorProducto[pid] = (ventasPorProducto[pid] || 0) + (item.cantidad || 0);
+          }
+        });
+      }
+    });
+
+    const insumos = productos.filter(p => p.categoria === 'Insumo');
+    insumos.forEach(ins => {
+      let theoreticalConsumption = 0;
+      recetas.forEach(rec => {
+        if (Array.isArray(rec.ingredientes)) {
+          rec.ingredientes.forEach(ing => {
+            const matches = (ing.insumoId === ins.id) || 
+                            (ing.nombreInsumo && ins.nombre && ing.nombreInsumo.trim().toLowerCase() === ins.nombre.trim().toLowerCase());
+            if (matches) {
+              const sales = ventasPorProducto[rec.productoId] || 0;
+              theoreticalConsumption += sales * Number(ing.cantidad) * (1 + (Number(ing.mermaPct) || 0) / 100);
+            }
+          });
+        }
+      });
+
+      const physicalDecrease = Math.max(0, (ins.stockOptimo || 0) - (ins.stock || 0));
+      if (physicalDecrease > theoreticalConsumption) {
+        const diff = physicalDecrease - theoreticalConsumption;
+        const pctDiff = theoreticalConsumption > 0 ? (diff / theoreticalConsumption) * 100 : 100;
+
+        if (diff > 0.5 && pctDiff > 25) {
+          sugList.push({
+            id: `sug-desviacion-${ins.nombre.replace(/\s+/g, '-')}`,
+            type: 'danger',
+            tag: `DESVIACIÓN (${ins.nombre})`,
+            desc: `Consumo real superó al teórico en ${diff.toFixed(1)} ${ins.unidad} (+${Math.round(pctDiff)}% de desviación).`,
+            label: 'Auditar',
+            onAction: async () => {
+              await registrarEnBitacoraGeneral(
+                'Auditoría Desviación',
+                `Alerta de desviación confirmada para ${ins.nombre}: ${diff.toFixed(1)} ${ins.unidad} de consumo no justificado por ventas`,
+                0
+              );
+              showToast(`Auditoría de desviación registrada en la bitácora general ✓`, 'success');
+            }
+          });
         }
       }
     });
@@ -759,6 +875,67 @@ export default function ReportesPanel({ showToast }) {
   };
 
   const pronostico = getPronosticoData();
+
+  const getInsumosAuditText = () => {
+    let recetas = [];
+    try {
+      const savedRecetas = localStorage.getItem('yoy_recetas_costeo');
+      if (savedRecetas) {
+        recetas = deobfuscate(savedRecetas) || [];
+      }
+    } catch (e) {}
+
+    const ventasPorProducto = {};
+    pedidosList.forEach(p => {
+      if (p.tipo === 'pedido' && Array.isArray(p.items)) {
+        p.items.forEach(item => {
+          const pid = item.productoId;
+          if (pid) {
+            ventasPorProducto[pid] = (ventasPorProducto[pid] || 0) + (item.cantidad || 0);
+          }
+        });
+      }
+    });
+
+    const desviados = [];
+    let fugaDineroTotal = 0;
+    const insumos = productos.filter(p => p.categoria === 'Insumo');
+    insumos.forEach(ins => {
+      let theoreticalConsumption = 0;
+      recetas.forEach(rec => {
+        if (Array.isArray(rec.ingredientes)) {
+          rec.ingredientes.forEach(ing => {
+            const matches = (ing.insumoId === ins.id) || 
+                            (ing.nombreInsumo && ins.nombre && ing.nombreInsumo.trim().toLowerCase() === ins.nombre.trim().toLowerCase());
+            if (matches) {
+              const sales = ventasPorProducto[rec.productoId] || 0;
+              theoreticalConsumption += sales * Number(ing.cantidad) * (1 + (Number(ing.mermaPct) || 0) / 100);
+            }
+          });
+        }
+      });
+
+      const physicalDecrease = Math.max(0, (ins.stockOptimo || 0) - (ins.stock || 0));
+      if (physicalDecrease > theoreticalConsumption) {
+        const diff = physicalDecrease - theoreticalConsumption;
+        const pctDiff = theoreticalConsumption > 0 ? (diff / theoreticalConsumption) * 100 : 100;
+
+        if (diff > 0.5 && pctDiff > 25) {
+          desviados.push(ins.nombre);
+          const costoUnit = ins.precioCosto || 20;
+          fugaDineroTotal += diff * costoUnit;
+        }
+      }
+    });
+
+    if (desviados.length > 0) {
+      return {
+        hasDeviation: true,
+        text: ` ¡Alerta de Desviación! Se detectaron mermas no justificadas (>25%) en insumos: ${desviados.slice(0, 3).join(', ')}${desviados.length > 3 ? '...' : ''}. Pérdida estimada de inventario no registrado: $${Math.round(fugaDineroTotal).toLocaleString()} MXN. Esto podría indicar desperdicio excesivo o robo hormiga en la cocina.`
+      };
+    }
+    return { hasDeviation: false, text: '' };
+  };
 
   // C├ílculos de Encuestas de Satisfacci├│n
   const totalEncuestas = encuestasList.length;
@@ -1291,6 +1468,18 @@ export default function ReportesPanel({ showToast }) {
                 ) : (
                   <span> Se recomienda revisar los costos de insumos de bar o renegociar tarifas de mesas familiares los domingos para incrementar el margen neto que Microsoft Azure o la IA considera ajustado.</span>
                 )}
+                {(() => {
+                  const audit = getInsumosAuditText();
+                  if (audit.hasDeviation) {
+                    return (
+                      <span style={{ color: 'var(--danger)', fontWeight: 600, display: 'block', marginTop: 8 }}>
+                        <i className="ri-error-warning-line" style={{ marginRight: 4 }} />
+                        {audit.text}
+                      </span>
+                    );
+                  }
+                  return null;
+                })()}
               </p>
             </div>
           </div>

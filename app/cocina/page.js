@@ -1,8 +1,8 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   collection, onSnapshot, query, where,
-  orderBy, updateDoc, doc, serverTimestamp, addDoc, getDocs, setDoc
+  orderBy, updateDoc, doc, serverTimestamp, addDoc, getDocs, setDoc, getDoc
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { AuthProvider, useAuth } from '@/lib/auth-context';
@@ -17,14 +17,27 @@ const CAT_EMOJI = {
 
 // Insumos iniciales por defecto para semilla
 const DEFAULT_INSUMOS = [
-  { nombre: 'Alitas de Pollo crudas', nivelActual: 15, nivelMin: 20, nivelOptimo: 60, unidad: 'kg', categoria: 'Comida' },
-  { nombre: 'Papas a la Francesa', nivelActual: 5, nivelMin: 10, nivelOptimo: 30, unidad: 'kg', categoria: 'Comida' },
-  { nombre: 'Pan para Hamburguesa', nivelActual: 40, nivelMin: 15, nivelOptimo: 50, unidad: 'pz', categoria: 'Comida' },
-  { nombre: 'Queso Cheddar rebanado', nivelActual: 80, nivelMin: 20, nivelOptimo: 100, unidad: 'pz', categoria: 'Comida' },
+  { nombre: 'Papas para freír', nivelActual: 25, nivelMin: 15, nivelOptimo: 50, unidad: 'kg', categoria: 'Cocina General' },
+  { nombre: 'Aceite vegetal para freidora', nivelActual: 12, nivelMin: 8, nivelOptimo: 30, unidad: 'L', categoria: 'Cocina General' },
+  { nombre: 'Alitas de pollo crudas', nivelActual: 18, nivelMin: 15, nivelOptimo: 50, unidad: 'kg', categoria: 'Comida' },
+  { nombre: 'Carne de res para hamburguesa', nivelActual: 10, nivelMin: 8, nivelOptimo: 25, unidad: 'kg', categoria: 'Comida' },
+  { nombre: 'Pan para hamburguesa', nivelActual: 30, nivelMin: 15, nivelOptimo: 50, unidad: 'pz', categoria: 'Comida' },
+  { nombre: 'Queso Cheddar rebanado', nivelActual: 45, nivelMin: 20, nivelOptimo: 80, unidad: 'pz', categoria: 'Comida' },
+  { nombre: 'Totopos de maíz', nivelActual: 8, nivelMin: 5, nivelOptimo: 20, unidad: 'kg', categoria: 'Snack' },
+  { nombre: 'Queso para nachos líquido', nivelActual: 6, nivelMin: 4, nivelOptimo: 15, unidad: 'L', categoria: 'Snack' },
+  { nombre: 'Salsa Valentina', nivelActual: 5, nivelMin: 2, nivelOptimo: 10, unidad: 'L', categoria: 'Aderezos' },
   { nombre: 'Salsa BBQ', nivelActual: 4, nivelMin: 2, nivelOptimo: 10, unidad: 'L', categoria: 'Aderezos' },
-  { nombre: 'Aceite Vegetal', nivelActual: 20, nivelMin: 5, nivelOptimo: 25, unidad: 'L', categoria: 'Cocina General' },
-  { nombre: 'Totopos de Maíz', nivelActual: 12, nivelMin: 5, nivelOptimo: 15, unidad: 'kg', categoria: 'Snack' },
-  { nombre: 'Queso para Nachos', nivelActual: 8, nivelMin: 5, nivelOptimo: 20, unidad: 'L', categoria: 'Snack' }
+  { nombre: 'Salsa Catsup', nivelActual: 7, nivelMin: 3, nivelOptimo: 15, unidad: 'L', categoria: 'Aderezos' },
+  { nombre: 'Mostaza preparada', nivelActual: 3, nivelMin: 2, nivelOptimo: 8, unidad: 'L', categoria: 'Aderezos' },
+  { nombre: 'Mayonesa premium', nivelActual: 4, nivelMin: 2, nivelOptimo: 10, unidad: 'kg', categoria: 'Aderezos' },
+  { nombre: 'Limones frescos', nivelActual: 6, nivelMin: 3, nivelOptimo: 12, unidad: 'kg', categoria: 'Cocina General' },
+  { nombre: 'Sal de mesa', nivelActual: 5, nivelMin: 2, nivelOptimo: 10, unidad: 'kg', categoria: 'Cocina General' },
+  { nombre: 'Pimienta negra molida', nivelActual: 800, nivelMin: 300, nivelOptimo: 1500, unidad: 'g', categoria: 'Cocina General' },
+  { nombre: 'Cebollas frescas', nivelActual: 8, nivelMin: 4, nivelOptimo: 15, unidad: 'kg', categoria: 'Cocina General' },
+  { nombre: 'Jitomates frescos', nivelActual: 10, nivelMin: 5, nivelOptimo: 20, unidad: 'kg', categoria: 'Cocina General' },
+  { nombre: 'Lechuga romana', nivelActual: 12, nivelMin: 6, nivelOptimo: 25, unidad: 'pz', categoria: 'Cocina General' },
+  { nombre: 'Aguacates', nivelActual: 5, nivelMin: 4, nivelOptimo: 15, unidad: 'kg', categoria: 'Cocina General' },
+  { nombre: 'Servilletas de papel', nivelActual: 15, nivelMin: 8, nivelOptimo: 30, unidad: 'paq', categoria: 'Limpieza e Insumos' }
 ];
 
 function CocinaContent() {
@@ -73,6 +86,51 @@ function CocinaContent() {
   const [showInsumoModal, setShowInsumoModal] = useState(false);
   const [newInsumo, setNewInsumo] = useState({ nombre: '', nivelActual: 10, nivelMin: 5, nivelOptimo: 20, unidad: 'pz', categoria: 'Comida' });
   const [isClosing, setIsClosing] = useState(false);
+
+  const syncInsumoToInventario = async (insumoData, action = 'update') => {
+    try {
+      const docRef = doc(db, 'config', 'inventario');
+      const snap = await getDoc(docRef);
+      if (snap.exists()) {
+        let prods = snap.data().productos || [];
+        const idx = prods.findIndex(p => p.nombre.toLowerCase() === insumoData.nombre.toLowerCase());
+        
+        if (idx >= 0) {
+          if (action === 'delete') {
+            prods = prods.filter((_, i) => i !== idx);
+          } else {
+            prods[idx] = {
+              ...prods[idx],
+              nombre: insumoData.nombre,
+              stock: Number(insumoData.nivelActual),
+              stockMin: Number(insumoData.nivelMin),
+              stockOptimo: Number(insumoData.nivelOptimo),
+              unidad: insumoData.unidad,
+              categoria: 'Insumo',
+              precioCosto: prods[idx].precioCosto || 0,
+              precioVenta: 0
+            };
+          }
+        } else if (action === 'update' || action === 'add') {
+          const maxId = prods.reduce((max, p) => p.id > max ? p.id : max, 0);
+          prods.push({
+            id: maxId + 1,
+            nombre: insumoData.nombre,
+            stock: Number(insumoData.nivelActual),
+            stockMin: Number(insumoData.nivelMin),
+            stockOptimo: Number(insumoData.nivelOptimo),
+            unidad: insumoData.unidad,
+            categoria: 'Insumo',
+            precioCosto: 0,
+            precioVenta: 0
+          });
+        }
+        await setDoc(docRef, { productos: prods, updatedAt: serverTimestamp() });
+      }
+    } catch (err) {
+      console.error("Error al sincronizar insumo con inventario central:", err);
+    }
+  };
 
   const handleCloseInsumoModal = () => {
     const isModified = newInsumo.nombre !== '' || 
@@ -178,6 +236,7 @@ function CocinaContent() {
             ...item,
             createdAt: serverTimestamp()
           });
+          await syncInsumoToInventario(item, 'add');
         }
         return;
       }
@@ -308,13 +367,17 @@ function CocinaContent() {
     e.preventDefault();
     if (!newInsumo.nombre) return;
     try {
-      await addDoc(collection(db, 'cocina_insumos'), {
+      const insData = {
         ...newInsumo,
         nivelActual: Number(newInsumo.nivelActual),
         nivelMin: Number(newInsumo.nivelMin),
-        nivelOptimo: Number(newInsumo.nivelOptimo),
+        nivelOptimo: Number(newInsumo.nivelOptimo)
+      };
+      await addDoc(collection(db, 'cocina_insumos'), {
+        ...insData,
         createdAt: serverTimestamp()
       });
+      await syncInsumoToInventario(insData, 'add');
       setShowInsumoModal(false);
       setNewInsumo({ nombre: '', nivelActual: 10, nivelMin: 5, nivelOptimo: 20, unidad: 'pz', categoria: 'Comida' });
     } catch (err) {
@@ -331,6 +394,10 @@ function CocinaContent() {
         nivelActual: nuevoNivel,
         updatedAt: serverTimestamp()
       });
+      await syncInsumoToInventario({
+        ...ins,
+        nivelActual: nuevoNivel
+      }, 'update');
     } catch (err) {
       console.error(err);
     }
