@@ -150,6 +150,7 @@ export default function ReportesPanel({ showToast }) {
   const [mesas, setMesas] = useState([]);
   const [cuentasActivas, setCuentasActivas] = useState([]);
   const [inconsistenciasEnVivo, setInconsistenciasEnVivo] = useState([]);
+  const [desviacionesLog, setDesviacionesLog] = useState([]);
   const [descartadas, setDescartadas] = useState({});
 
   useEffect(() => {
@@ -242,6 +243,12 @@ export default function ReportesPanel({ showToast }) {
       }
     });
 
+    // Escuchar historial de desviaciones de insumos auditadas
+    const qDesviaciones = query(collection(db, 'insumos_desviaciones_log'), orderBy('fecha', 'desc'), limit(50));
+    const unsubDesviaciones = onSnapshot(qDesviaciones, snap => {
+      setDesviacionesLog(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, err => console.warn("Error cargando desviaciones log:", err));
+
     return () => {
       unsubGastos();
       unsubPagos();
@@ -253,6 +260,7 @@ export default function ReportesPanel({ showToast }) {
       unsubInventario();
       unsubMesas();
       unsubCuentas();
+      unsubDesviaciones();
     };
   }, []);
 
@@ -320,8 +328,9 @@ export default function ReportesPanel({ showToast }) {
         if (physicalDecrease > theoreticalConsumption) {
           const diff = physicalDecrease - theoreticalConsumption;
           const pctDiff = theoreticalConsumption > 0 ? (diff / theoreticalConsumption) * 100 : 100;
+          const tolerance = ins.toleranciaDesviacion !== undefined ? Number(ins.toleranciaDesviacion) : 25;
 
-          if (diff > 0.5 && pctDiff > 25) {
+          if (diff > 0.5 && pctDiff > tolerance) {
             incs.push({
               nombre: `Desviación [${ins.nombre}]`,
               motivo: `Consumo real superó al teórico en ${diff.toFixed(1)} ${ins.unidad} (Posible robo hormiga)`
@@ -494,8 +503,9 @@ export default function ReportesPanel({ showToast }) {
       if (physicalDecrease > theoreticalConsumption) {
         const diff = physicalDecrease - theoreticalConsumption;
         const pctDiff = theoreticalConsumption > 0 ? (diff / theoreticalConsumption) * 100 : 100;
+        const tolerance = ins.toleranciaDesviacion !== undefined ? Number(ins.toleranciaDesviacion) : 25;
 
-        if (diff > 0.5 && pctDiff > 25) {
+        if (diff > 0.5 && pctDiff > tolerance) {
           sugList.push({
             id: `sug-desviacion-${ins.nombre.replace(/\s+/g, '-')}`,
             type: 'danger',
@@ -508,7 +518,23 @@ export default function ReportesPanel({ showToast }) {
                 `Alerta de desviación confirmada para ${ins.nombre}: ${diff.toFixed(1)} ${ins.unidad} de consumo no justificado por ventas`,
                 0
               );
-              showToast(`Auditoría de desviación registrada en la bitácora general ✓`, 'success');
+              try {
+                await addDoc(collection(db, 'insumos_desviaciones_log'), {
+                  fecha: new Date().toISOString(),
+                  insumoNombre: ins.nombre,
+                  unidad: ins.unidad,
+                  diferencia: Number(diff.toFixed(1)),
+                  teorico: Number(theoreticalConsumption.toFixed(1)),
+                  real: Number(physicalDecrease.toFixed(1)),
+                  porcentajeDesviacion: Math.round(pctDiff),
+                  costoEstimado: Math.round(diff * (ins.precioCosto || 20)),
+                  operador: 'Auditor IA',
+                  estado: 'Auditado'
+                });
+              } catch (err) {
+                console.error("Error al registrar en insumos_desviaciones_log:", err);
+              }
+              showToast(`Auditoría de desviación registrada en la bitácora e historial ✓`, 'success');
             }
           });
         }
@@ -1297,7 +1323,7 @@ export default function ReportesPanel({ showToast }) {
           </div>
 
           {/* Top mesas */}
-          <div className="card">
+          <div className="card" style={{ marginBottom: 20 }}>
             <div className="card-header">
               <h3 className="card-title">Top Mesas por Rentabilidad</h3>
               <span className="badge badge-bronze">Periodo Actual</span>
@@ -1310,11 +1336,11 @@ export default function ReportesPanel({ showToast }) {
                   </div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: 700, fontSize: 14 }}>{m.mesa}</div>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{m.tipo} ┬À {m.horas}h jugadas</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{m.tipo} · {m.horas}h jugadas</div>
                   </div>
                   <div style={{ textAlign: 'right' }}>
                     <div style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 700, color: 'var(--bronze-light)' }}>${m.ingresos.toLocaleString()}</div>
-                    <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Ocupaci├│n: <span style={{ color: m.ocupacion > 80 ? 'var(--success)' : 'var(--warning)', fontWeight: 700 }}>{m.ocupacion}%</span></div>
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Ocupación: <span style={{ color: m.ocupacion > 80 ? 'var(--success)' : 'var(--warning)', fontWeight: 700 }}>{m.ocupacion}%</span></div>
                   </div>
                   <div style={{ width: 80 }}>
                     <div style={{ height: 6, background: 'var(--bg-elevated)', borderRadius: 3, overflow: 'hidden' }}>
@@ -1323,6 +1349,79 @@ export default function ReportesPanel({ showToast }) {
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+
+          {/* Historial de Auditorías de Desviación IA */}
+          <div className="card">
+            <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h3 className="card-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <i className="ri-shield-check-line" style={{ color: 'var(--bronze-light)', fontSize: 18 }} />
+                  Historial de Auditorías de Desviación IA
+                </h3>
+                <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0 }}>
+                  Pérdidas registradas y confirmadas desde el asistente de auditoría IA de insumos
+                </p>
+              </div>
+              <span className="badge badge-bronze">
+                {desviacionesLog.length} Auditados
+              </span>
+            </div>
+
+            <div className="table-container" style={{ marginTop: 15 }}>
+              {desviacionesLog.length === 0 ? (
+                <p style={{ color: 'var(--text-muted)', fontSize: 12, padding: '24px 0', textAlign: 'center', margin: 0 }}>
+                  No se han registrado auditorías de desviación de insumos en Firestore.
+                </p>
+              ) : (
+                <div style={{ overflowX: 'auto' }}>
+                  <table className="table" style={{ fontSize: 12, width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                        <th style={{ textAlign: 'left', padding: '8px' }}>Fecha</th>
+                        <th style={{ textAlign: 'left', padding: '8px' }}>Insumo</th>
+                        <th style={{ textAlign: 'center', padding: '8px' }}>Consumo Real vs Teórico</th>
+                        <th style={{ textAlign: 'center', padding: '8px' }}>Desviación</th>
+                        <th style={{ textAlign: 'right', padding: '8px' }}>Costo Est. Merma</th>
+                        <th style={{ textAlign: 'center', padding: '8px' }}>Operador</th>
+                        <th style={{ textAlign: 'center', padding: '8px' }}>Estado</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {desviacionesLog.map((log) => (
+                        <tr key={log.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                          <td style={{ fontWeight: 600, padding: '8px' }}>{formatFecha(log.fecha)}</td>
+                          <td style={{ padding: '8px' }}><strong style={{ color: 'var(--text-primary)' }}>{log.insumoNombre}</strong></td>
+                          <td style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '8px' }}>
+                            {log.real?.toFixed(1) || 0} vs {log.teorico?.toFixed(1) || 0} {log.unidad}
+                          </td>
+                          <td style={{ textAlign: 'center', color: 'var(--danger)', fontWeight: 600, padding: '8px' }}>
+                            +{log.diferencia?.toFixed(1) || 0} {log.unidad} (+{log.porcentajeDesviacion || 0}%)
+                          </td>
+                          <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--danger)', padding: '8px' }}>
+                            -${(log.costoEstimado || 0).toLocaleString()} MXN
+                          </td>
+                          <td style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '8px' }}>{log.operador || 'Auditor IA'}</td>
+                          <td style={{ textAlign: 'center', padding: '8px' }}>
+                            <span style={{
+                              fontSize: 10,
+                              padding: '2px 8px',
+                              borderRadius: 6,
+                              background: 'rgba(205, 127, 50, 0.15)',
+                              color: 'var(--bronze-light)',
+                              fontWeight: 700,
+                              border: '1px solid rgba(205, 127, 50, 0.3)'
+                            }}>
+                              {log.estado || 'Auditado'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           </div>
         </>

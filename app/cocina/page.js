@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from 'react';
 import {
   collection, onSnapshot, query, where,
-  orderBy, updateDoc, doc, serverTimestamp, addDoc, getDocs, setDoc, getDoc
+  orderBy, updateDoc, doc, serverTimestamp, addDoc, getDocs, setDoc, getDoc, deleteDoc
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { AuthProvider, useAuth } from '@/lib/auth-context';
@@ -84,7 +84,10 @@ function CocinaContent() {
 
   // Estados de formularios/modales para insumos
   const [showInsumoModal, setShowInsumoModal] = useState(false);
-  const [newInsumo, setNewInsumo] = useState({ nombre: '', nivelActual: 10, nivelMin: 5, nivelOptimo: 20, unidad: 'pz', categoria: 'Comida' });
+  const [newInsumo, setNewInsumo] = useState({ nombre: '', nivelActual: 10, nivelMin: 5, nivelOptimo: 20, unidad: 'pz', categoria: 'Comida', toleranciaDesviacion: 25 });
+  const [editingInsumo, setEditingInsumo] = useState(null);
+  const [showCierreTurnoModal, setShowCierreTurnoModal] = useState(false);
+  const [cierreInsumos, setCierreInsumos] = useState([]);
   const [isClosing, setIsClosing] = useState(false);
 
   const syncInsumoToInventario = async (insumoData, action = 'update') => {
@@ -108,7 +111,8 @@ function CocinaContent() {
               unidad: insumoData.unidad,
               categoria: 'Insumo',
               precioCosto: prods[idx].precioCosto || 0,
-              precioVenta: 0
+              precioVenta: 0,
+              toleranciaDesviacion: Number(insumoData.toleranciaDesviacion !== undefined ? insumoData.toleranciaDesviacion : 25)
             };
           }
         } else if (action === 'update' || action === 'add') {
@@ -122,7 +126,8 @@ function CocinaContent() {
             unidad: insumoData.unidad,
             categoria: 'Insumo',
             precioCosto: 0,
-            precioVenta: 0
+            precioVenta: 0,
+            toleranciaDesviacion: Number(insumoData.toleranciaDesviacion !== undefined ? insumoData.toleranciaDesviacion : 25)
           });
         }
         await setDoc(docRef, { productos: prods, updatedAt: serverTimestamp() });
@@ -138,7 +143,8 @@ function CocinaContent() {
                       newInsumo.nivelMin !== 5 || 
                       newInsumo.nivelOptimo !== 20 || 
                       newInsumo.unidad !== 'pz' || 
-                      newInsumo.categoria !== 'Comida';
+                      newInsumo.categoria !== 'Comida' ||
+                      newInsumo.toleranciaDesviacion !== 25;
     if (isModified) {
       sessionStorage.setItem('yoy_draft_new_insumo', JSON.stringify(newInsumo));
     }
@@ -146,7 +152,7 @@ function CocinaContent() {
     setTimeout(() => {
       setShowInsumoModal(false);
       setIsClosing(false);
-      setNewInsumo({ nombre: '', nivelActual: 10, nivelMin: 5, nivelOptimo: 20, unidad: 'pz', categoria: 'Comida' });
+      setNewInsumo({ nombre: '', nivelActual: 10, nivelMin: 5, nivelOptimo: 20, unidad: 'pz', categoria: 'Comida', toleranciaDesviacion: 25 });
     }, 150);
   };
 
@@ -371,7 +377,8 @@ function CocinaContent() {
         ...newInsumo,
         nivelActual: Number(newInsumo.nivelActual),
         nivelMin: Number(newInsumo.nivelMin),
-        nivelOptimo: Number(newInsumo.nivelOptimo)
+        nivelOptimo: Number(newInsumo.nivelOptimo),
+        toleranciaDesviacion: Number(newInsumo.toleranciaDesviacion || 25)
       };
       await addDoc(collection(db, 'cocina_insumos'), {
         ...insData,
@@ -379,9 +386,47 @@ function CocinaContent() {
       });
       await syncInsumoToInventario(insData, 'add');
       setShowInsumoModal(false);
-      setNewInsumo({ nombre: '', nivelActual: 10, nivelMin: 5, nivelOptimo: 20, unidad: 'pz', categoria: 'Comida' });
+      setNewInsumo({ nombre: '', nivelActual: 10, nivelMin: 5, nivelOptimo: 20, unidad: 'pz', categoria: 'Comida', toleranciaDesviacion: 25 });
     } catch (err) {
       alert('Error al agregar insumo: ' + err.message);
+    }
+  };
+
+  const guardarEdicionInsumo = async (e) => {
+    e.preventDefault();
+    if (!editingInsumo || !editingInsumo.nombre) return;
+    try {
+      const docRef = doc(db, 'cocina_insumos', editingInsumo.id);
+      const updatedData = {
+        nombre: editingInsumo.nombre,
+        categoria: editingInsumo.categoria,
+        unidad: editingInsumo.unidad,
+        nivelActual: Number(editingInsumo.nivelActual),
+        nivelMin: Number(editingInsumo.nivelMin),
+        nivelOptimo: Number(editingInsumo.nivelOptimo),
+        toleranciaDesviacion: Number(editingInsumo.toleranciaDesviacion || 25)
+      };
+      await updateDoc(docRef, {
+        ...updatedData,
+        updatedAt: serverTimestamp()
+      });
+      await syncInsumoToInventario({
+        ...updatedData
+      }, 'update');
+      setEditingInsumo(null);
+    } catch (err) {
+      alert('Error al editar insumo: ' + err.message);
+    }
+  };
+
+  const eliminarInsumo = async (id, nombre) => {
+    if (!window.confirm(`¿Estás seguro de que deseas eliminar el insumo "${nombre}"?`)) return;
+    try {
+      await deleteDoc(doc(db, 'cocina_insumos', id));
+      await syncInsumoToInventario({ nombre }, 'delete');
+      setEditingInsumo(null);
+    } catch (err) {
+      alert('Error al eliminar insumo: ' + err.message);
     }
   };
 
@@ -400,6 +445,62 @@ function CocinaContent() {
       }, 'update');
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const handleAbrirCierreTurno = () => {
+    const criticos = insumos.filter(ins => ins.nivelActual <= ins.nivelMin);
+    const noCriticos = insumos.filter(ins => ins.nivelActual > ins.nivelMin);
+    const seleccionados = [...criticos, ...noCriticos].slice(0, 5).map(ins => ({
+      id: ins.id,
+      nombre: ins.nombre,
+      unidad: ins.unidad,
+      nivelActual: ins.nivelActual,
+      conteoFisico: ins.nivelActual,
+      nivelMin: ins.nivelMin,
+      nivelOptimo: ins.nivelOptimo,
+      categoria: ins.categoria,
+      toleranciaDesviacion: ins.toleranciaDesviacion !== undefined ? ins.toleranciaDesviacion : 25
+    }));
+    setCierreInsumos(seleccionados);
+    setShowCierreTurnoModal(true);
+  };
+
+  const guardarCierreTurno = async (e) => {
+    e.preventDefault();
+    try {
+      const detallesList = [];
+      for (const item of cierreInsumos) {
+        const docRef = doc(db, 'cocina_insumos', item.id);
+        const conteo = Number(item.conteoFisico);
+        await updateDoc(docRef, {
+          nivelActual: conteo,
+          updatedAt: serverTimestamp()
+        });
+        await syncInsumoToInventario({
+          nombre: item.nombre,
+          nivelActual: conteo,
+          nivelMin: item.nivelMin,
+          nivelOptimo: item.nivelOptimo,
+          unidad: item.unidad,
+          categoria: item.categoria,
+          toleranciaDesviacion: item.toleranciaDesviacion
+        }, 'update');
+        detallesList.push(`${item.nombre}: ${conteo} ${item.unidad}`);
+      }
+      await addDoc(collection(db, 'bitacora'), {
+        fecha: new Date().toISOString(),
+        tipo: 'cocina',
+        operador: user?.nombre || user?.name || 'Personal Cocina',
+        rolOperador: 'cocina',
+        accion: 'Cierre Turno Cocina',
+        detalle: `Cierre de Turno y Conciliación Física de Insumos: ${detallesList.join(', ')}`,
+        monto: 0
+      });
+      setShowCierreTurnoModal(false);
+      alert('¡Cierre de Turno y Conciliación de Insumos guardado correctamente en inventario y bitácora! ✓');
+    } catch (err) {
+      alert('Error al procesar Cierre de Turno: ' + err.message);
     }
   };
 
@@ -779,6 +880,13 @@ function CocinaContent() {
                 </button>
                 <button
                   className="btn btn-primary"
+                  onClick={handleAbrirCierreTurno}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, padding: '8px 16px', background: 'var(--bronze-dark)', borderColor: 'var(--border-bronze)' }}
+                >
+                  <i className="ri-shut-down-line" /> Cierre de Turno
+                </button>
+                <button
+                  className="btn btn-primary"
                   onClick={() => setShowInsumoModal(true)}
                   style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, padding: '8px 16px' }}
                 >
@@ -807,9 +915,21 @@ function CocinaContent() {
                     {/* Header insumo */}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                       <div>
-                        <div style={{ fontSize: 14, fontWeight: 800, color: '#fff' }}>{ins.nombre}</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <div style={{ fontSize: 14, fontWeight: 800, color: '#fff' }}>{ins.nombre}</div>
+                          <button
+                            onClick={() => setEditingInsumo(ins)}
+                            style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 2, fontSize: 11 }}
+                            title="Editar Insumo"
+                          >
+                            <i className="ri-edit-line" />
+                          </button>
+                        </div>
                         <span style={{ fontSize: 9, background: 'var(--bg-elevated)', color: 'var(--text-muted)', padding: '2px 6px', borderRadius: 4, textTransform: 'uppercase', marginTop: 4, display: 'inline-block' }}>
                           {ins.categoria}
+                        </span>
+                        <span style={{ fontSize: 8, color: 'var(--text-muted)', display: 'block', marginTop: 2 }}>
+                          Tolerancia IA: {ins.toleranciaDesviacion !== undefined ? ins.toleranciaDesviacion : 25}%
                         </span>
                       </div>
                       <div style={{ textAlign: 'right' }}>
@@ -1061,6 +1181,18 @@ function CocinaContent() {
                 </div>
               </div>
 
+              <div className="form-group">
+                <label className="form-label">Tolerancia de Desviación IA (%)</label>
+                <input
+                  className="form-input"
+                  type="number"
+                  placeholder="Ej: 25"
+                  value={newInsumo.toleranciaDesviacion}
+                  onChange={e => setNewInsumo(p => ({ ...p, toleranciaDesviacion: e.target.value }))}
+                  required
+                />
+              </div>
+
               <div style={{ display: 'flex', gap: 12, marginTop: 12 }}>
                 <button
                   type="button"
@@ -1076,6 +1208,220 @@ function CocinaContent() {
                   style={{ flex: 1 }}
                 >
                   Agregar Insumo
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {editingInsumo && (
+        <div 
+          className="modal-overlay"
+          style={{ background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(5px)', zIndex: 1000 }}
+          onClick={() => setEditingInsumo(null)}
+        >
+          <div className="card modal" style={{ width: '100%', maxWidth: 450, padding: 24, border: '1px solid var(--border-bronze)', boxShadow: 'var(--shadow-bronze)', animation: 'fadeIn 0.25s ease', textAlign: 'left' }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0, textTransform: 'uppercase', letterSpacing: '0.1em' }} className="gradient-bronze">
+                <i className="ri-edit-box-line" style={{ marginRight: 8 }} />Editar Insumo de Cocina
+              </h3>
+              <button
+                onClick={() => setEditingInsumo(null)}
+                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 20 }}
+              >
+                <i className="ri-close-line" />
+              </button>
+            </div>
+
+            <form onSubmit={guardarEdicionInsumo} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div className="form-group">
+                <label className="form-label">Nombre del Insumo / Ingrediente</label>
+                <input
+                  className="form-input"
+                  placeholder="Ej: Carne de Hamburguesa, Aceite"
+                  value={editingInsumo.nombre}
+                  onChange={e => setEditingInsumo(p => ({ ...p, nombre: e.target.value }))}
+                  required
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div className="form-group">
+                  <label className="form-label">Categoría</label>
+                  <select
+                    className="form-input"
+                    value={editingInsumo.categoria}
+                    onChange={e => setEditingInsumo(p => ({ ...p, categoria: e.target.value }))}
+                    style={{ background: 'var(--bg-elevated)', color: 'var(--text-main)', border: '1px solid var(--border)' }}
+                  >
+                    <option value="Comida">Comida / Carnes</option>
+                    <option value="Vegetales">Vegetales / Frescos</option>
+                    <option value="Aderezos">Aderezos / Salsas</option>
+                    <option value="Snack">Botanas / Snacks</option>
+                    <option value="Cocina General">Cocina General / Insumos</option>
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Unidad de Medida</label>
+                  <select
+                    className="form-input"
+                    value={editingInsumo.unidad}
+                    onChange={e => setEditingInsumo(p => ({ ...p, unidad: e.target.value }))}
+                    style={{ background: 'var(--bg-elevated)', color: 'var(--text-main)', border: '1px solid var(--border)' }}
+                  >
+                    <option value="pz">Pieza (pz)</option>
+                    <option value="kg">Kilogramo (kg)</option>
+                    <option value="L">Litro (L)</option>
+                    <option value="porc">Porción (porc)</option>
+                    <option value="caja">Caja (caja)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+                <div className="form-group">
+                  <label className="form-label">Cant. Actual</label>
+                  <input
+                    className="form-input"
+                    type="number"
+                    value={editingInsumo.nivelActual}
+                    onChange={e => setEditingInsumo(p => ({ ...p, nivelActual: e.target.value }))}
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Nivel Mínimo</label>
+                  <input
+                    className="form-input"
+                    type="number"
+                    value={editingInsumo.nivelMin}
+                    onChange={e => setEditingInsumo(p => ({ ...p, nivelMin: e.target.value }))}
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Nivel Óptimo</label>
+                  <input
+                    className="form-input"
+                    type="number"
+                    value={editingInsumo.nivelOptimo}
+                    onChange={e => setEditingInsumo(p => ({ ...p, nivelOptimo: e.target.value }))}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Tolerancia de Desviación IA (%)</label>
+                <input
+                  className="form-input"
+                  type="number"
+                  placeholder="Ej: 25"
+                  value={editingInsumo.toleranciaDesviacion !== undefined ? editingInsumo.toleranciaDesviacion : 25}
+                  onChange={e => setEditingInsumo(p => ({ ...p, toleranciaDesviacion: e.target.value }))}
+                  required
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: 12, marginTop: 12 }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  style={{ flex: 1, background: 'var(--bg-elevated)', color: 'var(--text-secondary)' }}
+                  onClick={() => setEditingInsumo(null)}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-danger"
+                  style={{ flex: 1 }}
+                  onClick={() => eliminarInsumo(editingInsumo.id, editingInsumo.nombre)}
+                >
+                  Eliminar
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  style={{ flex: 1 }}
+                >
+                  Guardar
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showCierreTurnoModal && (
+        <div 
+          className="modal-overlay"
+          style={{ background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(5px)', zIndex: 1000 }}
+          onClick={() => setShowCierreTurnoModal(false)}
+        >
+          <div className="card modal" style={{ width: '100%', maxWidth: 500, padding: 24, border: '1px solid var(--border-bronze)', boxShadow: 'var(--shadow-bronze)', animation: 'fadeIn 0.25s ease', textAlign: 'left' }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
+              <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0, textTransform: 'uppercase', letterSpacing: '0.1em' }} className="gradient-bronze">
+                <i className="ri-shut-down-line" style={{ marginRight: 8 }} />Cierre de Turno & Conciliación Física
+              </h3>
+              <button
+                onClick={() => setShowCierreTurnoModal(false)}
+                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 20 }}
+              >
+                <i className="ri-close-line" />
+              </button>
+            </div>
+
+            <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 20 }}>
+              Ingresa el conteo físico real medido en cocina para los siguientes insumos críticos. Esto actualizará el stock físico y alimentará el reporte de auditoría de robo hormiga por IA.
+            </p>
+
+            <form onSubmit={guardarCierreTurno} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {cierreInsumos.map((item, idx) => (
+                  <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 12, padding: '10px 14px' }}>
+                    <div style={{ flex: 1, marginRight: 10 }}>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: '#fff' }}>{item.nombre}</div>
+                      <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Stock teórico: {item.nivelActual} {item.unidad}</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <input
+                        type="number"
+                        step="any"
+                        className="form-input"
+                        style={{ width: 80, padding: '6px 8px', fontSize: 13, textAlign: 'center', margin: 0 }}
+                        value={item.conteoFisico}
+                        onChange={e => {
+                          const val = e.target.value;
+                          setCierreInsumos(prev => prev.map((p, i) => i === idx ? { ...p, conteoFisico: val } : p));
+                        }}
+                        required
+                      />
+                      <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600, minWidth: 24 }}>{item.unidad}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div style={{ display: 'flex', gap: 12, marginTop: 10 }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  style={{ flex: 1, background: 'var(--bg-elevated)', color: 'var(--text-secondary)' }}
+                  onClick={() => setShowCierreTurnoModal(false)}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  style={{ flex: 1, background: 'var(--bronze-dark)', borderColor: 'var(--border-bronze)' }}
+                >
+                  Guardar y Cerrar Turno
                 </button>
               </div>
             </form>
