@@ -155,6 +155,7 @@ function AppContent() {
         try {
           const insSnap = await getDocs(collection(db, 'cocina_insumos'));
           const batchUpdates = [];
+          const bitacoraLogs = [];
           
           insSnap.forEach(insDoc => {
             const insData = insDoc.data();
@@ -174,6 +175,25 @@ function AppContent() {
               if (insData.surtidoSolicitado === true && stock >= stockOptimo) {
                 updates.surtidoSolicitado = false;
                 needsUpdate = true;
+                
+                // Calcular tiempo de respuesta
+                const solicitadoAt = insData.surtidoSolicitadoAt?.toDate ? insData.surtidoSolicitadoAt.toDate() : null;
+                let duracionMinutosStr = "Desconocido";
+                if (solicitadoAt) {
+                  const diffMs = Date.now() - solicitadoAt.getTime();
+                  const diffMins = Math.round(diffMs / 1000 / 60);
+                  duracionMinutosStr = `${diffMins} min`;
+                }
+                
+                bitacoraLogs.push({
+                  fecha: new Date().toISOString(),
+                  tipo: 'inventario',
+                  operador: user?.nombre || user?.alias || 'Administración',
+                  rolOperador: user?.role || 'admin',
+                  accion: 'Surtido de Cocina Atendido',
+                  detalle: `Se surtió el insumo "${insData.nombre}" (Stock: ${stock} >= Óptimo: ${stockOptimo}). Tiempo de respuesta: ${duracionMinutosStr}.`,
+                  monto: 0
+                });
               }
               
               if (needsUpdate) {
@@ -189,6 +209,12 @@ function AppContent() {
               batch.update(u.ref, { ...u.data, updatedAt: serverTimestamp() });
             });
             await batch.commit();
+          }
+
+          if (bitacoraLogs.length > 0) {
+            for (const log of bitacoraLogs) {
+              await addDoc(collection(db, 'bitacora'), log);
+            }
           }
         } catch (err) {
           console.error("Error sincronizando a cocina_insumos:", err);
@@ -1220,7 +1246,15 @@ function AppContent() {
             <button 
               className="btn btn-secondary btn-xs" 
               onClick={() => setActivePanel('config')} 
-              style={{ padding: '4px 10px', fontSize: 10, borderRadius: 6, color: '#fff', borderColor: 'var(--border)' }}
+              style={{ 
+                padding: '4px 10px', 
+                fontSize: 10, 
+                borderRadius: 6, 
+                color: '#fff', 
+                borderColor: Object.entries(iaPrevisiones).some(([_, data]) => data.riesgoDesabasto === true) ? 'var(--bronze-light)' : 'var(--border)',
+                boxShadow: Object.entries(iaPrevisiones).some(([_, data]) => data.riesgoDesabasto === true) ? '0 0 10px rgba(227, 168, 105, 0.4)' : 'none',
+                animation: Object.entries(iaPrevisiones).some(([_, data]) => data.riesgoDesabasto === true) ? 'breathingGoldenGlow 2s infinite ease-in-out' : 'none'
+              }}
             >
               Ver Inventario
             </button>
@@ -1259,6 +1293,11 @@ function AppContent() {
           0% { opacity: 0.85; transform: scale(1); }
           50% { opacity: 1; transform: scale(1.01); filter: brightness(1.25); }
           100% { opacity: 0.85; transform: scale(1); }
+        }
+        @keyframes breathingGoldenGlow {
+          0% { box-shadow: 0 0 4px rgba(227, 168, 105, 0.3); border-color: rgba(227, 168, 105, 0.5); }
+          50% { box-shadow: 0 0 12px rgba(227, 168, 105, 0.7); border-color: rgba(227, 168, 105, 1); transform: scale(1.02); }
+          100% { box-shadow: 0 0 4px rgba(227, 168, 105, 0.3); border-color: rgba(227, 168, 105, 0.5); }
         }
       `}</style>
 

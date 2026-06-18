@@ -90,6 +90,7 @@ function CocinaContent() {
   const [cierreInsumos, setCierreInsumos] = useState([]);
   const [isClosing, setIsClosing] = useState(false);
   const [iaPrevisiones, setIaPrevisiones] = useState({});
+  const [updatingIds, setUpdatingIds] = useState(new Set());
 
   const syncInsumoToInventario = async (insumoData, action = 'update') => {
     try {
@@ -460,13 +461,26 @@ function CocinaContent() {
   };
 
   const toggleSolicitudSurtido = async (id, currentVal) => {
+    if (updatingIds.has(id)) return;
+    setUpdatingIds(prev => {
+      const next = new Set(prev);
+      next.add(id);
+      return next;
+    });
     try {
       await updateDoc(doc(db, 'cocina_insumos', id), {
         surtidoSolicitado: !currentVal,
+        surtidoSolicitadoAt: !currentVal ? serverTimestamp() : null,
         updatedAt: serverTimestamp()
       });
     } catch (err) {
       console.error("Error al cambiar solicitud de surtido:", err);
+    } finally {
+      setUpdatingIds(prev => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
     }
   };
 
@@ -1016,6 +1030,7 @@ function CocinaContent() {
                           <td style={{ padding: '10px 8px', textAlign: 'center' }}>
                             <button
                               onClick={() => toggleSolicitudSurtido(ins.id, ins.surtidoSolicitado)}
+                              disabled={updatingIds.has(ins.id)}
                               className={ins.surtidoSolicitado ? 'radar-active' : ''}
                               style={{
                                 padding: '6px 12px',
@@ -1025,15 +1040,16 @@ function CocinaContent() {
                                 border: ins.surtidoSolicitado ? '1px solid #ef4444' : '1px solid var(--border)',
                                 background: ins.surtidoSolicitado ? '#ef4444' : 'var(--bg-elevated)',
                                 color: ins.surtidoSolicitado ? '#fff' : 'var(--text-secondary)',
-                                cursor: 'pointer',
+                                cursor: updatingIds.has(ins.id) ? 'not-allowed' : 'pointer',
                                 display: 'inline-flex',
                                 alignItems: 'center',
                                 gap: '6px',
                                 transition: 'all 0.2s',
+                                opacity: updatingIds.has(ins.id) ? 0.6 : 1
                               }}
                             >
-                              <i className={ins.surtidoSolicitado ? "ri-broadcast-line" : "ri-signal-tower-line"} style={{ fontSize: 13 }} />
-                              {ins.surtidoSolicitado ? 'Solicitado' : 'Solicitar'}
+                              <i className={updatingIds.has(ins.id) ? "ri-loader-4-line ri-spin" : (ins.surtidoSolicitado ? "ri-broadcast-line" : "ri-signal-tower-line")} style={{ fontSize: 13 }} />
+                              {updatingIds.has(ins.id) ? 'Procesando...' : (ins.surtidoSolicitado ? 'Solicitado' : 'Solicitar')}
                             </button>
                           </td>
                           <td style={{ padding: '10px 8px', textAlign: 'center' }}>

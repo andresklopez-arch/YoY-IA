@@ -562,9 +562,31 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
     } else if (n.tipo === 'cocina_surtido') {
       try {
         const docRef = doc(db, 'cocina_insumos', n.insumoId);
+        const insSnap = await getDoc(docRef);
+        let duracionMinutosStr = "Desconocido";
+        let insNombre = "Insumo";
+        if (insSnap.exists()) {
+          const insData = insSnap.data();
+          insNombre = insData.nombre || "Insumo";
+          const solicitadoAt = insData.surtidoSolicitadoAt?.toDate ? insData.surtidoSolicitadoAt.toDate() : null;
+          if (solicitadoAt) {
+            const diffMs = Date.now() - solicitadoAt.getTime();
+            const diffMins = Math.round(diffMs / 1000 / 60);
+            duracionMinutosStr = `${diffMins} min`;
+          }
+        }
         await updateDoc(docRef, {
           surtidoSolicitado: false,
           updatedAt: serverTimestamp()
+        });
+        await addDoc(collection(db, 'bitacora'), {
+          fecha: new Date().toISOString(),
+          tipo: 'inventario',
+          operador: user?.nombre || user?.alias || 'Administración',
+          rolOperador: user?.role || 'admin',
+          accion: 'Solicitud Surtido Cancelada',
+          detalle: `El administrador canceló manualmente la alerta del insumo "${insNombre}". Tiempo transcurrido: ${duracionMinutosStr}.`,
+          monto: 0
         });
         showToast('Solicitud de surtido cancelada', 'success');
       } catch (err) {
