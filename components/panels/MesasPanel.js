@@ -4729,7 +4729,7 @@ export default function MesasPanel({ showToast }) {
 
         <div className="page-header" style={{
           position: 'sticky',
-          top: '-24px',
+          top: '0px',
           zIndex: 100,
           background: 'var(--bg-elevated)',
           backdropFilter: 'blur(8px)',

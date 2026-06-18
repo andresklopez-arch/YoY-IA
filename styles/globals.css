@@ -217,7 +217,7 @@ input, select, textarea {
 
 .page-content {
   flex: 1;
-  padding: 24px;
+  padding: 0 24px 24px 24px;
   overflow-y: auto;
   overflow-x: hidden;
   margin-top: 70px;
@@ -1256,7 +1256,7 @@ tbody td {
   .mesa-grid { grid-template-columns: repeat(2, 1fr); }
   .stat-grid { grid-template-columns: repeat(2, 1fr); }
   .stat-grid-compact { grid-template-columns: repeat(2, 1fr); }
-  .page-content { padding: 16px; }
+  .page-content { padding: 0 16px 16px 16px; }
 }
 
 /* ── TOPBAR QUICK ACTIONS ─────────────────────────────────── */
