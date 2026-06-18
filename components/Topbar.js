@@ -1,6 +1,5 @@
 'use client';
-import { useState, useEffect, useRef } from 'react';
-import useOutsideClick from '@/hooks/useOutsideClick';
+import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '@/lib/auth-context';
 import { useAlertasNomina } from '@/components/panels/NominaPanel';
@@ -60,9 +59,6 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
   const { logout, loginWithEmpleadoId } = useAuth();
   const [time, setTime] = useState(new Date());
   const [showMenu, setShowMenu] = useState(false);
-
-  const profileRef = useRef(null);
-  useOutsideClick(profileRef, () => setShowMenu(false));
   const [showModalPaseLista, setShowModalPaseLista] = useState(false);
   const [empleadosPaseLista, setEmpleadosPaseLista] = useState([]);
   const [busquedaPaseLista, setBusquedaPaseLista] = useState('');
@@ -480,6 +476,20 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
     return () => clearInterval(t);
   }, []);
 
+  // Click-away to close profile menu
+  useEffect(() => {
+    if (!showMenu) return;
+    const handleOutsideClick = (e) => {
+      const container = document.getElementById('user-profile-menu-container');
+      if (container && !container.contains(e.target)) {
+        setShowMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, [showMenu]);
+
+
   // Cargar alertas descartadas desde localStorage al montar
   useEffect(() => {
     try {
@@ -802,7 +812,7 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
         </button>
 
         {/* Perfil */}
-        <div ref={profileRef} id="profile-dropdown-container" style={{ position: 'relative' }}>
+        <div id="user-profile-menu-container" style={{ position: 'relative' }}>
           <button
             onClick={() => setShowMenu(p => !p)}
             style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 10, padding: '6px 12px', cursor: 'pointer', transition: 'border-color 0.15s' }}
