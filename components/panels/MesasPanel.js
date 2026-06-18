@@ -111,8 +111,8 @@ const INIT_MESAS = [
 
 const ESTADO_CONFIG = {
   libre:     { label: 'Libre',     color: '#22c55e',               icon: 'ri-checkbox-blank-circle-line' },
-  ocupada:   { label: 'Ocupada',   color: 'var(--bronze-light)',   icon: 'ri-record-circle-line' },
-  reservada: { label: 'Reservada', color: '#ffffff',               icon: 'ri-bookmark-fill' },
+  ocupada:   { label: 'Ocupada',   color: '#ffffff',               icon: 'ri-record-circle-line' },
+  reservada: { label: 'Reservada', color: 'var(--bronze-light)',   icon: 'ri-bookmark-fill' },
   manten:    { label: 'Mantenimiento', color: '#ef4444',            icon: 'ri-tools-line' },
   fuera:     { label: 'Fuera de Servicio', color: '#ef4444',       icon: 'ri-close-circle-line' },
 };
@@ -4866,28 +4866,28 @@ export default function MesasPanel({ showToast }) {
               height: 28,
               border: 'none',
               borderRight: '1px solid var(--border-bronze)',
-              background: filtro === 'ocupada' ? 'rgba(227, 168, 105, 0.15)' : 'rgba(227, 168, 105, 0.02)',
-              color: 'var(--bronze-light)',
+              background: filtro === 'ocupada' ? 'rgba(255, 255, 255, 0.15)' : 'rgba(255, 255, 255, 0.02)',
+              color: '#ffffff',
               cursor: 'pointer',
               transition: 'all 0.15s',
               whiteSpace: 'nowrap',
-              boxShadow: filtro === 'ocupada' ? 'inset 0 -3px 0 var(--bronze-light), 0 0 8px rgba(227, 168, 105, 0.2)' : 'none'
+              boxShadow: filtro === 'ocupada' ? 'inset 0 -3px 0 #ffffff, 0 0 8px rgba(255, 255, 255, 0.2)' : 'none'
             }}
             onMouseEnter={e => {
-              if (filtro !== 'ocupada') e.currentTarget.style.background = 'rgba(227, 168, 105, 0.08)';
+              if (filtro !== 'ocupada') e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
             }}
             onMouseLeave={e => {
-              if (filtro !== 'ocupada') e.currentTarget.style.background = 'rgba(227, 168, 105, 0.02)';
+              if (filtro !== 'ocupada') e.currentTarget.style.background = 'rgba(255, 255, 255, 0.02)';
             }}
           >
             <i className="ri-record-circle-line" style={{ 
-              color: 'var(--bronze-light)', 
+              color: '#ffffff', 
               fontSize: 11,
               transform: filtro === 'ocupada' ? 'scale(1.2)' : 'scale(1)',
               display: 'inline-block',
               transition: 'transform 0.2s ease'
             }} />
-            <span style={{ color: 'var(--text-secondary)' }}>OCUPADAS: <strong style={{ color: 'var(--bronze-light)' }}>{totales.ocupadas}</strong></span>
+            <span style={{ color: 'var(--text-secondary)' }}>OCUPADAS: <strong style={{ color: '#ffffff' }}>{totales.ocupadas}</strong></span>
           </button>
 
           {/* Reservadas */}
@@ -4904,28 +4904,28 @@ export default function MesasPanel({ showToast }) {
               gap: 6,
               height: 28,
               borderRight: '1px solid var(--border-bronze)',
-              background: filtro === 'reservada' ? 'rgba(255, 255, 255, 0.15)' : 'rgba(255, 255, 255, 0.02)',
-              color: '#ffffff',
+              background: filtro === 'reservada' ? 'rgba(227, 168, 105, 0.15)' : 'rgba(227, 168, 105, 0.02)',
+              color: 'var(--bronze-light)',
               cursor: 'pointer',
               transition: 'all 0.15s',
               whiteSpace: 'nowrap',
-              boxShadow: filtro === 'reservada' ? 'inset 0 -3px 0 #ffffff, 0 0 8px rgba(255, 255, 255, 0.2)' : 'none'
+              boxShadow: filtro === 'reservada' ? 'inset 0 -3px 0 var(--bronze-light), 0 0 8px rgba(227, 168, 105, 0.2)' : 'none'
             }}
             onMouseEnter={e => {
-              if (filtro !== 'reservada') e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
+              if (filtro !== 'reservada') e.currentTarget.style.background = 'rgba(227, 168, 105, 0.08)';
             }}
             onMouseLeave={e => {
-              if (filtro !== 'reservada') e.currentTarget.style.background = 'rgba(255, 255, 255, 0.02)';
+              if (filtro !== 'reservada') e.currentTarget.style.background = 'rgba(227, 168, 105, 0.02)';
             }}
           >
             <i className="ri-bookmark-fill" style={{ 
-              color: '#ffffff', 
+              color: 'var(--bronze-light)', 
               fontSize: 11,
               transform: filtro === 'reservada' ? 'scale(1.2)' : 'scale(1)',
               display: 'inline-block',
               transition: 'transform 0.2s ease'
             }} />
-            <span style={{ color: 'var(--text-secondary)', marginRight: 6 }}>RESERVADAS: <strong style={{ color: '#ffffff' }}>{totales.reservadas}</strong></span>
+            <span style={{ color: 'var(--text-secondary)', marginRight: 6 }}>RESERVADAS: <strong style={{ color: 'var(--bronze-light)' }}>{totales.reservadas}</strong></span>
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -4933,8 +4933,8 @@ export default function MesasPanel({ showToast }) {
               }}
               style={{
                 background: 'rgba(255,255,255,0.05)',
-                border: '1px solid rgba(255, 255, 255, 0.3)',
-                color: '#ffffff',
+                border: '1px solid rgba(227, 168, 105, 0.3)',
+                color: 'var(--bronze-light)',
                 borderRadius: 4,
                 padding: '1px 5px',
                 fontSize: 8,
@@ -4946,12 +4946,12 @@ export default function MesasPanel({ showToast }) {
                 justifyContent: 'center',
               }}
               onMouseEnter={e => {
-                e.currentTarget.style.background = '#ffffff';
+                e.currentTarget.style.background = 'var(--bronze-light)';
                 e.currentTarget.style.color = '#000';
               }}
               onMouseLeave={e => {
                 e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
-                e.currentTarget.style.color = '#ffffff';
+                e.currentTarget.style.color = 'var(--bronze-light)';
               }}
               title="Administrar Reservas"
             >
@@ -5462,7 +5462,11 @@ export default function MesasPanel({ showToast }) {
                 )}
                 {mesa.estado === 'ocupada' && (
                   <>
-                    <button className="btn btn-primary btn-sm btn-pulse-bronze" style={{ flex: 2 }} onClick={() => setModalCerrar(mesa)}>
+                    <button 
+                      className="btn btn-sm btn-pulse-white" 
+                      style={{ flex: 2, background: '#ffffff', color: '#0d0d0f', fontWeight: 600, boxShadow: '0 0 15px rgba(255, 255, 255, 0.3)' }} 
+                      onClick={() => setModalCerrar(mesa)}
+                    >
                       <i className="ri-stop-fill" /> Cerrar
                     </button>
                     <button
@@ -5484,8 +5488,8 @@ export default function MesasPanel({ showToast }) {
                 )}
                 {mesa.estado === 'reservada' && (
                   <button 
-                    className="btn btn-sm btn-pulse-white" 
-                    style={{ flex: 1, background: '#ffffff', color: '#0d0d0f', fontWeight: 600, boxShadow: '0 0 15px rgba(255, 255, 255, 0.3)' }} 
+                    className="btn btn-primary btn-sm btn-pulse-bronze" 
+                    style={{ flex: 1 }} 
                     onClick={() => abrirMesa(mesa)}
                   >
                     <i className="ri-play-fill" /> Activar
@@ -5523,7 +5527,7 @@ export default function MesasPanel({ showToast }) {
                 <div style={{ display: 'flex', gap: 4 }}>
                   {[
                     { estado: 'libre', icon: 'ri-checkbox-blank-circle-line', color: '#22c55e', title: 'Disponible' },
-                    { estado: 'reservada', icon: 'ri-bookmark-fill', color: '#ffffff', title: 'Reservar' },
+                    { estado: 'reservada', icon: 'ri-bookmark-fill', color: 'var(--bronze-light)', title: 'Reservar' },
                     { estado: 'manten', icon: 'ri-tools-line', color: '#ef4444', title: 'Mantenimiento' },
                     { estado: 'fuera', icon: 'ri-close-circle-line', color: '#ef4444', title: 'Fuera de Servicio' }
                   ].map(item => {

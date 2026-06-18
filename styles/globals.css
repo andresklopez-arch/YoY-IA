@@ -462,13 +462,13 @@ input, select, textarea {
 .mesa-card.libre::before {
   background: conic-gradient(from 0deg, #22c55e 0%, transparent 25%, transparent 100%);
 }
-/* ocupada ➔ bronce */
+/* ocupada ➔ blanco */
 .mesa-card.ocupada::before {
-  background: conic-gradient(from 0deg, var(--bronze-light, #c5a880) 0%, transparent 25%, transparent 100%);
-}
-/* reservada ➔ blanco */
-.mesa-card.reservada::before {
   background: conic-gradient(from 0deg, #ffffff 0%, transparent 25%, transparent 100%);
+}
+/* reservada ➔ bronce */
+.mesa-card.reservada::before {
+  background: conic-gradient(from 0deg, var(--bronze-light, #c5a880) 0%, transparent 25%, transparent 100%);
 }
 /* mantenimiento ➔ rojo */
 .mesa-card.manten::before {
@@ -560,13 +560,13 @@ input, select, textarea {
 }
 
 .mesa-card.libre:hover {
-  box-shadow: 0 0 20px rgba(197, 168, 128, 0.25);
+  box-shadow: 0 0 20px rgba(34, 197, 94, 0.25);
 }
 .mesa-card.ocupada:hover {
-  box-shadow: 0 0 20px rgba(197, 168, 128, 0.25);
+  box-shadow: 0 0 20px rgba(255, 255, 255, 0.25);
 }
 .mesa-card.reservada:hover {
-  box-shadow: 0 0 20px rgba(255, 255, 255, 0.25);
+  box-shadow: 0 0 20px rgba(197, 168, 128, 0.25);
 }
 .mesa-card.manten:hover {
   box-shadow: 0 0 20px rgba(239, 68, 68, 0.25);
@@ -611,7 +611,7 @@ input, select, textarea {
 }
 
 .mesa-card.sin-animaciones.ocupada {
-  border-color: rgba(197, 168, 128, 0.35) !important;
+  border-color: rgba(255, 255, 255, 0.35) !important;
 }
 .mesa-card.sin-animaciones.ocupada::before {
   display: block !important;
@@ -619,13 +619,13 @@ input, select, textarea {
   position: absolute;
   top: 0; left: 0; right: 0;
   height: 3px;
-  background: var(--bronze-light);
-  box-shadow: 0 0 12px var(--bronze-light);
+  background: #ffffff;
+  box-shadow: 0 0 12px #ffffff;
   border-radius: var(--r-lg) var(--r-lg) 0 0;
 }
 
 .mesa-card.sin-animaciones.reservada {
-  border-color: rgba(255, 255, 255, 0.35) !important;
+  border-color: rgba(197, 168, 128, 0.35) !important;
 }
 .mesa-card.sin-animaciones.reservada::before {
   display: block !important;
@@ -633,8 +633,8 @@ input, select, textarea {
   position: absolute;
   top: 0; left: 0; right: 0;
   height: 3px;
-  background: #ffffff;
-  box-shadow: 0 0 12px #ffffff;
+  background: var(--bronze-light);
+  box-shadow: 0 0 12px var(--bronze-light);
   border-radius: var(--r-lg) var(--r-lg) 0 0;
 }
 
@@ -720,8 +720,8 @@ input, select, textarea {
 }
 
 .mesa-status-badge.libre     { background: rgba(34, 197, 94, 0.15); color: #22c55e; }
-.mesa-status-badge.ocupada   { background: rgba(197, 168, 128, 0.15); color: var(--bronze-light); }
-.mesa-status-badge.reservada { background: rgba(255, 255, 255, 0.15); color: #ffffff; }
+.mesa-status-badge.ocupada   { background: rgba(255, 255, 255, 0.15); color: #ffffff; }
+.mesa-status-badge.reservada { background: rgba(197, 168, 128, 0.15); color: var(--bronze-light); }
 .mesa-status-badge.manten    { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
 .mesa-status-badge.fuera     { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
 
