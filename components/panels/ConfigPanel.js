@@ -105,6 +105,7 @@ export default function ConfigPanel({ showToast }) {
     mode: 'simplified', 
     botToken: '', 
     chatId: '',
+    phone: '',
     notifyStatements: true,
     notifyPayments: true
   });
@@ -264,6 +265,7 @@ export default function ConfigPanel({ showToast }) {
           mode: d.mode || 'simplified',
           botToken: d.botToken || '',
           chatId: d.chatId || '',
+          phone: d.phone || '',
           notifyStatements: d.notifyStatements !== undefined ? d.notifyStatements : true,
           notifyPayments: d.notifyPayments !== undefined ? d.notifyPayments : true,
         });
@@ -473,8 +475,8 @@ export default function ConfigPanel({ showToast }) {
       showToast('Ingresa el Token y Chat ID para enviar un mensaje de prueba', 'warning');
       return;
     }
-    if (telegramConfig.mode === 'simplified' && !telegramConfig.chatId) {
-      showToast('Primero debes vincular tu cuenta de Telegram', 'warning');
+    if (telegramConfig.mode === 'simplified' && !telegramConfig.phone) {
+      showToast('Primero debes ingresar tu número telefónico vinculado a Telegram', 'warning');
       return;
     }
     try {
@@ -486,6 +488,7 @@ export default function ConfigPanel({ showToast }) {
           mode: telegramConfig.mode,
           token: telegramConfig.botToken,
           chatId: telegramConfig.chatId,
+          phone: telegramConfig.phone,
           text: text
         })
       });
@@ -1294,14 +1297,14 @@ export default function ConfigPanel({ showToast }) {
               </div>
 
               {telegramConfig.mode !== 'custom' ? (
-                // MODO SIMPLIFICADO
+                // MODO SIMPLIFICADO (Vinculación por número de teléfono)
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 12 }}>
                   <p style={{ fontSize: 11, color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>
-                    Conéctate al bot oficial sin configurar tokens. Haz clic en el botón para iniciar conversación en Telegram.
+                    Conéctate al bot oficial en segundos. Abre Telegram y presiona iniciar en el Bot Central:
                   </p>
                   
                   <a
-                    href={`https://t.me/YoYBillarBot?start=${sucursal.nombre ? encodeURIComponent(sucursal.nombre.replace(/\s+/g, '_')) : 'sucursal_yoy'}`}
+                    href="https://t.me/YoYBillarBot"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="btn btn-secondary"
@@ -1310,25 +1313,21 @@ export default function ConfigPanel({ showToast }) {
                       background: 'rgba(36, 161, 222, 0.1)', border: '1.5px dashed rgba(36, 161, 222, 0.4)', color: '#24A1DE', textDecoration: 'none'
                     }}
                   >
-                    <i className="ri-telegram-line" style={{ fontSize: 16 }} /> Vincular en 1 Clic
+                    <i className="ri-telegram-line" style={{ fontSize: 16 }} /> @YoYBillarBot
                   </a>
 
                   <div className="form-group" style={{ gap: 4 }}>
-                    <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span>Chat ID de Telegram</span>
-                      {telegramConfig.chatId ? (
-                        <span style={{ color: 'var(--success)', fontSize: 9, fontWeight: 700 }}>● VINCULADO</span>
-                      ) : (
-                        <span style={{ color: 'var(--warning)', fontSize: 9, fontWeight: 700 }}>● PENDIENTE</span>
-                      )}
-                    </label>
+                    <label className="form-label">Número de Teléfono (Telegram)</label>
                     <input
                       className="form-input"
-                      placeholder="Se autocompletará, o ingrésalo manual"
-                      value={telegramConfig.chatId || ''}
-                      onChange={e => setTelegramConfig(p => ({ ...p, chatId: e.target.value }))}
-                      style={{ padding: '8px 12px', fontSize: '11px' }}
+                      placeholder="Ej: +525512345678 (con código de país)"
+                      value={telegramConfig.phone || ''}
+                      onChange={e => setTelegramConfig(p => ({ ...p, phone: e.target.value }))}
+                      style={{ padding: '8px 12px', fontSize: '12px' }}
                     />
+                    <span style={{ fontSize: 9.5, color: 'var(--text-muted)' }}>
+                      Ingresa el mismo número con el que compartiste contacto en el Bot Central de YoY.
+                    </span>
                   </div>
                 </div>
               ) : (
