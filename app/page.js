@@ -108,11 +108,18 @@ function AppContent() {
     return () => window.removeEventListener('resize', calculateScrollbarWidth);
   }, []);
 
-  // Limpiar Service Workers obsoletos (previene "This page couldn't load" en Chrome PWA)
+  // Limpiar Service Workers obsoletos y caché del navegador para evitar assets obsoletos
   useEffect(() => {
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.getRegistrations().then(regs => {
         regs.forEach(reg => reg.unregister());
+      }).catch(() => {});
+    }
+    if (typeof window !== 'undefined' && 'caches' in window) {
+      caches.keys().then(names => {
+        names.forEach(name => {
+          caches.delete(name);
+        });
       }).catch(() => {});
     }
   }, []);

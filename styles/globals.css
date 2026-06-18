@@ -1435,36 +1435,62 @@ body.modal-open .topbar {
 /* ── ANIMACIONES DE PULSO DE BRILLO PARA BOTONES EN TARJETAS ── */
 .btn-pulse-success {
   animation: btnPulseSuccess 2.5s infinite ease-in-out;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
 }
 .btn-pulse-bronze {
   animation: btnPulseBronze 2.5s infinite ease-in-out;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
 }
 .btn-pulse-white {
   animation: btnPulseWhite 2.5s infinite ease-in-out;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+/* Pausar animación en hover, aplicar escalado sutil de 1.04 y brillo de máxima intensidad */
+.btn-pulse-success:hover,
+.btn-pulse-bronze:hover,
+.btn-pulse-white:hover {
+  animation-play-state: paused;
+  transform: scale(1.04) !important;
+}
+.btn-pulse-success:hover {
+  box-shadow: 0 0 20px rgba(34, 197, 94, 0.85) !important;
+}
+.btn-pulse-bronze:hover {
+  box-shadow: 0 0 20px rgba(205, 127, 50, 0.85) !important;
+}
+.btn-pulse-white:hover {
+  box-shadow: 0 0 20px rgba(255, 255, 255, 0.75) !important;
 }
 
 @keyframes btnPulseSuccess {
   0%, 100% {
     box-shadow: 0 0 8px rgba(34, 197, 94, 0.2);
+    transform: scale(1);
   }
   50% {
     box-shadow: 0 0 16px rgba(34, 197, 94, 0.55);
+    transform: scale(1.02);
   }
 }
 @keyframes btnPulseBronze {
   0%, 100% {
     box-shadow: 0 0 8px rgba(205, 127, 50, 0.2);
+    transform: scale(1);
   }
   50% {
     box-shadow: 0 0 16px rgba(205, 127, 50, 0.55);
+    transform: scale(1.02);
   }
 }
 @keyframes btnPulseWhite {
   0%, 100% {
     box-shadow: 0 0 8px rgba(255, 255, 255, 0.15);
+    transform: scale(1);
   }
   50% {
     box-shadow: 0 0 16px rgba(255, 255, 255, 0.45);
+    transform: scale(1.02);
   }
 }
 
