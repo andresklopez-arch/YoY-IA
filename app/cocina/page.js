@@ -266,6 +266,41 @@ function CocinaContent() {
     return unsub;
   }, []);
 
+  // Sincronizador automático de cola offline para surtido de cocina
+  useEffect(() => {
+    const processOfflineQueue = async () => {
+      if (typeof window === 'undefined' || !navigator.onLine) return;
+      try {
+        const queue = JSON.parse(localStorage.getItem('yoy_pending_surtido_requests') || '[]');
+        if (queue.length === 0) return;
+        
+        console.log(`Procesando cola offline de solicitudes (${queue.length} pendientes)...`);
+        const remaining = [];
+        for (const item of queue) {
+          try {
+            await updateDoc(doc(db, 'cocina_insumos', item.id), {
+              surtidoSolicitado: item.targetVal,
+              surtidoSolicitadoAt: item.targetVal ? serverTimestamp() : null,
+              updatedAt: serverTimestamp()
+            });
+          } catch (err) {
+            remaining.push(item);
+          }
+        }
+        localStorage.setItem('yoy_pending_surtido_requests', JSON.stringify(remaining));
+      } catch (e) {
+        console.error("Error procesando cola offline:", e);
+      }
+    };
+
+    window.addEventListener('online', processOfflineQueue);
+    const interval = setInterval(processOfflineQueue, 15000);
+    return () => {
+      window.removeEventListener('online', processOfflineQueue);
+      clearInterval(interval);
+    };
+  }, []);
+
   // 4. Sincronizar Inventario de productos (LocalStorage <-> Firestore)
   useEffect(() => {
     // Escuchar el documento centralizado del inventario en Firestore
@@ -467,14 +502,24 @@ function CocinaContent() {
       next.add(id);
       return next;
     });
+    const targetVal = !currentVal;
     try {
       await updateDoc(doc(db, 'cocina_insumos', id), {
-        surtidoSolicitado: !currentVal,
-        surtidoSolicitadoAt: !currentVal ? serverTimestamp() : null,
+        surtidoSolicitado: targetVal,
+        surtidoSolicitadoAt: targetVal ? serverTimestamp() : null,
         updatedAt: serverTimestamp()
       });
     } catch (err) {
-      console.error("Error al cambiar solicitud de surtido:", err);
+      console.warn("Fallo en red al cambiar solicitud de surtido de cocina, encolando offline:", err);
+      try {
+        const queue = JSON.parse(localStorage.getItem('yoy_pending_surtido_requests') || '[]');
+        if (!queue.some(item => item.id === id)) {
+          queue.push({ id, targetVal, timestamp: Date.now() });
+          localStorage.setItem('yoy_pending_surtido_requests', JSON.stringify(queue));
+        }
+      } catch (e) {
+        console.error("Error al guardar en localStorage offline queue:", e);
+      }
     } finally {
       setUpdatingIds(prev => {
         const next = new Set(prev);

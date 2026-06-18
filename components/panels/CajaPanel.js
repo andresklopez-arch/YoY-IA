@@ -128,6 +128,7 @@ export default function CajaPanel({ showToast }) {
   const [productos, setProductos] = useState([]);
   const [mesas, setMesas] = useState([]);
   const [tarifaAutopilotActivo, setTarifaAutopilotActivo] = useState(false);
+  const [surtidoEficiencia, setSurtidoEficiencia] = useState({ promedioMinutos: 0, solicitudesAtendidas: 0, solicitudesCanceladas: 0, ultimosEventos: [] });
   const [cuentasActivas, setCuentasActivas] = useState([]);
   const [inconsistenciasEnVivo, setInconsistenciasEnVivo] = useState([]);
 
@@ -193,6 +194,71 @@ export default function CajaPanel({ showToast }) {
         totalAlertas: snap.size
       }));
     }, err => console.warn("Error loading queue response logs:", err));
+
+    return () => {
+      unsubLogs();
+    };
+  }, [esCajero]);
+
+  useEffect(() => {
+    if (esCajero) return;
+    
+    const qBitacora = query(
+      collection(db, 'bitacora'),
+      orderBy('fecha', 'desc'),
+      limit(200)
+    );
+    
+    const unsubBitacora = onSnapshot(qBitacora, (snap) => {
+      let sumaMinutos = 0;
+      let countAtendidos = 0;
+      let countCancelados = 0;
+      const eventos = [];
+      
+      snap.docs.forEach(doc => {
+        const data = doc.data();
+        if (data.accion === 'Surtido de Cocina Atendido') {
+          countAtendidos++;
+          const match = data.detalle.match(/Tiempo de respuesta:\s*(\d+)\s*min/);
+          if (match && match[1]) {
+            sumaMinutos += parseInt(match[1]);
+          }
+          eventos.push({
+            id: doc.id,
+            insumo: data.detalle.match(/insumo\s*\"([^\"]+)\"/)?.[1] || "Insumo",
+            tiempo: data.detalle.match(/Tiempo de respuesta:\s*(\d+\s*min)/)?.[1] || "Desconocido",
+            fecha: data.fecha,
+            tipo: 'atendido',
+            detalle: data.detalle
+          });
+        } else if (data.accion === 'Solicitud Surtido Cancelada') {
+          countCancelados++;
+          eventos.push({
+            id: doc.id,
+            insumo: data.detalle.match(/insumo\s*\"([^\"]+)\"/)?.[1] || "Insumo",
+            tiempo: data.detalle.match(/Tiempo transcurrido:\s*(\d+\s*min)/)?.[1] || "Desconocido",
+            fecha: data.fecha,
+            tipo: 'cancelado',
+            detalle: data.detalle
+          });
+        }
+      });
+      
+      setSurtidoEficiencia({
+        promedioMinutos: countAtendidos > 0 ? Math.round(sumaMinutos / countAtendidos) : 0,
+        solicitudesAtendidas: countAtendidos,
+        solicitudesCanceladas: countCancelados,
+        ultimosEventos: eventos.slice(0, 5)
+      });
+    }, err => {
+      console.warn("Error cargando bitácora de eficiencia de surtido:", err);
+    });
+    
+    return unsubBitacora;
+  }, [esCajero]);
+
+  useEffect(() => {
+    if (esCajero) return;
 
     // Escuchar fila_espera
     const qFila = query(collection(db, 'fila_espera'), limit(200));
@@ -4460,6 +4526,54 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
                     </tbody>
                   </table>
                 </div>
+                
+                {/* Eficiencia de Surtido de Cocina */}
+                <div style={{ borderTop: '1px solid var(--border)', marginTop: 14, paddingTop: 12 }}>
+                  <h4 style={{ margin: '0 0 8px 0', fontSize: 11, fontWeight: 800, color: 'var(--bronze-light)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <i className="ri-time-line" style={{ color: 'var(--success)' }} />
+                    Auditoría de Reabastecimiento Cocina
+                  </h4>
+                  
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
+                    <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)', borderRadius: 8, padding: 8, textAlign: 'center' }}>
+                      <span style={{ fontSize: 8, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', display: 'block', marginBottom: 2 }}>Promedio Surtido</span>
+                      <strong style={{ fontSize: 14, color: surtidoEficiencia.promedioMinutos <= 15 ? 'var(--success)' : surtidoEficiencia.promedioMinutos <= 30 ? 'var(--warning)' : 'var(--danger)' }}>
+                        {surtidoEficiencia.promedioMinutos} min
+                      </strong>
+                    </div>
+                    <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)', borderRadius: 8, padding: 8, textAlign: 'center' }}>
+                      <span style={{ fontSize: 8, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', display: 'block', marginBottom: 2 }}>Atendidos / Cancelados</span>
+                      <strong style={{ fontSize: 12, color: 'var(--blue-light)' }}>
+                        {surtidoEficiencia.solicitudesAtendidas} / {surtidoEficiencia.solicitudesCanceladas}
+                      </strong>
+                    </div>
+                  </div>
+
+                  <h5 style={{ margin: '0 0 6px 0', fontSize: 9, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>
+                    Últimos surtidos cocina
+                  </h5>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    {surtidoEficiencia.ultimosEventos.length === 0 ? (
+                      <span style={{ fontSize: 9, color: 'var(--text-muted)', fontStyle: 'italic', textAlign: 'center', display: 'block', padding: '8px 0' }}>
+                        Sin registros hoy.
+                      </span>
+                    ) : (
+                      surtidoEficiencia.ultimosEventos.map(evt => (
+                        <div key={evt.id} style={{ background: 'rgba(0,0,0,0.15)', border: '1px solid rgba(255,255,255,0.03)', borderRadius: 6, padding: '5px 8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 9 }}>
+                          <span style={{ color: '#fff', fontWeight: 600 }}>{evt.insumo}</span>
+                          <span style={{ 
+                            padding: '1px 5px', borderRadius: 4, fontSize: 8, fontWeight: 800,
+                            background: evt.tipo === 'atendido' ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)',
+                            color: evt.tipo === 'atendido' ? 'var(--success)' : 'var(--danger)'
+                          }}>
+                            {evt.tiempo} {evt.tipo === 'atendido' ? '✓' : '✕'}
+                          </span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+
               </div>
 
             </div>

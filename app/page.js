@@ -142,6 +142,14 @@ function AppContent() {
   const [iaPrevisiones, setIaPrevisiones] = useState({});
   const [cocinaSolicitudes, setCocinaSolicitudes] = useState([]);
 
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      if (Notification.permission !== 'granted' && Notification.permission !== 'denied') {
+        Notification.requestPermission();
+      }
+    }
+  }, []);
+
   // 1. Escuchar inventario para insumos por debajo de stock óptimo y sincronizar a cocina_insumos
   useEffect(() => {
     if (!user) return;
@@ -234,7 +242,7 @@ function AppContent() {
         list.push({ id: doc.id, ...doc.data() });
       });
       
-      // Si hay nuevas solicitudes, reproducir tono acústico
+      // Si hay nuevas solicitudes, reproducir tono acústico y lanzar notificación push nativa
       if (list.length > cocinaSolicitudes.length && list.length > 0 && sonidoAdmin) {
         try {
           const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -257,6 +265,21 @@ function AppContent() {
             osc2.stop(ctx.currentTime + 0.1);
           }, 150);
         } catch (e) {}
+
+        // Notificación nativa del navegador
+        try {
+          if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+            const nuevosInsumos = list.filter(item => !cocinaSolicitudes.some(prev => prev.id === item.id));
+            nuevosInsumos.forEach(item => {
+              new Notification("⚠️ YoY IA Billar - Cocina solicita surtido", {
+                body: `Urgente: Se requiere surtir "${item.nombre}". Cantidad actual: ${item.nivelActual} ${item.unidad}.`,
+                icon: '/icon.png'
+              });
+            });
+          }
+        } catch (err) {
+          console.warn("Fallo al enviar notificación nativa:", err);
+        }
       }
       setCocinaSolicitudes(list);
     });
