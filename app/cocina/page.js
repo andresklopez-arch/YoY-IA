@@ -278,11 +278,20 @@ function CocinaContent() {
         const remaining = [];
         for (const item of queue) {
           try {
-            await updateDoc(doc(db, 'cocina_insumos', item.id), {
-              surtidoSolicitado: item.targetVal,
-              surtidoSolicitadoAt: item.targetVal ? serverTimestamp() : null,
-              updatedAt: serverTimestamp()
-            });
+            if (item.isNewProduct && item.productData) {
+              await setDoc(doc(db, 'cocina_insumos', item.id), {
+                ...item.productData,
+                surtidoSolicitado: item.targetVal,
+                surtidoSolicitadoAt: item.targetVal ? serverTimestamp() : null,
+                createdAt: serverTimestamp()
+              });
+            } else {
+              await updateDoc(doc(db, 'cocina_insumos', item.id), {
+                surtidoSolicitado: item.targetVal,
+                surtidoSolicitadoAt: item.targetVal ? serverTimestamp() : null,
+                updatedAt: serverTimestamp()
+              });
+            }
           } catch (err) {
             remaining.push(item);
           }
@@ -524,6 +533,73 @@ function CocinaContent() {
       setUpdatingIds(prev => {
         const next = new Set(prev);
         next.delete(id);
+        return next;
+      });
+    }
+  };
+  
+  const solicitarProducto = async (product) => {
+    const keyId = `prod-${product.id}`;
+    if (updatingIds.has(keyId)) return;
+    
+    setUpdatingIds(prev => {
+      const next = new Set(prev);
+      next.add(keyId);
+      return next;
+    });
+
+    const insumoExistente = insumos.find(i => i.nombre.toLowerCase() === product.nombre.toLowerCase());
+    const targetVal = insumoExistente ? !insumoExistente.surtidoSolicitado : true;
+    const docId = insumoExistente ? insumoExistente.id : doc(collection(db, 'cocina_insumos')).id;
+
+    try {
+      if (insumoExistente) {
+        await updateDoc(doc(db, 'cocina_insumos', docId), {
+          surtidoSolicitado: targetVal,
+          surtidoSolicitadoAt: targetVal ? serverTimestamp() : null,
+          updatedAt: serverTimestamp()
+        });
+      } else {
+        await setDoc(doc(db, 'cocina_insumos', docId), {
+          nombre: product.nombre,
+          nivelActual: Number(product.stock),
+          nivelMin: Number(product.stockMin || 0),
+          nivelOptimo: Number(product.stockOptimo || product.stockMin * 2 || 10),
+          unidad: product.unidad || 'pz',
+          categoria: product.categoria,
+          surtidoSolicitado: targetVal,
+          surtidoSolicitadoAt: targetVal ? serverTimestamp() : null,
+          createdAt: serverTimestamp()
+        });
+      }
+    } catch (err) {
+      console.warn("Fallo en red al solicitar producto, encolando offline:", err);
+      try {
+        const queue = JSON.parse(localStorage.getItem('yoy_pending_surtido_requests') || '[]');
+        if (!queue.some(item => item.id === docId)) {
+          queue.push({ 
+            id: docId, 
+            targetVal, 
+            timestamp: Date.now(), 
+            isNewProduct: !insumoExistente, 
+            productData: !insumoExistente ? {
+              nombre: product.nombre,
+              nivelActual: Number(product.stock),
+              nivelMin: Number(product.stockMin || 0),
+              nivelOptimo: Number(product.stockOptimo || product.stockMin * 2 || 10),
+              unidad: product.unidad || 'pz',
+              categoria: product.categoria
+            } : null 
+          });
+          localStorage.setItem('yoy_pending_surtido_requests', JSON.stringify(queue));
+        }
+      } catch (e) {
+        console.error("Error al guardar en localStorage offline queue para producto:", e);
+      }
+    } finally {
+      setUpdatingIds(prev => {
+        const next = new Set(prev);
+        next.delete(keyId);
         return next;
       });
     }
@@ -1182,12 +1258,18 @@ function CocinaContent() {
                     <th style={{ padding: '10px 8px', textAlign: 'center' }}>Stock</th>
                     <th style={{ padding: '10px 8px', textAlign: 'center' }}>Mínimo</th>
                     <th style={{ padding: '10px 8px', textAlign: 'right' }}>Precio Venta</th>
+                    <th style={{ padding: '10px 8px', textAlign: 'center' }}>Solicitar</th>
                   </tr>
                 </thead>
                 <tbody>
                   {productosFiltrados.map(p => {
                     const esCritico = p.stock <= p.stockMin;
                     const emoji = CAT_EMOJI[p.categoria] || CAT_EMOJI.default;
+                    const insumoExistente = insumos.find(i => i.nombre.toLowerCase() === p.nombre.toLowerCase());
+                    const surtidoSolicitado = insumoExistente ? insumoExistente.surtidoSolicitado : false;
+                    const keyId = `prod-${p.id}`;
+                    const isProcessing = updatingIds.has(keyId);
+
                     return (
                       <tr key={p.id} style={{ borderBottom: '1px solid var(--border)', background: esCritico ? 'rgba(239,68,68,0.02)' : 'none' }}>
                         <td style={{ padding: '12px 8px', fontWeight: 600 }}>
@@ -1200,12 +1282,37 @@ function CocinaContent() {
                         </td>
                         <td style={{ padding: '12px 8px', textAlign: 'center', color: 'var(--text-muted)' }}>{p.stockMin}</td>
                         <td style={{ padding: '12px 8px', textAlign: 'right', fontWeight: 700 }}>${p.precioVenta}</td>
+                        <td style={{ padding: '12px 8px', textAlign: 'center' }}>
+                          <button
+                            onClick={() => solicitarProducto(p)}
+                            disabled={isProcessing}
+                            className={surtidoSolicitado ? 'radar-active' : ''}
+                            style={{
+                              padding: '6px 12px',
+                              borderRadius: '8px',
+                              fontSize: '11px',
+                              fontWeight: 'bold',
+                              border: surtidoSolicitado ? '1px solid #ef4444' : '1px solid var(--border)',
+                              background: surtidoSolicitado ? '#ef4444' : 'var(--bg-elevated)',
+                              color: surtidoSolicitado ? '#fff' : 'var(--text-secondary)',
+                              cursor: isProcessing ? 'not-allowed' : 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              transition: 'all 0.2s',
+                              opacity: isProcessing ? 0.6 : 1
+                            }}
+                          >
+                            <i className={isProcessing ? "ri-loader-4-line ri-spin" : (surtidoSolicitado ? "ri-broadcast-line" : "ri-signal-tower-line")} style={{ fontSize: 13 }} />
+                            {isProcessing ? 'Procesando...' : (surtidoSolicitado ? 'Solicitado' : 'Solicitar')}
+                          </button>
+                        </td>
                       </tr>
                     );
                   })}
                   {productosFiltrados.length === 0 && (
                     <tr>
-                      <td colSpan="5" style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '24px 0' }}>
+                      <td colSpan="6" style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '24px 0' }}>
                         No se encontraron productos en esta categoría.
                       </td>
                     </tr>
