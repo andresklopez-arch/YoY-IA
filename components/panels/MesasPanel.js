@@ -1899,6 +1899,11 @@ export default function MesasPanel({ showToast }) {
 
   const [filtro, setFiltro] = useState('todas');
   const animacionesActivas = true;
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('yoy_billar_animaciones_activas');
+    }
+  }, []);
   const [modalAbrir, setModalAbrir] = useState(null);
   const [modalCerrar, setModalCerrar] = useState(null);
   const [modalNuevaMesa, setModalNuevaMesa] = useState(false);
@@ -5442,7 +5447,7 @@ export default function MesasPanel({ showToast }) {
               <div className="mesa-actions" onClick={e => e.stopPropagation()}>
                 {mesa.estado === 'libre' && (
                   <div style={{ display: 'flex', gap: 6, width: '100%' }}>
-                    <button className="btn btn-success btn-sm" style={{ flex: 1 }} onClick={() => abrirMesa(mesa)}>
+                    <button className="btn btn-success btn-sm btn-pulse-success" style={{ flex: 1 }} onClick={() => abrirMesa(mesa)}>
                       <i className="ri-play-fill" /> Abrir
                     </button>
                     <button 
@@ -5457,7 +5462,7 @@ export default function MesasPanel({ showToast }) {
                 )}
                 {mesa.estado === 'ocupada' && (
                   <>
-                    <button className="btn btn-primary btn-sm" style={{ flex: 2 }} onClick={() => setModalCerrar(mesa)}>
+                    <button className="btn btn-primary btn-sm btn-pulse-bronze" style={{ flex: 2 }} onClick={() => setModalCerrar(mesa)}>
                       <i className="ri-stop-fill" /> Cerrar
                     </button>
                     <button
@@ -5479,7 +5484,7 @@ export default function MesasPanel({ showToast }) {
                 )}
                 {mesa.estado === 'reservada' && (
                   <button 
-                    className="btn btn-sm" 
+                    className="btn btn-sm btn-pulse-white" 
                     style={{ flex: 1, background: '#ffffff', color: '#0d0d0f', fontWeight: 600, boxShadow: '0 0 15px rgba(255, 255, 255, 0.3)' }} 
                     onClick={() => abrirMesa(mesa)}
                   >

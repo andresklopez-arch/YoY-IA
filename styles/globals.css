@@ -1432,4 +1432,40 @@ body.modal-open .topbar {
   }
 }
 
+/* ── ANIMACIONES DE PULSO DE BRILLO PARA BOTONES EN TARJETAS ── */
+.btn-pulse-success {
+  animation: btnPulseSuccess 2.5s infinite ease-in-out;
+}
+.btn-pulse-bronze {
+  animation: btnPulseBronze 2.5s infinite ease-in-out;
+}
+.btn-pulse-white {
+  animation: btnPulseWhite 2.5s infinite ease-in-out;
+}
+
+@keyframes btnPulseSuccess {
+  0%, 100% {
+    box-shadow: 0 0 8px rgba(34, 197, 94, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 16px rgba(34, 197, 94, 0.55);
+  }
+}
+@keyframes btnPulseBronze {
+  0%, 100% {
+    box-shadow: 0 0 8px rgba(205, 127, 50, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 16px rgba(205, 127, 50, 0.55);
+  }
+}
+@keyframes btnPulseWhite {
+  0%, 100% {
+    box-shadow: 0 0 8px rgba(255, 255, 255, 0.15);
+  }
+  50% {
+    box-shadow: 0 0 16px rgba(255, 255, 255, 0.45);
+  }
+}
+
 
