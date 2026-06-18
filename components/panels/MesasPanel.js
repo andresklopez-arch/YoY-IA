@@ -129,11 +129,14 @@ const CATEGORIAS_GASTO = [
   { id: 'otro',       label: 'Otro / Personalizado',  icon: '➕', color: '#6b7280' },
 ];
 
-function formatTime(ms) {
-  if (!ms) return '00:00:00';
+function formatTime(ms, omitSeconds = false) {
+  if (!ms) return omitSeconds ? '00:00' : '00:00:00';
   const s = Math.floor(ms / 1000);
   const h = Math.floor(s / 3600).toString().padStart(2, '0');
   const m = Math.floor((s % 3600) / 60).toString().padStart(2, '0');
+  if (omitSeconds) {
+    return `${h}:${m}`;
+  }
   const sc = (s % 60).toString().padStart(2, '0');
   return `${h}:${m}:${sc}`;
 }
@@ -5063,7 +5066,35 @@ export default function MesasPanel({ showToast }) {
 
                 {mesa.estado === 'ocupada' && (
                   <>
-                    <div className="mesa-timer">{formatTime(elapsed)}</div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '4px 0 2px' }}>
+                      <div className="mesa-timer" style={{ margin: 0, fontSize: 19 }}>{formatTime(elapsed, true)}</div>
+                      <div style={{ display: 'flex', gap: 4 }} onClick={e => e.stopPropagation()}>
+                        <button 
+                          className="btn btn-danger btn-sm" 
+                          style={{ padding: '2px 6px', fontSize: 10, height: 22, display: 'flex', alignItems: 'center', gap: 2 }} 
+                          onClick={() => setModalCerrar(mesa)}
+                          title="Cerrar Mesa"
+                        >
+                          <i className="ri-stop-fill" /> Cerrar
+                        </button>
+                        <button
+                          className="btn btn-secondary btn-sm btn-icon"
+                          title="Cambiar de Mesa"
+                          onClick={() => setModalCambiarMesa(mesa)}
+                          style={{ color: 'var(--bronze-light)', width: 22, height: 22, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        >
+                          <i className="ri-swap-line" style={{ fontSize: 11 }} />
+                        </button>
+                        <button
+                          className="btn btn-secondary btn-sm btn-icon"
+                          title="Vincular Cuenta / Agregar Cliente"
+                          onClick={() => setModalVincular(mesa)}
+                          style={{ width: 22, height: 22, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        >
+                          <i className="ri-user-add-line" style={{ fontSize: 11 }} />
+                        </button>
+                      </div>
+                    </div>
                     <div className="mesa-client">
                       <i className="ri-user-line" style={{ fontSize: 10, marginRight: 4 }} />
                       {mesa.cliente}
@@ -5349,50 +5380,28 @@ export default function MesasPanel({ showToast }) {
                   </div>
                 )}
 
-              <div className="mesa-actions" onClick={e => e.stopPropagation()}>
-                {mesa.estado === 'libre' && (
-                  <div style={{ display: 'flex', gap: 6, width: '100%' }}>
-                    <button className="btn btn-success btn-sm" style={{ flex: 1 }} onClick={() => abrirMesa(mesa)}>
-                      <i className="ri-play-fill" /> Abrir
+              {mesa.estado !== 'ocupada' && (
+                <div className="mesa-actions" onClick={e => e.stopPropagation()}>
+                  {mesa.estado === 'libre' && (
+                    <div style={{ display: 'flex', gap: 6, width: '100%' }}>
+                      <button className="btn btn-success btn-sm" style={{ flex: 1 }} onClick={() => abrirMesa(mesa)}>
+                        <i className="ri-play-fill" /> Abrir
+                      </button>
+                      <button 
+                        className="btn btn-secondary btn-sm btn-icon" 
+                        title="Avisar Cliente (Mesa Disponible)" 
+                        onClick={() => setModalAvisar(mesa)}
+                        style={{ color: 'var(--bronze-light)' }}
+                      >
+                        <i className="ri-notification-3-line" />
+                      </button>
+                    </div>
+                  )}
+                  {mesa.estado === 'reservada' && (
+                    <button className="btn btn-primary btn-sm" style={{ flex: 1 }} onClick={() => abrirMesa(mesa)}>
+                      <i className="ri-play-fill" /> Activar
                     </button>
-                    <button 
-                      className="btn btn-secondary btn-sm btn-icon" 
-                      title="Avisar Cliente (Mesa Disponible)" 
-                      onClick={() => setModalAvisar(mesa)}
-                      style={{ color: 'var(--bronze-light)' }}
-                    >
-                      <i className="ri-notification-3-line" />
-                    </button>
-                  </div>
-                )}
-                {mesa.estado === 'ocupada' && (
-                  <>
-                    <button className="btn btn-danger btn-sm" style={{ flex: 2 }} onClick={() => setModalCerrar(mesa)}>
-                      <i className="ri-stop-fill" /> Cerrar
-                    </button>
-                    <button
-                      className="btn btn-secondary btn-sm btn-icon"
-                      title="Cambiar de Mesa"
-                      onClick={() => setModalCambiarMesa(mesa)}
-                      style={{ color: 'var(--bronze-light)' }}
-                    >
-                      <i className="ri-swap-line" />
-                    </button>
-                    <button
-                      className="btn btn-secondary btn-sm btn-icon"
-                      title="Vincular Cuenta / Agregar Cliente"
-                      onClick={() => setModalVincular(mesa)}
-                    >
-                      <i className="ri-user-add-line" />
-                    </button>
-                  </>
-                )}
-                {mesa.estado === 'reservada' && (
-                  <button className="btn btn-primary btn-sm" style={{ flex: 1 }} onClick={() => abrirMesa(mesa)}>
-                    <i className="ri-play-fill" /> Activar
-                  </button>
-                )}
-                {mesa.estado !== 'ocupada' && (
+                  )}
                   <button
                     className="btn btn-secondary btn-sm btn-icon"
                     title="Ver QR de Mesa"
@@ -5407,8 +5416,8 @@ export default function MesasPanel({ showToast }) {
                   >
                     <i className="ri-qr-code-line" />
                   </button>
-                )}
-              </div>
+                </div>
+              )}
 
               {/* Barra inteligente de cambio de estado rápido */}
               <div style={{
