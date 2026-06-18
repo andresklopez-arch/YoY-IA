@@ -147,7 +147,20 @@ export async function POST(request) {
           const hasCustom = tgData.mode === 'custom' && tgData.botToken && tgData.chatId;
 
           if (tgData.enabled && (isSimplified || hasCustom)) {
-            const messageText = `⚠️ *Alerta de Fichaje Inusual*\n\n` +
+            // Obtener nombre de sucursal
+            let branchName = 'Sucursal';
+            try {
+              const sucRef = doc(db, 'config', 'sucursal');
+              const sucSnap = await getDoc(sucRef);
+              if (sucSnap.exists() && sucSnap.data().nombre) {
+                branchName = sucSnap.data().nombre;
+              }
+            } catch (err) {
+              console.error("Error al cargar nombre de sucursal en verify-attendance:", err);
+            }
+
+            const messageText = `🏢 *[${branchName}]*\n\n` +
+                                `⚠️ *Alerta de Fichaje Inusual*\n\n` +
                                 `👤 *Empleado:* ${emp.nombre} ${emp.apellido || ''}\n` +
                                 `🏷️ *Rol:* ${emp.rol || 'Mesero'}\n` +
                                 `📥 *Evento:* ${tipoRegistro === 'entrada' ? 'ENTRADA' : 'SALIDA'}\n` +
@@ -155,20 +168,51 @@ export async function POST(request) {
                                 `🔄 *Celular Habitual:* \`${mostFrequentPhone}\`\n` +
                                 `📅 *Fecha/Hora:* ${new Date().toLocaleString('es-MX', { timeZone: 'America/Mexico_City' })}`;
             
-            const botToken = isSimplified 
-              ? (process.env.TELEGRAM_OFFICIAL_BOT_TOKEN || '7438459438:AAElh_L0K0kHDF9sd832jklsd-Central') 
-              : tgData.botToken;
-
-            const telegramUrl = `https://api.telegram.org/bot${botToken}/sendMessage`;
-            await fetch(telegramUrl, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                chat_id: tgData.chatId,
-                text: messageText,
-                parse_mode: 'Markdown'
-              })
-            });
+            const officialBotToken = process.env.TELEGRAM_OFFICIAL_BOT_TOKEN;
+            if (isSimplified) {
+              if (officialBotToken) {
+                // Servidor central: resolver y enviar directamente
+                const cleanPhone = (tgData.phone || '').replace(/\D/g, '');
+                if (cleanPhone) {
+                  const vincRef = doc(db, 'telegram_vinculaciones', cleanPhone);
+                  const vincSnap = await getDoc(vincRef);
+                  if (vincSnap.exists()) {
+                    const resolvedChatId = vincSnap.data().chatId;
+                    await fetch(`https://api.telegram.org/bot${officialBotToken}/sendMessage`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        chat_id: resolvedChatId,
+                        text: messageText,
+                        parse_mode: 'Markdown'
+                      })
+                    });
+                  }
+                }
+              } else {
+                // Instancia clonada: reenviar a servidor central para resolución remota
+                await fetch('https://yoy-ia-billar.vercel.app/api/telegram/send-alert', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    mode: 'central-resolve',
+                    phone: tgData.phone,
+                    text: messageText
+                  })
+                });
+              }
+            } else if (hasCustom) {
+              // Bot personalizado
+              await fetch(`https://api.telegram.org/bot${tgData.botToken}/sendMessage`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  chat_id: tgData.chatId,
+                  text: messageText,
+                  parse_mode: 'Markdown'
+                })
+              });
+            }
           }
         }
       }

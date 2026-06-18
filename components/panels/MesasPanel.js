@@ -2085,6 +2085,9 @@ export default function MesasPanel({ showToast }) {
             (gastoData.notas ? `*Notas:* ${gastoData.notas}\n` : '') +
             `*Registrado por:* Caja / POS`;
 
+          const sucSnap = await getDoc(doc(db, 'config', 'sucursal'));
+          const sucursalName = sucSnap.exists() ? (sucSnap.data().nombre || 'Sucursal') : 'Sucursal';
+
           await fetch('/api/telegram/send-alert', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -2092,6 +2095,8 @@ export default function MesasPanel({ showToast }) {
               mode: tgData.mode || 'simplified',
               token: tgData.botToken,
               chatId: tgData.chatId,
+              phone: tgData.phone || '',
+              sucursalName: sucursalName,
               text: text
             })
           });

@@ -5,7 +5,25 @@ import { doc, getDoc } from 'firebase/firestore';
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { token, chatId, phone, text, mode } = body;
+    let { token, chatId, phone, text, mode, sucursalName } = body;
+
+    // Obtener nombre de sucursal si no viene en el body
+    if (!sucursalName) {
+      try {
+        const sucRef = doc(db, 'config', 'sucursal');
+        const sucSnap = await getDoc(sucRef);
+        if (sucSnap.exists() && sucSnap.data().nombre) {
+          sucursalName = sucSnap.data().nombre;
+        }
+      } catch (err) {
+        console.error("Error al obtener sucursalName en send-alert:", err);
+      }
+    }
+
+    // Prepend sucursal name multitenant prefix
+    if (sucursalName && text && !text.startsWith('🏢')) {
+      text = `🏢 *[${sucursalName}]*\n\n${text}`;
+    }
 
     let targetToken = token;
     let targetChatId = chatId;
