@@ -110,11 +110,11 @@ const INIT_MESAS = [
 ];
 
 const ESTADO_CONFIG = {
-  libre:     { label: 'Libre',     color: 'var(--mesa-libre)',     icon: 'ri-checkbox-blank-circle-line' },
-  ocupada:   { label: 'Ocupada',   color: 'var(--mesa-ocupada)',   icon: 'ri-record-circle-line' },
-  reservada: { label: 'Reservada', color: 'var(--mesa-reservada)', icon: 'ri-bookmark-fill' },
-  manten:    { label: 'Mantenimiento', color: 'var(--mesa-manten)', icon: 'ri-tools-line' },
-  fuera:     { label: 'Fuera de Servicio', color: '#ef4444', icon: 'ri-close-circle-line' },
+  libre:     { label: 'Libre',     color: 'var(--bronze-light)',   icon: 'ri-checkbox-blank-circle-line' },
+  ocupada:   { label: 'Ocupada',   color: 'var(--bronze-light)',   icon: 'ri-record-circle-line' },
+  reservada: { label: 'Reservada', color: '#ffffff',               icon: 'ri-bookmark-fill' },
+  manten:    { label: 'Mantenimiento', color: '#ef4444',            icon: 'ri-tools-line' },
+  fuera:     { label: 'Fuera de Servicio', color: '#ef4444',       icon: 'ri-close-circle-line' },
 };
 
 const CATEGORIAS_GASTO = [
@@ -4832,28 +4832,28 @@ export default function MesasPanel({ showToast }) {
               height: 28,
               border: 'none',
               borderRight: '1px solid var(--border-bronze)',
-              background: filtro === 'libre' ? 'rgba(34, 197, 94, 0.15)' : 'rgba(34, 197, 94, 0.02)',
-              color: 'var(--success)',
+              background: filtro === 'libre' ? 'rgba(227, 168, 105, 0.15)' : 'rgba(227, 168, 105, 0.02)',
+              color: 'var(--bronze-light)',
               cursor: 'pointer',
               transition: 'all 0.15s',
               whiteSpace: 'nowrap',
-              boxShadow: filtro === 'libre' ? 'inset 0 -3px 0 var(--success), 0 0 8px rgba(34, 197, 94, 0.2)' : 'none'
+              boxShadow: filtro === 'libre' ? 'inset 0 -3px 0 var(--bronze-light), 0 0 8px rgba(227, 168, 105, 0.2)' : 'none'
             }}
             onMouseEnter={e => {
-              if (filtro !== 'libre') e.currentTarget.style.background = 'rgba(34, 197, 94, 0.08)';
+              if (filtro !== 'libre') e.currentTarget.style.background = 'rgba(227, 168, 105, 0.08)';
             }}
             onMouseLeave={e => {
-              if (filtro !== 'libre') e.currentTarget.style.background = 'rgba(34, 197, 94, 0.02)';
+              if (filtro !== 'libre') e.currentTarget.style.background = 'rgba(227, 168, 105, 0.02)';
             }}
           >
             <i className="ri-checkbox-blank-circle-line" style={{ 
-              color: 'var(--success)', 
+              color: 'var(--bronze-light)', 
               fontSize: 11,
               transform: filtro === 'libre' ? 'scale(1.2)' : 'scale(1)',
               display: 'inline-block',
               transition: 'transform 0.2s ease'
             }} />
-            <span style={{ color: 'var(--text-secondary)' }}>LIBRES: <strong style={{ color: 'var(--success)' }}>{totales.libres}</strong></span>
+            <span style={{ color: 'var(--text-secondary)' }}>LIBRES: <strong style={{ color: 'var(--bronze-light)' }}>{totales.libres}</strong></span>
           </button>
 
           {/* Ocupadas */}
@@ -4871,28 +4871,28 @@ export default function MesasPanel({ showToast }) {
               height: 28,
               border: 'none',
               borderRight: '1px solid var(--border-bronze)',
-              background: filtro === 'ocupada' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(239, 68, 68, 0.02)',
-              color: 'var(--danger)',
+              background: filtro === 'ocupada' ? 'rgba(227, 168, 105, 0.15)' : 'rgba(227, 168, 105, 0.02)',
+              color: 'var(--bronze-light)',
               cursor: 'pointer',
               transition: 'all 0.15s',
               whiteSpace: 'nowrap',
-              boxShadow: filtro === 'ocupada' ? 'inset 0 -3px 0 var(--danger), 0 0 8px rgba(239, 68, 68, 0.2)' : 'none'
+              boxShadow: filtro === 'ocupada' ? 'inset 0 -3px 0 var(--bronze-light), 0 0 8px rgba(227, 168, 105, 0.2)' : 'none'
             }}
             onMouseEnter={e => {
-              if (filtro !== 'ocupada') e.currentTarget.style.background = 'rgba(239, 68, 68, 0.08)';
+              if (filtro !== 'ocupada') e.currentTarget.style.background = 'rgba(227, 168, 105, 0.08)';
             }}
             onMouseLeave={e => {
-              if (filtro !== 'ocupada') e.currentTarget.style.background = 'rgba(239, 68, 68, 0.02)';
+              if (filtro !== 'ocupada') e.currentTarget.style.background = 'rgba(227, 168, 105, 0.02)';
             }}
           >
             <i className="ri-record-circle-line" style={{ 
-              color: 'var(--danger)', 
+              color: 'var(--bronze-light)', 
               fontSize: 11,
               transform: filtro === 'ocupada' ? 'scale(1.2)' : 'scale(1)',
               display: 'inline-block',
               transition: 'transform 0.2s ease'
             }} />
-            <span style={{ color: 'var(--text-secondary)' }}>OCUPADAS: <strong style={{ color: 'var(--danger)' }}>{totales.ocupadas}</strong></span>
+            <span style={{ color: 'var(--text-secondary)' }}>OCUPADAS: <strong style={{ color: 'var(--bronze-light)' }}>{totales.ocupadas}</strong></span>
           </button>
 
           {/* Reservadas */}
@@ -4909,28 +4909,28 @@ export default function MesasPanel({ showToast }) {
               gap: 6,
               height: 28,
               borderRight: '1px solid var(--border-bronze)',
-              background: filtro === 'reservada' ? 'rgba(227, 168, 105, 0.15)' : 'rgba(227, 168, 105, 0.02)',
-              color: 'var(--bronze-light)',
+              background: filtro === 'reservada' ? 'rgba(255, 255, 255, 0.15)' : 'rgba(255, 255, 255, 0.02)',
+              color: '#ffffff',
               cursor: 'pointer',
               transition: 'all 0.15s',
               whiteSpace: 'nowrap',
-              boxShadow: filtro === 'reservada' ? 'inset 0 -3px 0 var(--bronze-light), 0 0 8px rgba(227, 168, 105, 0.2)' : 'none'
+              boxShadow: filtro === 'reservada' ? 'inset 0 -3px 0 #ffffff, 0 0 8px rgba(255, 255, 255, 0.2)' : 'none'
             }}
             onMouseEnter={e => {
-              if (filtro !== 'reservada') e.currentTarget.style.background = 'rgba(227, 168, 105, 0.08)';
+              if (filtro !== 'reservada') e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
             }}
             onMouseLeave={e => {
-              if (filtro !== 'reservada') e.currentTarget.style.background = 'rgba(227, 168, 105, 0.02)';
+              if (filtro !== 'reservada') e.currentTarget.style.background = 'rgba(255, 255, 255, 0.02)';
             }}
           >
             <i className="ri-bookmark-fill" style={{ 
-              color: 'var(--bronze-light)', 
+              color: '#ffffff', 
               fontSize: 11,
               transform: filtro === 'reservada' ? 'scale(1.2)' : 'scale(1)',
               display: 'inline-block',
               transition: 'transform 0.2s ease'
             }} />
-            <span style={{ color: 'var(--text-secondary)', marginRight: 6 }}>RESERVADAS: <strong style={{ color: 'var(--bronze-light)' }}>{totales.reservadas}</strong></span>
+            <span style={{ color: 'var(--text-secondary)', marginRight: 6 }}>RESERVADAS: <strong style={{ color: '#ffffff' }}>{totales.reservadas}</strong></span>
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -4938,8 +4938,8 @@ export default function MesasPanel({ showToast }) {
               }}
               style={{
                 background: 'rgba(255,255,255,0.05)',
-                border: '1px solid rgba(227, 168, 105, 0.3)',
-                color: 'var(--bronze-light)',
+                border: '1px solid rgba(255, 255, 255, 0.3)',
+                color: '#ffffff',
                 borderRadius: 4,
                 padding: '1px 5px',
                 fontSize: 8,
@@ -4951,12 +4951,12 @@ export default function MesasPanel({ showToast }) {
                 justifyContent: 'center',
               }}
               onMouseEnter={e => {
-                e.currentTarget.style.background = 'var(--bronze-light)';
+                e.currentTarget.style.background = '#ffffff';
                 e.currentTarget.style.color = '#000';
               }}
               onMouseLeave={e => {
                 e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
-                e.currentTarget.style.color = 'var(--bronze-light)';
+                e.currentTarget.style.color = '#ffffff';
               }}
               title="Administrar Reservas"
             >
@@ -4978,28 +4978,28 @@ export default function MesasPanel({ showToast }) {
               gap: 6,
               height: 28,
               border: 'none',
-              background: filtro === 'manten' ? 'rgba(176, 184, 200, 0.18)' : 'rgba(176, 184, 200, 0.02)',
-              color: 'var(--text-muted)',
+              background: filtro === 'manten' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(239, 68, 68, 0.02)',
+              color: '#ef4444',
               cursor: 'pointer',
               transition: 'all 0.15s',
               whiteSpace: 'nowrap',
-              boxShadow: filtro === 'manten' ? 'inset 0 -3px 0 var(--text-muted), 0 0 8px rgba(176, 184, 200, 0.2)' : 'none'
+              boxShadow: filtro === 'manten' ? 'inset 0 -3px 0 #ef4444, 0 0 8px rgba(239, 68, 68, 0.2)' : 'none'
             }}
             onMouseEnter={e => {
-              if (filtro !== 'manten') e.currentTarget.style.background = 'rgba(176, 184, 200, 0.08)';
+              if (filtro !== 'manten') e.currentTarget.style.background = 'rgba(239, 68, 68, 0.08)';
             }}
             onMouseLeave={e => {
-              if (filtro !== 'manten') e.currentTarget.style.background = 'rgba(176, 184, 200, 0.02)';
+              if (filtro !== 'manten') e.currentTarget.style.background = 'rgba(239, 68, 68, 0.02)';
             }}
           >
             <i className="ri-tools-line" style={{ 
-              color: 'var(--text-muted)', 
+              color: '#ef4444', 
               fontSize: 11,
               transform: filtro === 'manten' ? 'scale(1.2)' : 'scale(1)',
               display: 'inline-block',
               transition: 'transform 0.2s ease'
             }} />
-            <span style={{ color: 'var(--text-secondary)' }}>MANTENIMIENTO: <strong style={{ color: 'var(--text-muted)' }}>{totales.manten}</strong></span>
+            <span style={{ color: 'var(--text-secondary)' }}>MANTENIMIENTO: <strong style={{ color: '#ef4444' }}>{totales.manten}</strong></span>
           </button>
         </div>
 
@@ -5467,7 +5467,7 @@ export default function MesasPanel({ showToast }) {
               <div className="mesa-actions" onClick={e => e.stopPropagation()}>
                 {mesa.estado === 'libre' && (
                   <div style={{ display: 'flex', gap: 6, width: '100%' }}>
-                    <button className="btn btn-success btn-sm" style={{ flex: 1 }} onClick={() => abrirMesa(mesa)}>
+                    <button className="btn btn-primary btn-sm" style={{ flex: 1 }} onClick={() => abrirMesa(mesa)}>
                       <i className="ri-play-fill" /> Abrir
                     </button>
                     <button 
@@ -5482,7 +5482,7 @@ export default function MesasPanel({ showToast }) {
                 )}
                 {mesa.estado === 'ocupada' && (
                   <>
-                    <button className="btn btn-danger btn-sm" style={{ flex: 2 }} onClick={() => setModalCerrar(mesa)}>
+                    <button className="btn btn-primary btn-sm" style={{ flex: 2 }} onClick={() => setModalCerrar(mesa)}>
                       <i className="ri-stop-fill" /> Cerrar
                     </button>
                     <button
@@ -5503,7 +5503,11 @@ export default function MesasPanel({ showToast }) {
                   </>
                 )}
                 {mesa.estado === 'reservada' && (
-                  <button className="btn btn-primary btn-sm" style={{ flex: 1 }} onClick={() => abrirMesa(mesa)}>
+                  <button 
+                    className="btn btn-sm" 
+                    style={{ flex: 1, background: '#ffffff', color: '#0d0d0f', fontWeight: 600, boxShadow: '0 0 15px rgba(255, 255, 255, 0.3)' }} 
+                    onClick={() => abrirMesa(mesa)}
+                  >
                     <i className="ri-play-fill" /> Activar
                   </button>
                 )}
@@ -5538,9 +5542,9 @@ export default function MesasPanel({ showToast }) {
                 <span style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Estado:</span>
                 <div style={{ display: 'flex', gap: 4 }}>
                   {[
-                    { estado: 'libre', icon: 'ri-checkbox-blank-circle-line', color: 'var(--mesa-libre)', title: 'Disponible' },
-                    { estado: 'reservada', icon: 'ri-bookmark-fill', color: 'var(--mesa-reservada)', title: 'Reservar' },
-                    { estado: 'manten', icon: 'ri-tools-line', color: 'var(--mesa-manten)', title: 'Mantenimiento' },
+                    { estado: 'libre', icon: 'ri-checkbox-blank-circle-line', color: 'var(--bronze-light)', title: 'Disponible' },
+                    { estado: 'reservada', icon: 'ri-bookmark-fill', color: '#ffffff', title: 'Reservar' },
+                    { estado: 'manten', icon: 'ri-tools-line', color: '#ef4444', title: 'Mantenimiento' },
                     { estado: 'fuera', icon: 'ri-close-circle-line', color: '#ef4444', title: 'Fuera de Servicio' }
                   ].map(item => {
                     const isActive = mesa.estado === item.estado;
