@@ -1898,6 +1898,7 @@ export default function MesasPanel({ showToast }) {
   };
 
   const [filtro, setFiltro] = useState('todas');
+  const [ordenamiento, setOrdenamiento] = useState('numero'); // numero | carambola_primero | pool_primero | snooker_primero
   const animacionesActivas = true;
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -3487,7 +3488,32 @@ export default function MesasPanel({ showToast }) {
     manten:    mesas.filter(m => m.estado === 'manten').length,
   };
 
-  const mesasFiltradas = filtro === 'todas' ? mesas : mesas.filter(m => m.estado === filtro);
+  const getOrderedMesas = () => {
+    const base = filtro === 'todas' ? mesas : mesas.filter(m => m.estado === filtro);
+    if (ordenamiento === 'numero') {
+      return [...base].sort((a, b) => Number(a.id) - Number(b.id));
+    }
+    return [...base].sort((a, b) => {
+      const getSortPriority = (tipo, ord) => {
+        const t = (tipo || '').toLowerCase();
+        if (ord === 'carambola_primero') {
+          return t.includes('carambola') ? 0 : t.includes('pool') ? 1 : t.includes('snooker') ? 2 : 3;
+        }
+        if (ord === 'pool_primero') {
+          return t.includes('pool') ? 0 : t.includes('carambola') ? 1 : t.includes('snooker') ? 2 : 3;
+        }
+        if (ord === 'snooker_primero') {
+          return t.includes('snooker') ? 0 : t.includes('pool') ? 1 : t.includes('carambola') ? 2 : 3;
+        }
+        return 0;
+      };
+      const pA = getSortPriority(a.tipo, ordenamiento);
+      const pB = getSortPriority(b.tipo, ordenamiento);
+      if (pA !== pB) return pA - pB;
+      return Number(a.id) - Number(b.id);
+    });
+  };
+  const mesasFiltradas = getOrderedMesas();
 
   const abrirMesa = (mesa) => {
     if (mesa.estado === 'ocupada') { setModalCerrar(mesa); return; }
@@ -4996,6 +5022,42 @@ export default function MesasPanel({ showToast }) {
             }} />
             <span style={{ color: 'var(--text-secondary)' }}>MANTENIMIENTO: <strong style={{ color: '#ef4444' }}>{totales.manten}</strong></span>
           </button>
+        </div>
+
+        {/* Acomodo / Ordenar */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          background: 'var(--bg-elevated)',
+          border: '1px solid var(--border-bronze)',
+          borderRadius: 8,
+          padding: '0 10px',
+          height: 28,
+          boxShadow: 'var(--shadow-sm)'
+        }}>
+          <i className="ri-sort-asc" style={{ color: 'var(--bronze-light)', fontSize: 13 }} />
+          <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Acomodo:</span>
+          <select
+            value={ordenamiento}
+            onChange={e => setOrdenamiento(e.target.value)}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: 'var(--bronze-light)',
+              fontSize: 10,
+              fontWeight: 700,
+              outline: 'none',
+              cursor: 'pointer',
+              padding: '0 4px',
+              fontFamily: 'var(--font-main)'
+            }}
+          >
+            <option value="numero" style={{ background: '#141418', color: '#f0f0f4' }}>🔢 Núm. Mesa</option>
+            <option value="carambola_primero" style={{ background: '#141418', color: '#f0f0f4' }}>🏆 Carambola primero</option>
+            <option value="pool_primero" style={{ background: '#141418', color: '#f0f0f4' }}>🎱 Pool primero</option>
+            <option value="snooker_primero" style={{ background: '#141418', color: '#f0f0f4' }}>🟢 Snooker primero</option>
+          </select>
         </div>
 
         {/* Separador vertical */}
