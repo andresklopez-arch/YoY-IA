@@ -5101,9 +5101,8 @@ export default function MesasPanel({ showToast }) {
           const isAssignedToQueue = mesa.estado === 'libre' && assignedFila.some(f => f.mesaAsignada && f.mesaAsignada.toLowerCase() === mesaNombreStr.toLowerCase());
 
           const dynamicStyle = hasAlert ? {
-            boxShadow: '0 0 16px rgba(239, 68, 68, 0.3)',
-            border: '1px solid rgba(239, 68, 68, 0.4)',
-            animation: 'pulseBorder 2.5s infinite ease-in-out'
+            boxShadow: '0 0 12px rgba(245, 158, 11, 0.25)',
+            border: '1.5px solid rgba(245, 158, 11, 0.5)'
           } : isPorCobrar ? {
             border: '1.5px dashed #f59e0b',
             boxShadow: '0 0 12px rgba(245, 158, 11, 0.15)',
