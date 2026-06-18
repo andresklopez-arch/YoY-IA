@@ -1375,3 +1375,14 @@ body.modal-open .topbar {
   padding-right: calc(24px + var(--scrollbar-width, 0px)) !important;
 }
 
+/* ── ANIMACIÓN DESLIZABLE PARA NOTIFICACIONES DRAWER ── */
+@keyframes slideLeft {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+

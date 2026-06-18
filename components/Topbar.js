@@ -562,7 +562,7 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
     ...stockAlerts
   ];
 
-  const allNotifications = rawNotifications.filter(n => !dismissedAlerts.includes(n.id));
+  const allNotifications = rawNotifications.filter(n => Array.isArray(dismissedAlerts) && !dismissedAlerts.includes(n.id));
 
   return (
     <header className="topbar">
@@ -896,7 +896,7 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
       {/* PANEL LATERAL DE NOTIFICACIONES (DRAWER DESLIZABLE) */}
       {showNotificationDrawer && (
         <div style={{
-          position: 'fixed', top: 0, right: 0, bottom: 0, width: 330,
+          position: 'fixed', top: 0, right: 0, bottom: 0, height: '100vh', width: 330,
           background: 'rgba(20, 20, 25, 0.98)', borderLeft: '1px solid var(--border-bronze)',
           zIndex: 2000, boxShadow: '-5px 0 25px rgba(0,0,0,0.85)',
           display: 'flex', flexDirection: 'column',
@@ -915,7 +915,7 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
             </button>
           </div>
           
-          <div style={{ flex: 1, overflowY: 'auto', padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ flex: '1 1 auto', overflowY: 'auto', padding: 12, display: 'flex', flexDirection: 'column', gap: 10, minHeight: 0 }}>
             {allNotifications.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '60px 10px', color: 'var(--text-muted)', fontSize: 12 }}>
                 <i className="ri-checkbox-circle-line" style={{ fontSize: 36, display: 'block', marginBottom: 10, color: 'var(--success)' }} />
