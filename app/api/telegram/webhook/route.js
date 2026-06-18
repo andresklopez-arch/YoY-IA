@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/firebase';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 
 function ipToLong(ip) {
   const parts = ip.split('.').map(Number);
@@ -48,6 +48,25 @@ export async function POST(request) {
     const text = message.text;
     const contact = message.contact;
 
+    // Sugerencia 1: Rate Limiter en Firestore
+    if (chatId) {
+      try {
+        const now = Date.now();
+        const limitRef = doc(db, 'telegram_rate_limit', chatId.toString());
+        const limitSnap = await getDoc(limitRef);
+        if (limitSnap.exists()) {
+          const lastTime = limitSnap.data().timestamp;
+          if (now - lastTime < 1000) { // Máximo 1 petición por segundo
+            console.warn(`[Webhook Telegram Rate Limit] Silenciando petición para chatId: ${chatId}`);
+            return NextResponse.json({ ok: true });
+          }
+        }
+        await setDoc(limitRef, { timestamp: now });
+      } catch (errLim) {
+        console.error("Error en rate limiter:", errLim);
+      }
+    }
+
     const botToken = process.env.TELEGRAM_OFFICIAL_BOT_TOKEN || '7438459438:AAElh_L0K0kHDF9sd832jklsd-Central';
 
     // 1. Manejar el comando de Inicio /start
@@ -91,7 +110,8 @@ export async function POST(request) {
                        `• 📦 *Alertas de Stock:* Insumos bajos.\n\n` +
                        `*Comandos disponibles:*\n` +
                        `• /start - Iniciar el proceso de vinculación compartiendo tu contacto.\n` +
-                       `• /ayuda o /help - Mostrar este mensaje de ayuda.`;
+                       `• /ayuda o /help - Mostrar este mensaje de ayuda.\n` +
+                       `• /estado - Consultar el estado operativo del billar (Gerentes autorizados).`;
 
       await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
         method: 'POST',
@@ -99,6 +119,99 @@ export async function POST(request) {
         body: JSON.stringify({
           chat_id: chatId,
           text: helpText,
+          parse_mode: 'Markdown'
+        })
+      });
+
+      return NextResponse.json({ ok: true });
+    }
+
+    // 1c. Manejar comando de consulta de estado /estado
+    if (text && text.startsWith('/estado')) {
+      // Verificar vinculación en Firestore
+      const q = query(collection(db, 'telegram_vinculaciones'), where('chatId', '==', chatId.toString()));
+      const snap = await getDocs(q);
+      
+      let isAuthorized = false;
+      let userPhone = '';
+      if (!snap.empty) {
+        userPhone = snap.docs[0].data().phone;
+        
+        // Verificar si el teléfono coincide con el configurado como gerente en config/telegram
+        const tgRef = doc(db, 'config', 'telegram');
+        const tgSnap = await getDoc(tgRef);
+        if (tgSnap.exists()) {
+          const tgData = tgSnap.data();
+          const cleanManagerPhone = (tgData.phone || '').replace(/\D/g, '');
+          const cleanUserPhone = userPhone.replace(/\D/g, '');
+          if (cleanManagerPhone === cleanUserPhone || chatId.toString() === tgData.chatId?.toString()) {
+            isAuthorized = true;
+          }
+        }
+      }
+
+      if (!isAuthorized) {
+        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: chatId,
+            text: `❌ *Acceso Denegado*\n\nEste chat de Telegram o tu número de teléfono (${userPhone ? `+${userPhone}` : 'No vinculado'}) no está configurado como gerente en el panel de administración del billar.\n\nPor favor comparte tu contacto usando /start o configura tu número en la app.`,
+            parse_mode: 'Markdown'
+          })
+        });
+        return NextResponse.json({ ok: true });
+      }
+
+      // Obtener estado operativo
+      let activeTables = 0;
+      let freeTables = 0;
+      let totalTables = 0;
+      
+      const mesasSnap = await getDoc(doc(db, 'config', 'mesas_estado'));
+      if (mesasSnap.exists()) {
+        const list = mesasSnap.data().mesas || [];
+        totalTables = list.length;
+        activeTables = list.filter(m => m.estado === 'ocupada').length;
+        freeTables = list.filter(m => m.estado === 'libre').length;
+      }
+
+      const qOrders = query(
+        collection(db, 'mesa_pedidos'),
+        where('tipo', '==', 'pedido'),
+        where('estado', 'in', ['pendiente', 'listo', 'en_camino'])
+      );
+      const ordersSnap = await getDocs(qOrders);
+      const activeOrders = ordersSnap.size;
+
+      const qAlerts = query(
+        collection(db, 'mesa_pedidos'),
+        where('tipo', 'in', ['asistencia', 'cuenta']),
+        where('estado', '==', 'pendiente')
+      );
+      const alertsSnap = await getDocs(qAlerts);
+      const activeAlerts = alertsSnap.size;
+
+      // Obtener nombre de sucursal
+      let branchName = 'YoY Billar';
+      const sucSnap = await getDoc(doc(db, 'config', 'sucursal'));
+      if (sucSnap.exists() && sucSnap.data().nombre) {
+        branchName = sucSnap.data().nombre;
+      }
+
+      const statusText = `📊 *Estado Operativo - ${branchName}*\n\n` +
+                         `🎱 *Mesas Ocupadas:* ${activeTables} / ${totalTables}\n` +
+                         `🟢 *Mesas Libres:* ${freeTables}\n` +
+                         `🍔 *Comandas Activas:* ${activeOrders}\n` +
+                         `🛎️ *Asistencias/Cuentas Pendientes:* ${activeAlerts}\n\n` +
+                         `🕒 *Actualizado:* ${new Date().toLocaleString('es-MX', { timeZone: 'America/Mexico_City' })}`;
+
+      await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text: statusText,
           parse_mode: 'Markdown'
         })
       });

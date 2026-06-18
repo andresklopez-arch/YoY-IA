@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, addDoc, collection, serverTimestamp } from 'firebase/firestore';
 
 export async function POST(request) {
   try {
@@ -75,12 +75,50 @@ export async function POST(request) {
 
         const dataCentral = await resCentral.json();
         if (resCentral.ok) {
+          try {
+            await addDoc(collection(db, 'telegram_alert_logs'), {
+              phone: phone || null,
+              chatId: targetChatId || null,
+              text: text,
+              mode: mode || 'simplified',
+              status: 'sent_via_central',
+              createdAt: serverTimestamp()
+            });
+          } catch (logErr) {
+            console.error("Error al registrar bitácora de alertas (Case B):", logErr);
+          }
           return NextResponse.json({ success: true, fromCentral: true });
         } else {
+          try {
+            await addDoc(collection(db, 'telegram_alert_logs'), {
+              phone: phone || null,
+              chatId: targetChatId || null,
+              text: text,
+              mode: mode || 'simplified',
+              status: 'failed',
+              error: dataCentral.error || 'Error central',
+              createdAt: serverTimestamp()
+            });
+          } catch (logErr) {
+            console.error("Error al registrar bitácora de alertas (Case B Failed):", logErr);
+          }
           return NextResponse.json({ error: dataCentral.error || 'Error en el servidor central de SaaS' }, { status: resCentral.status });
         }
       } catch (errCentral) {
         console.error('Error al contactar al servidor central de SaaS:', errCentral);
+        try {
+          await addDoc(collection(db, 'telegram_alert_logs'), {
+            phone: phone || null,
+            chatId: targetChatId || null,
+            text: text,
+            mode: mode || 'simplified',
+            status: 'failed',
+            error: 'No se pudo conectar con el servidor central: ' + errCentral.message,
+            createdAt: serverTimestamp()
+          });
+        } catch (logErr) {
+          console.error("Error al registrar bitácora de alertas (Case B Exception):", logErr);
+        }
         return NextResponse.json({ error: 'No se pudo conectar con el servidor central de ALR SaaS: ' + errCentral.message }, { status: 502 });
       }
     }
@@ -107,13 +145,51 @@ export async function POST(request) {
     });
 
     if (res.ok) {
+      try {
+        await addDoc(collection(db, 'telegram_alert_logs'), {
+          phone: phone || null,
+          chatId: targetChatId || null,
+          text: text,
+          mode: mode || 'custom',
+          status: 'sent',
+          createdAt: serverTimestamp()
+        });
+      } catch (logErr) {
+        console.error("Error al registrar bitácora de alertas (Success):", logErr);
+      }
       return NextResponse.json({ success: true });
     } else {
       const errorData = await res.json();
+      try {
+        await addDoc(collection(db, 'telegram_alert_logs'), {
+          phone: phone || null,
+          chatId: targetChatId || null,
+          text: text,
+          mode: mode || 'custom',
+          status: 'failed',
+          error: errorData.description || 'Error de Telegram',
+          createdAt: serverTimestamp()
+        });
+      } catch (logErr) {
+        console.error("Error al registrar bitácora de alertas (Failed):", logErr);
+      }
       return NextResponse.json({ error: errorData.description || 'Error al enviar mensaje a Telegram' }, { status: res.status });
     }
   } catch (err) {
     console.error('Error en API send-alert:', err);
+    try {
+      await addDoc(collection(db, 'telegram_alert_logs'), {
+        phone: body.phone || null,
+        chatId: body.chatId || null,
+        text: body.text || '',
+        mode: body.mode || 'unknown',
+        status: 'failed',
+        error: err.message,
+        createdAt: serverTimestamp()
+      });
+    } catch (logErr) {
+      console.error("Error al registrar bitácora de alertas (Catch):", logErr);
+    }
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
