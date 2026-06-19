@@ -98,6 +98,7 @@ export default function MesaClientePage({ params }) {
     setTabRaw(newTab);
   };
   const [productos, setProductos] = useState([]);
+  const [rentaExtras, setRentaExtras] = useState([]);
   const [now, setNow] = useState(Date.now());
 
   // Ticker timer para actualizar el tiempo jugado en tiempo real
@@ -667,6 +668,18 @@ export default function MesaClientePage({ params }) {
     return unsub;
   }, []);
 
+  // ── Leer renta_extras en tiempo real desde Firestore ──
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, 'config', 'renta_extras'), snap => {
+      if (snap.exists()) {
+        setRentaExtras(snap.data().extras || []);
+      }
+    }, err => {
+      console.error("Error al cargar renta_extras en tiempo real para cliente:", err);
+    });
+    return unsub;
+  }, []);
+
   // ── Leer información de la mesa (cliente asignado) en tiempo real desde Firestore ──
   useEffect(() => {
     const unsub = onSnapshot(doc(db, 'config', 'mesas_estado'), snap => {
@@ -1068,10 +1081,20 @@ export default function MesaClientePage({ params }) {
     
     const hrs = diffMs / 3600000;
     let baseCosto = mesaInfo.socios ? 0 : Math.ceil(hrs * mesaInfo.tarifa);
+    const tacoExtra = (rentaExtras && rentaExtras.find(e => e.id === 'taco')) || { precio: 25, tipo: 'hora' };
+    const bolasExtra = (rentaExtras && rentaExtras.find(e => e.id === 'bolas')) || { precio: 35, tipo: 'hora' };
+    const tizaExtra = (rentaExtras && rentaExtras.find(e => e.id === 'tiza')) || { precio: 10, tipo: 'fijo' };
+
     let premiumCosto = 0;
-    if (mesaInfo.rentarTaco) premiumCosto += Math.ceil(hrs * 25);
-    if (mesaInfo.rentarBolas) premiumCosto += Math.ceil(hrs * 35);
-    if (mesaInfo.rentarTiza) premiumCosto += 10;
+    if (mesaInfo.rentarTaco) {
+      premiumCosto += (tacoExtra.tipo === 'hora' ? Math.ceil(hrs * tacoExtra.precio) : tacoExtra.precio);
+    }
+    if (mesaInfo.rentarBolas) {
+      premiumCosto += (bolasExtra.tipo === 'hora' ? Math.ceil(hrs * bolasExtra.precio) : bolasExtra.precio);
+    }
+    if (mesaInfo.rentarTiza) {
+      premiumCosto += (tizaExtra.tipo === 'hora' ? Math.ceil(hrs * tizaExtra.precio) : tizaExtra.precio);
+    }
     const costo = baseCosto + premiumCosto;
 
     return {
@@ -1854,9 +1877,27 @@ export default function MesaClientePage({ params }) {
                   
                   {(mesaInfo.rentarTaco || mesaInfo.rentarBolas || mesaInfo.rentarTiza) && (
                     <div style={{ fontSize: 11, color: 'var(--cl-muted)', paddingLeft: 8, borderLeft: '2px solid rgba(205,127,50,0.2)', margin: '4px 0', display: 'flex', flexDirection: 'column', gap: 3 }}>
-                      {mesaInfo.rentarTaco && <div>• Renta de Taco Premium (+$25/hr)</div>}
-                      {mesaInfo.rentarBolas && <div>• Renta de Bolas Premium (+$35/hr)</div>}
-                      {mesaInfo.rentarTiza && <div>• Renta de Tiza Premium (+$10 pago único)</div>}
+                      {mesaInfo.rentarTaco && (
+                        <div>
+                          • Renta de {(rentaExtras && rentaExtras.find(e => e.id === 'taco')?.nombre) || 'Taco Premium'}{' '}
+                          (+${(rentaExtras && rentaExtras.find(e => e.id === 'taco')?.precio) || 25}
+                          /{(rentaExtras && rentaExtras.find(e => e.id === 'taco')?.tipo) === 'hora' ? 'hr' : 'única'})
+                        </div>
+                      )}
+                      {mesaInfo.rentarBolas && (
+                        <div>
+                          • Renta de {(rentaExtras && rentaExtras.find(e => e.id === 'bolas')?.nombre) || 'Bolas Premium'}{' '}
+                          (+${(rentaExtras && rentaExtras.find(e => e.id === 'bolas')?.precio) || 35}
+                          /{(rentaExtras && rentaExtras.find(e => e.id === 'bolas')?.tipo) === 'hora' ? 'hr' : 'única'})
+                        </div>
+                      )}
+                      {mesaInfo.rentarTiza && (
+                        <div>
+                          • Renta de {(rentaExtras && rentaExtras.find(e => e.id === 'tiza')?.nombre) || 'Tiza Premium'}{' '}
+                          (+${(rentaExtras && rentaExtras.find(e => e.id === 'tiza')?.precio) || 10}
+                          /{(rentaExtras && rentaExtras.find(e => e.id === 'tiza')?.tipo) === 'hora' ? 'hr' : 'única'})
+                        </div>
+                      )}
                     </div>
                   )}
 

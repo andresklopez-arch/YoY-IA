@@ -70,6 +70,7 @@ function MeseroContent() {
   // Sincronización y estados de mesas/cuentas
   const [mesas, setMesas] = useState([]);
   const [cuentas, setCuentas] = useState([]);
+  const [rentaExtras, setRentaExtras] = useState([]);
 
   // Estados para avisar a otro mesero
   const [showModalAvisarMesero, setShowModalAvisarMesero] = useState(false);
@@ -296,9 +297,15 @@ function MeseroContent() {
         setCuentas(snap.data().cuentas || []);
       }
     });
+    const unsubExtras = onSnapshot(doc(db, 'config', 'renta_extras'), snap => {
+      if (snap.exists()) {
+        setRentaExtras(snap.data().extras || []);
+      }
+    });
     return () => {
       unsubMesas();
       unsubCuentas();
+      unsubExtras();
     };
   }, []);
 
@@ -849,7 +856,7 @@ function MeseroContent() {
     const mesaId = mesaAsociada ? mesaAsociada.id : 0;
     const consumosTotal = cuenta.consumos.reduce((sum, item) => sum + item.precio * item.cantidad, 0) + getUnloadedConsumosForCuenta(cuenta);
     const costoTiempo = (mesaAsociada && mesaAsociada.estado === 'ocupada')
-      ? (mesaAsociada.socios ? 0 : calcCosto(mesaAsociada))
+      ? (mesaAsociada.socios ? 0 : calcCosto(mesaAsociada, rentaExtras))
       : (cuenta.tiempoJuego || 0);
     const totalAcumulado = costoTiempo + consumosTotal;
 
@@ -1298,7 +1305,7 @@ function MeseroContent() {
                   const mesaAsociada = findMesaAsociada(c);
                   const consumosTotal = c.consumos.reduce((sum, item) => sum + item.precio * item.cantidad, 0) + getUnloadedConsumosForCuenta(c);
                   const costoTiempo = (mesaAsociada && mesaAsociada.estado === 'ocupada')
-                    ? (mesaAsociada.socios ? 0 : calcCosto(mesaAsociada))
+                    ? (mesaAsociada.socios ? 0 : calcCosto(mesaAsociada, rentaExtras))
                     : (c.tiempoJuego || 0);
                   const total = costoTiempo + consumosTotal;
                   const isExpanded = !!expandedIds[c.id];
@@ -1961,14 +1968,24 @@ function MeseroContent() {
   );
 }
 
-const calcCosto = (m) => {
+const calcCosto = (m, rentaExtras) => {
   if (!m || !m.inicio) return 0;
   const hrs = (Date.now() - m.inicio) / 3600000;
   let baseCosto = m.socios ? 0 : Math.ceil(hrs * m.tarifa);
+  const tacoExtra = (rentaExtras && rentaExtras.find(e => e.id === 'taco')) || { precio: 25, tipo: 'hora' };
+  const bolasExtra = (rentaExtras && rentaExtras.find(e => e.id === 'bolas')) || { precio: 35, tipo: 'hora' };
+  const tizaExtra = (rentaExtras && rentaExtras.find(e => e.id === 'tiza')) || { precio: 10, tipo: 'fijo' };
+
   let premiumCosto = 0;
-  if (m.rentarTaco) premiumCosto += Math.ceil(hrs * 25);
-  if (m.rentarBolas) premiumCosto += Math.ceil(hrs * 35);
-  if (m.rentarTiza) premiumCosto += 10;
+  if (m.rentarTaco) {
+    premiumCosto += (tacoExtra.tipo === 'hora' ? Math.ceil(hrs * tacoExtra.precio) : tacoExtra.precio);
+  }
+  if (m.rentarBolas) {
+    premiumCosto += (bolasExtra.tipo === 'hora' ? Math.ceil(hrs * bolasExtra.precio) : bolasExtra.precio);
+  }
+  if (m.rentarTiza) {
+    premiumCosto += (tizaExtra.tipo === 'hora' ? Math.ceil(hrs * tizaExtra.precio) : tizaExtra.precio);
+  }
   return baseCosto + premiumCosto;
 };
 

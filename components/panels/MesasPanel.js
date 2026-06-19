@@ -143,9 +143,29 @@ function calcCosto(mesa) {
   const hrs = (Date.now() - mesa.inicio) / 3600000;
   let baseCosto = mesa.socios ? 0 : Math.ceil(hrs * mesa.tarifa);
   let premiumCosto = 0;
-  if (mesa.rentarTaco) premiumCosto += Math.ceil(hrs * 25);
-  if (mesa.rentarBolas) premiumCosto += Math.ceil(hrs * 35);
-  if (mesa.rentarTiza) premiumCosto += 10;
+
+  if (globalRentaExtras && Array.isArray(globalRentaExtras)) {
+    globalRentaExtras.forEach(extra => {
+      const propKey = `rentar_${extra.id}`;
+      const isRented = mesa[propKey] || 
+                       (extra.id === 'taco' && mesa.rentarTaco) ||
+                       (extra.id === 'bolas' && mesa.rentarBolas) ||
+                       (extra.id === 'tiza' && mesa.rentarTiza);
+                       
+      if (isRented) {
+        if (extra.tipo === 'hora') {
+          premiumCosto += Math.ceil(hrs * (extra.precio || 0));
+        } else {
+          premiumCosto += (extra.precio || 0);
+        }
+      }
+    });
+  } else {
+    if (mesa.rentarTaco) premiumCosto += Math.ceil(hrs * 25);
+    if (mesa.rentarBolas) premiumCosto += Math.ceil(hrs * 35);
+    if (mesa.rentarTiza) premiumCosto += 10;
+  }
+
   return baseCosto + premiumCosto;
 }
 
@@ -379,6 +399,10 @@ function ModalAbrirMesa({ mesa, adminPinHash, hashPassword, onClose, onConfirm }
   const [rentarBolas, setRentarBolas] = useState(false);
   const [rentarTiza, setRentarTiza] = useState(false);
 
+  const tacoExtra = (globalRentaExtras && globalRentaExtras.find(e => e.id === 'taco')) || { nombre: 'Taco de Fibra de Carbono', precio: 25, tipo: 'hora' };
+  const bolasExtra = (globalRentaExtras && globalRentaExtras.find(e => e.id === 'bolas')) || { nombre: 'Bolas Profesionales Aramith', precio: 35, tipo: 'hora' };
+  const tizaExtra = (globalRentaExtras && globalRentaExtras.find(e => e.id === 'tiza')) || { nombre: 'Tiza Kamui Especial', precio: 10, tipo: 'fijo' };
+
   const [isBypassed, setIsBypassed] = useState(false);
   const [showPinPrompt, setShowPinPrompt] = useState(false);
   const [pinInput, setPinInput] = useState('');
@@ -493,15 +517,15 @@ function ModalAbrirMesa({ mesa, adminPinHash, hashPassword, onClose, onConfirm }
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
                   <input type="checkbox" checked={rentarTaco} onChange={e => setRentarTaco(e.target.checked)} style={{ width: 16, height: 16, accentColor: 'var(--bronze)' }} />
-                  <span style={{ fontSize: 12 }}>Taco de Fibra de Carbono (+$25/hr)</span>
+                  <span style={{ fontSize: 12 }}>{tacoExtra.nombre} (+${tacoExtra.precio}/{tacoExtra.tipo === 'hora' ? 'hr' : 'tarifa única'})</span>
                 </label>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
                   <input type="checkbox" checked={rentarBolas} onChange={e => setRentarBolas(e.target.checked)} style={{ width: 16, height: 16, accentColor: 'var(--bronze)' }} />
-                  <span style={{ fontSize: 12 }}>Bolas Profesionales Aramith (+$35/hr)</span>
+                  <span style={{ fontSize: 12 }}>{bolasExtra.nombre} (+${bolasExtra.precio}/{bolasExtra.tipo === 'hora' ? 'hr' : 'tarifa única'})</span>
                 </label>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
                   <input type="checkbox" checked={rentarTiza} onChange={e => setRentarTiza(e.target.checked)} style={{ width: 16, height: 16, accentColor: 'var(--bronze)' }} />
-                  <span style={{ fontSize: 12 }}>Tiza Kamui Especial (+$10 tarifa única)</span>
+                  <span style={{ fontSize: 12 }}>{tizaExtra.nombre} (+${tizaExtra.precio}/{tizaExtra.tipo === 'hora' ? 'hr' : 'tarifa única'})</span>
                 </label>
               </div>
             </div>
@@ -758,9 +782,27 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
               <div style={{ fontSize: 9, color: 'var(--bronze-light)', padding: '4px 8px', background: 'var(--bg-elevated)', borderRadius: 8, border: '1px solid var(--border)' }}>
                 <strong>Equipamiento Rentado:</strong>
                 <ul style={{ margin: '4px 0 0 14px', padding: 0, fontSize: 8, color: 'var(--text-muted)' }}>
-                  {mesa.rentarTaco && <li>Taco de Carbono (+$25/hr)</li>}
-                  {mesa.rentarBolas && <li>Bolas Aramith (+$35/hr)</li>}
-                  {mesa.rentarTiza && <li>Tiza Kamui (+$10 única)</li>}
+                  {mesa.rentarTaco && (
+                    <li>
+                      {(globalRentaExtras && globalRentaExtras.find(e => e.id === 'taco')?.nombre) || 'Taco de Carbono'}{' '}
+                      (+${(globalRentaExtras && globalRentaExtras.find(e => e.id === 'taco')?.precio) || 25}
+                      /{(globalRentaExtras && globalRentaExtras.find(e => e.id === 'taco')?.tipo) === 'hora' ? 'hr' : 'única'})
+                    </li>
+                  )}
+                  {mesa.rentarBolas && (
+                    <li>
+                      {(globalRentaExtras && globalRentaExtras.find(e => e.id === 'bolas')?.nombre) || 'Bolas Aramith'}{' '}
+                      (+${(globalRentaExtras && globalRentaExtras.find(e => e.id === 'bolas')?.precio) || 35}
+                      /{(globalRentaExtras && globalRentaExtras.find(e => e.id === 'bolas')?.tipo) === 'hora' ? 'hr' : 'única'})
+                    </li>
+                  )}
+                  {mesa.rentarTiza && (
+                    <li>
+                      {(globalRentaExtras && globalRentaExtras.find(e => e.id === 'tiza')?.nombre) || 'Tiza Kamui'}{' '}
+                      (+${(globalRentaExtras && globalRentaExtras.find(e => e.id === 'tiza')?.precio) || 10}
+                      /{(globalRentaExtras && globalRentaExtras.find(e => e.id === 'tiza')?.tipo) === 'hora' ? 'hr' : 'única'})
+                    </li>
+                  )}
                 </ul>
               </div>
             )}
@@ -1745,10 +1787,31 @@ function getGameIcon(tipo, size = 18) {
   );
 }
 
+// ── EQUIPAMIENTO PREMIUM PARA RENTA MESA GLOBAL ──
+let globalRentaExtras = [
+  { id: 'taco', nombre: 'Taco de Fibra de Carbono', precio: 25, tipo: 'hora' },
+  { id: 'bolas', nombre: 'Bolas Profesionales Aramith', precio: 35, tipo: 'hora' },
+  { id: 'tiza', nombre: 'Tiza Kamui Especial', precio: 10, tipo: 'fijo' }
+];
+
 // ── PANEL PRINCIPAL DE MESAS ──────────────────────────────
 export default function MesasPanel({ showToast }) {
   const { user } = useAuth();
   const [mesas, setMesas] = useState(INIT_MESAS);
+  const [rentaExtras, setRentaExtras] = useState(globalRentaExtras);
+
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, 'config', 'renta_extras'), snap => {
+      if (snap.exists()) {
+        const d = snap.data();
+        if (d.extras) {
+          setRentaExtras(d.extras);
+          globalRentaExtras = d.extras;
+        }
+      }
+    }, err => console.error("Error al escuchar extras de renta en MesasPanel:", err));
+    return () => unsub();
+  }, []);
   const isIncomingUpdateRef = useRef(false);
   const hasLoadedFromFirestoreRef = useRef(false);
   const mesasRef = useRef(mesas);
@@ -3966,13 +4029,16 @@ export default function MesasPanel({ showToast }) {
         </tr>
       `;
       if (mesa.rentarTaco) {
-        htmlContent += `<tr><td style="padding-left: 8px; font-size: 11px;">- Taco de Fibra Carbono</td><td align="right" style="font-size: 11px;">Incluido</td></tr>`;
+        const tacoName = (globalRentaExtras && globalRentaExtras.find(e => e.id === 'taco')?.nombre) || 'Taco de Fibra Carbono';
+        htmlContent += `<tr><td style="padding-left: 8px; font-size: 11px;">- ${tacoName}</td><td align="right" style="font-size: 11px;">Incluido</td></tr>`;
       }
       if (mesa.rentarBolas) {
-        htmlContent += `<tr><td style="padding-left: 8px; font-size: 11px;">- Bolas Aramith</td><td align="right" style="font-size: 11px;">Incluido</td></tr>`;
+        const bolasName = (globalRentaExtras && globalRentaExtras.find(e => e.id === 'bolas')?.nombre) || 'Bolas Aramith';
+        htmlContent += `<tr><td style="padding-left: 8px; font-size: 11px;">- ${bolasName}</td><td align="right" style="font-size: 11px;">Incluido</td></tr>`;
       }
       if (mesa.rentarTiza) {
-        htmlContent += `<tr><td style="padding-left: 8px; font-size: 11px;">- Tiza Kamui</td><td align="right" style="font-size: 11px;">Incluido</td></tr>`;
+        const tizaName = (globalRentaExtras && globalRentaExtras.find(e => e.id === 'tiza')?.nombre) || 'Tiza Kamui';
+        htmlContent += `<tr><td style="padding-left: 8px; font-size: 11px;">- ${tizaName}</td><td align="right" style="font-size: 11px;">Incluido</td></tr>`;
       }
     }
 

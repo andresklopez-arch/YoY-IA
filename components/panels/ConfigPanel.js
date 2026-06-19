@@ -148,6 +148,10 @@ export default function ConfigPanel({ showToast }) {
   const [logSearchQuery, setLogSearchQuery] = useState('');
   const [logPanelFilter, setLogPanelFilter] = useState('todos');
 
+  // --- Estados de Extras de Renta de Mesas ---
+  const [rentaExtras, setRentaExtras] = useState([]);
+  const [savingRentaExtras, setSavingRentaExtras] = useState(false);
+
   const fetchUsuarios = async () => {
     setLoadingUsuarios(true);
     try {
@@ -382,9 +386,26 @@ export default function ConfigPanel({ showToast }) {
       setPendingAlerts(list);
     }, err => console.error("Error al escuchar alertas de Telegram pendientes:", err));
 
+    // Escuchar extras de renta en tiempo real
+    const unsubExtras = onSnapshot(doc(db, 'config', 'renta_extras'), snap => {
+      if (snap.exists()) {
+        const d = snap.data();
+        if (d.extras) setRentaExtras(d.extras);
+      } else {
+        const defaultExtras = [
+          { id: 'taco', nombre: 'Taco de Fibra de Carbono', precio: 25, tipo: 'hora' },
+          { id: 'bolas', nombre: 'Bolas Profesionales Aramith', precio: 35, tipo: 'hora' },
+          { id: 'tiza', nombre: 'Tiza Kamui Especial', precio: 10, tipo: 'fijo' }
+        ];
+        setRentaExtras(defaultExtras);
+        setDoc(doc(db, 'config', 'renta_extras'), { extras: defaultExtras }).catch(err => console.error(err));
+      }
+    }, err => console.error("Error al escuchar extras de renta:", err));
+
     return () => {
       unsubMesas();
       unsubPending();
+      unsubExtras();
     };
   }, []);
 
@@ -2278,6 +2299,117 @@ export default function ConfigPanel({ showToast }) {
                 )}
               </div>
             </div>
+
+            {/* Extras de Renta (Equipamiento Premium) */}
+            <div className="card" style={{ padding: '12px 14px' }}>
+              <div className="card-header" style={{ marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h3 className="card-title"><i className="ri-tools-line" style={{ marginRight: 6 }} />Equipamiento Premium para Renta</h3>
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  onClick={() => {
+                    const newExtra = {
+                      id: 'extra_' + Date.now(),
+                      nombre: 'Nuevo Equipamiento',
+                      precio: 10,
+                      tipo: 'hora'
+                    };
+                    setRentaExtras(p => [...p, newExtra]);
+                  }}
+                  style={{ padding: '4px 8px' }}
+                >
+                  <i className="ri-add-line" /> Agregar
+                </button>
+              </div>
+              <p style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 10, lineHeight: 1.4 }}>
+                Configure los accesorios premium que se pueden rentar al abrir las mesas y sus tarifas respectivas.
+              </p>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 300, overflowY: 'auto', marginBottom: 12 }}>
+                {rentaExtras.map((extra, idx) => (
+                  <div key={extra.id} style={{ display: 'grid', gridTemplateColumns: '1fr 80px 100px 30px', gap: 6, alignItems: 'center', padding: '6px 8px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 10 }}>
+                    <div>
+                      <input
+                        type="text"
+                        className="form-input"
+                        value={extra.nombre}
+                        onChange={e => {
+                          const val = e.target.value;
+                          setRentaExtras(prev => prev.map(item => item.id === extra.id ? { ...item, nombre: val } : item));
+                        }}
+                        style={{ fontSize: 11, padding: '4px 6px', height: 28 }}
+                        placeholder="Nombre del extra"
+                      />
+                    </div>
+                    <div>
+                      <input
+                        type="number"
+                        className="form-input"
+                        value={extra.precio}
+                        onChange={e => {
+                          const val = Number(e.target.value);
+                          setRentaExtras(prev => prev.map(item => item.id === extra.id ? { ...item, precio: val } : item));
+                        }}
+                        style={{ fontSize: 11, padding: '4px 6px', height: 28, textAlign: 'center' }}
+                        placeholder="Precio"
+                      />
+                    </div>
+                    <div>
+                      <select
+                        className="form-select"
+                        value={extra.tipo}
+                        onChange={e => {
+                          const val = e.target.value;
+                          setRentaExtras(prev => prev.map(item => item.id === extra.id ? { ...item, tipo: val } : item));
+                        }}
+                        style={{ background: 'var(--bg-elevated)', color: 'var(--text-main)', border: '1px solid var(--border)', height: 28, padding: '2px 4px', fontSize: 11 }}
+                      >
+                        <option value="hora">Por Hora</option>
+                        <option value="fijo">Tarifa Única</option>
+                      </select>
+                    </div>
+                    <div style={{ textAlign: 'center' }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setRentaExtras(prev => prev.filter(item => item.id !== extra.id));
+                        }}
+                        style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 0 }}
+                        onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
+                        onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
+                      >
+                        <i className="ri-delete-bin-line" style={{ fontSize: 14 }} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={async () => {
+                  setSavingRentaExtras(true);
+                  try {
+                    await setDoc(doc(db, 'config', 'renta_extras'), {
+                      extras: rentaExtras,
+                      updatedAt: serverTimestamp()
+                    });
+                    showToast('Equipamiento premium de renta guardado correctamente ✓', 'success');
+                  } catch (e) {
+                    console.error("Error al guardar extras:", e);
+                    showToast('Error al guardar equipamiento: ' + e.message, 'danger');
+                  } finally {
+                    setSavingRentaExtras(false);
+                  }
+                }}
+                disabled={savingRentaExtras}
+                style={{ width: '100%', height: 32, fontSize: 11 }}
+              >
+                <i className="ri-save-line" /> {savingRentaExtras ? 'Guardando...' : 'Guardar Renta de Extras'}
+              </button>
+            </div>
+
             <div className="card" style={{ border: '1px solid rgba(239,68,68,0.2)', padding: '12px 14px' }}>
               <div className="card-header" style={{ marginBottom: 12 }}>
                 <h3 className="card-title" style={{ color: 'var(--danger)' }}><i className="ri-error-warning-line" style={{ marginRight: 6 }} />Mantenimiento y Depuración</h3>
