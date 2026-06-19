@@ -627,10 +627,50 @@ export default function CajaPanel({ showToast }) {
   const queueOfflineEvent = async (eventData) => {
     try {
       const db = await openReportDB();
+
+      // Sugerencia 2: Límite y purgado automático de la cola (máximo 500 eventos)
+      const count = await new Promise((resolve, reject) => {
+        const transaction = db.transaction(["offlineQueue"], "readonly");
+        const store = transaction.objectStore("offlineQueue");
+        const request = store.count();
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = (e) => reject(e.target.error);
+      });
+
+      if (count >= 500) {
+        await new Promise((resolve, reject) => {
+          const transaction = db.transaction(["offlineQueue"], "readwrite");
+          const store = transaction.objectStore("offlineQueue");
+          const request = store.openCursor();
+          request.onsuccess = (e) => {
+            const cursor = e.target.result;
+            if (cursor) {
+              store.delete(cursor.key);
+              resolve();
+            } else {
+              resolve();
+            }
+          };
+          request.onerror = (e) => reject(e.target.error);
+        });
+        console.warn("Cola offline superó los 500 elementos. Purgando registro más antiguo.");
+      }
+
+      // Sugerencia 1: Minificación del evento local en IndexedDB para optimizar espacio
+      const minified = {
+        a: eventData.accion,
+        d: eventData.detalle,
+        m: Number(eventData.monto),
+        o: eventData.operador,
+        ro: eventData.rolOperador,
+        f: eventData.fecha,
+        t: eventData.tipo
+      };
+
       return new Promise((resolve, reject) => {
         const transaction = db.transaction(["offlineQueue"], "readwrite");
         const store = transaction.objectStore("offlineQueue");
-        const request = store.add(eventData);
+        const request = store.add(minified);
         request.onsuccess = () => resolve();
         request.onerror = (e) => reject(e.target.error);
       });
@@ -650,7 +690,18 @@ export default function CajaPanel({ showToast }) {
         request.onsuccess = (e) => {
           const cursor = e.target.result;
           if (cursor) {
-            list.push({ key: cursor.key, value: cursor.value });
+            const min = cursor.value;
+            // Restaurar nombres de propiedades originales al recuperar los eventos
+            const restored = {
+              accion: min.a,
+              detalle: min.d,
+              monto: min.m,
+              operador: min.o,
+              rolOperador: min.ro,
+              fecha: min.f,
+              tipo: min.t
+            };
+            list.push({ key: cursor.key, value: restored });
             cursor.continue();
           } else {
             resolve(list);
