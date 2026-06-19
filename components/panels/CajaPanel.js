@@ -574,12 +574,24 @@ export default function CajaPanel({ showToast }) {
         }
         
         const hrs = totalMs / 3600000;
+        
+        // Obtener costo de nómina estimado por hora (Sugerencia 2)
+        const base = Number(emp.sueldoBase) || 0;
+        const freq = emp.frecuenciaPago || 'quincenal';
+        const diasPeriodo = freq === 'semanal' ? 7 : 15;
+        const sueldoDiario = base > 0 ? (base / diasPeriodo) : 0;
+        const pagoPorHora = sueldoDiario > 0 ? (sueldoDiario / 8) : 50; // Fallback a $50/hr
+        const costoNomina = hrs * pagoPorHora;
+
         return {
           nombre: `${emp.nombre} ${emp.apellido || ''}`.trim(),
           rol: emp.rol || 'Staff',
-          horas: hrs
+          horas: hrs,
+          costoNomina: costoNomina
         };
       }).filter(emp => emp.horas > 0);
+
+      const totalCostoNominaEst = horasTrabajadasColaboradores.reduce((acc, curr) => acc + curr.costoNomina, 0);
 
       let totalHorasMesa = 0;
       let countUsoMesas = 0;
@@ -835,6 +847,7 @@ export default function CajaPanel({ showToast }) {
         pagosPorHora,
         promedioPrepVal,
         horasTrabajadasColaboradores,
+        totalCostoNominaEst,
         rawEventos: listEventos,
         rawPedidos: listPedidos,
         rawCortes: listCortes
@@ -857,7 +870,7 @@ export default function CajaPanel({ showToast }) {
 
   const exportarReporte = async (formato) => {
     if (!datosReporte) return;
-    const { period, start, end, rawEventos, horasTrabajadasColaboradores } = datosReporte;
+    const { period, start, end, rawEventos, horasTrabajadasColaboradores, totalCostoNominaEst } = datosReporte;
 
     const fechaInicioFmt = new Date(start).toLocaleDateString('es-MX');
     const fechaFinFmt = new Date(end).toLocaleDateString('es-MX');
@@ -886,10 +899,11 @@ export default function CajaPanel({ showToast }) {
       });
 
       if (horasTrabajadasColaboradores && horasTrabajadasColaboradores.length > 0) {
-        csvContent += "\nCOLABORADOR,ROL,HORAS TRABAJADAS (QR)\n";
+        csvContent += "\nCOLABORADOR,ROL,HORAS TRABAJADAS (QR),NOMINA ESTIMADA (MXN)\n";
         horasTrabajadasColaboradores.forEach(emp => {
-          csvContent += `"${sanitizeCSV(emp.nombre)}","${sanitizeCSV(emp.rol)}",${emp.horas.toFixed(1)}\n`;
+          csvContent += `"${sanitizeCSV(emp.nombre)}","${sanitizeCSV(emp.rol)}",${emp.horas.toFixed(1)},${emp.costoNomina.toFixed(2)}\n`;
         });
+        csvContent += `,,,${totalCostoNominaEst.toFixed(2)}\n`;
       }
 
       const encodedUri = encodeURI(csvContent);
@@ -923,22 +937,31 @@ export default function CajaPanel({ showToast }) {
           <td>${emp.nombre}</td>
           <td>${emp.rol}</td>
           <td align="right">${emp.horas.toFixed(1)} hrs</td>
+          <td align="right">$${emp.costoNomina.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
         </tr>
       `).join('');
 
       const horasSection = horasTrabajadasColaboradores && horasTrabajadasColaboradores.length > 0 ? `
-        <h3>Pase de Lista (Horas Trabajadas por Colaborador con QR)</h3>
+        <h3>Pase de Lista y Nómina Estimada Devengada</h3>
         <table>
           <thead>
             <tr>
               <th>Colaborador</th>
               <th>Rol</th>
               <th>Horas Trabajadas</th>
+              <th>Costo Estimado</th>
             </tr>
           </thead>
           <tbody>
             ${horasRows}
           </tbody>
+          <tfoot>
+            <tr style="font-weight: bold; background-color: #f2f2f2;">
+              <td colspan="2">TOTAL</td>
+              <td align="right">${horasTrabajadasColaboradores.reduce((s, e) => s + e.horas, 0).toFixed(1)} hrs</td>
+              <td align="right">$${totalCostoNominaEst.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+            </tr>
+          </tfoot>
         </table>
       ` : '';
 
@@ -1018,9 +1041,9 @@ export default function CajaPanel({ showToast }) {
             if (horasTrabajadasColaboradores && horasTrabajadasColaboradores.length > 0) {
               text += `👥 *Horas Trabajadas (Pase de Lista QR):*\n`;
               horasTrabajadasColaboradores.forEach(emp => {
-                text += `• ${emp.nombre} (${emp.rol}): ${emp.horas.toFixed(1)} hrs\n`;
+                text += `• ${emp.nombre} (${emp.rol}): ${emp.horas.toFixed(1)} hrs ($${emp.costoNomina.toFixed(0)})\n`;
               });
-              text += `\n`;
+              text += `💰 *Nómina Est. Devengada:* $${totalCostoNominaEst.toLocaleString('es-MX', { maximumFractionDigits: 0 })}\n\n`;
             }
 
             text += `📄 _Detalle enviado a solicitud del Administrador._`;
@@ -5153,21 +5176,31 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
                 </div>
 
                 {/* Pase de Lista (Horas QR) */}
-                <div style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid var(--border)', borderRadius: 6, padding: 10 }}>
-                  <span style={{ fontSize: 10, color: 'var(--text-secondary)', fontWeight: 800, textTransform: 'uppercase', display: 'block', borderBottom: '1px solid var(--border)', paddingBottom: 4, marginBottom: 6 }}>Pase de Lista (Horas QR)</span>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 90, overflowY: 'auto' }}>
-                    {datosReporte.horasTrabajadasColaboradores?.map(emp => (
-                      <div key={emp.nombre} style={{ fontSize: 9.5, display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed rgba(255,255,255,0.03)', paddingBottom: 2 }}>
-                        <span style={{ color: '#fff', fontWeight: 600 }}>{emp.nombre} ({emp.rol}):</span>
-                        <span style={{ color: 'var(--success)', fontWeight: 700 }}>
-                          {emp.horas.toFixed(1)} hrs
-                        </span>
-                      </div>
-                    ))}
-                    {(!datosReporte.horasTrabajadasColaboradores || datosReporte.horasTrabajadasColaboradores.length === 0) && (
-                      <span style={{ fontSize: 10, color: 'var(--text-muted)', fontStyle: 'italic' }}>Sin horas registradas con QR</span>
-                    )}
+                <div style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid var(--border)', borderRadius: 6, padding: 10, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                  <div>
+                    <span style={{ fontSize: 10, color: 'var(--text-secondary)', fontWeight: 800, textTransform: 'uppercase', display: 'block', borderBottom: '1px solid var(--border)', paddingBottom: 4, marginBottom: 6 }}>Pase de Lista (Horas QR)</span>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 90, overflowY: 'auto' }}>
+                      {datosReporte.horasTrabajadasColaboradores?.map(emp => (
+                        <div key={emp.nombre} style={{ fontSize: 9.5, display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed rgba(255,255,255,0.03)', paddingBottom: 2 }}>
+                          <span style={{ color: '#fff', fontWeight: 600 }}>{emp.nombre} ({emp.rol}):</span>
+                          <span style={{ color: 'var(--success)', fontWeight: 700 }}>
+                            {emp.horas.toFixed(1)} hrs <span style={{ color: 'var(--text-secondary)', fontWeight: 400 }}>(${emp.costoNomina.toLocaleString('es-MX', { maximumFractionDigits: 0 })})</span>
+                          </span>
+                        </div>
+                      ))}
+                      {(!datosReporte.horasTrabajadasColaboradores || datosReporte.horasTrabajadasColaboradores.length === 0) && (
+                        <span style={{ fontSize: 10, color: 'var(--text-muted)', fontStyle: 'italic' }}>Sin horas registradas con QR</span>
+                      )}
+                    </div>
                   </div>
+                  {datosReporte.horasTrabajadasColaboradores?.length > 0 && (
+                    <div style={{ borderTop: '1px solid var(--border)', marginTop: 8, paddingTop: 6, display: 'flex', justifyContent: 'space-between', fontSize: 10, fontWeight: 700 }}>
+                      <span style={{ color: 'var(--text-secondary)' }}>Nómina Est. Devengada:</span>
+                      <span style={{ color: 'var(--warning)' }}>
+                        ${datosReporte.totalCostoNominaEst.toLocaleString('es-MX', { maximumFractionDigits: 0 })}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
 
