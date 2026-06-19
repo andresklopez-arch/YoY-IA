@@ -641,13 +641,13 @@ export default function BarPanel({ showToast }) {
   }
 
   // Margen de utilidad
-  const calcMargen = (p) => {
+  function calcMargen(p) {
     const ganancia = p.precioVenta - p.precioCosto;
     return ((ganancia / p.precioVenta) * 100).toFixed(1);
-  };
+  }
 
   // Sugerencia de consumo diario (Simulada para IA)
-  const getVelocidadConsumo = (pId) => {
+  function getVelocidadConsumo(pId) {
     // Retorna unidades/día simuladas basadas en el id
     switch(pId) {
       case 1: return 12.5; // Corona
@@ -658,16 +658,16 @@ export default function BarPanel({ showToast }) {
       case 6: return 3.2;  // Café
       default: return 7.0; // Agua
     }
-  };
+  }
 
   // Predicción de días restantes
-  const calcDiasRestantes = (p) => {
+  function calcDiasRestantes(p) {
     const vel = getVelocidadConsumo(p.id);
     const dias = p.stock / vel;
     if (dias <= 0) return 'Agotado ⚠️';
     if (dias < 3) return `${dias.toFixed(1)} días (Crítico 🚨)`;
     return `${dias.toFixed(1)} días`;
-  };
+  }
 
   // Registrar Ajuste de Inventario Manual (Auditoría) (Recomendación 3)
   const aplicarAjusteInventario = () => {
