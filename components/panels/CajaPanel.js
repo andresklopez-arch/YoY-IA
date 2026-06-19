@@ -524,11 +524,94 @@ export default function CajaPanel({ showToast }) {
     };
   }, [limiteCortesCaja]);
 
-  // Helper para limpiar caché persistente y en memoria
+  // --- Helpers de IndexedDB para Caché Asíncrona (Sugerencias 1 y 3) ---
+  const openReportDB = () => {
+    return new Promise((resolve, reject) => {
+      if (typeof window === 'undefined' || !window.indexedDB) {
+        reject(new Error("IndexedDB no soportado"));
+        return;
+      }
+      const request = window.indexedDB.open("YoyReportDb", 1);
+      request.onupgradeneeded = (e) => {
+        const db = e.target.result;
+        if (!db.objectStoreNames.contains("reportCache")) {
+          db.createObjectStore("reportCache");
+        }
+      };
+      request.onsuccess = (e) => resolve(e.target.result);
+      request.onerror = (e) => reject(e.target.error);
+    });
+  };
+
+  const setIndexedDB = async (key, val) => {
+    try {
+      const db = await openReportDB();
+      return new Promise((resolve, reject) => {
+        const transaction = db.transaction(["reportCache"], "readwrite");
+        const store = transaction.objectStore("reportCache");
+        const request = store.put(val, key);
+        request.onsuccess = () => resolve();
+        request.onerror = (e) => reject(e.target.error);
+      });
+    } catch (err) {
+      console.warn("IndexedDB set falló:", err);
+    }
+  };
+
+  const getIndexedDB = async (key) => {
+    try {
+      const db = await openReportDB();
+      return new Promise((resolve, reject) => {
+        const transaction = db.transaction(["reportCache"], "readonly");
+        const store = transaction.objectStore("reportCache");
+        const request = store.get(key);
+        request.onsuccess = (e) => resolve(e.target.result);
+        request.onerror = (e) => reject(e.target.error);
+      });
+    } catch (err) {
+      console.warn("IndexedDB get falló:", err);
+      return null;
+    }
+  };
+
+  const removeIndexedDB = async (key) => {
+    try {
+      const db = await openReportDB();
+      return new Promise((resolve, reject) => {
+        const transaction = db.transaction(["reportCache"], "readwrite");
+        const store = transaction.objectStore("reportCache");
+        const request = store.delete(key);
+        request.onsuccess = () => resolve();
+        request.onerror = (e) => reject(e.target.error);
+      });
+    } catch (err) {
+      console.warn("IndexedDB delete falló:", err);
+    }
+  };
+
+  const clearIndexedDBCache = async () => {
+    try {
+      const db = await openReportDB();
+      return new Promise((resolve, reject) => {
+        const transaction = db.transaction(["reportCache"], "readwrite");
+        const store = transaction.objectStore("reportCache");
+        const request = store.clear();
+        request.onsuccess = () => resolve();
+        request.onerror = (e) => reject(e.target.error);
+      });
+    } catch (err) {
+      console.warn("IndexedDB clear falló:", err);
+    }
+  };
+
+  // Helper para limpiar caché persistente (IndexedDB, LocalStorage) y en memoria
   const clearPersistedCache = () => {
     cacheReporteRef.current = {};
     if (typeof window !== 'undefined') {
       try {
+        // Limpiar IndexedDB
+        clearIndexedDBCache();
+        // Limpiar localStorage (fallback histórico)
         const keys = Object.keys(localStorage);
         keys.forEach(k => {
           if (k.startsWith('yoy_report_cache_')) {
@@ -541,10 +624,16 @@ export default function CajaPanel({ showToast }) {
     }
   };
 
-  // Helper de reintentos para consultas de Firestore con backoff exponencial y timeout de 8s
+  // Helper de reintentos para consultas de Firestore con backoff exponencial, timeout de 8s y detección offline
   const getDocsWithRetry = async (qRef, maxRetries = 3, initialDelay = 1000) => {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      throw new Error('Dispositivo sin conexión a Internet');
+    }
     let attempt = 0;
     while (true) {
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        throw new Error('Dispositivo sin conexión a Internet');
+      }
       try {
         // Envoltura con timeout de 8 segundos
         const queryPromise = getDocs(qRef);
@@ -583,22 +672,21 @@ export default function CajaPanel({ showToast }) {
       }
     }
 
-    // 2. Intentar leer de localStorage si es histórico
+    // 2. Intentar leer de IndexedDB si es histórico (Sugerencia 1 y 3)
     if (p !== 'Hoy' && p !== 'Ayer' && typeof window !== 'undefined') {
       try {
-        const localCached = localStorage.getItem(`yoy_report_cache_${cacheKey}`);
+        const localCached = await getIndexedDB(cacheKey);
         if (localCached) {
-          const parsed = JSON.parse(localCached);
-          if (now - parsed.timestamp < cacheTTL) {
+          if (now - localCached.timestamp < cacheTTL) {
             // Respaldar en memoria para subsecuentes consultas rápidas
-            cacheReporteRef.current[cacheKey] = parsed;
-            setDatosReporte(parsed.datos);
+            cacheReporteRef.current[cacheKey] = localCached;
+            setDatosReporte(localCached.datos);
             setReporteCargando(false);
             return;
           }
         }
       } catch (e) {
-        console.warn("Error leyendo caché persistente:", e);
+        console.warn("Error leyendo caché persistente de IndexedDB:", e);
       }
     }
 
@@ -1026,10 +1114,10 @@ export default function CajaPanel({ showToast }) {
         timestamp: Date.now()
       };
 
-      // Guardar en localStorage si es histórico
+      // Guardar en IndexedDB si es histórico (Sugerencia 1 y 3)
       if (p !== 'Hoy' && p !== 'Ayer' && typeof window !== 'undefined') {
         try {
-          // Depurar (prune) las listas pesadas para ahorrar espacio en localStorage
+          // Depurar (prune) las listas pesadas para ahorrar espacio en IndexedDB
           const prunedEventos = (listEventos || []).map(e => ({
             tipo: e.tipo || '',
             accion: e.accion || '',
@@ -1060,12 +1148,12 @@ export default function CajaPanel({ showToast }) {
             rawCortes: prunedCortes
           };
 
-          localStorage.setItem(`yoy_report_cache_${cacheKey}`, JSON.stringify({
+          await setIndexedDB(cacheKey, {
             datos: prunedData,
             timestamp: Date.now()
-          }));
+          });
         } catch (e) {
-          console.warn("Error guardando en caché persistente:", e);
+          console.warn("Error guardando en caché de IndexedDB:", e);
         }
       }
 
@@ -1086,6 +1174,7 @@ export default function CajaPanel({ showToast }) {
       delete cacheReporteRef.current[cacheKey];
       if (typeof window !== 'undefined') {
         try {
+          removeIndexedDB(cacheKey);
           localStorage.removeItem(`yoy_report_cache_${cacheKey}`);
         } catch (e) {
           console.warn("Error al remover de caché persistente:", e);
