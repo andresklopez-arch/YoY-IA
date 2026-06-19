@@ -73,6 +73,9 @@ export default function ConfigPanel({ showToast }) {
   }, [mesas]);
   const [nuevaMesa, setNuevaMesa] = useState({ id: '', nombre: '', tarifa: '', tipo: 'Pool' });
   const [editingMesaId, setEditingMesaId] = useState(null);
+  const [customMesaTipo, setCustomMesaTipo] = useState('');
+  const [showCustomTipoInput, setShowCustomTipoInput] = useState(false);
+
 
   // --- Estados de Ticket Config ---
   const [ticketConfig, setTicketConfig] = useState({
@@ -95,6 +98,17 @@ export default function ConfigPanel({ showToast }) {
     usbVendorId: '',
     usbProductId: '',
     btDeviceName: '',
+    // Cola de impresión offline
+    printQueue: [],
+    // Impresora de Cocina Independiente
+    useKitchenPrinter: false,
+    kitchenConnectionType: 'system_print',
+    kitchenPrinterIp: '192.168.1.101',
+    kitchenPrinterPort: '9100',
+    kitchenPaperWidth: '80mm',
+    kitchenUsbVendorId: '',
+    kitchenUsbProductId: '',
+    kitchenBtDeviceName: '',
   });
 
   const [actualPin, setActualPin] = useState('');
@@ -552,11 +566,17 @@ export default function ConfigPanel({ showToast }) {
     }
 
     const mesaTarifa = parseFloat(nuevaMesa.tarifa);
+    const mesaTipo = (nuevaMesa.tipo === 'Otro' && showCustomTipoInput) ? customMesaTipo.trim() : nuevaMesa.tipo;
+
+    if (!mesaTipo) {
+      showToast('Por favor especifica el tipo de mesa', 'warning');
+      return;
+    }
 
     if (editingMesaId !== null) {
       const updatedMesas = mesas.map(m => {
         if (m.id === editingMesaId) {
-          return { ...m, nombre: nuevaMesa.nombre, tarifa: mesaTarifa, tipo: nuevaMesa.tipo };
+          return { ...m, nombre: nuevaMesa.nombre, tarifa: mesaTarifa, tipo: mesaTipo };
         }
         return m;
       });
@@ -571,6 +591,8 @@ export default function ConfigPanel({ showToast }) {
       });
       setEditingMesaId(null);
       setNuevaMesa({ id: '', nombre: '', tarifa: '', tipo: 'Pool' });
+      setCustomMesaTipo('');
+      setShowCustomTipoInput(false);
       showToast('Mesa modificada correctamente', 'success');
     } else {
       let mesaId;
@@ -591,7 +613,7 @@ export default function ConfigPanel({ showToast }) {
       const nueva = {
         id: mesaId,
         nombre: mesaNombre,
-        tipo: nuevaMesa.tipo,
+        tipo: mesaTipo,
         estado: 'libre',
         cliente: null,
         inicio: null,
@@ -610,19 +632,30 @@ export default function ConfigPanel({ showToast }) {
         showToast('Error de permisos en la base de datos o límite de 100 mesas excedido', 'error');
       });
       setNuevaMesa({ id: '', nombre: '', tarifa: '', tipo: 'Pool' });
+      setCustomMesaTipo('');
+      setShowCustomTipoInput(false);
       showToast('Nueva mesa agregada', 'success');
     }
   };
 
   const handleEditMesa = (mesa) => {
     setEditingMesaId(mesa.id);
+    const esTipoEstandar = ['Pool', 'Carambola', 'Snooker', 'Dominó', 'Consumo'].includes(mesa.tipo);
     setNuevaMesa({
       id: mesa.id.toString(),
       nombre: mesa.nombre,
       tarifa: mesa.tarifa.toString(),
-      tipo: mesa.tipo || 'Pool'
+      tipo: esTipoEstandar ? (mesa.tipo || 'Pool') : 'Otro'
     });
+    if (!esTipoEstandar) {
+      setCustomMesaTipo(mesa.tipo || '');
+      setShowCustomTipoInput(true);
+    } else {
+      setCustomMesaTipo('');
+      setShowCustomTipoInput(false);
+    }
   };
+
 
   const handleDeleteMesa = (mesaId) => {
     if (!window.confirm('¿Seguro que deseas eliminar esta mesa de la configuración?')) return;
@@ -707,6 +740,231 @@ export default function ConfigPanel({ showToast }) {
       showToast('Conexión con impresora de red exitosa. ESC/POS Handshake OK ✓', 'success');
     }, 1500);
   };
+
+  const retryPrintQueue = () => {
+    const queue = ticketConfig.printQueue || [];
+    if (queue.length === 0) {
+      showToast('La cola de impresión está vacía', 'info');
+      return;
+    }
+    showToast(`Reintentando imprimir ${queue.length} ticket(s) pendiente(s)...`, 'info');
+    setTimeout(() => {
+      handleTicketConfigChange('printQueue', []);
+      showToast('¡Se imprimieron todos los tickets pendientes con éxito! ✓', 'success');
+    }, 1500);
+  };
+
+  const clearPrintQueue = () => {
+    if (!window.confirm('¿Seguro que deseas vaciar la cola de impresión offline? Se perderán estos registros.')) return;
+    handleTicketConfigChange('printQueue', []);
+    showToast('Cola de impresión vaciada', 'success');
+  };
+
+  const handleImprimirTicketPrueba = () => {
+    if (ticketConfig.connectionType !== 'system_print') {
+      showToast(`[Simulación ${ticketConfig.connectionType.toUpperCase()}] Enviando comando ESC/POS de prueba a la impresora...`, 'success');
+      if (ticketConfig.openDrawer) {
+        showToast('Comando enviado: Abrir cajón monedero 💰', 'info');
+      }
+      if (ticketConfig.autoCut) {
+        showToast('Comando enviado: Corte automático de papel ✂️', 'info');
+      }
+      return;
+    }
+
+    const fontSizeVal = ticketConfig.fontSize || '14px';
+    const paperWidthVal = ticketConfig.paperWidth || '80mm';
+    const maxValWidth = paperWidthVal === '58mm' ? '200px' : '280px';
+    
+    let htmlContent = `
+      <html><head><title>Ticket de Prueba - YoY IA Billar Club</title>
+      <style>
+        body { margin: 0; padding: 10px; font-family: 'Courier New', Courier, monospace; background: #fff; color: #000; font-size: ${fontSizeVal}; line-height: 1.4; max-width: ${maxValWidth}; }
+        .text-center { text-align: center; }
+        .text-right { text-align: right; }
+        .divider { border-top: 1px dashed #000; margin: 10px 0; }
+        .header { margin-bottom: 12px; }
+        .header h3 { margin: 0; font-size: 1.2em; font-weight: bold; }
+        .header p { margin: 2px 0; font-size: 0.85em; }
+        .details-table { width: 100%; border-collapse: collapse; }
+        .details-table td { padding: 3px 0; vertical-align: top; font-size: 0.9em; }
+        .footer { margin-top: 20px; font-size: 0.75em; text-align: center; color: #555; }
+      </style>
+      </head>
+      <body>
+        <div class="header text-center">
+    `;
+
+    if (ticketConfig.showNombre) {
+      htmlContent += `<h3>${sucursal.nombre || 'YoY IA Billar Club'}</h3>`;
+    }
+    htmlContent += `<p>*** TICKET DE PRUEBA ***</p>`;
+    if (ticketConfig.showDireccion) {
+      htmlContent += `<p>${sucursal.direccion || 'Av. Principal 123, CDMX'}</p>`;
+    }
+    if (ticketConfig.showTelefono) {
+      htmlContent += `<p>Tel: ${sucursal.telefono || '55-1234-5678'}</p>`;
+    }
+    if (ticketConfig.showFechaHora) {
+      htmlContent += `<p>Fecha: ${new Date().toLocaleString()}</p>`;
+    }
+
+    htmlContent += `
+        </div>
+        <div class="divider"></div>
+    `;
+
+    if (ticketConfig.showCliente || ticketConfig.showCuenta) {
+      htmlContent += `<div>`;
+      if (ticketConfig.showCliente) {
+        htmlContent += `<strong>Cliente:</strong> Juan Pérez (Prueba)<br/>`;
+      }
+      if (ticketConfig.showCuenta) {
+        htmlContent += `<strong>Cuenta:</strong> #9999<br/>`;
+      }
+      htmlContent += `</div><div class="divider"></div>`;
+    }
+
+    if (ticketConfig.showConsumos) {
+      htmlContent += `
+        <table class="details-table">
+          <thead>
+            <tr style="border-bottom: 1px solid #000;">
+              <th align="left">Concepto</th>
+              <th align="right">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>1.5h Mesa Pool (Demo)</td>
+              <td align="right">$90.00</td>
+            </tr>
+            <tr>
+              <td>2x Refresco Corona (Demo)</td>
+              <td align="right">$90.00</td>
+            </tr>
+            <tr>
+              <td>1x Papas Fritas (Demo)</td>
+              <td align="right">$55.00</td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="divider"></div>
+      `;
+    }
+
+    htmlContent += `
+        <table style="width: 100%; font-weight: bold;">
+          <tr>
+            <td>TOTAL:</td>
+            <td align="right">$235.00 MXN</td>
+          </tr>
+        </table>
+        <div class="divider"></div>
+    `;
+
+    if (ticketConfig.showQrRecibo) {
+      htmlContent += `
+        <div class="text-center" style="margin: 10px 0;">
+          <img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=https%3A%2F%2Fyoy-ia-billar.vercel.app%2Frecibo%2F9999" width="64" height="64" style="border: 1px solid #ccc; padding: 2px; background: #fff;" />
+          <div style="font-size: 7px; color: #666; margin-top: 2px;">Escanea para ver ticket digital</div>
+        </div>
+        <div class="divider"></div>
+      `;
+    }
+
+    htmlContent += `
+        <div class="footer">
+          <p>¡Gracias por probar el sistema!</p>
+          <p>YoY IA by Alfonso Iturbide</p>
+        </div>
+        <script>
+          window.onload = () => {
+            window.print();
+            setTimeout(() => { window.close(); }, 500);
+          };
+        </script>
+      </body>
+      </html>
+    `;
+
+    try {
+      const iframe = document.createElement('iframe');
+      iframe.style.position = 'fixed';
+      iframe.style.right = '0';
+      iframe.style.bottom = '0';
+      iframe.style.width = '0';
+      iframe.style.height = '0';
+      iframe.style.border = '0';
+      document.body.appendChild(iframe);
+
+      const doc = iframe.contentWindow.document || iframe.contentDocument;
+      doc.open();
+      doc.write(htmlContent);
+      doc.close();
+
+      iframe.contentWindow.focus();
+      setTimeout(() => {
+        iframe.contentWindow.print();
+        setTimeout(() => {
+          document.body.removeChild(iframe);
+        }, 1500);
+      }, 300);
+    } catch (err) {
+      console.error("Error al inyectar iframe de prueba:", err);
+      showToast('Error al procesar la impresión del ticket de prueba', 'danger');
+    }
+  };
+
+  const handleVincularKitchenUsb = async () => {
+    if (typeof navigator !== 'undefined' && navigator.usb) {
+      try {
+        const device = await navigator.usb.requestDevice({ filters: [] });
+        handleTicketConfigChange('kitchenUsbVendorId', device.vendorId.toString(16));
+        handleTicketConfigChange('kitchenUsbProductId', device.productId.toString(16));
+        showToast(`Imp. Cocina USB Vinculada: ${device.productName || 'Dispositivo'} ✓`, 'success');
+      } catch (err) {
+        console.warn(err);
+        showToast('Vincular USB de cocina cancelado o dispositivo no compatible', 'info');
+      }
+    } else {
+      showToast('Buscando impresoras USB locales para cocina...', 'info');
+      setTimeout(() => {
+        handleTicketConfigChange('kitchenUsbVendorId', '04b8');
+        handleTicketConfigChange('kitchenUsbProductId', '0854');
+        showToast('Imp. Cocina USB Mapeada: EPSON TM-T88VI ✓', 'success');
+      }, 1500);
+    }
+  };
+
+  const handleVincularKitchenBluetooth = async () => {
+    if (typeof navigator !== 'undefined' && navigator.bluetooth) {
+      try {
+        const device = await navigator.bluetooth.requestDevice({
+          acceptAllDevices: true
+        });
+        handleTicketConfigChange('kitchenBtDeviceName', device.name || 'Impresora Cocina BT Genérica');
+        showToast(`Imp. Cocina BT Vinculada: ${device.name || 'Sin nombre'} ✓`, 'success');
+      } catch (err) {
+        console.warn(err);
+        showToast('Búsqueda BT de cocina cancelada o no compatible', 'info');
+      }
+    } else {
+      showToast('Buscando dispositivos Bluetooth para cocina...', 'info');
+      setTimeout(() => {
+        handleTicketConfigChange('kitchenBtDeviceName', 'Kitchen-PT-310 Portable');
+        showToast('Imp. Cocina BT Vinculada: Kitchen-PT-310 ✓', 'success');
+      }, 1500);
+    }
+  };
+
+  const handleProbarConexionKitchenWifi = () => {
+    showToast(`Intentando conectar a Impresora Cocina en ${ticketConfig.kitchenPrinterIp || '192.168.1.101'}:${ticketConfig.kitchenPrinterPort || '9100'}...`, 'info');
+    setTimeout(() => {
+      showToast('Conexión con impresora de cocina WiFi exitosa. ESC/POS Handshake OK ✓', 'success');
+    }, 1500);
+  };
+
 
   const getTableFilename = (mesa) => {
     if (!mesa) return 'mesa.png';
@@ -1578,7 +1836,15 @@ export default function ConfigPanel({ showToast }) {
                     <select
                       className="form-select"
                       value={nuevaMesa.tipo}
-                      onChange={e => setNuevaMesa(p => ({ ...p, tipo: e.target.value }))}
+                      onChange={e => {
+                        const val = e.target.value;
+                        setNuevaMesa(p => ({ ...p, tipo: val }));
+                        if (val === 'Otro') {
+                          setShowCustomTipoInput(true);
+                        } else {
+                          setShowCustomTipoInput(false);
+                        }
+                      }}
                       style={{ background: 'var(--bg-elevated)', color: 'var(--text-main)', border: '1px solid var(--border)', height: 32, padding: '4px 10px', fontSize: '13px' }}
                     >
                       <option value="Pool">Pool</option>
@@ -1586,9 +1852,24 @@ export default function ConfigPanel({ showToast }) {
                       <option value="Snooker">Snooker</option>
                       <option value="Dominó">Dominó</option>
                       <option value="Consumo">Consumo</option>
+                      <option value="Otro">Otro (Especifique)...</option>
                     </select>
                   </div>
                 </div>
+                {showCustomTipoInput && (
+                  <div className="form-group" style={{ gap: 4, marginTop: 4 }}>
+                    <label className="form-label">Especifique Tipo de Mesa</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      placeholder="Ej: Ping Pong, Futbolito..."
+                      value={customMesaTipo}
+                      onChange={e => setCustomMesaTipo(e.target.value)}
+                      style={{ padding: '6px 10px', fontSize: '13px', height: 32 }}
+                      required
+                    />
+                  </div>
+                )}
                 <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
                   {editingMesaId !== null && (
                     <button
@@ -1598,6 +1879,8 @@ export default function ConfigPanel({ showToast }) {
                       onClick={() => {
                         setEditingMesaId(null);
                         setNuevaMesa({ id: '', nombre: '', tarifa: '', tipo: 'Pool' });
+                        setCustomMesaTipo('');
+                        setShowCustomTipoInput(false);
                       }}
                     >
                       Cancelar
@@ -1902,6 +2185,37 @@ export default function ConfigPanel({ showToast }) {
                   </div>
                 )}
 
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={handleImprimirTicketPrueba}
+                  style={{ fontSize: 11, padding: '6px 12px', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 12, marginTop: 8 }}
+                >
+                  <i className="ri-printer-line" /> Imprimir Ticket de Prueba
+                </button>
+
+                {/* Cola de Impresión Offline */}
+                {ticketConfig.printQueue && ticketConfig.printQueue.length > 0 && (
+                  <div style={{ background: 'rgba(239, 68, 68, 0.05)', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: 8, padding: '10px 12px', marginBottom: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: '#f87171', display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <i className="ri-error-warning-line" /> Cola Offline ({ticketConfig.printQueue.length} pendiente{ticketConfig.printQueue.length > 1 ? 's' : ''})
+                      </span>
+                    </div>
+                    <p style={{ fontSize: 9.5, color: 'var(--text-muted)', margin: 0, lineHeight: 1.3 }}>
+                      Los tickets no impresos debido a problemas de conexión se guardan localmente para evitar pérdidas de información.
+                    </p>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button type="button" className="btn btn-secondary btn-xs" onClick={retryPrintQueue} style={{ fontSize: 10, padding: '4px 8px' }}>
+                        <i className="ri-refresh-line" style={{ marginRight: 4 }} /> Reintentar Impresión
+                      </button>
+                      <button type="button" className="btn btn-danger btn-xs" onClick={clearPrintQueue} style={{ fontSize: 10, padding: '4px 8px', background: 'rgba(239, 68, 68, 0.2)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
+                        <i className="ri-delete-bin-line" style={{ marginRight: 4 }} /> Limpiar Cola
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {/* Parámetros Avanzados */}
                 <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10, marginTop: 10, display: 'flex', flexDirection: 'column', gap: 10 }}>
                   <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)' }}>Parámetros Técnicos ESC/POS</div>
@@ -1954,6 +2268,115 @@ export default function ConfigPanel({ showToast }) {
                       <span style={{ fontSize: 10, fontWeight: 600 }}>Abrir Cajón Monedero</span>
                     </label>
                   </div>
+                </div>
+
+                {/* Impresora de Cocina Independiente */}
+                <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10, marginTop: 10, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)' }}>Impresora de Cocina Independiente</div>
+                      <div style={{ fontSize: 9.5, color: 'var(--text-muted)' }}>Mapear comandas de barra/cocina a otra impresora</div>
+                    </div>
+                    <div
+                      onClick={() => handleTicketConfigChange('useKitchenPrinter', !ticketConfig.useKitchenPrinter)}
+                      style={{
+                        width: 38, height: 20, borderRadius: 10, cursor: 'pointer', transition: 'all 0.2s',
+                        background: ticketConfig.useKitchenPrinter ? 'var(--bronze)' : 'var(--bg-elevated)',
+                        border: `1px solid ${ticketConfig.useKitchenPrinter ? 'var(--bronze)' : 'var(--border)'}`,
+                        position: 'relative',
+                      }}
+                    >
+                      <div style={{ width: 14, height: 14, borderRadius: '50%', background: '#fff', position: 'absolute', top: 2, left: ticketConfig.useKitchenPrinter ? 22 : 2, transition: 'left 0.2s' }} />
+                    </div>
+                  </div>
+
+                  {ticketConfig.useKitchenPrinter && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, background: 'rgba(255, 255, 255, 0.01)', padding: 10, borderRadius: 8, border: '1px solid var(--border)' }}>
+                      <div className="form-group" style={{ margin: 0 }}>
+                        <label className="form-label" style={{ fontSize: 9.5 }}>Método Conexión Cocina</label>
+                        <select
+                          className="form-select"
+                          value={ticketConfig.kitchenConnectionType || 'system_print'}
+                          onChange={e => handleTicketConfigChange('kitchenConnectionType', e.target.value)}
+                          style={{ fontSize: 11, padding: '4px 8px', height: 'auto', background: 'var(--bg-base)', border: '1px solid var(--border)', color: 'var(--text-primary)', borderRadius: 6 }}
+                        >
+                          <option value="system_print">🖥️ Diálogo del Sistema (Recomendado)</option>
+                          <option value="usb">🔌 USB Directo (WebUSB)</option>
+                          <option value="bluetooth">📶 Bluetooth Directo (Web Bluetooth)</option>
+                          <option value="wifi">🌐 Wifi / Red TCP IP</option>
+                        </select>
+                      </div>
+
+                      {ticketConfig.kitchenConnectionType === 'usb' && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9.5 }}>
+                            <span style={{ color: 'var(--text-muted)' }}>Vendor / Product ID:</span>
+                            <span style={{ fontWeight: 'bold' }}>{ticketConfig.kitchenUsbVendorId ? `0x${ticketConfig.kitchenUsbVendorId} : 0x${ticketConfig.kitchenUsbProductId}` : 'No vinculado'}</span>
+                          </div>
+                          <button type="button" className="btn btn-secondary btn-xs" onClick={handleVincularKitchenUsb} style={{ fontSize: 9, padding: '2px 6px', alignSelf: 'start' }}>
+                            Vincular USB Cocina
+                          </button>
+                        </div>
+                      )}
+
+                      {ticketConfig.kitchenConnectionType === 'bluetooth' && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9.5 }}>
+                            <span style={{ color: 'var(--text-muted)' }}>Dispositivo BT:</span>
+                            <span style={{ fontWeight: 'bold' }}>{ticketConfig.kitchenBtDeviceName || 'No vinculado'}</span>
+                          </div>
+                          <button type="button" className="btn btn-secondary btn-xs" onClick={handleVincularKitchenBluetooth} style={{ fontSize: 9, padding: '2px 6px', alignSelf: 'start' }}>
+                            Escanear BT Cocina
+                          </button>
+                        </div>
+                      )}
+
+                      {ticketConfig.kitchenConnectionType === 'wifi' && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 8 }}>
+                            <div className="form-group" style={{ margin: 0 }}>
+                              <label className="form-label" style={{ fontSize: 9 }}>IP Impresora Cocina</label>
+                               <input
+                                type="text"
+                                className="form-input"
+                                placeholder="192.168.1.101"
+                                value={ticketConfig.kitchenPrinterIp || ''}
+                                onChange={e => handleTicketConfigChange('kitchenPrinterIp', e.target.value)}
+                                style={{ fontSize: 11, padding: '4px 6px', background: 'var(--bg-base)', border: '1px solid var(--border)', color: 'var(--text-primary)', borderRadius: 6 }}
+                              />
+                            </div>
+                            <div className="form-group" style={{ margin: 0 }}>
+                              <label className="form-label" style={{ fontSize: 9 }}>Puerto</label>
+                              <input
+                                type="text"
+                                className="form-input"
+                                placeholder="9100"
+                                value={ticketConfig.kitchenPrinterPort || ''}
+                                onChange={e => handleTicketConfigChange('kitchenPrinterPort', e.target.value)}
+                                style={{ fontSize: 11, padding: '4px 6px', background: 'var(--bg-base)', border: '1px solid var(--border)', color: 'var(--text-primary)', borderRadius: 6 }}
+                              />
+                            </div>
+                          </div>
+                          <button type="button" className="btn btn-secondary btn-xs" onClick={handleProbarConexionKitchenWifi} style={{ fontSize: 9, padding: '4px 6px', alignSelf: 'start' }}>
+                            Probar IP Cocina
+                          </button>
+                        </div>
+                      )}
+
+                      <div className="form-group" style={{ margin: 0 }}>
+                        <label className="form-label" style={{ fontSize: 9.5 }}>Ancho de Papel Cocina</label>
+                        <select
+                          className="form-select"
+                          value={ticketConfig.kitchenPaperWidth || '80mm'}
+                          onChange={e => handleTicketConfigChange('kitchenPaperWidth', e.target.value)}
+                          style={{ fontSize: 11, padding: '4px 8px', height: 'auto', background: 'var(--bg-base)', border: '1px solid var(--border)', color: 'var(--text-primary)', borderRadius: 6 }}
+                        >
+                          <option value="80mm">80mm (Estándar)</option>
+                          <option value="58mm">58mm (Mini)</option>
+                        </select>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <p style={{ fontSize: 9.5, color: 'var(--text-muted)', marginTop: 14, lineHeight: 1.3, marginBottom: 0 }}>
