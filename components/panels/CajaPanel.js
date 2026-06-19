@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useMemo, Fragment } from 'react';
 import { db } from '@/lib/firebase';
-import { doc, onSnapshot, query, collection, orderBy, limit, getDocs, startAfter, writeBatch, addDoc, serverTimestamp, where, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { doc, onSnapshot, query, collection, orderBy, limit, getDocs, getDoc, startAfter, writeBatch, addDoc, serverTimestamp, where, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { deobfuscate, obfuscate } from '@/lib/crypto';
 import { useAuth } from '@/lib/auth-context';
 
@@ -484,7 +484,12 @@ export default function CajaPanel({ showToast }) {
       onSnapshot(doc(db, 'config', 'sucursal'), snap => {
         if (snap.exists()) {
           const d = snap.data();
-          if (d.metaMensual !== undefined) setMetaMensual(Number(d.metaMensual));
+          const currentYM = new Date().getFullYear() + '-' + String(new Date().getMonth() + 1).padStart(2, '0');
+          if (d.metasMensuales && d.metasMensuales[currentYM] !== undefined) {
+            setMetaMensual(Number(d.metasMensuales[currentYM]));
+          } else if (d.metaMensual !== undefined) {
+            setMetaMensual(Number(d.metaMensual));
+          }
         }
       })
     ];
@@ -2213,7 +2218,13 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
     if (!isNaN(val) && val > 0) {
       setMetaMensual(val);
       try {
-        await setDoc(doc(db, 'config', 'sucursal'), { metaMensual: val }, { merge: true });
+        const currentYM = new Date().getFullYear() + '-' + String(new Date().getMonth() + 1).padStart(2, '0');
+        await setDoc(doc(db, 'config', 'sucursal'), {
+          metasMensuales: {
+            [currentYM]: val
+          },
+          metaMensual: val
+        }, { merge: true });
         showToast('Meta mensual actualizada con éxito 🎯', 'success');
       } catch (err) {
         console.error(err);
@@ -2293,6 +2304,97 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
       metaDiariaRestante
     };
   }, [ingresosMesActual, metaMensual, totalHoy]);
+
+  const comparativaHoyMismaHora = useMemo(() => {
+    const ahora = new Date();
+    const diaSemanaHoy = ahora.getDay();
+    const horaActual = ahora.getHours();
+    const minActual = ahora.getMinutes();
+    
+    const ventasPorDiaHistorico = {};
+    const hoyStr = ahora.toISOString().split('T')[0];
+    
+    const procesarTransaccion = (fecha, monto) => {
+      if (!fecha) return;
+      const d = new Date(fecha);
+      const tStr = d.toISOString().split('T')[0];
+      if (tStr === hoyStr) return;
+      if (d.getDay() !== diaSemanaHoy) return;
+      
+      const h = d.getHours();
+      const m = d.getMinutes();
+      if (h > horaActual || (h === horaActual && m > minActual)) return;
+      
+      ventasPorDiaHistorico[tStr] = (ventasPorDiaHistorico[tStr] || 0) + Math.abs(monto);
+    };
+    
+    bitacora
+      .filter(e => e.accion === 'Cierre Directo' || e.accion === 'Mesa a Cuenta')
+      .forEach(e => procesarTransaccion(e.fecha, Number(e.monto) || 0));
+      
+    cobros
+      .filter(c => c.tipo === 'bar' && c.monto > 0)
+      .forEach(c => {
+        const timestamp = c.id > 1000000000 ? c.id : Date.now();
+        procesarTransaccion(timestamp, Number(c.monto) || 0);
+      });
+      
+    const diasHistoricosValores = Object.values(ventasPorDiaHistorico);
+    const cantidadDias = diasHistoricosValores.length;
+    const promedioHistoricoMismaHora = cantidadDias > 0 
+      ? (diasHistoricosValores.reduce((s, v) => s + v, 0) / cantidadDias)
+      : 0;
+      
+    const tendenciaPorcentaje = promedioHistoricoMismaHora > 0
+      ? ((totalHoy / promedioHistoricoMismaHora) * 100) - 100
+      : 0;
+      
+    return {
+      promedioHistoricoMismaHora,
+      tendenciaPorcentaje,
+      cantidadDias
+    };
+  }, [bitacora, cobros, totalHoy]);
+
+  useEffect(() => {
+    if (datosProyeccion.porcentajeMetaHoy >= 100 && datosProyeccion.metaDiariaHoy > 0 && totalHoy > 0) {
+      const hoyStr = new Date().toLocaleDateString('es-MX', { year: 'numeric', month: '2-digit', day: '2-digit' });
+      const lastNotified = localStorage.getItem('yoy_last_notified_meta_hoy');
+      if (lastNotified !== hoyStr) {
+        localStorage.setItem('yoy_last_notified_meta_hoy', hoyStr);
+        (async () => {
+          try {
+            const tgSnap = await getDoc(doc(db, 'config', 'telegram'));
+            if (tgSnap.exists()) {
+              const tgData = tgSnap.data();
+              const isSimplified = tgData.mode === 'simplified' || (!tgData.botToken && tgData.chatId);
+              const hasCustom = tgData.mode === 'custom' && tgData.botToken && tgData.chatId;
+              if (tgData.enabled && (isSimplified || hasCustom)) {
+                const sucSnap = await getDoc(doc(db, 'config', 'sucursal'));
+                const sucursalName = sucSnap.exists() ? (sucSnap.data().nombre || 'Sucursal') : 'Sucursal';
+                const text = `🎯 *¡Meta Diaria Alcanzada!*\n\nLa sucursal *${sucursalName}* ha alcanzado el 100% de su meta de venta para el día de hoy.\n\n*Venta Hoy:* $${totalHoy.toLocaleString('es-MX')}\n*Meta Esperada:* $${datosProyeccion.metaDiariaHoy.toLocaleString('es-MX')}\n*Avance:* ${datosProyeccion.porcentajeMetaHoy.toFixed(0)}%\n\n¡Excelente trabajo equipo! 🚀🔥`;
+                
+                await fetch('/api/telegram/send-alert', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    mode: tgData.mode || 'simplified',
+                    token: tgData.botToken,
+                    chatId: tgData.chatId,
+                    phone: tgData.phone || '',
+                    sucursalName: sucursalName,
+                    text: text
+                  })
+                });
+              }
+            }
+          } catch (err) {
+            console.error('Error sending Telegram meta reached notification:', err);
+          }
+        })();
+      }
+    }
+  }, [datosProyeccion.porcentajeMetaHoy, datosProyeccion.metaDiariaHoy, totalHoy]);
 
   // Nuevas metricas de rendimiento
   const metricasRendimiento = useMemo(() => {
@@ -4024,6 +4126,20 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
                           }} />
                         </div>
                       </div>
+
+                      {comparativaHoyMismaHora && comparativaHoyMismaHora.promedioHistoricoMismaHora > 0 && (
+                        <div style={{ fontSize: 9.5, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}>
+                          <i className={comparativaHoyMismaHora.tendenciaPorcentaje >= 0 ? "ri-arrow-up-line" : "ri-arrow-down-line"} style={{
+                            color: comparativaHoyMismaHora.tendenciaPorcentaje >= 0 ? 'var(--success)' : 'var(--danger)',
+                            fontWeight: 'bold'
+                          }} />
+                          <span>
+                            Tendencia: <strong style={{ color: comparativaHoyMismaHora.tendenciaPorcentaje >= 0 ? 'var(--success)' : 'var(--danger)' }}>
+                              {comparativaHoyMismaHora.tendenciaPorcentaje >= 0 ? '+' : ''}{comparativaHoyMismaHora.tendenciaPorcentaje.toFixed(0)}%
+                            </strong> vs promedio histórico a esta hora ({fmt(comparativaHoyMismaHora.promedioHistoricoMismaHora)})
+                          </span>
+                        </div>
+                      )}
                     </div>
 
                     {/* Venta Diaria Requerida para llegar a la Meta */}
