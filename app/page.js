@@ -66,6 +66,77 @@ class ErrorBoundary extends Component {
   }
 }
 
+// ── PANEL ERROR BOUNDARY: captura crashes locales por panel sin tumbar la navegación ──
+class PanelErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error, info) {
+    console.error(`[YoY ErrorBoundary] Panel [${this.props.name || 'desconocido'}] crash:`, error, info);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: 'var(--bg-base)', padding: 32, minHeight: '400px', borderRadius: 16,
+          border: '1px dashed rgba(239,68,68,0.2)', width: '100%'
+        }}>
+          <div style={{
+            background: 'var(--bg-elevated)', border: '1px solid rgba(239,68,68,0.3)',
+            borderRadius: 16, padding: 32, maxWidth: 480, width: '100%', textAlign: 'center',
+            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)'
+          }}>
+            <div style={{ fontSize: 36, marginBottom: 12 }}>⚠️</div>
+            <h2 style={{ fontSize: 16, fontWeight: 800, color: '#ef4444', marginBottom: 8 }}>
+              Error en el panel {this.props.name ? `"${this.props.name}"` : ''}
+            </h2>
+            <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 16, lineHeight: 1.5 }}>
+              Ocurrió un error inesperado en este componente. Puedes restablecer este panel o recargar la aplicación.
+            </p>
+            <div style={{ 
+              fontSize: 11, color: 'var(--text-muted)', background: 'var(--bg-main)', 
+              padding: '10px 14px', borderRadius: 8, marginBottom: 20, 
+              textAlign: 'left', fontFamily: 'monospace', wordBreak: 'break-all',
+              maxHeight: '120px', overflowY: 'auto', border: '1px solid var(--border)'
+            }}>
+              {this.state.error?.message || 'Error desconocido'}
+            </div>
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+              <button
+                onClick={() => { this.setState({ hasError: false, error: null }); }}
+                style={{
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  border: '1px solid var(--border)',
+                  color: 'var(--text-main)', borderRadius: 10, padding: '8px 16px',
+                  fontWeight: 600, fontSize: 12, cursor: 'pointer', transition: 'all 0.2s'
+                }}
+              >
+                🔄 Restablecer Panel
+              </button>
+              <button
+                onClick={() => { window.location.reload(); }}
+                style={{
+                  background: 'linear-gradient(135deg, var(--bronze), var(--bronze-light))',
+                  color: '#fff', border: 'none', borderRadius: 10, padding: '8px 16px',
+                  fontWeight: 700, fontSize: 12, cursor: 'pointer', transition: 'all 0.2s'
+                }}
+              >
+                🖥️ Recargar App
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 function AppContent() {
   const { user, loading, loginWithEmpleadoId, logout } = useAuth();
   const [minLoadingDone, setMinLoadingDone] = useState(false);
@@ -1203,15 +1274,51 @@ function AppContent() {
   if (!user) return <LoginScreen showToast={showToast} />;
 
   const panels = {
-    dashboard: <DashboardPanel showToast={showToast} onNavigate={setActivePanel} />,
-    mesas:     <MesasPanel showToast={showToast} />,
-    caja:      <CajaPanel showToast={showToast} />,
-    bar:       <BarPanel showToast={showToast} />,
-    clientes:  <ClientesPanel showToast={showToast} />,
-    torneos:   <TorneosPanel showToast={showToast} />,
-    nomina:    <NominaPanel showToast={showToast} />,
-    reportes:  <CajaPanel showToast={showToast} />,
-    config:    <ConfigPanel showToast={showToast} />,
+    dashboard: (
+      <PanelErrorBoundary name="Dashboard">
+        <DashboardPanel showToast={showToast} onNavigate={setActivePanel} />
+      </PanelErrorBoundary>
+    ),
+    mesas: (
+      <PanelErrorBoundary name="Mesas">
+        <MesasPanel showToast={showToast} />
+      </PanelErrorBoundary>
+    ),
+    caja: (
+      <PanelErrorBoundary name="Caja">
+        <CajaPanel showToast={showToast} />
+      </PanelErrorBoundary>
+    ),
+    bar: (
+      <PanelErrorBoundary name="Bar / Cocina">
+        <BarPanel showToast={showToast} />
+      </PanelErrorBoundary>
+    ),
+    clientes: (
+      <PanelErrorBoundary name="Clientes">
+        <ClientesPanel showToast={showToast} />
+      </PanelErrorBoundary>
+    ),
+    torneos: (
+      <PanelErrorBoundary name="Torneos">
+        <TorneosPanel showToast={showToast} />
+      </PanelErrorBoundary>
+    ),
+    nomina: (
+      <PanelErrorBoundary name="Nómina">
+        <NominaPanel showToast={showToast} />
+      </PanelErrorBoundary>
+    ),
+    reportes: (
+      <PanelErrorBoundary name="Reportes">
+        <CajaPanel showToast={showToast} />
+      </PanelErrorBoundary>
+    ),
+    config: (
+      <PanelErrorBoundary name="Configuración">
+        <ConfigPanel showToast={showToast} />
+      </PanelErrorBoundary>
+    ),
   };
 
   return (
