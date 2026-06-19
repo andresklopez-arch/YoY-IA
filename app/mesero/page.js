@@ -36,6 +36,10 @@ function MeseroContent() {
     const rolLower = (user.role || '').toLowerCase();
     const isAuthorized = 
       rolLower.includes('admin') || 
+      rolLower.includes('cajero') || 
+      rolLower.includes('caja') || 
+      rolLower.includes('gerente') || 
+      rolLower.includes('tecnico') || 
       rolLower.includes('mesero') ||
       user.isFreeAccess === true;
 
