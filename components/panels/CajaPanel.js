@@ -524,18 +524,37 @@ export default function CajaPanel({ showToast }) {
     };
   }, [limiteCortesCaja]);
 
-  // --- Helpers de IndexedDB para Caché Asíncrona (Sugerencias 1 y 3) ---
+  // Sincronizar cola offline de bitácora al detectar conectividad (Sugerencia 2)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const handleOnlineStatus = () => {
+        syncOfflineEvents();
+      };
+      window.addEventListener('online', handleOnlineStatus);
+      // Sincronizar al arrancar el componente
+      syncOfflineEvents();
+      return () => {
+        window.removeEventListener('online', handleOnlineStatus);
+      };
+    }
+  }, []);
+
+  // --- Helpers de IndexedDB para Caché Asíncrona y Cola Offline (Sugerencias 1, 2 y 3) ---
   const openReportDB = () => {
     return new Promise((resolve, reject) => {
       if (typeof window === 'undefined' || !window.indexedDB) {
         reject(new Error("IndexedDB no soportado"));
         return;
       }
-      const request = window.indexedDB.open("YoyReportDb", 1);
+      // Actualizamos a versión 2 para aprovisionar el almacén de cola offline
+      const request = window.indexedDB.open("YoyReportDb", 2);
       request.onupgradeneeded = (e) => {
         const db = e.target.result;
         if (!db.objectStoreNames.contains("reportCache")) {
           db.createObjectStore("reportCache");
+        }
+        if (!db.objectStoreNames.contains("offlineQueue")) {
+          db.createObjectStore("offlineQueue", { autoIncrement: true });
         }
       };
       request.onsuccess = (e) => resolve(e.target.result);
@@ -604,6 +623,104 @@ export default function CajaPanel({ showToast }) {
     }
   };
 
+  // --- Operaciones para la cola offline ---
+  const queueOfflineEvent = async (eventData) => {
+    try {
+      const db = await openReportDB();
+      return new Promise((resolve, reject) => {
+        const transaction = db.transaction(["offlineQueue"], "readwrite");
+        const store = transaction.objectStore("offlineQueue");
+        const request = store.add(eventData);
+        request.onsuccess = () => resolve();
+        request.onerror = (e) => reject(e.target.error);
+      });
+    } catch (err) {
+      console.warn("Error guardando en cola offline:", err);
+    }
+  };
+
+  const getOfflineEventsWithKeys = async () => {
+    try {
+      const db = await openReportDB();
+      return new Promise((resolve, reject) => {
+        const transaction = db.transaction(["offlineQueue"], "readonly");
+        const store = transaction.objectStore("offlineQueue");
+        const list = [];
+        const request = store.openCursor();
+        request.onsuccess = (e) => {
+          const cursor = e.target.result;
+          if (cursor) {
+            list.push({ key: cursor.key, value: cursor.value });
+            cursor.continue();
+          } else {
+            resolve(list);
+          }
+        };
+        request.onerror = (e) => reject(e.target.error);
+      });
+    } catch (err) {
+      console.warn("Error leyendo cola offline:", err);
+      return [];
+    }
+  };
+
+  const deleteOfflineEvent = async (key) => {
+    try {
+      const db = await openReportDB();
+      return new Promise((resolve, reject) => {
+        const transaction = db.transaction(["offlineQueue"], "readwrite");
+        const store = transaction.objectStore("offlineQueue");
+        const request = store.delete(key);
+        request.onsuccess = () => resolve();
+        request.onerror = (e) => reject(e.target.error);
+      });
+    } catch (err) {
+      console.warn("Error eliminando de cola offline:", err);
+    }
+  };
+
+  // Sugerencia 1: Detección activa de internet real (evitando portal cautivo)
+  const checkRealInternet = async () => {
+    if (typeof window === 'undefined') return true;
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return false;
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2500);
+      const response = await fetch('/icon.png', { method: 'HEAD', signal: controller.signal });
+      clearTimeout(timeoutId);
+      return response.ok;
+    } catch (err) {
+      return false;
+    }
+  };
+
+  // Sugerencia 2: Cola de sincronización en background
+  const syncOfflineEvents = async () => {
+    if (typeof window === 'undefined') return;
+    const isOnline = await checkRealInternet();
+    if (!isOnline) return;
+
+    try {
+      const queue = await getOfflineEventsWithKeys();
+      if (queue.length === 0) return;
+
+      console.log(`[Offline Sync] Sincronizando ${queue.length} eventos en cola...`);
+      for (const item of queue) {
+        try {
+          await addDoc(collection(db, 'bitacora'), item.value);
+          await deleteOfflineEvent(item.key);
+          console.log(`[Offline Sync] Evento sincronizado con éxito: ${item.value.accion}`);
+        } catch (err) {
+          console.error("[Offline Sync] Error al sincronizar evento:", err);
+          break;
+        }
+      }
+      clearPersistedCache();
+    } catch (err) {
+      console.error("[Offline Sync] Falla en ciclo de sincronización:", err);
+    }
+  };
+
   // Helper para limpiar caché persistente (IndexedDB, LocalStorage) y en memoria
   const clearPersistedCache = () => {
     cacheReporteRef.current = {};
@@ -624,15 +741,18 @@ export default function CajaPanel({ showToast }) {
     }
   };
 
-  // Helper de reintentos para consultas de Firestore con backoff exponencial, timeout de 8s y detección offline
+  // Helper de reintentos para consultas de Firestore con backoff exponencial, timeout de 8s, detección offline y telemetría de latencia (Sugerencias 2 y 3)
   const getDocsWithRetry = async (qRef, maxRetries = 3, initialDelay = 1000) => {
-    if (typeof navigator !== 'undefined' && !navigator.onLine) {
-      throw new Error('Dispositivo sin conexión a Internet');
+    const isOnline = await checkRealInternet();
+    if (!isOnline) {
+      throw new Error('Dispositivo sin conexión a Internet o portal cautivo detectado');
     }
     let attempt = 0;
+    const startTime = Date.now();
     while (true) {
-      if (typeof navigator !== 'undefined' && !navigator.onLine) {
-        throw new Error('Dispositivo sin conexión a Internet');
+      const isOnlineLoop = await checkRealInternet();
+      if (!isOnlineLoop) {
+        throw new Error('Dispositivo sin conexión a Internet o portal cautivo detectado');
       }
       try {
         // Envoltura con timeout de 8 segundos
@@ -640,7 +760,15 @@ export default function CajaPanel({ showToast }) {
         const timeoutPromise = new Promise((_, reject) =>
           setTimeout(() => reject(new Error('Timeout de consulta de base de datos (8s)')), 8000)
         );
-        return await Promise.race([queryPromise, timeoutPromise]);
+        const res = await Promise.race([queryPromise, timeoutPromise]);
+        
+        // Medir latencia
+        const duration = Date.now() - startTime;
+        if (duration > 4000) {
+          console.warn(`Latencia alta detectada en Firestore: ${duration}ms`);
+          showToast(`Conexión lenta detectada (${Math.round(duration/1000)}s). Sugerimos revisar tu red.`, "warning");
+        }
+        return res;
       } catch (err) {
         attempt++;
         if (attempt >= maxRetries) {
@@ -1511,22 +1639,33 @@ export default function CajaPanel({ showToast }) {
     setInconsistenciasEnVivo(incs);
   }, [mesas, cuentasActivas]);
 
-  // Helper para auditoría bitácora / registrar auditoría
+  // Helper para auditoría bitácora / registrar auditoría (Sugerencias 1 y 2)
   const registrarEvento = async (accion, detalle, monto = 0, tipo = 'info') => {
+    const eventData = {
+      accion,
+      detalle,
+      monto: Number(monto),
+      operador: user ? (user.name || user.alias || user.email) : 'Sistema',
+      rolOperador: user ? (user.role || 'staff') : 'sistema',
+      fecha: new Date().toISOString(),
+      tipo
+    };
+
+    const isOnline = await checkRealInternet();
+    if (!isOnline) {
+      console.warn("Dispositivo sin conexión o en portal cautivo. Encolando evento en IndexedDB:", eventData);
+      await queueOfflineEvent(eventData);
+      showToast("Sin conexión. Registro encolado localmente.", "warning");
+      return;
+    }
+
     try {
-      await addDoc(collection(db, 'bitacora'), {
-        accion,
-        detalle,
-        monto: Number(monto),
-        operador: user ? (user.name || user.alias || user.email) : 'Sistema',
-        rolOperador: user ? (user.role || 'staff') : 'sistema',
-        fecha: new Date().toISOString(),
-        tipo
-      });
+      await addDoc(collection(db, 'bitacora'), eventData);
       // Invalida cache de reportes cuando se registra un nuevo evento
       clearPersistedCache();
     } catch (e) {
-      console.error(e);
+      console.error("Error al registrar evento remotamente, guardando en cola local:", e);
+      await queueOfflineEvent(eventData);
     }
   };
 
