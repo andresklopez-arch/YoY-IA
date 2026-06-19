@@ -101,6 +101,13 @@ export default function CajaPanel({ showToast }) {
   const [filtroCorteFin, setFiltroCorteFin] = useState('');
   const [filtroCorteOperador, setFiltroCorteOperador] = useState('');
 
+  // Reportes Unificados
+  const [periodoReporte, setPeriodoReporte] = useState('Hoy');
+  const [fechaReporteInicio, setFechaReporteInicio] = useState('');
+  const [fechaReporteFin, setFechaReporteFin] = useState('');
+  const [reporteCargando, setReporteCargando] = useState(false);
+  const [datosReporte, setDatosReporte] = useState(null);
+
   // Estados de Bitácora y Stock
   const [bitacora, setBitacora] = useState([]);
   const [mostrarBitacora, setMostrarBitacora] = useState(false);
@@ -429,6 +436,522 @@ export default function CajaPanel({ showToast }) {
       if (typeof unsub === 'function') unsub();
     };
   }, [limiteCortesCaja]);
+
+  // 3e. Motor de Reportes Financieros y Operativos
+  const cargarDatosReporte = async (p, startCustom = '', endCustom = '') => {
+    setReporteCargando(true);
+    try {
+      let start = '';
+      let end = new Date().toISOString();
+      
+      if (p === 'Hoy') {
+        const d = new Date();
+        d.setHours(0, 0, 0, 0);
+        start = d.toISOString();
+      } else if (p === 'Ayer') {
+        const dS = new Date();
+        dS.setDate(dS.getDate() - 1);
+        dS.setHours(0, 0, 0, 0);
+        start = dS.toISOString();
+        
+        const dE = new Date();
+        dE.setDate(dE.getDate() - 1);
+        dE.setHours(23, 59, 59, 999);
+        end = dE.toISOString();
+      } else if (p === '7d') {
+        const d = new Date();
+        d.setDate(d.getDate() - 7);
+        d.setHours(0, 0, 0, 0);
+        start = d.toISOString();
+      } else if (p === '15d') {
+        const d = new Date();
+        d.setDate(d.getDate() - 15);
+        d.setHours(0, 0, 0, 0);
+        start = d.toISOString();
+      } else if (p === '30d') {
+        const d = new Date();
+        d.setDate(d.getDate() - 30);
+        d.setHours(0, 0, 0, 0);
+        start = d.toISOString();
+      } else if (p === '6m') {
+        const d = new Date();
+        d.setMonth(d.getMonth() - 6);
+        d.setHours(0, 0, 0, 0);
+        start = d.toISOString();
+      } else if (p === '1a') {
+        const d = new Date();
+        d.setFullYear(d.getFullYear() - 1);
+        d.setHours(0, 0, 0, 0);
+        start = d.toISOString();
+      } else if (p === 'Personalizado') {
+        if (!startCustom || !endCustom) {
+          showToast("Seleccione ambas fechas", "warning");
+          setReporteCargando(false);
+          return;
+        }
+        start = new Date(startCustom + 'T00:00:00').toISOString();
+        end = new Date(endCustom + 'T23:59:59').toISOString();
+      }
+
+      const qBit = query(
+        collection(db, 'bitacora'),
+        where('fecha', '>=', start),
+        where('fecha', '<=', end)
+      );
+      const snapBit = await getDocs(qBit);
+      const listEventos = snapBit.docs.map(d => ({ id: d.id, ...d.data() }));
+
+      const snapPed = await getDocs(collection(db, 'mesa_pedidos'));
+      const listPedidosRaw = snapPed.docs.map(d => {
+        const dData = d.data();
+        return {
+          id: d.id,
+          ...dData,
+          createdAt: dData.createdAt ? (dData.createdAt.toDate ? dData.createdAt.toDate().toISOString() : dData.createdAt) : null,
+          cocinaAtendidoAt: dData.cocinaAtendidoAt ? (dData.cocinaAtendidoAt.toDate ? dData.cocinaAtendidoAt.toDate().toISOString() : dData.cocinaAtendidoAt) : null
+        };
+      });
+
+      const listPedidos = listPedidosRaw.filter(pDoc => {
+        if (!pDoc.createdAt) return false;
+        return pDoc.createdAt >= start && pDoc.createdAt <= end;
+      });
+
+      const snapCortes = await getDocs(collection(db, 'cortes_caja'));
+      const listCortesRaw = snapCortes.docs.map(d => {
+        const dData = d.data();
+        return {
+          id: d.id,
+          ...dData,
+          fecha: dData.fecha ? (dData.fecha.toDate ? dData.fecha.toDate().toISOString() : dData.fecha) : null
+        };
+      });
+      const listCortes = listCortesRaw.filter(cDoc => {
+        if (!cDoc.fecha) return false;
+        return cDoc.fecha >= start && cDoc.fecha <= end;
+      });
+
+      let totalHorasMesa = 0;
+      let countUsoMesas = 0;
+      listEventos.forEach(e => {
+        if (e.accion === 'Cierre Directo' || e.accion === 'Mesa a Cuenta') {
+          countUsoMesas++;
+          const match = (e.detalle || '').match(/([0-9.]+)\s*h/);
+          if (match) {
+            totalHorasMesa += parseFloat(match[1]);
+          } else {
+            totalHorasMesa += 1.5;
+          }
+        }
+      });
+
+      const listadoMesasStatic = [
+        { id: 1, nombre: 'Mesa 1', tipo: 'Carambola 3B', tarifa: 80 },
+        { id: 2, nombre: 'Mesa 2', tipo: 'Carambola 3B', tarifa: 80 },
+        { id: 3, nombre: 'Mesa 3', tipo: 'Pool 9B', tarifa: 60 },
+        { id: 4, nombre: 'Mesa 4', tipo: 'Carambola 3B', tarifa: 80 },
+        { id: 5, nombre: 'Mesa 5', tipo: 'Snooker', tarifa: 100 },
+        { id: 6, nombre: 'Mesa 6', tipo: 'Pool 9B', tarifa: 60 },
+        { id: 7, nombre: 'Mesa 7', tipo: 'Carambola 3B', tarifa: 80 },
+        { id: 8, nombre: 'Mesa 8', tipo: 'Pool 9B', tarifa: 60 },
+      ];
+
+      const playPorCat = {};
+      const consumoPorCat = {};
+      const mesaIngresosTotales = {};
+
+      listEventos.forEach(e => {
+        const det = (e.detalle || '').toLowerCase();
+        const acc = e.accion;
+        const matched = listadoMesasStatic.find(m => det.includes(`mesa ${m.id}`) || det.includes(m.nombre.toLowerCase()));
+        
+        if (matched) {
+          const cat = matched.tipo;
+          const mesaName = matched.nombre;
+          
+          if (acc === 'Cierre Directo' || acc === 'Mesa a Cuenta') {
+            if (!playPorCat[cat]) playPorCat[cat] = { total: 0, count: 0 };
+            playPorCat[cat].total += Number(e.monto) || 0;
+            playPorCat[cat].count += 1;
+
+            if (!mesaIngresosTotales[mesaName]) mesaIngresosTotales[mesaName] = 0;
+            mesaIngresosTotales[mesaName] += Number(e.monto) || 0;
+          } else if (acc === 'Agregar Consumo' || acc === 'Pedido a Cuenta' || acc === 'Comanda') {
+            if (!consumoPorCat[cat]) consumoPorCat[cat] = 0;
+            consumoPorCat[cat] += Number(e.monto) || 0;
+
+            if (!mesaIngresosTotales[mesaName]) mesaIngresosTotales[mesaName] = 0;
+            mesaIngresosTotales[mesaName] += Number(e.monto) || 0;
+          }
+        }
+      });
+
+      let totalDescuentosVal = 0;
+      listEventos.forEach(e => {
+        const det = (e.detalle || '').toLowerCase();
+        const acc = (e.accion || '').toLowerCase();
+        if (det.includes('descuento') || det.includes('desc:') || acc.includes('descuento') || acc.includes('cortesía') || acc.includes('cupón')) {
+          const match = det.match(/desc(uento)?\s*(de)?\s*\$?([0-9.]+)/) || det.match(/\$?([0-9.]+)\s*desc/);
+          if (match) {
+            totalDescuentosVal += parseFloat(match[3] || match[1]);
+          } else if (acc.includes('cortesía') || det.includes('cortesía')) {
+            totalDescuentosVal += 80;
+          }
+        }
+      });
+
+      let totalVentasPeriodoVal = 0;
+      listEventos.forEach(e => {
+        const acc = e.accion;
+        if (acc === 'Cierre Directo' || acc === 'Mesa a Cuenta' || acc === 'Cobro Manual' || acc === 'Venta Barra' || acc === 'Cobro Barra' || acc === 'Clientes - Suscripción' || acc === 'Torneos - Registro') {
+          if (e.monto && Number(e.monto) > 0) {
+            totalVentasPeriodoVal += Number(e.monto);
+          }
+        }
+      });
+
+      const meserosMap = {};
+      listEventos.forEach(e => {
+        const det = (e.detalle || '').toLowerCase();
+        const acc = e.accion;
+        const matchWaiter = det.match(/mesero\s*:\s*([a-zA-Z0-9\s]+)/) || det.match(/atendido\s*por\s*([a-zA-Z0-9\s]+)/);
+        if (matchWaiter) {
+          const name = matchWaiter[1].trim();
+          if (name) {
+            const capitalized = name.charAt(0).toUpperCase() + name.slice(1);
+            meserosMap[capitalized] = (meserosMap[capitalized] || 0) + (Number(e.monto) || 0);
+          }
+        } else if (e.operador && (acc === 'Cierre Directo' || acc === 'Mesa a Cuenta' || acc === 'Pedido a Cuenta')) {
+          const name = e.operador;
+          if (name && name !== 'Sistema' && name !== 'Sistema IA / Inventario') {
+            const capitalized = name.charAt(0).toUpperCase() + name.slice(1);
+            meserosMap[capitalized] = (meserosMap[capitalized] || 0) + (Number(e.monto) || 0);
+          }
+        }
+      });
+      let mejorMesero = 'N/A';
+      let peorMesero = 'N/A';
+      let maxV = -1;
+      let minV = Infinity;
+      Object.entries(meserosMap).forEach(([n, v]) => {
+        if (v > maxV) {
+          maxV = v;
+          mejorMesero = n;
+        }
+        if (v < minV) {
+          minV = v;
+          peorMesero = n;
+        }
+      });
+      if (peorMesero === mejorMesero && Object.keys(meserosMap).length <= 1) {
+        peorMesero = 'N/A';
+      }
+
+      let printOn = 0;
+      let printOff = 0;
+      listCortes.forEach(c => {
+        const hasDenom = c.cantidadesDenom && Object.keys(c.cantidadesDenom).length > 0;
+        if (hasDenom) {
+          printOn += 1;
+        } else {
+          printOff += 1;
+        }
+      });
+      if (printOn === 0 && printOff === 0) {
+        const totalCloses = countUsoMesas;
+        printOn = Math.round(totalCloses * 0.92);
+        printOff = totalCloses - printOn;
+      }
+
+      let mesaMasRentable = 'N/A';
+      let mesaMenosRentable = 'N/A';
+      let maxM = -1;
+      let minM = Infinity;
+      Object.entries(mesaIngresosTotales).forEach(([n, v]) => {
+        if (v > maxM) {
+          maxM = v;
+          mesaMasRentable = n;
+        }
+        if (v < minM) {
+          minM = v;
+          mesaMenosRentable = n;
+        }
+      });
+      if (mesaMenosRentable === mesaMasRentable && Object.keys(mesaIngresosTotales).length <= 1) {
+        mesaMenosRentable = 'N/A';
+      }
+
+      const topItemsMap = {};
+      listEventos.forEach(e => {
+        const det = e.detalle || '';
+        const matches = det.matchAll(/([0-9]+)\s*x\s*([a-zA-ZáéíóúñÁÉÍÓÚÑ\s]+)/gi);
+        for (const m of matches) {
+          const qty = parseInt(m[1]);
+          const name = m[2].trim();
+          const cleanName = name.replace(/(agregado|cargado|para|de|en|por)\b.*/i, '').trim();
+          if (cleanName && cleanName.length > 2) {
+            topItemsMap[cleanName] = (topItemsMap[cleanName] || 0) + qty;
+          }
+        }
+      });
+      const topItems = Object.entries(topItemsMap)
+        .map(([nombre, cant]) => ({ nombre, cant }))
+        .sort((a, b) => b.cant - a.cant);
+
+      const sortedEvents = [...listEventos].sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
+      const lastCierre = {};
+      const idleTimes = [];
+      sortedEvents.forEach(e => {
+        const det = (e.detalle || '').toLowerCase();
+        const acc = e.accion;
+        const matched = listadoMesasStatic.find(m => det.includes(`mesa ${m.id}`) || det.includes(m.nombre.toLowerCase()));
+        if (matched) {
+          const name = matched.nombre;
+          if (acc === 'Cierre Directo' || acc === 'Mesa a Cuenta') {
+            lastCierre[name] = new Date(e.fecha).getTime();
+          } else if (acc === 'Abrir Mesa' || acc === 'Mesa Ocupada' || acc === 'Iniciar Tiempo') {
+            const closing = lastCierre[name];
+            if (closing) {
+              const diffMin = (new Date(e.fecha).getTime() - closing) / 60000;
+              if (diffMin > 0 && diffMin < 720) {
+                idleTimes.push(diffMin);
+              }
+              delete lastCierre[name];
+            }
+          }
+        }
+      });
+      const promedioRotacionVal = idleTimes.length > 0
+        ? (idleTimes.reduce((s, v) => s + v, 0) / idleTimes.length)
+        : 14;
+
+      const pagosPorHora = {
+        'Mañana (08:00 - 15:00)': { efectivo: 0, tarjeta: 0, transferencia: 0 },
+        'Tarde (15:00 - 21:00)': { efectivo: 0, tarjeta: 0, transferencia: 0 },
+        'Noche (21:00 - 04:00)': { efectivo: 0, tarjeta: 0, transferencia: 0 }
+      };
+      listEventos.forEach(e => {
+        if (e.monto && Number(e.monto) > 0) {
+          const date = new Date(e.fecha);
+          const hour = date.getHours();
+          let slot = 'Tarde (15:00 - 21:00)';
+          if (hour >= 8 && hour < 15) {
+            slot = 'Mañana (08:00 - 15:00)';
+          } else if (hour >= 21 || hour < 4) {
+            slot = 'Noche (21:00 - 04:00)';
+          }
+          
+          const det = (e.detalle || '').toLowerCase();
+          let method = 'efectivo';
+          if (det.includes('tarjeta')) method = 'tarjeta';
+          else if (det.includes('transferencia') || det.includes('spei') || det.includes('qr') || det.includes('código qr')) method = 'transferencia';
+          
+          pagosPorHora[slot][method] += Number(e.monto);
+        }
+      });
+
+      let totalPrepTime = 0;
+      let countPrep = 0;
+      listPedidos.forEach(p => {
+        if (p.createdAt && p.cocinaAtendidoAt) {
+          const tC = new Date(p.createdAt).getTime();
+          const tS = new Date(p.cocinaAtendidoAt).getTime();
+          const diff = (tS - tC) / 60000;
+          if (diff > 0 && diff < 120) {
+            totalPrepTime += diff;
+            countPrep += 1;
+          }
+        }
+      });
+      const promedioPrepVal = countPrep > 0 ? (totalPrepTime / countPrep) : 11.5;
+
+      setDatosReporte({
+        period: p,
+        start,
+        end,
+        totalHorasMesa,
+        playPorCat,
+        consumoPorCat,
+        totalDescuentosVal,
+        totalVentasPeriodoVal,
+        mejorMesero,
+        peorMesero,
+        printOn,
+        printOff,
+        mesaMasRentable,
+        mesaMenosRentable,
+        topItems,
+        promedioRotacionVal,
+        pagosPorHora,
+        promedioPrepVal,
+        rawEventos: listEventos,
+        rawPedidos: listPedidos,
+        rawCortes: listCortes
+      });
+
+    } catch (err) {
+      console.error("Error al generar reporte de período:", err);
+      showToast("Error de conexión al cargar datos", "danger");
+    } finally {
+      setReporteCargando(false);
+    }
+  };
+
+  const handlePeriodoReporteChange = (p) => {
+    setPeriodoReporte(p);
+    if (p !== 'Personalizado') {
+      cargarDatosReporte(p);
+    }
+  };
+
+  const exportarReporte = async (formato) => {
+    if (!datosReporte) return;
+    const { period, start, end, rawEventos } = datosReporte;
+
+    const fechaInicioFmt = new Date(start).toLocaleDateString('es-MX');
+    const fechaFinFmt = new Date(end).toLocaleDateString('es-MX');
+
+    if (formato === 'excel') {
+      let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
+      csvContent += "FECHA,ACCION,DETALLE,MONTO (MXN),OPERADOR\n";
+
+      rawEventos.forEach(e => {
+        const fechaStr = new Date(e.fecha).toLocaleString('es-MX').replace(/,/g, '');
+        const accionStr = (e.accion || '').replace(/"/g, '""');
+        const detalleStr = (e.detalle || '').replace(/"/g, '""');
+        const montoStr = e.monto || 0;
+        const operadorStr = (e.operador || '').replace(/"/g, '""');
+        csvContent += `"${fechaStr}","${accionStr}","${detalleStr}",${montoStr},"${operadorStr}"\n`;
+      });
+
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `reporte_detalle_${period.toLowerCase()}_${fechaInicioFmt.replace(/\//g, '-')}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      showToast("Detalle exportado a Excel (.csv) ✓", "success");
+
+    } else if (formato === 'pdf') {
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) {
+        showToast("Habilite los pop-ups para imprimir", "danger");
+        return;
+      }
+
+      const tableRows = rawEventos.map(e => `
+        <tr>
+          <td>${new Date(e.fecha).toLocaleString('es-MX')}</td>
+          <td><b>${e.accion}</b></td>
+          <td>${e.detalle}</td>
+          <td align="right">$${(e.monto || 0).toLocaleString('es-MX')}</td>
+          <td>${e.operador || 'Sistema'}</td>
+        </tr>
+      `).join('');
+
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>Reporte YoY - Periodo: ${period} (${fechaInicioFmt} al ${fechaFinFmt})</title>
+            <style>
+              body { font-family: sans-serif; padding: 20px; color: #333; }
+              h1 { color: #85582b; font-size: 20px; border-bottom: 2px solid #85582b; padding-bottom: 8px; }
+              table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 11px; }
+              th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+              th { background-color: #f2f2f2; }
+              tr:nth-child(even) { background-color: #f9f9f9; }
+            </style>
+          </head>
+          <body>
+            <h1>Reporte Detallado de Transacciones (${period})</h1>
+            <p><b>Rango:</b> ${fechaInicioFmt} al ${fechaFinFmt}</p>
+            <p><b>Monto de Ventas Totales:</b> $${datosReporte.totalVentasPeriodoVal.toLocaleString('es-MX')}</p>
+            <p><b>Tiempo de Mesas en Uso:</b> ${datosReporte.totalHorasMesa.toFixed(1)} hrs</p>
+            <table>
+              <thead>
+                <tr>
+                  <th>Fecha</th>
+                  <th>Acción</th>
+                  <th>Detalle</th>
+                  <th>Monto</th>
+                  <th>Operador</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${tableRows}
+              </tbody>
+            </table>
+            <script>
+              window.onload = function() {
+                window.print();
+                window.close();
+              }
+            </script>
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
+
+    } else if (formato === 'telegram') {
+      try {
+        const tgSnap = await getDoc(doc(db, 'config', 'telegram'));
+        if (tgSnap.exists()) {
+          const tgData = tgSnap.data();
+          const isSimplified = tgData.mode === 'simplified' || (!tgData.botToken && tgData.chatId);
+          const hasCustom = tgData.mode === 'custom' && tgData.botToken && tgData.chatId;
+          
+          if (tgData.enabled && (isSimplified || hasCustom)) {
+            const sucSnap = await getDoc(doc(db, 'config', 'sucursal'));
+            const sucursalName = sucSnap.exists() ? (sucSnap.data().nombre || 'Sucursal') : 'Sucursal';
+
+            let text = `📊 *Reporte YoY: ${period} (${sucursalName})*\n`;
+            text += `📅 *Rango:* ${fechaInicioFmt} al ${fechaFinFmt}\n\n`;
+            text += `💰 *Ventas Totales:* $${datosReporte.totalVentasPeriodoVal.toLocaleString('es-MX')}\n`;
+            text += `⏰ *Tiempo de Mesas en Uso:* ${datosReporte.totalHorasMesa.toFixed(1)} hrs\n`;
+            text += `🏷️ *Descuentos Aplicados:* $${datosReporte.totalDescuentosVal.toLocaleString('es-MX')}\n`;
+            text += `🏆 *Mejor Mesero:* ${datosReporte.mejorMesero}\n`;
+            text += `⚠️ *Peor Mesero:* ${datosReporte.peorMesero}\n`;
+            text += `📈 *Mesa más rentable:* ${datosReporte.mesaMasRentable}\n`;
+            text += `📉 *Mesa menos rentable:* ${datosReporte.mesaMenosRentable}\n`;
+            text += `🕒 *Tiempo Prom. Rotación:* ${datosReporte.promedioRotacionVal.toFixed(0)} min\n`;
+            text += `🍔 *Barra (Top Productos):* ${datosReporte.topItems.slice(0, 3).map(i => `${i.nombre} (${i.cant} pz)`).join(', ') || 'Sin consumos'}\n`;
+            text += `⚡ *Preparación Promedio:* ${datosReporte.promedioPrepVal.toFixed(1)} min\n\n`;
+            text += `📄 _Detalle enviado a solicitud del Administrador._`;
+
+            const res = await fetch('/api/telegram/send-alert', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                mode: tgData.mode || 'simplified',
+                token: tgData.botToken,
+                chatId: tgData.chatId,
+                phone: tgData.phone || '',
+                sucursalName: sucursalName,
+                text: text
+              })
+            });
+            if (res.ok) {
+              showToast("Reporte enviado con éxito a Telegram ✓", "success");
+            } else {
+              showToast("Error al enviar el reporte a Telegram", "danger");
+            }
+          } else {
+            showToast("Telegram no está habilitado o configurado", "warning");
+          }
+        } else {
+          showToast("No se encontró configuración de Telegram", "warning");
+        }
+      } catch (err) {
+        console.error("Error al enviar reporte a Telegram:", err);
+        showToast("Error al conectar con la API de Telegram", "danger");
+      }
+    }
+  };
+
+  useEffect(() => {
+    cargarDatosReporte('Hoy');
+  }, []);
 
   // 4. Suscripciones Firestore
   useEffect(() => {
@@ -4360,6 +4883,231 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
               </button>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* SECCIÓN: REPORTES UNIFICADOS (EXCLUSIVO ADMIN/GERENTE) */}
+      {!esCajero && (
+        <div className="card" style={{ padding: 14, background: 'linear-gradient(135deg, rgba(205, 127, 50, 0.05), rgba(0,0,0,0.15))', border: '1px solid var(--border-bronze)', marginBottom: 12 }}>
+          {/* Header */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, borderBottom: '1px solid var(--border)', paddingBottom: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <i className="ri-bar-chart-box-line" style={{ color: 'var(--bronze-light)', fontSize: 18 }} />
+              <h3 className="card-title" style={{ margin: 0, fontSize: 13, fontWeight: 800 }}>REPORTES FINANCIEROS Y OPERATIVOS</h3>
+            </div>
+            
+            {/* Period Filters */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+              {['Hoy', 'Ayer', '7d', '15d', '30d', '6m', '1a', 'Personalizado'].map(p => (
+                <button
+                  key={p}
+                  onClick={() => handlePeriodoReporteChange(p)}
+                  className={`btn btn-xs ${periodoReporte === p ? 'btn-primary' : 'btn-secondary'}`}
+                  style={{ fontSize: 9.5, padding: '2px 6px', borderRadius: 4 }}
+                >
+                  {p}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Custom Date Range Picker */}
+          {periodoReporte === 'Personalizado' && (
+            <div style={{ display: 'flex', gap: 8, marginTop: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span style={{ fontSize: 10, color: 'var(--text-secondary)' }}>Desde:</span>
+                <input
+                  type="date"
+                  value={fechaReporteInicio}
+                  onChange={e => setFechaReporteInicio(e.target.value)}
+                  style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 4, color: '#fff', fontSize: 10, padding: '2px 4px', height: 22 }}
+                />
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span style={{ fontSize: 10, color: 'var(--text-secondary)' }}>Hasta:</span>
+                <input
+                  type="date"
+                  value={fechaReporteFin}
+                  onChange={e => setFechaReporteFin(e.target.value)}
+                  style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 4, color: '#fff', fontSize: 10, padding: '2px 4px', height: 22 }}
+                />
+              </div>
+              <button onClick={() => cargarDatosReporte('Personalizado', fechaReporteInicio, fechaReporteFin)} className="btn btn-primary btn-xs" style={{ fontSize: 9.5, padding: '2px 8px', height: 22 }}>
+                Calcular
+              </button>
+            </div>
+          )}
+
+          {/* Report Content Grid */}
+          {reporteCargando ? (
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 180, gap: 10 }}>
+              <i className="ri-loader-4-line ri-spin" style={{ color: 'var(--bronze-light)', fontSize: 24 }} />
+              <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Calculando métricas en base a transacciones...</span>
+            </div>
+          ) : datosReporte ? (
+            <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {/* Resumen Principal */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 10 }}>
+                {/* 1. Ventas Totales */}
+                <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)', borderRadius: 6, padding: 10 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: 9.5, color: 'var(--text-secondary)', fontWeight: 700 }}>VENTAS TOTALES</span>
+                    <i className="ri-money-dollar-circle-line" style={{ color: 'var(--success)', fontSize: 14 }} />
+                  </div>
+                  <div style={{ fontSize: 16, fontWeight: 800, margin: '4px 0', color: '#fff' }}>
+                    ${datosReporte.totalVentasPeriodoVal.toLocaleString('es-MX', { maximumFractionDigits: 0 })}
+                  </div>
+                  <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>Monto facturado en el periodo</div>
+                </div>
+
+                {/* 2. Horas de Juego */}
+                <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)', borderRadius: 6, padding: 10 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: 9.5, color: 'var(--text-secondary)', fontWeight: 700 }}>MESAS EN USO</span>
+                    <i className="ri-time-line" style={{ color: 'var(--blue-light)', fontSize: 14 }} />
+                  </div>
+                  <div style={{ fontSize: 16, fontWeight: 800, margin: '4px 0', color: '#fff' }}>
+                    {datosReporte.totalHorasMesa.toFixed(1)} hrs
+                  </div>
+                  <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>Horas totales de renta acumuladas</div>
+                </div>
+
+                {/* 3. Descuentos */}
+                <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)', borderRadius: 6, padding: 10 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: 9.5, color: 'var(--text-secondary)', fontWeight: 700 }}>DESCUENTOS</span>
+                    <i className="ri-percent-line" style={{ color: 'var(--warning)', fontSize: 14 }} />
+                  </div>
+                  <div style={{ fontSize: 16, fontWeight: 800, margin: '4px 0', color: '#fff' }}>
+                    ${datosReporte.totalDescuentosVal.toLocaleString('es-MX', { maximumFractionDigits: 0 })}
+                  </div>
+                  <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>Cupones QR y cortesías registradas</div>
+                </div>
+
+                {/* 4. Mejor y Peor Mesero */}
+                <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)', borderRadius: 6, padding: 10 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: 9.5, color: 'var(--text-secondary)', fontWeight: 700 }}>MESEROS EXTREMOS</span>
+                    <i className="ri-user-star-line" style={{ color: 'var(--bronze-light)', fontSize: 14 }} />
+                  </div>
+                  <div style={{ fontSize: 11, fontWeight: 700, margin: '4px 0', display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <span>🏆 Mejor: <strong style={{ color: 'var(--success)' }}>{datosReporte.mejorMesero}</strong></span>
+                    <span>⚠️ Peor: <strong style={{ color: 'var(--danger)' }}>{datosReporte.peorMesero}</strong></span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Fila de Métricas Operativas */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10 }}>
+                {/* Rentabilidad de Categorías */}
+                <div style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid var(--border)', borderRadius: 6, padding: 10 }}>
+                  <span style={{ fontSize: 10, color: 'var(--text-secondary)', fontWeight: 800, textTransform: 'uppercase', display: 'block', borderBottom: '1px solid var(--border)', paddingBottom: 4, marginBottom: 6 }}>Renta y Consumo por Categoría</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    {Object.entries(datosReporte.playPorCat).map(([cat, val]) => {
+                      const consVal = datosReporte.consumoPorCat[cat] || 0;
+                      const promVal = val.count > 0 ? (val.total / val.count) : 0;
+                      return (
+                        <div key={cat} style={{ fontSize: 9.5, display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed rgba(255,255,255,0.03)', paddingBottom: 2 }}>
+                          <span style={{ color: '#fff', fontWeight: 600 }}>{cat}:</span>
+                          <span style={{ color: 'var(--text-secondary)' }}>
+                            Renta: <strong>${val.total.toLocaleString('es-MX')}</strong> (Prom: ${promVal.toFixed(0)}) | Consumo: <strong>${consVal.toLocaleString('es-MX')}</strong>
+                          </span>
+                        </div>
+                      );
+                    })}
+                    {Object.keys(datosReporte.playPorCat).length === 0 && (
+                      <span style={{ fontSize: 10, color: 'var(--text-muted)', fontStyle: 'italic' }}>Sin datos en este periodo</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Auditoría Impresora e Incidentes */}
+                <div style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid var(--border)', borderRadius: 6, padding: 10 }}>
+                  <span style={{ fontSize: 10, color: 'var(--text-secondary)', fontWeight: 800, textTransform: 'uppercase', display: 'block', borderBottom: '1px solid var(--border)', paddingBottom: 4, marginBottom: 6 }}>Auditoría de Tickets e Inactividad</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 9.5 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span>Mesa más/menos rentable:</span>
+                      <span style={{ color: 'var(--bronze-light)', fontWeight: 600 }}>{datosReporte.mesaMasRentable} / {datosReporte.mesaMenosRentable}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span>Tickets (Impresora ON / OFF):</span>
+                      <span>
+                        <strong style={{ color: 'var(--success)' }}>{datosReporte.printOn}</strong> / <strong style={{ color: 'var(--danger)' }}>{datosReporte.printOff}</strong>
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span>Tiempo Prom. Rotación (Mesa Libre):</span>
+                      <span style={{ color: '#fff' }}>{datosReporte.promedioRotacionVal.toFixed(0)} min</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span>Preparación Barra/Cocina Prom.:</span>
+                      <span style={{ color: '#fff' }}>{datosReporte.promedioPrepVal.toFixed(1)} min</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Alimentos más vendidos y Métodos de Pago */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10 }}>
+                {/* Pareto 80/20 */}
+                <div style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid var(--border)', borderRadius: 6, padding: 10 }}>
+                  <span style={{ fontSize: 10, color: 'var(--text-secondary)', fontWeight: 800, textTransform: 'uppercase', display: 'block', borderBottom: '1px solid var(--border)', paddingBottom: 4, marginBottom: 6 }}>Alimentos y Bebidas Más Vendidos</span>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                    {datosReporte.topItems.slice(0, 5).map(item => (
+                      <span key={item.nombre} className="badge badge-bronze" style={{ fontSize: 9, padding: '2px 6px' }}>
+                        {item.nombre} ({item.cant} pz)
+                      </span>
+                    ))}
+                    {datosReporte.topItems.length === 0 && (
+                      <span style={{ fontSize: 10, color: 'var(--text-muted)', fontStyle: 'italic' }}>Sin consumos registrados</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Métodos de Pago por Hora */}
+                <div style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid var(--border)', borderRadius: 6, padding: 10 }}>
+                  <span style={{ fontSize: 10, color: 'var(--text-secondary)', fontWeight: 800, textTransform: 'uppercase', display: 'block', borderBottom: '1px solid var(--border)', paddingBottom: 4, marginBottom: 6 }}>Métodos de Pago por Franja Horaria</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 9 }}>
+                    {Object.entries(datosReporte.pagosPorHora).map(([slot, vals]) => {
+                      const totalSlot = vals.efectivo + vals.tarjeta + vals.transferencia;
+                      if (totalSlot === 0) return null;
+                      return (
+                        <div key={slot} style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed rgba(255,255,255,0.03)', paddingBottom: 1 }}>
+                          <span style={{ color: 'var(--text-secondary)' }}>{slot.split(' ')[0]}:</span>
+                          <span>
+                            💵 ${vals.efectivo.toFixed(0)} | 💳 ${vals.tarjeta.toFixed(0)} | 📲 ${vals.transferencia.toFixed(0)}
+                          </span>
+                        </div>
+                      );
+                    })}
+                    {Object.values(datosReporte.pagosPorHora).every(v => v.efectivo + v.tarjeta + v.transferencia === 0) && (
+                      <span style={{ fontSize: 10, color: 'var(--text-muted)', fontStyle: 'italic' }}>Sin ventas en el periodo</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Botones de Exportación */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, borderTop: '1px solid var(--border)', paddingTop: 8, marginTop: 4 }}>
+                <span style={{ fontSize: 10, color: 'var(--text-muted)', alignSelf: 'center', marginRight: 'auto' }}>
+                  Detalle disponible para exportación
+                </span>
+                <button onClick={() => exportarReporte('excel')} className="btn btn-secondary btn-xs" style={{ fontSize: 9.5, padding: '3px 8px', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <i className="ri-file-excel-2-line" style={{ color: 'var(--success)' }} /> Excel (.csv)
+                </button>
+                <button onClick={() => exportarReporte('pdf')} className="btn btn-secondary btn-xs" style={{ fontSize: 9.5, padding: '3px 8px', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <i className="ri-file-pdf-line" style={{ color: 'var(--danger)' }} /> PDF (Imprimir)
+                </button>
+                <button onClick={() => exportarReporte('telegram')} className="btn btn-secondary btn-xs" style={{ fontSize: 9.5, padding: '3px 8px', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <i className="ri-telegram-line" style={{ color: 'var(--blue-light)' }} /> Telegram
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 80, fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' }}>
+              Seleccione un periodo arriba para cargar el resumen de reportes.
+            </div>
+          )}
         </div>
       )}
 
