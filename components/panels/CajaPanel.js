@@ -541,12 +541,17 @@ export default function CajaPanel({ showToast }) {
     }
   };
 
-  // Helper de reintentos para consultas de Firestore con backoff exponencial
+  // Helper de reintentos para consultas de Firestore con backoff exponencial y timeout de 8s
   const getDocsWithRetry = async (qRef, maxRetries = 3, initialDelay = 1000) => {
     let attempt = 0;
     while (true) {
       try {
-        return await getDocs(qRef);
+        // Envoltura con timeout de 8 segundos
+        const queryPromise = getDocs(qRef);
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Timeout de consulta de base de datos (8s)')), 8000)
+        );
+        return await Promise.race([queryPromise, timeoutPromise]);
       } catch (err) {
         attempt++;
         if (attempt >= maxRetries) {
@@ -554,7 +559,7 @@ export default function CajaPanel({ showToast }) {
           throw err;
         }
         const delay = initialDelay * Math.pow(2, attempt - 1);
-        console.warn(`Firestore getDocs falló. Reintentando en ${delay}ms (intento ${attempt}/${maxRetries})...`, err);
+        console.warn(`Firestore getDocs falló o expiró. Reintentando en ${delay}ms (intento ${attempt}/${maxRetries})...`, err);
         await new Promise(resolve => setTimeout(resolve, delay));
       }
     }
@@ -562,8 +567,9 @@ export default function CajaPanel({ showToast }) {
 
   // 3e. Motor de Reportes Financieros y Operativos
   const cargarDatosReporte = async (p, startCustom = '', endCustom = '') => {
-    // Generar llave de cache
-    const cacheKey = p === 'Personalizado' ? `${startCustom}_${endCustom}` : p;
+    // Generar llave de cache segmentada por usuario para seguridad
+    const userPrefix = user?.uid || 'anon';
+    const cacheKey = `${userPrefix}_${p === 'Personalizado' ? `${startCustom}_${endCustom}` : p}`;
     const now = Date.now();
     const cacheTTL = p === 'Hoy' || p === 'Ayer' ? 30 * 1000 : 5 * 60 * 1000; // 30s Hoy/Ayer, 5m para históricos
 
@@ -1023,8 +1029,39 @@ export default function CajaPanel({ showToast }) {
       // Guardar en localStorage si es histórico
       if (p !== 'Hoy' && p !== 'Ayer' && typeof window !== 'undefined') {
         try {
+          // Depurar (prune) las listas pesadas para ahorrar espacio en localStorage
+          const prunedEventos = (listEventos || []).map(e => ({
+            tipo: e.tipo || '',
+            accion: e.accion || '',
+            monto: Number(e.monto || 0),
+            operador: e.operador || '',
+            rolOperador: e.rolOperador || '',
+            fecha: e.fecha || '',
+            detalle: e.detalle || ''
+          }));
+
+          const prunedPedidos = (listPedidos || []).map(ped => ({
+            id: ped.id || '',
+            createdAt: ped.createdAt || '',
+            cocinaAtendidoAt: ped.cocinaAtendidoAt || '',
+            total: Number(ped.total || 0),
+            metodoPago: ped.metodoPago || ped.metodo || ''
+          }));
+
+          const prunedCortes = (listCortes || []).map(c => ({
+            id: c.id || '',
+            cantidadesDenom: c.cantidadesDenom ? { dummy: true } : null
+          }));
+
+          const prunedData = {
+            ...dataToSave,
+            rawEventos: prunedEventos,
+            rawPedidos: prunedPedidos,
+            rawCortes: prunedCortes
+          };
+
           localStorage.setItem(`yoy_report_cache_${cacheKey}`, JSON.stringify({
-            datos: dataToSave,
+            datos: prunedData,
             timestamp: Date.now()
           }));
         } catch (e) {
@@ -1044,7 +1081,8 @@ export default function CajaPanel({ showToast }) {
 
   const handlePeriodoReporteChange = (p) => {
     if (p === periodoReporte && p !== 'Personalizado') {
-      const cacheKey = p;
+      const userPrefix = user?.uid || 'anon';
+      const cacheKey = `${userPrefix}_${p}`;
       delete cacheReporteRef.current[cacheKey];
       if (typeof window !== 'undefined') {
         try {
