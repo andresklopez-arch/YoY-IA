@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { db } from '@/lib/firebase';
 import { doc, onSnapshot, setDoc, serverTimestamp, collection, query, orderBy, limit, addDoc } from 'firebase/firestore';
@@ -604,41 +604,43 @@ export default function BarPanel({ showToast }) {
     }
   };
 
-  // Filtrado de productos según la pestaña (Productos vs Insumos) y la modalidad de auditoría/inventario IA
-  const productosFiltradosRaw = productos.filter(p => {
-    const isCatInsumo = p.categoria && p.categoria.toLowerCase() === 'insumo';
-    const tabOk = inventarioTab === 'insumos' ? isCatInsumo : !isCatInsumo;
-    if (!tabOk) return false;
+  // Filtrado de productos según la pestaña (Productos vs Insumos) y la modalidad de auditoría/inventario IA (optimizado con useMemo)
+  const productosFiltrados = useMemo(() => {
+    const raw = productos.filter(p => {
+      const isCatInsumo = p.categoria && p.categoria.toLowerCase() === 'insumo';
+      const tabOk = inventarioTab === 'insumos' ? isCatInsumo : !isCatInsumo;
+      if (!tabOk) return false;
 
-    const catOk = filtro === 'Todas' || p.categoria === filtro;
-    const busOk = !busqueda || p.nombre.toLowerCase().includes(busqueda.toLowerCase());
-    if (!catOk || !busOk) return false;
+      const catOk = filtro === 'Todas' || p.categoria === filtro;
+      const busOk = !busqueda || p.nombre.toLowerCase().includes(busqueda.toLowerCase());
+      if (!catOk || !busOk) return false;
 
-    if (modoInventario === 'general') return true;
-    if (modoInventario === 'periodico') {
-      // Periódico: productos con stock inferior al óptimo o ID par (programado)
-      return p.id % 2 === 0 || p.stock < p.stockOptimo;
-    }
-    if (modoInventario === 'azar') {
-      return azarProductosIds.includes(p.id);
-    }
-    if (modoInventario === 'producto') {
-      return p.id === parseInt(productoSelId);
-    }
-    if (modoInventario === 'inconsistencia') {
-      // Inconsistencias: productos con alertas críticas o merma registrada
-      return p.stock <= p.stockMin || p.id === 1 || p.id === 2 || p.id === 5;
-    }
-    return true;
-  });
+      if (modoInventario === 'general') return true;
+      if (modoInventario === 'periodico') {
+        // Periódico: productos con stock inferior al óptimo o ID par (programado)
+        return p.id % 2 === 0 || p.stock < p.stockOptimo;
+      }
+      if (modoInventario === 'azar') {
+        return azarProductosIds.includes(p.id);
+      }
+      if (modoInventario === 'producto') {
+        return p.id === parseInt(productoSelId);
+      }
+      if (modoInventario === 'inconsistencia') {
+        // Inconsistencias: productos con alertas críticas o merma registrada
+        return p.stock <= p.stockMin || p.id === 1 || p.id === 2 || p.id === 5;
+      }
+      return true;
+    });
 
-  // Procesamiento y ordenamiento de productos
-  const productosFiltrados = [...productosFiltradosRaw];
-  if (modoInventario === 'mas_vendidos') {
-    productosFiltrados.sort((a, b) => getVelocidadConsumo(b.id) - getVelocidadConsumo(a.id));
-  } else if (modoInventario === 'menos_vendidos') {
-    productosFiltrados.sort((a, b) => getVelocidadConsumo(a.id) - getVelocidadConsumo(b.id));
-  }
+    const ordered = [...raw];
+    if (modoInventario === 'mas_vendidos') {
+      ordered.sort((a, b) => getVelocidadConsumo(b.id) - getVelocidadConsumo(a.id));
+    } else if (modoInventario === 'menos_vendidos') {
+      ordered.sort((a, b) => getVelocidadConsumo(a.id) - getVelocidadConsumo(b.id));
+    }
+    return ordered;
+  }, [productos, inventarioTab, filtro, busqueda, modoInventario, azarProductosIds, productoSelId, logs]);
 
   // Margen de utilidad
   function calcMargen(p) {
@@ -646,17 +648,36 @@ export default function BarPanel({ showToast }) {
     return ((ganancia / p.precioVenta) * 100).toFixed(1);
   }
 
-  // Sugerencia de consumo diario (Simulada para IA)
-  function getVelocidadConsumo(pId) {
-    // Retorna unidades/día simuladas basadas en el id
-    switch(pId) {
+  // Sugerencia de consumo diario (Dinamizada con Historial de Ventas / Logs)
+  function getVelocidadConsumo(pOrId) {
+    if (!pOrId) return 0;
+    const prod = typeof pOrId === 'object' ? pOrId : productos.find(p => p.id === pOrId);
+    if (!prod) return 0;
+
+    const unMesAtras = Date.now() - 15 * 24 * 60 * 60 * 1000;
+    const salidasRecientes = logs.filter(l => {
+      const esSalida = l.tipo === 'salida' || l.tipo === 'merma' || l.tipo === 'ajuste_salida' || l.tipo === 'ajuste_merma';
+      const matchesProd = l.productoId === prod.id || (l.producto && prod.nombre && l.producto.toLowerCase() === prod.nombre.toLowerCase());
+      const esReciente = new Date(l.fecha).getTime() > unMesAtras;
+      return esSalida && matchesProd && esReciente;
+    });
+
+    const totalConsumo = salidasRecientes.reduce((sum, l) => sum + Math.abs(parseFloat(l.cantidad) || 0), 0);
+    const calculado = totalConsumo / 15;
+    
+    if (calculado > 0) {
+      return calculado;
+    }
+
+    // Fallback estático simulado para mantener consistencia inicial
+    switch(prod.id) {
       case 1: return 12.5; // Corona
       case 2: return 8.2;  // Coca-Cola
       case 3: return 5.1;  // Nachos
       case 4: return 6.0;  // Papas
       case 5: return 4.5;  // Alitas
       case 6: return 3.2;  // Café
-      default: return 7.0; // Agua
+      default: return 2.0; // Agua u otros
     }
   }
 
@@ -728,6 +749,7 @@ export default function BarPanel({ showToast }) {
     const nuevoLog = {
       id: Date.now(),
       fecha: new Date().toISOString(),
+      productoId: prod.id,
       producto: prod.nombre,
       tipo: ajusteTipo,
       cantidad: cant,
@@ -791,6 +813,7 @@ export default function BarPanel({ showToast }) {
       nuevosLogs.unshift({
         id: Date.now(),
         fecha: new Date().toISOString(),
+        productoId: nuevoProd.id,
         producto: nuevoProd.nombre,
         tipo: 'entrada',
         cantidad: stockVal,
@@ -2076,18 +2099,25 @@ export default function BarPanel({ showToast }) {
                           ))}
                         </select>
                       </td>
-                      <td style={{ padding: densidadVista === 'compact' ? '4px 8px' : '8px', textAlign: 'center' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
-                          <input 
-                            type="number"
-                            value={p.stock}
-                            onChange={e => handleLocalChange(p.id, 'stock', e.target.value)}
-                            onFocus={handleInputFocus}
-                            onBlur={e => handleInputBlur(e, p.id, 'stock')}
-                            onKeyDown={handleInputKeyDown}
-                            style={{ ...inputStyle, textAlign: 'center', fontWeight: 700, width: 50, color: esCritico ? 'var(--danger)' : 'var(--text-primary)' }}
-                          />
-                          <span style={{ fontSize: 9, color: 'var(--text-muted)', flexShrink: 0 }}>{p.unidad}</span>
+                       <td style={{ padding: densidadVista === 'compact' ? '4px 8px' : '8px', textAlign: 'center' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
+                            <input 
+                              type="number"
+                              value={p.stock}
+                              onChange={e => handleLocalChange(p.id, 'stock', e.target.value)}
+                              onFocus={handleInputFocus}
+                              onBlur={e => handleInputBlur(e, p.id, 'stock')}
+                              onKeyDown={handleInputKeyDown}
+                              style={{ ...inputStyle, textAlign: 'center', fontWeight: 700, width: 50, color: esCritico ? 'var(--danger)' : 'var(--text-primary)' }}
+                            />
+                            <span style={{ fontSize: 9, color: 'var(--text-muted)', flexShrink: 0 }}>{p.unidad}</span>
+                          </div>
+                          {(modoInventario === 'mas_vendidos' || modoInventario === 'menos_vendidos') && (
+                            <span style={{ fontSize: 8, color: 'var(--bronze-light)', marginTop: 2, whiteSpace: 'nowrap' }} title="Consumo diario promedio (últimos 15 días)">
+                              ⚡ {getVelocidadConsumo(p).toFixed(1)}/{p.unidad} dia
+                            </span>
+                          )}
                         </div>
                       </td>
                       <td style={{ padding: densidadVista === 'compact' ? '4px 8px' : '8px', textAlign: 'center' }}>
