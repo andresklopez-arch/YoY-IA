@@ -6,7 +6,8 @@ const eslintConfig = defineConfig([
   {
     rules: {
       "react-hooks/purity": "off",
-      "react-hooks/set-state-in-effect": "off"
+      "react-hooks/set-state-in-effect": "off",
+      "no-undef": "error"
     }
   },
   // Override default ignores of eslint-config-next.

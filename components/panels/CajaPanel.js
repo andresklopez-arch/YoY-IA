@@ -196,7 +196,7 @@ export default function CajaPanel({ showToast }) {
     }, err => console.warn("Error loading queue response logs:", err));
 
     return () => {
-      unsubLogs();
+      if (typeof unsubLogs === 'function') unsubLogs();
     };
   }, [esCajero]);
 
@@ -254,7 +254,9 @@ export default function CajaPanel({ showToast }) {
       console.warn("Error cargando bitácora de eficiencia de surtido:", err);
     });
     
-    return unsubBitacora;
+    return () => {
+      if (typeof unsubBitacora === 'function') unsubBitacora();
+    };
   }, [esCajero]);
 
   useEffect(() => {
@@ -279,7 +281,7 @@ export default function CajaPanel({ showToast }) {
     }, err => console.warn("Error loading queue waitlist:", err));
 
     return () => {
-      unsubFila();
+      if (typeof unsubFila === 'function') unsubFila();
     };
   }, [esCajero]);
 
@@ -374,7 +376,9 @@ export default function CajaPanel({ showToast }) {
       const hace24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
       setUltimoCorteFecha(hace24h);
     });
-    return () => unsub();
+    return () => {
+      if (typeof unsub === 'function') unsub();
+    };
   }, []);
 
   // 3c. Suscribirse a bitácora filtrada por fecha del último corte
@@ -391,7 +395,9 @@ export default function CajaPanel({ showToast }) {
     }, err => {
       console.warn("Error al escuchar bitacora del corte:", err);
     });
-    return () => unsub();
+    return () => {
+      if (typeof unsub === 'function') unsub();
+    };
   }, [ultimoCorteFecha]);
 
   // 3d. Sincronizar historial de cortes de caja
@@ -413,7 +419,9 @@ export default function CajaPanel({ showToast }) {
     }, err => {
       console.warn("Error al escuchar historial de cortes:", err);
     });
-    return () => unsub();
+    return () => {
+      if (typeof unsub === 'function') unsub();
+    };
   }, [limiteCortesCaja]);
 
   // 4. Suscripciones Firestore
