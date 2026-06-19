@@ -1,5 +1,5 @@
 const { initializeApp } = require('firebase/app');
-const { getFirestore, collection, getDocs, query } = require('firebase/firestore');
+const { getFirestore, collection, getDocs, query, where } = require('firebase/firestore');
 const fs = require('fs');
 
 const envContent = fs.readFileSync('.env.local', 'utf8');
@@ -24,11 +24,20 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 async function run() {
-  const snap = await getDocs(query(collection(db, 'nomina_empleados')));
-  console.log("=== EMPLEADOS EN FIRESTORE ===");
+  const snap = await getDocs(query(
+    collection(db, 'bitacora'),
+    where('fecha', '>=', '2026-06-18T00:00:00.000Z'),
+    where('fecha', '<=', '2026-06-18T23:59:59.999Z')
+  ));
+  console.log("=== DIAGNOSTICO 18 DE JUNIO ===");
+  let totalMonto = 0;
+  let count = 0;
   snap.forEach(d => {
-    console.log(d.id, "=>", JSON.stringify(d.data(), null, 2));
+    const data = d.data();
+    count++;
+    if (data.monto) totalMonto += Number(data.monto);
   });
+  console.log(`Total Eventos: ${count}, Suma Montos: ${totalMonto}`);
   process.exit(0);
 }
 

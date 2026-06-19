@@ -4,6 +4,7 @@ import { db } from '@/lib/firebase';
 import { doc, onSnapshot, query, collection, orderBy, limit, getDocs, getDoc, startAfter, writeBatch, addDoc, serverTimestamp, where, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { deobfuscate, obfuscate } from '@/lib/crypto';
 import { useAuth } from '@/lib/auth-context';
+import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip as RechartsTooltip, PieChart as RechartsPieChart, Pie, Cell } from 'recharts';
 
 const METODO_ICONS = {
   efectivo: 'ri-money-dollar-circle-line',
@@ -107,6 +108,80 @@ export default function CajaPanel({ showToast }) {
   const [fechaReporteFin, setFechaReporteFin] = useState('');
   const [reporteCargando, setReporteCargando] = useState(false);
   const [datosReporte, setDatosReporte] = useState(null);
+
+  const chartData = useMemo(() => {
+    if (!datosReporte || !datosReporte.rawEventos) return [];
+    
+    const isShort = datosReporte.period === 'Hoy' || datosReporte.period === 'Ayer';
+    const groups = {};
+    
+    datosReporte.rawEventos.forEach(e => {
+      const acc = e.accion;
+      if (acc === 'Cierre Directo' || acc === 'Mesa a Cuenta' || acc === 'Cobro Manual' || acc === 'Venta Barra' || acc === 'Cobro Barra' || acc === 'Clientes - Suscripción' || acc === 'Torneos - Registro') {
+        const monto = Number(e.monto) || 0;
+        if (monto > 0) {
+          const date = new Date(e.fecha);
+          let key = '';
+          if (isShort) {
+            const hr = date.getHours();
+            key = `${hr.toString().padStart(2, '0')}:00`;
+          } else {
+            const day = date.getDate();
+            const month = date.getMonth() + 1;
+            key = `${day.toString().padStart(2, '0')}/${month.toString().padStart(2, '0')}`;
+          }
+          groups[key] = (groups[key] || 0) + monto;
+        }
+      }
+    });
+
+    const sortedKeys = Object.keys(groups).sort((a, b) => {
+      if (isShort) {
+        return parseInt(a) - parseInt(b);
+      } else {
+        const [dayA, monA] = a.split('/').map(Number);
+        const [dayB, monB] = b.split('/').map(Number);
+        return (monA - monB) || (dayA - dayB);
+      }
+    });
+
+    return sortedKeys.map(k => ({
+      name: k,
+      Ventas: groups[k]
+    }));
+  }, [datosReporte]);
+
+  const pieData = useMemo(() => {
+    if (!datosReporte) return [];
+    
+    let cash = 0;
+    let card = 0;
+    let transfer = 0;
+    
+    (datosReporte.rawEventos || []).forEach(e => {
+      const acc = e.accion;
+      if (acc === 'Cierre Directo' || acc === 'Mesa a Cuenta' || acc === 'Cobro Manual' || acc === 'Venta Barra' || acc === 'Cobro Barra' || acc === 'Clientes - Suscripción' || acc === 'Torneos - Registro') {
+        const monto = Number(e.monto) || 0;
+        if (monto > 0) {
+          const det = (e.detalle || '').toLowerCase();
+          if (det.includes('tarjeta')) {
+            card += monto;
+          } else if (det.includes('transferencia') || det.includes('spei') || det.includes('spei/qr') || det.includes('qr')) {
+            transfer += monto;
+          } else {
+            cash += monto;
+          }
+        }
+      }
+    });
+
+    const total = cash + card + transfer || 1;
+    return [
+      { name: 'Efectivo', value: cash, color: '#10b981', pct: ((cash / total) * 100).toFixed(0) },
+      { name: 'Tarjeta', value: card, color: '#3b82f6', pct: ((card / total) * 100).toFixed(0) },
+      { name: 'Transferencia', value: transfer, color: '#a855f7', pct: ((transfer / total) * 100).toFixed(0) }
+    ].filter(d => d.value > 0);
+  }, [datosReporte]);
 
   // Estados de Bitácora y Stock
   const [bitacora, setBitacora] = useState([]);
@@ -552,44 +627,46 @@ export default function CajaPanel({ showToast }) {
       const endTime = new Date(end).getTime();
       const filteredAsistencias = listAsistencias.filter(log => log.time >= startTime && log.time <= endTime);
 
-      const horasTrabajadasColaboradores = listEmpleados.map(emp => {
-        const empLogs = filteredAsistencias
-          .filter(log => log.empleadoId === emp.id)
-          .sort((a, b) => a.time - b.time);
+      const horasTrabajadasColaboradores = listEmpleados
+        .filter(emp => emp.estado === 'activo')
+        .map(emp => {
+          const empLogs = filteredAsistencias
+            .filter(log => log.empleadoId === emp.id)
+            .sort((a, b) => a.time - b.time);
 
-        let totalMs = 0;
-        let lastEntradaTime = null;
-        
-        empLogs.forEach(log => {
-          if (log.tipo === 'entrada') {
-            lastEntradaTime = log.time;
-          } else if (log.tipo === 'salida' && lastEntradaTime !== null) {
-            totalMs += (log.time - lastEntradaTime);
-            lastEntradaTime = null;
+          let totalMs = 0;
+          let lastEntradaTime = null;
+          
+          empLogs.forEach(log => {
+            if (log.tipo === 'entrada') {
+              lastEntradaTime = log.time;
+            } else if (log.tipo === 'salida' && lastEntradaTime !== null) {
+              totalMs += (log.time - lastEntradaTime);
+              lastEntradaTime = null;
+            }
+          });
+          
+          if (lastEntradaTime !== null && endTime >= Date.now()) {
+            totalMs += (Date.now() - lastEntradaTime);
           }
-        });
-        
-        if (lastEntradaTime !== null && endTime >= Date.now()) {
-          totalMs += (Date.now() - lastEntradaTime);
-        }
-        
-        const hrs = totalMs / 3600000;
-        
-        // Obtener costo de nómina estimado por hora (Sugerencia 2)
-        const base = Number(emp.sueldoBase) || 0;
-        const freq = emp.frecuenciaPago || 'quincenal';
-        const diasPeriodo = freq === 'semanal' ? 7 : 15;
-        const sueldoDiario = base > 0 ? (base / diasPeriodo) : 0;
-        const pagoPorHora = sueldoDiario > 0 ? (sueldoDiario / 8) : 50; // Fallback a $50/hr
-        const costoNomina = hrs * pagoPorHora;
+          
+          const hrs = totalMs / 3600000;
+          
+          // Obtener costo de nómina estimado por hora (Sugerencia 2)
+          const base = Number(emp.sueldoBase) || 0;
+          const freq = emp.frecuenciaPago || 'quincenal';
+          const diasPeriodo = freq === 'semanal' ? 7 : 15;
+          const sueldoDiario = base > 0 ? (base / diasPeriodo) : 0;
+          const pagoPorHora = sueldoDiario > 0 ? (sueldoDiario / 8) : 50; // Fallback a $50/hr
+          const costoNomina = hrs * pagoPorHora;
 
-        return {
-          nombre: `${emp.nombre} ${emp.apellido || ''}`.trim(),
-          rol: emp.rol || 'Staff',
-          horas: hrs,
-          costoNomina: costoNomina
-        };
-      }).filter(emp => emp.horas > 0);
+          return {
+            nombre: `${emp.nombre} ${emp.apellido || ''}`.trim(),
+            rol: emp.rol || 'Staff',
+            horas: hrs,
+            costoNomina: costoNomina
+          };
+        });
 
       const totalCostoNominaEst = horasTrabajadasColaboradores.reduce((acc, curr) => acc + curr.costoNomina, 0);
 
@@ -656,8 +733,6 @@ export default function CajaPanel({ showToast }) {
           const match = det.match(/desc(uento)?\s*(de)?\s*\$?([0-9.]+)/) || det.match(/\$?([0-9.]+)\s*desc/);
           if (match) {
             totalDescuentosVal += parseFloat(match[3] || match[1]);
-          } else if (acc.includes('cortesía') || det.includes('cortesía')) {
-            totalDescuentosVal += 80;
           }
         }
       });
@@ -5180,14 +5255,17 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
                   <div>
                     <span style={{ fontSize: 10, color: 'var(--text-secondary)', fontWeight: 800, textTransform: 'uppercase', display: 'block', borderBottom: '1px solid var(--border)', paddingBottom: 4, marginBottom: 6 }}>Pase de Lista (Horas QR)</span>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 90, overflowY: 'auto' }}>
-                      {datosReporte.horasTrabajadasColaboradores?.map(emp => (
-                        <div key={emp.nombre} style={{ fontSize: 9.5, display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed rgba(255,255,255,0.03)', paddingBottom: 2 }}>
-                          <span style={{ color: '#fff', fontWeight: 600 }}>{emp.nombre} ({emp.rol}):</span>
-                          <span style={{ color: 'var(--success)', fontWeight: 700 }}>
-                            {emp.horas.toFixed(1)} hrs <span style={{ color: 'var(--text-secondary)', fontWeight: 400 }}>(${emp.costoNomina.toLocaleString('es-MX', { maximumFractionDigits: 0 })})</span>
-                          </span>
-                        </div>
-                      ))}
+                      {datosReporte.horasTrabajadasColaboradores?.map(emp => {
+                        const isZero = emp.horas === 0;
+                        return (
+                          <div key={emp.nombre} style={{ fontSize: 9.5, display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed rgba(255,255,255,0.03)', paddingBottom: 2, opacity: isZero ? 0.45 : 1 }}>
+                            <span style={{ color: isZero ? 'var(--text-muted)' : '#fff', fontWeight: isZero ? 400 : 600 }}>{emp.nombre} ({emp.rol}):</span>
+                            <span style={{ color: isZero ? 'var(--text-muted)' : 'var(--success)', fontWeight: 700 }}>
+                              {emp.horas.toFixed(1)} hrs {!isZero && <span style={{ color: 'var(--text-secondary)', fontWeight: 400 }}>(${emp.costoNomina.toLocaleString('es-MX', { maximumFractionDigits: 0 })})</span>}
+                            </span>
+                          </div>
+                        );
+                      })}
                       {(!datosReporte.horasTrabajadasColaboradores || datosReporte.horasTrabajadasColaboradores.length === 0) && (
                         <span style={{ fontSize: 10, color: 'var(--text-muted)', fontStyle: 'italic' }}>Sin horas registradas con QR</span>
                       )}
@@ -5241,6 +5319,92 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
                       <span style={{ fontSize: 10, color: 'var(--text-muted)', fontStyle: 'italic' }}>Sin ventas en el periodo</span>
                     )}
                   </div>
+                </div>
+              </div>
+
+              {/* Gráficas de Rendimiento (Visuales Recharts) */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 10, marginTop: 4 }}>
+                {/* 1. Tendencia de Ventas */}
+                <div style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid var(--border)', borderRadius: 6, padding: 12 }}>
+                  <span style={{ fontSize: 10, color: 'var(--text-secondary)', fontWeight: 800, textTransform: 'uppercase', display: 'block', borderBottom: '1px solid var(--border)', paddingBottom: 4, marginBottom: 10 }}>
+                    <i className="ri-line-chart-line" style={{ marginRight: 4, color: 'var(--bronze-light)' }} />
+                    Tendencia de Ventas ({datosReporte.period === 'Hoy' || datosReporte.period === 'Ayer' ? 'Horario' : 'Histórico'})
+                  </span>
+                  {chartData.length > 0 ? (
+                    <div style={{ width: '100%', height: 130 }}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={chartData} margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
+                          <defs>
+                            <linearGradient id="colorVentas" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="var(--bronze-light)" stopOpacity={0.3}/>
+                              <stop offset="95%" stopColor="var(--bronze-light)" stopOpacity={0.0}/>
+                            </linearGradient>
+                          </defs>
+                          <XAxis dataKey="name" stroke="var(--text-muted)" tickLine={false} axisLine={false} style={{ fontSize: 8 }} />
+                          <YAxis stroke="var(--text-muted)" tickLine={false} axisLine={false} style={{ fontSize: 8 }} />
+                          <RechartsTooltip 
+                            contentStyle={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-bronze)', borderRadius: 6, fontSize: 9 }}
+                            labelStyle={{ color: 'var(--text-muted)', fontWeight: 700 }}
+                            itemStyle={{ color: 'var(--bronze-light)' }}
+                            formatter={(value) => [`$${value.toLocaleString()}`, 'Ventas']}
+                          />
+                          <Area type="monotone" dataKey="Ventas" stroke="var(--bronze-light)" strokeWidth={2} fillOpacity={1} fill="url(#colorVentas)" />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 130, fontSize: 9.5, color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                      Sin transacciones en este período
+                    </div>
+                  )}
+                </div>
+
+                {/* 2. Distribución de Pagos */}
+                <div style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid var(--border)', borderRadius: 6, padding: 12 }}>
+                  <span style={{ fontSize: 10, color: 'var(--text-secondary)', fontWeight: 800, textTransform: 'uppercase', display: 'block', borderBottom: '1px solid var(--border)', paddingBottom: 4, marginBottom: 10 }}>
+                    <i className="ri-pie-chart-line" style={{ marginRight: 4, color: 'var(--bronze-light)' }} />
+                    Participación de Métodos de Pago
+                  </span>
+                  {pieData.length > 0 ? (
+                    <div style={{ display: 'flex', alignItems: 'center', height: 130, justifyContent: 'space-around' }}>
+                      <div style={{ width: 110, height: 110 }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                          <RechartsPieChart>
+                            <Pie
+                              data={pieData}
+                              cx="50%"
+                              cy="50%"
+                              innerRadius={22}
+                              outerRadius={38}
+                              paddingAngle={3}
+                              dataKey="value"
+                            >
+                              {pieData.map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={entry.color} />
+                              ))}
+                            </Pie>
+                            <RechartsTooltip 
+                              formatter={(value) => `$${value.toLocaleString()}`} 
+                              contentStyle={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 6, fontSize: 9 }}
+                            />
+                          </RechartsPieChart>
+                        </ResponsiveContainer>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, width: '50%' }}>
+                        {pieData.map((d, i) => (
+                          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 9 }}>
+                            <span style={{ display: 'inline-block', width: 7, height: 7, borderRadius: '50%', backgroundColor: d.color }} />
+                            <span style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>{d.name}:</span>
+                            <span style={{ color: '#fff', fontWeight: 700, marginLeft: 'auto' }}>${d.value.toLocaleString()} <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>({d.pct}%)</span></span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 130, fontSize: 9.5, color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                      Sin transacciones en este período
+                    </div>
+                  )}
                 </div>
               </div>
 
