@@ -77,6 +77,57 @@ class PanelErrorBoundary extends Component {
   }
   componentDidCatch(error, info) {
     console.error(`[YoY ErrorBoundary] Panel [${this.props.name || 'desconocido'}] crash:`, error, info);
+    try {
+      const panelName = this.props.name || 'desconocido';
+      const errMessage = error?.message || String(error);
+      const errStack = error?.stack || '';
+      const compStack = info?.componentStack || '';
+      const userAgent = typeof navigator !== 'undefined' ? navigator.userAgent : 'desconocido';
+      const url = typeof window !== 'undefined' ? window.location.href : 'desconocido';
+      const userEmail = this.props.user?.email || 'no-autenticado';
+      const userId = this.props.user?.uid || 'no-autenticado';
+
+      // 1. Guardar log en Firestore
+      addDoc(collection(db, 'app_crash_logs'), {
+        panelName,
+        errorMessage: errMessage,
+        errorStack: errStack,
+        componentStack: compStack,
+        userAgent,
+        url,
+        userEmail,
+        userId,
+        createdAt: new Date().toISOString()
+      }).catch(e => console.error('[PanelErrorBoundary] Error al guardar log en Firestore:', e));
+
+      // 2. Enviar Alerta a Telegram
+      getDoc(doc(db, 'config', 'telegram')).then(snap => {
+        if (snap.exists() && snap.data().enabled) {
+          const d = snap.data();
+          const text = `🚨 *FALLO EN PANEL DETECTADO* 🚨\n\n` +
+            `• *Panel:* ${panelName}\n` +
+            `• *Error:* \`${errMessage.substring(0, 100)}\`\n` +
+            `• *Usuario:* ${userEmail}\n` +
+            `• *Navegador:* ${userAgent.substring(0, 50)}...\n` +
+            `• *Fecha:* ${new Date().toLocaleString()}`;
+
+          fetch('/api/telegram/send-alert', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              mode: d.mode,
+              token: d.botToken,
+              chatId: d.chatId,
+              phone: d.phone,
+              text: text
+            })
+          }).catch(err => console.error('[PanelErrorBoundary] Error al enviar Telegram:', err));
+        }
+      }).catch(err => console.error('[PanelErrorBoundary] Error al obtener config de Telegram:', err));
+
+    } catch (e) {
+      console.error('[PanelErrorBoundary] Falló el proceso de reporte de error:', e);
+    }
   }
   render() {
     if (this.state.hasError) {
@@ -1275,47 +1326,47 @@ function AppContent() {
 
   const panels = {
     dashboard: (
-      <PanelErrorBoundary name="Dashboard">
+      <PanelErrorBoundary name="Dashboard" user={user}>
         <DashboardPanel showToast={showToast} onNavigate={setActivePanel} />
       </PanelErrorBoundary>
     ),
     mesas: (
-      <PanelErrorBoundary name="Mesas">
+      <PanelErrorBoundary name="Mesas" user={user}>
         <MesasPanel showToast={showToast} />
       </PanelErrorBoundary>
     ),
     caja: (
-      <PanelErrorBoundary name="Caja">
+      <PanelErrorBoundary name="Caja" user={user}>
         <CajaPanel showToast={showToast} />
       </PanelErrorBoundary>
     ),
     bar: (
-      <PanelErrorBoundary name="Bar / Cocina">
+      <PanelErrorBoundary name="Bar / Cocina" user={user}>
         <BarPanel showToast={showToast} />
       </PanelErrorBoundary>
     ),
     clientes: (
-      <PanelErrorBoundary name="Clientes">
+      <PanelErrorBoundary name="Clientes" user={user}>
         <ClientesPanel showToast={showToast} />
       </PanelErrorBoundary>
     ),
     torneos: (
-      <PanelErrorBoundary name="Torneos">
+      <PanelErrorBoundary name="Torneos" user={user}>
         <TorneosPanel showToast={showToast} />
       </PanelErrorBoundary>
     ),
     nomina: (
-      <PanelErrorBoundary name="Nómina">
+      <PanelErrorBoundary name="Nómina" user={user}>
         <NominaPanel showToast={showToast} />
       </PanelErrorBoundary>
     ),
     reportes: (
-      <PanelErrorBoundary name="Reportes">
+      <PanelErrorBoundary name="Reportes" user={user}>
         <CajaPanel showToast={showToast} />
       </PanelErrorBoundary>
     ),
     config: (
-      <PanelErrorBoundary name="Configuración">
+      <PanelErrorBoundary name="Configuración" user={user}>
         <ConfigPanel showToast={showToast} />
       </PanelErrorBoundary>
     ),

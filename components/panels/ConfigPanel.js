@@ -327,13 +327,70 @@ export default function ConfigPanel({ showToast }) {
           setTicketConfig(JSON.parse(savedTicket));
         }
 
-        // Cleaned up stock and recipe loading
+        // --- Cargar borradores temporales (Autoguardado) ---
+        const savedMesa = sessionStorage.getItem('yoy_unsaved_nueva_mesa');
+        if (savedMesa) {
+          const parsed = JSON.parse(savedMesa);
+          setNuevaMesa(parsed);
+        }
+
+        const savedCustomTipo = sessionStorage.getItem('yoy_unsaved_custom_mesa_tipo');
+        if (savedCustomTipo) setCustomMesaTipo(savedCustomTipo);
+
+        const savedShowCustom = sessionStorage.getItem('yoy_unsaved_show_custom_tipo');
+        if (savedShowCustom) setShowCustomTipoInput(JSON.parse(savedShowCustom));
+
+        const savedNewUser = sessionStorage.getItem('yoy_unsaved_new_user');
+        if (savedNewUser) {
+          const parsed = JSON.parse(savedNewUser);
+          setNewUser(parsed);
+        }
+
       } catch (err) {
-        console.error(err);
+        console.error('Error al restaurar borradores:', err);
       }
     }
     return () => unsubMesas();
   }, []);
+
+  // --- Guardar borradores automáticamente al cambiar de estado ---
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('yoy_unsaved_nueva_mesa', JSON.stringify(nuevaMesa));
+    }
+  }, [nuevaMesa]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('yoy_unsaved_custom_mesa_tipo', customMesaTipo);
+    }
+  }, [customMesaTipo]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('yoy_unsaved_show_custom_tipo', JSON.stringify(showCustomTipoInput));
+    }
+  }, [showCustomTipoInput]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('yoy_unsaved_new_user', JSON.stringify(newUser));
+    }
+  }, [newUser]);
+
+  const clearMesaDraft = () => {
+    if (typeof window !== 'undefined') {
+      sessionStorage.removeItem('yoy_unsaved_nueva_mesa');
+      sessionStorage.removeItem('yoy_unsaved_custom_mesa_tipo');
+      sessionStorage.removeItem('yoy_unsaved_show_custom_tipo');
+    }
+  };
+
+  const clearUserDraft = () => {
+    if (typeof window !== 'undefined') {
+      sessionStorage.removeItem('yoy_unsaved_new_user');
+    }
+  };
 
   const handleAddUser = async (e) => {
     e.preventDefault();
@@ -376,6 +433,7 @@ export default function ConfigPanel({ showToast }) {
       showToast('¡Usuario creado! A partir de ahora el inicio de sesión es obligatorio.', 'success');
       setShowAddUserModal(false);
       setNewUser({ name: '', email: '', password: '', role: 'mesero' });
+      clearUserDraft();
       fetchUsuarios();
     } catch (err) {
       console.error("Error creando usuario:", err);
@@ -593,6 +651,7 @@ export default function ConfigPanel({ showToast }) {
       setNuevaMesa({ id: '', nombre: '', tarifa: '', tipo: 'Pool' });
       setCustomMesaTipo('');
       setShowCustomTipoInput(false);
+      clearMesaDraft();
       showToast('Mesa modificada correctamente', 'success');
     } else {
       let mesaId;
@@ -634,6 +693,7 @@ export default function ConfigPanel({ showToast }) {
       setNuevaMesa({ id: '', nombre: '', tarifa: '', tipo: 'Pool' });
       setCustomMesaTipo('');
       setShowCustomTipoInput(false);
+      clearMesaDraft();
       showToast('Nueva mesa agregada', 'success');
     }
   };
