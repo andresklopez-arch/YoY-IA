@@ -131,7 +131,11 @@ export default function ConfigPanel({ showToast }) {
     chatId: '',
     phone: '',
     notifyStatements: true,
-    notifyPayments: true
+    notifyPayments: true,
+    notifyPrevShiftSummary: true,
+    notifyAttendance: true,
+    notifyDisruptiveAlerts: true,
+    discrepancyThreshold: 100
   });
   const [savingTelegram, setSavingTelegram] = useState(false);
 
@@ -291,6 +295,10 @@ export default function ConfigPanel({ showToast }) {
           phone: d.phone || '',
           notifyStatements: d.notifyStatements !== undefined ? d.notifyStatements : true,
           notifyPayments: d.notifyPayments !== undefined ? d.notifyPayments : true,
+          notifyPrevShiftSummary: d.notifyPrevShiftSummary !== undefined ? d.notifyPrevShiftSummary : true,
+          notifyAttendance: d.notifyAttendance !== undefined ? d.notifyAttendance : true,
+          notifyDisruptiveAlerts: d.notifyDisruptiveAlerts !== undefined ? d.notifyDisruptiveAlerts : true,
+          discrepancyThreshold: d.discrepancyThreshold !== undefined ? Number(d.discrepancyThreshold) : 100,
         });
       }
     }).catch(err => console.error("Error al cargar configuración de Telegram:", err));
@@ -1682,6 +1690,81 @@ export default function ConfigPanel({ showToast }) {
                     <div style={{ width: 14, height: 14, borderRadius: '50%', background: '#fff', position: 'absolute', top: 2, left: telegramConfig.notifyPayments ? 22 : 2, transition: 'left 0.2s' }} />
                   </div>
                 </div>
+              </div>
+
+              {/* CONFIGURACIÓN DE REPORTES Y SEGURIDAD DEL ADMINISTRADOR */}
+              <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: 10, marginTop: 4, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: 'var(--bronze-light)', letterSpacing: '0.06em' }}>
+                  Reportes y Seguridad del Administrador
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 700 }}>Resumen de Jornada Anterior</div>
+                    <div style={{ fontSize: 9.5, color: 'var(--text-muted)' }}>Manda reporte de ayer al entrar el primer empleado</div>
+                  </div>
+                  <div
+                    onClick={() => setTelegramConfig(p => ({ ...p, notifyPrevShiftSummary: !p.notifyPrevShiftSummary }))}
+                    style={{
+                      width: 38, height: 20, borderRadius: 10, cursor: 'pointer', transition: 'all 0.2s',
+                      background: telegramConfig.notifyPrevShiftSummary ? 'var(--bronze)' : 'var(--bg-elevated)',
+                      border: `1px solid ${telegramConfig.notifyPrevShiftSummary ? 'var(--bronze)' : 'var(--border)'}`,
+                      position: 'relative',
+                    }}
+                  >
+                    <div style={{ width: 14, height: 14, borderRadius: '50%', background: '#fff', position: 'absolute', top: 2, left: telegramConfig.notifyPrevShiftSummary ? 22 : 2, transition: 'left 0.2s' }} />
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 700 }}>Pase de Lista / Asistencia</div>
+                    <div style={{ fontSize: 9.5, color: 'var(--text-muted)' }}>Avisar cuando entre/salga personal y al quedar vacía la sucursal</div>
+                  </div>
+                  <div
+                    onClick={() => setTelegramConfig(p => ({ ...p, notifyAttendance: !p.notifyAttendance }))}
+                    style={{
+                      width: 38, height: 20, borderRadius: 10, cursor: 'pointer', transition: 'all 0.2s',
+                      background: telegramConfig.notifyAttendance ? 'var(--bronze)' : 'var(--bg-elevated)',
+                      border: `1px solid ${telegramConfig.notifyAttendance ? 'var(--bronze)' : 'var(--border)'}`,
+                      position: 'relative',
+                    }}
+                  >
+                    <div style={{ width: 14, height: 14, borderRadius: '50%', background: '#fff', position: 'absolute', top: 2, left: telegramConfig.notifyAttendance ? 22 : 2, transition: 'left 0.2s' }} />
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 700 }}>Alertas de Desviaciones (IA)</div>
+                    <div style={{ fontSize: 9.5, color: 'var(--text-muted)' }}>Descuadres de caja, inconsistencias IoT y stock crítico</div>
+                  </div>
+                  <div
+                    onClick={() => setTelegramConfig(p => ({ ...p, notifyDisruptiveAlerts: !p.notifyDisruptiveAlerts }))}
+                    style={{
+                      width: 38, height: 20, borderRadius: 10, cursor: 'pointer', transition: 'all 0.2s',
+                      background: telegramConfig.notifyDisruptiveAlerts ? 'var(--bronze)' : 'var(--bg-elevated)',
+                      border: `1px solid ${telegramConfig.notifyDisruptiveAlerts ? 'var(--bronze)' : 'var(--border)'}`,
+                      position: 'relative',
+                    }}
+                  >
+                    <div style={{ width: 14, height: 14, borderRadius: '50%', background: '#fff', position: 'absolute', top: 2, left: telegramConfig.notifyDisruptiveAlerts ? 22 : 2, transition: 'left 0.2s' }} />
+                  </div>
+                </div>
+
+                {telegramConfig.notifyDisruptiveAlerts && (
+                  <div className="form-group" style={{ gap: 4, marginTop: 4 }}>
+                    <label className="form-label" style={{ fontSize: 10 }}>Umbral de Alerta de Descuadre ($)</label>
+                    <input
+                      type="number"
+                      className="form-input"
+                      placeholder="Ej: 100"
+                      value={telegramConfig.discrepancyThreshold || ''}
+                      onChange={e => setTelegramConfig(p => ({ ...p, discrepancyThreshold: Number(e.target.value) }))}
+                      style={{ padding: '6px 10px', fontSize: '11px', width: '100px' }}
+                    />
+                  </div>
+                )}
               </div>
 
               <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>

@@ -229,7 +229,18 @@ export default function CajaPanel({ showToast }) {
   const [surtidoEficiencia, setSurtidoEficiencia] = useState({ promedioMinutos: 0, solicitudesAtendidas: 0, solicitudesCanceladas: 0, ultimosEventos: [] });
   const [cuentasActivas, setCuentasActivas] = useState([]);
   const [inconsistenciasEnVivo, setInconsistenciasEnVivo] = useState([]);
+  const [telegramConfig, setTelegramConfig] = useState(null);
+  const alertadasInconsistencias = useRef(new Set());
 
+  useEffect(() => {
+    // Escuchar cambios de configuración de Telegram en tiempo real
+    const unsub = onSnapshot(doc(db, 'config', 'telegram'), snap => {
+      if (snap.exists()) {
+        setTelegramConfig(snap.data());
+      }
+    }, err => console.error("Error al escuchar config de Telegram:", err));
+    return () => unsub();
+  }, []);
 
   // Simulador de Tarifas
   const [surgePercent, setSurgePercent] = useState(20);
@@ -1683,12 +1694,45 @@ export default function CajaPanel({ showToast }) {
           cliente: 'Ninguno (Mesa Libre)',
           horas: '0',
           tipo: 'iot_luces',
-          motivo: 'Consumo eléctrico activo (45W) detectado por sensores IoT en Mesa Libre.'
         });
       }
     });
     setInconsistenciasEnVivo(incs);
-  }, [mesas, cuentasActivas]);
+
+    // Disparar alertas de inconsistencias en vivo de forma inteligente
+    if (telegramConfig && telegramConfig.enabled && telegramConfig.notifyDisruptiveAlerts) {
+      incs.forEach(async (inc) => {
+        const key = `${inc.mesaId}_${inc.tipo}`;
+        if (!alertadasInconsistencias.current.has(key)) {
+          alertadasInconsistencias.current.add(key);
+          try {
+            const nowStr = new Date().toLocaleString('es-MX', { timeZone: 'America/Mexico_City' });
+            const label = inc.tipo === 'iot_luces' ? 'Desviación Eléctrica (IoT)' : 'Desviación Operativa';
+            const alertMsg = `✈️ *[YoY Billar - Alerta IA]*\n\n` +
+                             `⚠️ *${label}*\n` +
+                             `🎱 *Mesa:* ${inc.nombre}\n` +
+                             `👤 *Cliente registrado:* ${inc.cliente}\n` +
+                             `📊 *Detalle:* ${inc.motivo}\n` +
+                             `📅 *Hora:* ${nowStr}`;
+
+            await fetch('/api/telegram/send-alert', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                mode: telegramConfig.mode,
+                token: telegramConfig.botToken,
+                chatId: telegramConfig.chatId,
+                phone: telegramConfig.phone,
+                text: alertMsg
+              })
+            });
+          } catch (err) {
+            console.error("Error al despachar alerta de inconsistencia IoT:", err);
+          }
+        }
+      });
+    }
+  }, [mesas, cuentasActivas, telegramConfig]);
 
   // Helper para auditoría bitácora / registrar auditoría (Sugerencias 1 y 2)
   const registrarEvento = async (accion, detalle, monto = 0, tipo = 'info') => {
@@ -2145,6 +2189,40 @@ ${diferenciaVal < 0 ? '1. Implementar auditoría ciega por turnos.\n2. Conciliar
         ingresosDetalle: calculationsCorte.ingresosDetalle,
         gastosDetalle: calculationsCorte.gastosDetalle
       });
+
+      // Alerta de descuadre de caja
+      if (telegramConfig && telegramConfig.enabled && telegramConfig.notifyDisruptiveAlerts) {
+        const threshold = telegramConfig.discrepancyThreshold !== undefined ? Number(telegramConfig.discrepancyThreshold) : 100;
+        const diffAbs = Math.abs(diferencia);
+        if (diffAbs > threshold) {
+          try {
+            const formattedDiff = diferencia >= 0 ? `+$${diferencia.toLocaleString('es-MX')}` : `-$${diffAbs.toLocaleString('es-MX')}`;
+            const nowStr = new Date().toLocaleString('es-MX', { timeZone: 'America/Mexico_City' });
+            const alertMsg = `✈️ *[YoY Billar - Alerta IA]*\n\n` +
+                             `⚠️ *Desviación Crítica de Caja (Arqueo)*\n` +
+                             `👤 *Operador:* ${nombreOperador}\n` +
+                             `💵 *Efectivo Esperado:* $${calculationsCorte.efectivoEsperado.toLocaleString('es-MX')}\n` +
+                             `💵 *Efectivo Contado:* $${sumaContada.toLocaleString('es-MX')}\n` +
+                             `📊 *Diferencia / Descuadre:* *${formattedDiff}* ⚠️\n` +
+                             `📅 *Hora:* ${nowStr}\n\n` +
+                             `*Análisis IA:* El descuadre supera el umbral de tolerancia de $${threshold}. Se sugiere revisión inmediata.`;
+
+            await fetch('/api/telegram/send-alert', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                mode: telegramConfig.mode,
+                token: telegramConfig.botToken,
+                chatId: telegramConfig.chatId,
+                phone: telegramConfig.phone,
+                text: alertMsg
+              })
+            });
+          } catch (tgErr) {
+            console.error("Error al despachar alerta de descuadre:", tgErr);
+          }
+        }
+      }
 
       // Conciliación y Descuento automático de stock de inventario
       if (productos && productos.length > 0) {

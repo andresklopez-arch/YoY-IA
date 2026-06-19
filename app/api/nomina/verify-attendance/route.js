@@ -232,6 +232,27 @@ export async function POST(request) {
       createdAt: serverTimestamp()
     });
 
+    // Disparar alertas de asistencia y de transición de jornada a Telegram
+    try {
+      const protocol = request.headers.get('x-forwarded-proto') || 'http';
+      const host = request.headers.get('host') || 'localhost:3000';
+      const alertUrl = `${protocol}://${host}/api/telegram/attendance-alert`;
+      
+      await fetch(alertUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          empleadoId: emp.id,
+          tipo: tipoRegistro,
+          nombre: `${emp.nombre} ${emp.apellido || ''}`.trim(),
+          rol: emp.rol || 'Mesero',
+          dispositivo: dispositivo || 'Móvil'
+        })
+      });
+    } catch (alertErr) {
+      console.error("Error al disparar alerta de asistencia:", alertErr);
+    }
+
     // 11. Registrar asistencia diaria legacy (solo Entrada)
     if (tipoRegistro === 'entrada') {
       const qAsist = query(

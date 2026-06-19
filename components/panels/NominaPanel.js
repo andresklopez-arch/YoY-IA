@@ -858,6 +858,42 @@ export default function NominaPanel({ showToast }) {
           empleadoId, fecha, estado: nuevoEstado, createdAt: serverTimestamp()
         });
       }
+
+      // Obtener datos del empleado para bitácora y alertas
+      const empObj = empleados.find(e => e.id === empleadoId);
+      const empNombre = empObj ? `${empObj.nombre} ${empObj.apellido || ''}`.trim() : 'Empleado';
+      const empRol = empObj ? empObj.rol || 'Mesero' : 'Mesero';
+      const tipoLog = (nuevoEstado === 'presente' || nuevoEstado === 'tardanza') ? 'entrada' : 'salida';
+
+      // Registrar log oficial de asistencia
+      await addDoc(collection(db, 'nomina_asistencia_log'), {
+        empleadoId,
+        nombre: empNombre,
+        rol: empRol,
+        fecha: fecha,
+        tipo: tipoLog,
+        coordenadas: { lat: null, lng: null, precision: null, status: 'Registro manual por Admin' },
+        dispositivo: 'PC/Terminal (Admin)',
+        createdAt: serverTimestamp()
+      });
+
+      // Disparar llamada a la API de notificaciones Telegram de asistencia
+      try {
+        await fetch('/api/telegram/attendance-alert', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            empleadoId,
+            tipo: tipoLog,
+            nombre: empNombre,
+            rol: empRol,
+            dispositivo: 'PC/Terminal (Admin)'
+          })
+        });
+      } catch (err) {
+        console.error("Error al notificar alerta de asistencia manual:", err);
+      }
+
       showToast(`Asistencia registrada`, 'success');
     } catch (e) { showToast('Error: ' + e.message, 'error'); }
   };
