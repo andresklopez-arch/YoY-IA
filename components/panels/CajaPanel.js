@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useMemo, Fragment } from 'react';
+import { useState, useEffect, useMemo, Fragment, useRef } from 'react';
 import { db } from '@/lib/firebase';
 import { doc, onSnapshot, query, collection, orderBy, limit, getDocs, getDoc, startAfter, writeBatch, addDoc, serverTimestamp, where, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { deobfuscate, obfuscate } from '@/lib/crypto';
@@ -83,6 +83,7 @@ const F = ({ label, children, col }) => (
 export default function CajaPanel({ showToast }) {
   const { user } = useAuth();
   const esCajero = user?.role === 'cajero';
+  const cacheReporteRef = useRef({});
 
   // Estados de Caja POS
   const [cobros, setCobros] = useState([]);
@@ -113,6 +114,7 @@ export default function CajaPanel({ showToast }) {
     if (!datosReporte || !datosReporte.rawEventos) return [];
     
     const isShort = datosReporte.period === 'Hoy' || datosReporte.period === 'Ayer';
+    const isLong = datosReporte.period === '6m' || datosReporte.period === '1a';
     const groups = {};
     
     datosReporte.rawEventos.forEach(e => {
@@ -124,31 +126,41 @@ export default function CajaPanel({ showToast }) {
           let key = '';
           if (isShort) {
             const hr = date.getHours();
-            key = `${hr.toString().padStart(2, '0')}:00`;
+            key = hr.toString().padStart(2, '0');
+          } else if (isLong) {
+            const yr = date.getFullYear();
+            const mo = (date.getMonth() + 1).toString().padStart(2, '0');
+            key = `${yr}-${mo}`;
           } else {
-            const day = date.getDate();
-            const month = date.getMonth() + 1;
-            key = `${day.toString().padStart(2, '0')}/${month.toString().padStart(2, '0')}`;
+            const yr = date.getFullYear();
+            const mo = (date.getMonth() + 1).toString().padStart(2, '0');
+            const dy = date.getDate().toString().padStart(2, '0');
+            key = `${yr}-${mo}-${dy}`;
           }
           groups[key] = (groups[key] || 0) + monto;
         }
       }
     });
 
-    const sortedKeys = Object.keys(groups).sort((a, b) => {
-      if (isShort) {
-        return parseInt(a) - parseInt(b);
-      } else {
-        const [dayA, monA] = a.split('/').map(Number);
-        const [dayB, monB] = b.split('/').map(Number);
-        return (monA - monB) || (dayA - dayB);
-      }
-    });
+    const sortedKeys = Object.keys(groups).sort();
+    const monthNames = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
 
-    return sortedKeys.map(k => ({
-      name: k,
-      Ventas: groups[k]
-    }));
+    return sortedKeys.map(k => {
+      let label = k;
+      if (isShort) {
+        label = `${k}:00`;
+      } else if (isLong) {
+        const [yr, mo] = k.split('-');
+        label = `${monthNames[parseInt(mo) - 1]} ${yr.substring(2)}`;
+      } else {
+        const [yr, mo, dy] = k.split('-');
+        label = `${dy}/${mo}`;
+      }
+      return {
+        name: label,
+        Ventas: groups[k]
+      };
+    });
   }, [datosReporte]);
 
   const pieData = useMemo(() => {
@@ -514,6 +526,20 @@ export default function CajaPanel({ showToast }) {
 
   // 3e. Motor de Reportes Financieros y Operativos
   const cargarDatosReporte = async (p, startCustom = '', endCustom = '') => {
+    // Generar llave de cache
+    const cacheKey = p === 'Personalizado' ? `${startCustom}_${endCustom}` : p;
+    const now = Date.now();
+    const cacheTTL = p === 'Hoy' || p === 'Ayer' ? 30 * 1000 : 5 * 60 * 1000; // 30s Hoy/Ayer, 5m para históricos
+
+    if (cacheReporteRef.current[cacheKey]) {
+      const cached = cacheReporteRef.current[cacheKey];
+      if (now - cached.timestamp < cacheTTL) {
+        setDatosReporte(cached.datos);
+        setReporteCargando(false);
+        return;
+      }
+    }
+
     setReporteCargando(true);
     try {
       let start = '';
@@ -573,10 +599,18 @@ export default function CajaPanel({ showToast }) {
         where('fecha', '>=', start),
         where('fecha', '<=', end)
       );
-      const snapBit = await getDocs(qBit);
+
+      // Paralelizar todas las llamadas a Firebase
+      const [snapBit, snapPed, snapCortes, snapEmp, snapAsistencia] = await Promise.all([
+        getDocs(qBit),
+        getDocs(collection(db, 'mesa_pedidos')),
+        getDocs(collection(db, 'cortes_caja')),
+        getDocs(collection(db, 'nomina_empleados')),
+        getDocs(collection(db, 'nomina_asistencia_log'))
+      ]);
+
       const listEventos = snapBit.docs.map(d => ({ id: d.id, ...d.data() }));
 
-      const snapPed = await getDocs(collection(db, 'mesa_pedidos'));
       const listPedidosRaw = snapPed.docs.map(d => {
         const dData = d.data();
         return {
@@ -592,7 +626,6 @@ export default function CajaPanel({ showToast }) {
         return pDoc.createdAt >= start && pDoc.createdAt <= end;
       });
 
-      const snapCortes = await getDocs(collection(db, 'cortes_caja'));
       const listCortesRaw = snapCortes.docs.map(d => {
         const dData = d.data();
         return {
@@ -606,11 +639,8 @@ export default function CajaPanel({ showToast }) {
         return cDoc.fecha >= start && cDoc.fecha <= end;
       });
 
-      // Consulta de Empleados y Registros de Asistencia
-      const snapEmp = await getDocs(collection(db, 'nomina_empleados'));
       const listEmpleados = snapEmp.docs.map(d => ({ id: d.id, ...d.data() }));
 
-      const snapAsistencia = await getDocs(collection(db, 'nomina_asistencia_log'));
       const listAsistencias = snapAsistencia.docs.map(d => {
         const dData = d.data();
         const timeVal = dData.createdAt?.toDate 
@@ -902,7 +932,7 @@ export default function CajaPanel({ showToast }) {
       });
       const promedioPrepVal = countPrep > 0 ? (totalPrepTime / countPrep) : 11.5;
 
-      setDatosReporte({
+      const dataToSave = {
         period: p,
         start,
         end,
@@ -926,7 +956,15 @@ export default function CajaPanel({ showToast }) {
         rawEventos: listEventos,
         rawPedidos: listPedidos,
         rawCortes: listCortes
-      });
+      };
+
+      // Guardar en cache
+      cacheReporteRef.current[cacheKey] = {
+        datos: dataToSave,
+        timestamp: Date.now()
+      };
+
+      setDatosReporte(dataToSave);
 
     } catch (err) {
       console.error("Error al generar reporte de período:", err);
@@ -937,6 +975,10 @@ export default function CajaPanel({ showToast }) {
   };
 
   const handlePeriodoReporteChange = (p) => {
+    if (p === periodoReporte && p !== 'Personalizado') {
+      const cacheKey = p;
+      delete cacheReporteRef.current[cacheKey];
+    }
     setPeriodoReporte(p);
     if (p !== 'Personalizado') {
       cargarDatosReporte(p);
@@ -1279,6 +1321,8 @@ export default function CajaPanel({ showToast }) {
         fecha: new Date().toISOString(),
         tipo
       });
+      // Invalida cache de reportes cuando se registra un nuevo evento
+      cacheReporteRef.current = {};
     } catch (e) {
       console.error(e);
     }
@@ -1769,6 +1813,9 @@ ${diferenciaVal < 0 ? '1. Implementar auditoría ciega por turnos.\n2. Conciliar
 
       const nuevaFecha = new Date().toISOString();
       await setDoc(doc(db, 'config', 'ultimo_corte'), { fecha: nuevaFecha });
+
+      // Invalida cache de reportes financieros/operativos al registrar un corte
+      cacheReporteRef.current = {};
 
       setResumenCorteActivo(corteInfo);
       setMostrarResumenCorteModal(true);
