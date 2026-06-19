@@ -524,6 +524,42 @@ export default function CajaPanel({ showToast }) {
     };
   }, [limiteCortesCaja]);
 
+  // Helper para limpiar caché persistente y en memoria
+  const clearPersistedCache = () => {
+    cacheReporteRef.current = {};
+    if (typeof window !== 'undefined') {
+      try {
+        const keys = Object.keys(localStorage);
+        keys.forEach(k => {
+          if (k.startsWith('yoy_report_cache_')) {
+            localStorage.removeItem(k);
+          }
+        });
+      } catch (e) {
+        console.warn("Error al limpiar caché persistente:", e);
+      }
+    }
+  };
+
+  // Helper de reintentos para consultas de Firestore con backoff exponencial
+  const getDocsWithRetry = async (qRef, maxRetries = 3, initialDelay = 1000) => {
+    let attempt = 0;
+    while (true) {
+      try {
+        return await getDocs(qRef);
+      } catch (err) {
+        attempt++;
+        if (attempt >= maxRetries) {
+          console.error(`Error de Firestore tras ${maxRetries} intentos:`, err);
+          throw err;
+        }
+        const delay = initialDelay * Math.pow(2, attempt - 1);
+        console.warn(`Firestore getDocs falló. Reintentando en ${delay}ms (intento ${attempt}/${maxRetries})...`, err);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  };
+
   // 3e. Motor de Reportes Financieros y Operativos
   const cargarDatosReporte = async (p, startCustom = '', endCustom = '') => {
     // Generar llave de cache
@@ -531,12 +567,32 @@ export default function CajaPanel({ showToast }) {
     const now = Date.now();
     const cacheTTL = p === 'Hoy' || p === 'Ayer' ? 30 * 1000 : 5 * 60 * 1000; // 30s Hoy/Ayer, 5m para históricos
 
+    // 1. Intentar leer de caché en memoria primero
     if (cacheReporteRef.current[cacheKey]) {
       const cached = cacheReporteRef.current[cacheKey];
       if (now - cached.timestamp < cacheTTL) {
         setDatosReporte(cached.datos);
         setReporteCargando(false);
         return;
+      }
+    }
+
+    // 2. Intentar leer de localStorage si es histórico
+    if (p !== 'Hoy' && p !== 'Ayer' && typeof window !== 'undefined') {
+      try {
+        const localCached = localStorage.getItem(`yoy_report_cache_${cacheKey}`);
+        if (localCached) {
+          const parsed = JSON.parse(localCached);
+          if (now - parsed.timestamp < cacheTTL) {
+            // Respaldar en memoria para subsecuentes consultas rápidas
+            cacheReporteRef.current[cacheKey] = parsed;
+            setDatosReporte(parsed.datos);
+            setReporteCargando(false);
+            return;
+          }
+        }
+      } catch (e) {
+        console.warn("Error leyendo caché persistente:", e);
       }
     }
 
@@ -600,13 +656,13 @@ export default function CajaPanel({ showToast }) {
         where('fecha', '<=', end)
       );
 
-      // Paralelizar todas las llamadas a Firebase
+      // Paralelizar todas las llamadas a Firebase utilizando getDocsWithRetry
       const [snapBit, snapPed, snapCortes, snapEmp, snapAsistencia] = await Promise.all([
-        getDocs(qBit),
-        getDocs(collection(db, 'mesa_pedidos')),
-        getDocs(collection(db, 'cortes_caja')),
-        getDocs(collection(db, 'nomina_empleados')),
-        getDocs(collection(db, 'nomina_asistencia_log'))
+        getDocsWithRetry(qBit),
+        getDocsWithRetry(collection(db, 'mesa_pedidos')),
+        getDocsWithRetry(collection(db, 'cortes_caja')),
+        getDocsWithRetry(collection(db, 'nomina_empleados')),
+        getDocsWithRetry(collection(db, 'nomina_asistencia_log'))
       ]);
 
       const listEventos = snapBit.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -958,11 +1014,23 @@ export default function CajaPanel({ showToast }) {
         rawCortes: listCortes
       };
 
-      // Guardar en cache
+      // Guardar en cache en memoria
       cacheReporteRef.current[cacheKey] = {
         datos: dataToSave,
         timestamp: Date.now()
       };
+
+      // Guardar en localStorage si es histórico
+      if (p !== 'Hoy' && p !== 'Ayer' && typeof window !== 'undefined') {
+        try {
+          localStorage.setItem(`yoy_report_cache_${cacheKey}`, JSON.stringify({
+            datos: dataToSave,
+            timestamp: Date.now()
+          }));
+        } catch (e) {
+          console.warn("Error guardando en caché persistente:", e);
+        }
+      }
 
       setDatosReporte(dataToSave);
 
@@ -978,6 +1046,13 @@ export default function CajaPanel({ showToast }) {
     if (p === periodoReporte && p !== 'Personalizado') {
       const cacheKey = p;
       delete cacheReporteRef.current[cacheKey];
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.removeItem(`yoy_report_cache_${cacheKey}`);
+        } catch (e) {
+          console.warn("Error al remover de caché persistente:", e);
+        }
+      }
     }
     setPeriodoReporte(p);
     if (p !== 'Personalizado') {
@@ -1322,7 +1397,7 @@ export default function CajaPanel({ showToast }) {
         tipo
       });
       // Invalida cache de reportes cuando se registra un nuevo evento
-      cacheReporteRef.current = {};
+      clearPersistedCache();
     } catch (e) {
       console.error(e);
     }
@@ -1815,7 +1890,7 @@ ${diferenciaVal < 0 ? '1. Implementar auditoría ciega por turnos.\n2. Conciliar
       await setDoc(doc(db, 'config', 'ultimo_corte'), { fecha: nuevaFecha });
 
       // Invalida cache de reportes financieros/operativos al registrar un corte
-      cacheReporteRef.current = {};
+      clearPersistedCache();
 
       setResumenCorteActivo(corteInfo);
       setMostrarResumenCorteModal(true);
