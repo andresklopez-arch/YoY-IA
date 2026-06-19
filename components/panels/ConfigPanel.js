@@ -135,6 +135,11 @@ export default function ConfigPanel({ showToast }) {
   });
   const [savingTelegram, setSavingTelegram] = useState(false);
 
+  // --- Estados de Registro de Errores (Crashes) ---
+  const [crashLogs, setCrashLogs] = useState([]);
+  const [loadingLogs, setLoadingLogs] = useState(true);
+  const [selectedLogId, setSelectedLogId] = useState(null);
+
   const fetchUsuarios = async () => {
     setLoadingUsuarios(true);
     try {
@@ -377,6 +382,41 @@ export default function ConfigPanel({ showToast }) {
       sessionStorage.setItem('yoy_unsaved_new_user', JSON.stringify(newUser));
     }
   }, [newUser]);
+
+  // --- Escuchar logs de crashes en tiempo real ---
+  useEffect(() => {
+    const q = query(collection(db, 'app_crash_logs'), orderBy('createdAt', 'desc'), limit(10));
+    const unsubLogs = onSnapshot(q, (snap) => {
+      const logs = [];
+      snap.forEach(doc => {
+        logs.push({ id: doc.id, ...doc.data() });
+      });
+      setCrashLogs(logs);
+      setLoadingLogs(false);
+    }, (err) => {
+      console.error("Error loading crash logs:", err);
+      setLoadingLogs(false);
+    });
+    return () => unsubLogs();
+  }, []);
+
+  const handleClearCrashLogs = async () => {
+    if (!window.confirm('¿Estás seguro de que deseas limpiar todo el registro de errores de la base de datos?')) {
+      return;
+    }
+    try {
+      const snap = await getDocs(collection(db, 'app_crash_logs'));
+      const batch = writeBatch(db);
+      snap.forEach(d => {
+        batch.delete(doc(db, 'app_crash_logs', d.id));
+      });
+      await batch.commit();
+      showToast('Registro de errores limpiado con éxito ✓', 'success');
+    } catch (err) {
+      console.error("Error al limpiar errores de Firestore:", err);
+      showToast('Error al limpiar errores de Firestore', 'error');
+    }
+  };
 
   const clearMesaDraft = () => {
     if (typeof window !== 'undefined') {
@@ -2085,6 +2125,78 @@ export default function ConfigPanel({ showToast }) {
                   <i className="ri-delete-bin-line" /> {isResetting ? 'Restableciendo...' : 'Restablecer Base de Datos'}
                 </button>
               </form>
+            </div>
+
+            {/* Registro de Errores (Crashes) del Sistema */}
+            <div className="card" style={{ border: '1px solid rgba(227,168,105,0.2)', padding: '12px 14px', marginTop: 12 }}>
+              <div className="card-header" style={{ marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h3 className="card-title" style={{ color: 'var(--bronze-light)' }}>
+                  <i className="ri-error-warning-fill" style={{ marginRight: 6 }} />Registro de Errores (Crashes)
+                </h3>
+                {crashLogs.length > 0 && (
+                  <button 
+                    type="button"
+                    onClick={handleClearCrashLogs}
+                    className="btn btn-secondary btn-xs"
+                    style={{ fontSize: 10, padding: '3px 8px', color: 'var(--danger)', borderColor: 'rgba(239,68,68,0.2)', background: 'none', cursor: 'pointer' }}
+                  >
+                    <i className="ri-delete-bin-line" /> Limpiar Registro
+                  </button>
+                )}
+              </div>
+              <p style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 12, lineHeight: 1.4 }}>
+                Últimos 10 fallos críticos reportados en tiempo real por el sistema de monitoreo.
+              </p>
+              {loadingLogs ? (
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', padding: '12px 0' }}>Cargando registros...</div>
+              ) : crashLogs.length === 0 ? (
+                <div style={{ fontSize: 11, color: 'var(--success)', textAlign: 'center', padding: '16px 0', background: 'rgba(34,197,94,0.04)', borderRadius: 8, border: '1px dashed rgba(34,197,94,0.1)' }}>
+                  ✓ No se han reportado errores en el sistema. ¡Operación saludable!
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 300, overflowY: 'auto' }}>
+                  {crashLogs.map((log) => {
+                    const isExpanded = selectedLogId === log.id;
+                    const dateStr = log.createdAt ? new Date(log.createdAt).toLocaleString() : 'Desconocida';
+                    return (
+                      <div key={log.id} style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 10px', fontSize: 11 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+                          <span style={{ fontWeight: 800, color: '#ef4444', textTransform: 'uppercase' }}>
+                            Panel: {log.panelName}
+                          </span>
+                          <span style={{ color: 'var(--text-muted)', fontSize: 9.5 }}>{dateStr}</span>
+                        </div>
+                        <div style={{ marginTop: 4, fontWeight: 600, color: 'var(--text-main)', wordBreak: 'break-all', textAlign: 'left' }}>
+                          {log.errorMessage}
+                        </div>
+                        <div style={{ marginTop: 4, fontSize: 9.5, color: 'var(--text-secondary)', display: 'flex', gap: 12 }}>
+                          <span><strong>User:</strong> {log.userEmail}</span>
+                          <span><strong>URL:</strong> {log.url ? log.url.split('/').pop() : ''}</span>
+                        </div>
+                        
+                        {log.errorStack && (
+                          <button
+                            type="button"
+                            onClick={() => setSelectedLogId(isExpanded ? null : log.id)}
+                            style={{ background: 'none', border: 'none', color: 'var(--bronze-light)', cursor: 'pointer', padding: '4px 0 0 0', fontSize: 9.5, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 3 }}
+                          >
+                            <i className={isExpanded ? 'ri-arrow-up-s-line' : 'ri-arrow-down-s-line'} />
+                            {isExpanded ? 'Ocultar detalles' : 'Ver detalles técnicos'}
+                          </button>
+                        )}
+
+                        {isExpanded && (
+                          <div style={{ marginTop: 6, background: 'var(--bg-main)', padding: 8, borderRadius: 6, border: '1px solid var(--border)', overflowX: 'auto', fontFamily: 'monospace', fontSize: 9, whiteSpace: 'pre-wrap', color: 'var(--text-muted)', maxHeight: 150, overflowY: 'auto', textAlign: 'left' }}>
+                            <strong>Stack Trace:</strong>{"\n"}{log.errorStack}{"\n\n"}
+                            <strong>Component Stack:</strong>{"\n"}{log.componentStack}{"\n\n"}
+                            <strong>User Agent:</strong>{"\n"}{log.userAgent}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
             </div>
 
