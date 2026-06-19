@@ -168,6 +168,8 @@ export default function CajaPanel({ showToast }) {
 
   // Metas y Subpestañas IA
   const [metaMensual, setMetaMensual] = useState(100000);
+  const [editandoMeta, setEditandoMeta] = useState(false);
+  const [nuevaMetaInput, setNuevaMetaInput] = useState('');
   const [subTabIa, setSubTabIa] = useState('auditoria'); // 'auditoria' | 'predictivos'
   const [metricasFila, setMetricasFila] = useState({
     tiempoRespuestaPromedio: 0,
@@ -2206,6 +2208,21 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
     setPinAutorizacion('');
   };
 
+  const guardarNuevaMeta = async () => {
+    const val = Number(nuevaMetaInput);
+    if (!isNaN(val) && val > 0) {
+      setMetaMensual(val);
+      try {
+        await setDoc(doc(db, 'config', 'sucursal'), { metaMensual: val }, { merge: true });
+        showToast('Meta mensual actualizada con éxito 🎯', 'success');
+      } catch (err) {
+        console.error(err);
+        showToast('Error al guardar la meta en la base de datos ❌', 'error');
+      }
+    }
+    setEditandoMeta(false);
+  };
+
   // Calculos para Metas y Proyecciones del Mes Calendario
   const ingresosMesActual = useMemo(() => {
     const startOfMonth = new Date();
@@ -2257,6 +2274,11 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
     
     const superaMeta = proyeccionCierre >= metaMensual;
     
+    const metaDiariaHoy = metaMensual / totalDiasMes;
+    const porcentajeMetaHoy = metaDiariaHoy > 0 ? (totalHoy / metaDiariaHoy) * 100 : 0;
+    const diasRestantes = Math.max(0, totalDiasMes - diaActual);
+    const metaDiariaRestante = diasRestantes > 0 ? Math.max(0, metaMensual - ingresosMesActual) / diasRestantes : Math.max(0, metaMensual - ingresosMesActual);
+    
     return {
       diaActual,
       totalDiasMes,
@@ -2264,9 +2286,13 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
       proyeccionCierre,
       porcentajeMeta,
       porcentajeProyectado,
-      superaMeta
+      superaMeta,
+      metaDiariaHoy,
+      porcentajeMetaHoy,
+      diasRestantes,
+      metaDiariaRestante
     };
-  }, [ingresosMesActual, metaMensual]);
+  }, [ingresosMesActual, metaMensual, totalHoy]);
 
   // Nuevas metricas de rendimiento
   const metricasRendimiento = useMemo(() => {
@@ -3924,10 +3950,41 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
                   </div>
                   
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {/* Ingreso Acumulado */}
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5 }}>
                       <span style={{ color: 'var(--text-secondary)' }}>Ingreso Acumulado:</span>
                       <span style={{ fontWeight: 700, color: '#fff' }}>
-                        ${ingresosMesActual.toLocaleString('es-MX', { maximumFractionDigits: 0 })} / ${metaMensual.toLocaleString('es-MX', { maximumFractionDigits: 0 })}
+                        ${ingresosMesActual.toLocaleString('es-MX', { maximumFractionDigits: 0 })} / {editandoMeta ? (
+                          <input
+                            type="number"
+                            value={nuevaMetaInput}
+                            onChange={e => setNuevaMetaInput(e.target.value)}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') {
+                                guardarNuevaMeta();
+                              } else if (e.key === 'Escape') {
+                                setEditandoMeta(false);
+                              }
+                            }}
+                            onBlur={guardarNuevaMeta}
+                            autoFocus
+                            style={{
+                              width: 80,
+                              background: 'var(--bg-elevated)',
+                              color: '#fff',
+                              border: '1px solid var(--bronze-light)',
+                              borderRadius: 4,
+                              padding: '1px 4px',
+                              fontSize: 11,
+                              textAlign: 'right'
+                            }}
+                          />
+                        ) : (
+                          <span style={{ cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted' }} onClick={() => { setNuevaMetaInput(metaMensual.toString()); setEditandoMeta(true); }} title="Click para editar meta mensual">
+                            ${metaMensual.toLocaleString('es-MX', { maximumFractionDigits: 0 })}
+                            <i className="ri-edit-line" style={{ marginLeft: 4, fontSize: 10, color: 'var(--text-muted)' }} />
+                          </span>
+                        )}
                       </span>
                     </div>
                     
@@ -3947,6 +4004,40 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
                       </span>
                     </div>
 
+                    {/* Avance de Hoy */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, borderTop: '1px dashed var(--border)', paddingTop: 8 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5 }}>
+                        <span style={{ color: 'var(--text-secondary)' }}>Avance de Meta Hoy:</span>
+                        <span style={{ fontWeight: 700, color: datosProyeccion.porcentajeMetaHoy >= 100 ? 'var(--success)' : 'var(--warning)' }}>
+                          ${totalHoy.toLocaleString('es-MX', { maximumFractionDigits: 0 })} / ${datosProyeccion.metaDiariaHoy.toLocaleString('es-MX', { maximumFractionDigits: 0 })} ({datosProyeccion.porcentajeMetaHoy.toFixed(0)}%)
+                        </span>
+                      </div>
+                      
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '2px 0' }}>
+                        <div style={{ flex: 1, height: 6, background: 'var(--bg-elevated)', borderRadius: 3, overflow: 'hidden', border: '1px solid var(--border)', position: 'relative' }}>
+                          <div style={{
+                            width: `${Math.min(100, datosProyeccion.porcentajeMetaHoy)}%`,
+                            height: '100%',
+                            background: datosProyeccion.porcentajeMetaHoy >= 100 ? 'linear-gradient(90deg, #2ecc71, #27ae60)' : 'linear-gradient(90deg, var(--bronze), var(--bronze-light))',
+                            borderRadius: 3,
+                            transition: 'width 0.4s ease'
+                          }} />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Venta Diaria Requerida para llegar a la Meta */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, borderTop: '1px dashed var(--border)', paddingTop: 8 }}>
+                      <span style={{ color: 'var(--text-secondary)' }}>Venta Diaria Requerida:</span>
+                      <span style={{ fontWeight: 700, color: 'var(--blue-light)', textAlign: 'right' }}>
+                        ${datosProyeccion.metaDiariaRestante.toLocaleString('es-MX', { maximumFractionDigits: 0 })}/día
+                        <span style={{ display: 'block', fontSize: 9.5, color: 'var(--text-muted)', fontWeight: 'normal' }}>
+                          (en los {datosProyeccion.diasRestantes} días restantes)
+                        </span>
+                      </span>
+                    </div>
+
+                    {/* Proyección Cierre */}
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, borderTop: '1px dashed var(--border)', paddingTop: 8 }}>
                       <span style={{ color: 'var(--text-secondary)' }}>Proyección Cierre:</span>
                       <span style={{ fontWeight: 700, color: datosProyeccion.superaMeta ? 'var(--success)' : 'var(--warning)' }}>
@@ -3971,7 +4062,7 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
                       }} />
                       <span style={{ color: 'var(--text-secondary)', lineHeight: '1.2em', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', width: '100%' }} title={
                         datosProyeccion.superaMeta ? (
-                          `IA: Superación proyectada. Ritmo diario estable de ${fmt(datosProyeccion.promedioDiario)}/día.`
+                          `IA: Superación proyectada. Ritmo diario de ${fmt(datosProyeccion.promedioDiario)}/día.`
                         ) : (
                           `IA: Déficit de $${(metaMensual - datosProyeccion.proyeccionCierre).toLocaleString('es-MX', { maximumFractionDigits: 0 })}. Se sugiere Surge Pricing (+${surgePercent}%) o QR con descuento.`
                         )
