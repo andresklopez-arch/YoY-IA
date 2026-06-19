@@ -120,6 +120,7 @@ export default function CajaPanel({ showToast }) {
   const [pronosticoRango, setPronosticoRango] = useState('24h'); // '24h' | '48h' | '72h'
   const [rfFiltro, setRfFiltro] = useState('7d');
   const [rfModalTipo, setRfModalTipo] = useState(null);
+  const [rfModalDetalleMetodo, setRfModalDetalleMetodo] = useState(null);
   const [gastosList, setGastosList] = useState([]);
   const [nominaPagosList, setNominaPagosList] = useState([]);
   const [empleadosList, setEmpleadosList] = useState([]);
@@ -588,6 +589,9 @@ export default function CajaPanel({ showToast }) {
     });
 
     let totalGastosVal = 0;
+    let gastosEfectivo = 0;
+    let gastosTarjetaVal = 0;
+    let gastosTransferenciaVal = 0;
     const gastosDetalle = [];
     const startPeriodTime = new Date(startPeriod).getTime();
 
@@ -603,6 +607,15 @@ export default function CajaPanel({ showToast }) {
       if (logTime >= startPeriodTime) {
         const montoG = Number(g.monto) || 0;
         totalGastosVal += montoG;
+
+        const metGasto = (g.metodoPago || 'efectivo').toLowerCase();
+        if (metGasto === 'tarjeta') {
+          gastosTarjetaVal += montoG;
+        } else if (metGasto === 'transferencia' || metGasto === 'spei') {
+          gastosTransferenciaVal += montoG;
+        } else {
+          gastosEfectivo += montoG;
+        }
         
         let horaStr = new Date(logTime).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
         
@@ -613,7 +626,8 @@ export default function CajaPanel({ showToast }) {
           descripcion: g.descripcion || g.concepto || 'Gasto registrado',
           categoria: g.categoria || 'general',
           proveedor: g.proveedor || g.empleadoNombre || 'Proveedor/Empleado',
-          monto: montoG
+          monto: montoG,
+          metodoPago: metGasto
         });
       }
     });
@@ -639,6 +653,11 @@ export default function CajaPanel({ showToast }) {
 
         if (!yaExiste) {
           totalGastosVal += montoP;
+          if (p.descontoDeCaja) {
+            gastosEfectivo += montoP;
+          } else {
+            gastosTransferenciaVal += montoP;
+          }
           
           let horaStr = new Date(logTime).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
 
@@ -649,7 +668,8 @@ export default function CajaPanel({ showToast }) {
             descripcion: `Pago de nómina - ${p.nombreEmpleado} (Conciliación)`,
             categoria: 'nomina',
             proveedor: p.nombreEmpleado,
-            monto: montoP
+            monto: montoP,
+            descontoDeCaja: p.descontoDeCaja || false
           });
         }
       }
@@ -659,6 +679,7 @@ export default function CajaPanel({ showToast }) {
       if (e.monto && e.monto < 0) {
         const montoAbs = Math.abs(Number(e.monto));
         totalGastosVal += montoAbs;
+        gastosEfectivo += montoAbs; // manual negatives are cash
         gastosDetalle.push({
           id: e.id || Date.now() + Math.random(),
           fecha: e.fecha,
@@ -672,7 +693,7 @@ export default function CajaPanel({ showToast }) {
     });
 
     const totalIngresos = ingresosEfectivo + ingresosTarjeta + ingresosTransferencia;
-    const efectivoEsperado = ingresosEfectivo - totalGastosVal;
+    const efectivoEsperado = ingresosEfectivo - gastosEfectivo;
 
     return {
       ingresosEfectivo,
@@ -682,12 +703,15 @@ export default function CajaPanel({ showToast }) {
       gastosDetalle,
       totalIngresos,
       totalGastos: totalGastosVal,
+      gastosEfectivo,
+      gastosTarjetaVal,
+      gastosTransferenciaVal,
       efectivoEsperado
     };
   }, [bitacoraFiltrada, gastosList, nominaPagosList, ultimoCorteFecha]);
 
   const generarResumenIA = (corteData, sumaContadaVal, diferenciaVal) => {
-    const { ingresosEfectivo, ingresosTarjeta, ingresosTransferencia, totalIngresos, totalGastos: totalGastosVal, gastosDetalle } = corteData;
+    const { ingresosEfectivo, ingresosTarjeta, ingresosTransferencia, totalIngresos, totalGastos: totalGastosVal, gastosDetalle, gastosEfectivo, efectivoEsperado } = corteData;
     
     let diagnostico = '';
     if (diferenciaVal === 0) {
@@ -723,12 +747,12 @@ Ingresos Totales (Mesas / Barra): $${totalIngresos.toLocaleString()} MXN
 Distribución de Pagos en Pantalla de Mesas:
 ${metodosIngreso}
 
-Egresos Totales (Gastos / Nómina): -$${totalGastosVal.toLocaleString()} MXN
+Egresos Totales (Gastos / Nómina): -$${totalGastosVal.toLocaleString()} MXN (Efectivo: -$${gastosEfectivo.toLocaleString()} MXN, Digital: -$${(totalGastosVal - gastosEfectivo).toLocaleString()} MXN)
 Distribución de Egresos por Categorías:
 ${gastosAnalisis}
 
 === ARQUEO Y RECONCILIACIÓN ===
-Efectivo Esperado en Caja: $${(ingresosEfectivo - totalGastosVal).toLocaleString()} MXN
+Efectivo Esperado en Caja: $${efectivoEsperado.toLocaleString()} MXN
 Efectivo Físico Entregado (Arqueo): $${sumaContadaVal.toLocaleString()} MXN
 Diferencia Auditoría: ${diferenciaVal >= 0 ? '+' : ''}$${diferenciaVal.toLocaleString()} MXN
 
@@ -738,7 +762,7 @@ ${diferenciaVal < 0 ? '1. Implementar auditoría ciega por turnos.\n2. Conciliar
   };
 
   const imprimirTicketCorte = (corteData, sumaContadaVal, diferenciaVal, resumenIA, operador, fechaUltimo, cantidadesDenom) => {
-    const { ingresosEfectivo, ingresosTarjeta, ingresosTransferencia, totalIngresos, totalGastos: totalGastosVal, ingresosDetalle, gastosDetalle } = corteData;
+    const { ingresosEfectivo, ingresosTarjeta, ingresosTransferencia, totalIngresos, totalGastos: totalGastosVal, ingresosDetalle, gastosDetalle, gastosEfectivo, efectivoEsperado } = corteData;
     
     let htmlContent = `
       <html><head><title>Corte de Caja - YoY IA Billar</title>
@@ -769,9 +793,14 @@ ${diferenciaVal < 0 ? '1. Implementar auditoría ciega por turnos.\n2. Conciliar
         
         <div>
           <strong>RESUMEN DE EFECTIVO:</strong><br/>
-          Esperado en Caja: $${(ingresosEfectivo - totalGastosVal).toLocaleString()} MXN<br/>
+          Esperado en Caja: $${efectivoEsperado.toLocaleString()} MXN<br/>
+          (Ventas Efe: $${ingresosEfectivo.toLocaleString()} - OPEX Efe: $${gastosEfectivo.toLocaleString()})<br/>
           Contado en Físico: $${sumaContadaVal.toLocaleString()} MXN<br/>
           Diferencia: ${diferenciaVal >= 0 ? '+' : ''}$${diferenciaVal.toLocaleString()} MXN<br/>
+          <br/>
+          <strong>METODOS DIGITALES (NO CAJA):</strong><br/>
+          Tarjeta: $${ingresosTarjeta.toLocaleString()} MXN<br/>
+          Transf. / SPEI: $${ingresosTransferencia.toLocaleString()} MXN<br/>
         </div>
 
         <div class="divider"></div>
@@ -1513,37 +1542,87 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
     const utilidadNeta = utilidadBruta - totalOPEX;
     const margenUtilidad = totalIngresos > 0 ? (utilidadNeta / totalIngresos) * 100 : 0;
 
-    // Cash and Digital split in this period
+    // Cash, Card and Transfer splits in this period
     let efectivoIngresos = 0;
-    let digitalIngresos = 0;
+    let tarjetaIngresos = 0;
+    let transferIngresos = 0;
+    const transaccionesDetalle = [];
 
     // Mesa / Cierres
     listMesas.forEach(e => {
       const detLower = (e.detalle || '').toLowerCase();
       const montoVal = Math.abs(Number(e.monto) || 0);
-      if (detLower.includes('tarjeta') || detLower.includes('transferencia') || detLower.includes('spei') || detLower.includes('qr')) {
-        digitalIngresos += montoVal;
+      let metodo = 'efectivo';
+      if (detLower.includes('tarjeta')) {
+        metodo = 'tarjeta';
+        tarjetaIngresos += montoVal;
+      } else if (detLower.includes('transferencia') || detLower.includes('spei') || detLower.includes('qr')) {
+        metodo = 'transferencia';
+        transferIngresos += montoVal;
       } else {
         efectivoIngresos += montoVal;
       }
+
+      transaccionesDetalle.push({
+        id: e.id || `mesa-${e.fecha}-${montoVal}-${Math.random()}`,
+        tipo: 'mesa',
+        fecha: e.fecha,
+        hora: new Date(e.fecha).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }),
+        descripcion: e.detalle || e.accion || 'Cierre de Mesa',
+        operador: e.operador || 'Cajero',
+        monto: montoVal,
+        metodo
+      });
     });
 
     // Ventas Barra
     listBar.forEach(c => {
       const montoVal = Number(c.monto) || 0;
-      if (c.metodo === 'tarjeta' || c.metodo === 'spei' || c.metodo === 'transferencia' || c.metodo === 'qr') {
-        digitalIngresos += montoVal;
+      let metodo = 'efectivo';
+      if (c.metodo === 'tarjeta') {
+        metodo = 'tarjeta';
+        tarjetaIngresos += montoVal;
+      } else if (c.metodo === 'spei' || c.metodo === 'transferencia' || c.metodo === 'qr') {
+        metodo = 'transferencia';
+        transferIngresos += montoVal;
       } else {
         efectivoIngresos += montoVal;
       }
+
+      transaccionesDetalle.push({
+        id: c.id || `bar-${c.id || Date.now()}-${montoVal}-${Math.random()}`,
+        tipo: 'bar',
+        fecha: c.id > 1000000000000 ? new Date(c.id).toISOString() : new Date().toISOString(),
+        hora: c.id > 1000000000000 ? new Date(c.id).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }) : '',
+        descripcion: `Consumo de barra (Ticket ${c.id || ''})`,
+        operador: c.usuario || 'Barman',
+        monto: montoVal,
+        metodo
+      });
     });
 
     // Torneos
-    efectivoIngresos += inscripcionesTorneo;
+    torneosPeriodo.forEach(t => {
+      const cost = parseFloat(t.inscripcion?.replace('$', '') || 0);
+      const totalT = cost * (t.jugadores || 0);
+      if (totalT > 0) {
+        efectivoIngresos += totalT;
+        transaccionesDetalle.push({
+          id: t.id || `torneo-${t.fechaInicio}-${totalT}`,
+          tipo: 'torneo',
+          fecha: t.fechaInicio,
+          hora: new Date(t.fechaInicio).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }),
+          descripcion: `Inscripción Torneo: ${t.nombre || 'Torneo'}`,
+          operador: t.organizador || 'Organizador',
+          monto: totalT,
+          metodo: 'efectivo'
+        });
+      }
+    });
 
     // Gastos G y nómina restados del flujo general
     const totalEfectivoPeriodo = Math.max(0, efectivoIngresos - totalOPEX);
-    const totalDigitalPeriodo = digitalIngresos;
+    const totalDigitalPeriodo = tarjetaIngresos + transferIngresos;
 
     return {
       rentasMesas,
@@ -1561,6 +1640,10 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
       margenUtilidad,
       efectivoPeriodo: totalEfectivoPeriodo,
       digitalPeriodo: totalDigitalPeriodo,
+      efectivoIngresos,
+      tarjetaIngresos,
+      transferIngresos,
+      transaccionesDetalle,
       listMesas,
       listBar,
       torneosPeriodo,
@@ -3770,71 +3853,50 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
                     ))}
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '1.1fr 1fr', gap: '8px 16px', fontSize: 12.5 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ color: 'var(--text-secondary)' }}>Efectivo:</span>
-                      <span style={{ fontWeight: 700, color: 'var(--success)' }}>
-                        ${resumenFinanciero.efectivoPeriodo.toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                      </span>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1.15fr 1fr', gap: '8px 16px', fontSize: 12.5 }}>
+                    {/* Columna Izquierda: Métodos de Pago */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, borderRight: '1px solid rgba(255,255,255,0.08)', paddingRight: 10 }}>
+                      <div style={{ fontSize: 10, fontWeight: 'bold', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 2 }}>Medios de Pago</div>
+                      
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ color: 'var(--text-secondary)', textDecoration: 'underline', textDecorationStyle: 'dotted', cursor: 'pointer' }} onClick={() => { setRfModalTipo('ingresos'); setRfModalDetalleMetodo('efectivo'); }}>Efectivo:</span>
+                        <span style={{ fontWeight: 700, color: 'var(--success)', textDecoration: 'underline', textDecorationStyle: 'dotted', cursor: 'pointer' }} onClick={() => { setRfModalTipo('ingresos'); setRfModalDetalleMetodo('efectivo'); }}>
+                          ${resumenFinanciero.efectivoIngresos.toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                        </span>
+                      </div>
+                      
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ color: 'var(--text-secondary)', textDecoration: 'underline', textDecorationStyle: 'dotted', cursor: 'pointer' }} onClick={() => { setRfModalTipo('ingresos'); setRfModalDetalleMetodo('tarjeta'); }}>Tarjeta:</span>
+                        <span style={{ fontWeight: 700, color: 'var(--bronze-light)', textDecoration: 'underline', textDecorationStyle: 'dotted', cursor: 'pointer' }} onClick={() => { setRfModalTipo('ingresos'); setRfModalDetalleMetodo('tarjeta'); }}>
+                          ${resumenFinanciero.tarjetaIngresos.toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                        </span>
+                      </div>
+                      
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ color: 'var(--text-secondary)', textDecoration: 'underline', textDecorationStyle: 'dotted', cursor: 'pointer' }} onClick={() => { setRfModalTipo('ingresos'); setRfModalDetalleMetodo('transferencia'); }}>Transf. / SPEI:</span>
+                        <span style={{ fontWeight: 700, color: 'var(--blue-light)', textDecoration: 'underline', textDecorationStyle: 'dotted', cursor: 'pointer' }} onClick={() => { setRfModalTipo('ingresos'); setRfModalDetalleMetodo('transferencia'); }}>
+                          ${resumenFinanciero.transferIngresos.toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                        </span>
+                      </div>
                     </div>
                     
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span
-                        style={{
-                          color: 'var(--text-secondary)',
-                          textDecoration: 'underline',
-                          textDecorationStyle: 'dotted',
-                          cursor: 'pointer'
-                        }}
-                        onClick={() => setRfModalTipo('ingresos')}
-                      >
-                        Ingresos:
-                      </span>
-                      <span
-                        style={{
-                          fontWeight: 700,
-                          color: 'var(--success)',
-                          textDecoration: 'underline',
-                          textDecorationStyle: 'dotted',
-                          cursor: 'pointer'
-                        }}
-                        onClick={() => setRfModalTipo('ingresos')}
-                      >
-                        ${resumenFinanciero.totalIngresos.toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                      </span>
-                    </div>
-
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ color: 'var(--text-secondary)' }}>Digital:</span>
-                      <span style={{ fontWeight: 700, color: 'var(--blue-light)' }}>
-                        ${resumenFinanciero.digitalPeriodo.toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                      </span>
-                    </div>
-                    
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span
-                        style={{
-                          color: 'var(--text-secondary)',
-                          textDecoration: 'underline',
-                          textDecorationStyle: 'dotted',
-                          cursor: 'pointer'
-                        }}
-                        onClick={() => setRfModalTipo('gastos')}
-                      >
-                        Gastos:
-                      </span>
-                      <span
-                        style={{
-                          fontWeight: 700,
-                          color: 'var(--danger)',
-                          textDecoration: 'underline',
-                          textDecorationStyle: 'dotted',
-                          cursor: 'pointer'
-                        }}
-                        onClick={() => setRfModalTipo('gastos')}
-                      >
-                        -${resumenFinanciero.totalOPEX.toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                      </span>
+                    {/* Columna Derecha: Totales */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      <div style={{ fontSize: 10, fontWeight: 'bold', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 2 }}>Flujo General</div>
+                      
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ color: 'var(--text-secondary)', textDecoration: 'underline', textDecorationStyle: 'dotted', cursor: 'pointer' }} onClick={() => { setRfModalTipo('ingresos'); setRfModalDetalleMetodo(null); }}>Ingresos:</span>
+                        <span style={{ fontWeight: 700, color: 'var(--success)', textDecoration: 'underline', textDecorationStyle: 'dotted', cursor: 'pointer' }} onClick={() => { setRfModalTipo('ingresos'); setRfModalDetalleMetodo(null); }}>
+                          ${resumenFinanciero.totalIngresos.toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                        </span>
+                      </div>
+                      
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ color: 'var(--text-secondary)', textDecoration: 'underline', textDecorationStyle: 'dotted', cursor: 'pointer' }} onClick={() => { setRfModalTipo('gastos'); }}>Gastos:</span>
+                        <span style={{ fontWeight: 700, color: 'var(--danger)', textDecoration: 'underline', textDecorationStyle: 'dotted', cursor: 'pointer' }} onClick={() => { setRfModalTipo('gastos'); }}>
+                          -${resumenFinanciero.totalOPEX.toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                        </span>
+                      </div>
                     </div>
 
                     <div style={{ gridColumn: 'span 2', display: 'flex', justifyContent: 'space-between', fontSize: 13.5, fontWeight: 800, borderTop: '1px solid var(--border-bronze)', paddingTop: 8, marginTop: 4 }}>
@@ -4909,6 +4971,23 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
                   <span>Efectivo Esperado:</span>
                   <strong>${totalEfectivoEsperado.toLocaleString()}</strong>
                 </div>
+                
+                {/* Desglose de conciliación en el arqueo */}
+                <div style={{ fontSize: 9.5, color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', gap: 2, paddingLeft: 10, marginBottom: 8, borderLeft: '1px solid var(--border-bronze)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>(+) Ventas Efectivo:</span>
+                    <span>${calculationsCorte.ingresosEfectivo.toLocaleString('es-MX')}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>(-) Gastos en Efectivo:</span>
+                    <span>-${calculationsCorte.gastosEfectivo.toLocaleString('es-MX')}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px dashed rgba(255,255,255,0.05)', paddingTop: 2, color: 'var(--blue-light)' }}>
+                    <span>Ventas Digitales (No caja):</span>
+                    <span>${(calculationsCorte.ingresosTarjeta + calculationsCorte.ingresosTransferencia).toLocaleString('es-MX')}</span>
+                  </div>
+                </div>
+
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, fontSize: 11 }}>
                   <span>Efectivo Real Contado:</span>
                   <strong>${sumaContada.toLocaleString()}</strong>
@@ -5509,14 +5588,14 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
       )}
 
       {rfModalTipo && (
-        <div className="modal-overlay" onClick={() => setRfModalTipo(null)}>
+        <div className="modal-overlay" onClick={() => { setRfModalTipo(null); setRfModalDetalleMetodo(null); }}>
           <div className="modal" style={{ maxWidth: 650, width: '90%' }} onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <span className="modal-title">
                 <i className={rfModalTipo === 'ingresos' ? "ri-arrow-left-right-line" : "ri-indeterminate-circle-line"} style={{ marginRight: 8, color: 'var(--bronze-light)' }} />
                 Desglose de {rfModalTipo === 'ingresos' ? 'Ingresos' : 'Gastos y Egresos'} ({rfFiltro === 'ultimo corte' ? 'último corte' : rfFiltro})
               </span>
-              <button onClick={() => setRfModalTipo(null)} className="btn-icon btn btn-secondary" style={{ background: 'none', border: 'none' }}>
+              <button onClick={() => { setRfModalTipo(null); setRfModalDetalleMetodo(null); }} className="btn-icon btn btn-secondary" style={{ background: 'none', border: 'none' }}>
                 <i className="ri-close-line" style={{ fontSize: 20 }} />
               </button>
             </div>
@@ -5524,143 +5603,259 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
             <div className="modal-body" style={{ maxHeight: '70vh', overflowY: 'auto', padding: '16px 20px' }}>
               {rfModalTipo === 'ingresos' ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                  {/* Resumen de Tarjetas */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
-                    <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 8, padding: 10, textAlign: 'center' }}>
-                      <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Rentas de Mesas</div>
-                      <div style={{ fontSize: 16, fontWeight: 'bold', color: 'var(--success)', marginTop: 4 }}>
-                        ${resumenFinanciero.rentasMesas.toLocaleString('es-MX', { maximumFractionDigits: 0 })}
-                      </div>
-                      {resumenFinanciero.rentasMesasUsadasFallback && (
-                        <div style={{ fontSize: 8, color: 'var(--warning)', marginTop: 2 }}>*Proyección IA</div>
-                      )}
-                    </div>
-                    <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 8, padding: 10, textAlign: 'center' }}>
-                      <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Ventas de Barra</div>
-                      <div style={{ fontSize: 16, fontWeight: 'bold', color: 'var(--success)', marginTop: 4 }}>
-                        ${resumenFinanciero.ventasBar.toLocaleString('es-MX', { maximumFractionDigits: 0 })}
-                      </div>
-                      {resumenFinanciero.ventasBarUsadasFallback && (
-                        <div style={{ fontSize: 8, color: 'var(--warning)', marginTop: 2 }}>*Proyección IA</div>
-                      )}
-                    </div>
-                    <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 8, padding: 10, textAlign: 'center' }}>
-                      <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Torneos</div>
-                      <div style={{ fontSize: 16, fontWeight: 'bold', color: 'var(--success)', marginTop: 4 }}>
-                        ${resumenFinanciero.inscripcionesTorneo.toLocaleString('es-MX', { maximumFractionDigits: 0 })}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Fallbacks Alerts */}
-                  {(resumenFinanciero.rentasMesasUsadasFallback || resumenFinanciero.ventasBarUsadasFallback) && (
-                    <div style={{ background: 'rgba(217, 119, 6, 0.1)', border: '1px solid rgba(217, 119, 6, 0.3)', borderRadius: 8, padding: '10px 12px', fontSize: 11, color: '#f59e0b', lineHeight: 1.4 }}>
-                      <i className="ri-information-line" style={{ marginRight: 6, verticalAlign: 'middle', fontSize: 13 }} />
-                      <strong>Nota de Trazabilidad:</strong> Algunas categorías muestran estimaciones proporcionales basadas en la actividad general del negocio porque no se detectaron cierres registrados en el rango de tiempo seleccionado.
-                    </div>
-                  )}
-
-                  {/* Detalles por Categoría */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  
+                  {/* Segmented Bar for Payment Methods (Suggestion 3) */}
+                  {(() => {
+                    const totalMetodos = resumenFinanciero.efectivoIngresos + resumenFinanciero.tarjetaIngresos + resumenFinanciero.transferIngresos;
+                    const pctEfectivo = totalMetodos > 0 ? (resumenFinanciero.efectivoIngresos / totalMetodos) * 100 : 0;
+                    const pctTarjeta = totalMetodos > 0 ? (resumenFinanciero.tarjetaIngresos / totalMetodos) * 100 : 0;
+                    const pctTransfer = totalMetodos > 0 ? (resumenFinanciero.transferIngresos / totalMetodos) * 100 : 0;
                     
-                    {/* Sección Mesas */}
-                    <div>
-                      <div style={{ fontSize: 12, fontWeight: 'bold', color: 'var(--bronze-light)', marginBottom: 6, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span>Rentas de Mesas / Cierres ({resumenFinanciero.listMesas.length})</span>
-                        {!resumenFinanciero.rentasMesasUsadasFallback && (
-                          <span style={{ fontSize: 10, fontWeight: 'normal', color: 'var(--success)' }}>
-                            Real: ${resumenFinanciero.listMesas.reduce((s, e) => s + Math.abs(Number(e.monto) || 0), 0).toLocaleString()}
+                    return (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: 'rgba(255,255,255,0.01)', padding: 12, borderRadius: 8, border: '1px solid var(--border)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>
+                          <span>Participación de Métodos de Pago (Ingresos):</span>
+                          <span>Total Involucrado: ${totalMetodos.toLocaleString('es-MX', { minimumFractionDigits: 0 })} MXN</span>
+                        </div>
+                        <div style={{ display: 'flex', height: 12, borderRadius: 6, overflow: 'hidden', border: '1px solid var(--border)', background: 'var(--bg-elevated)', margin: '4px 0' }}>
+                          {pctEfectivo > 0 && (
+                            <div style={{ width: `${pctEfectivo}%`, background: 'var(--success)', height: '100%', transition: 'width 0.3s ease' }} title={`Efectivo: ${pctEfectivo.toFixed(1)}%`} />
+                          )}
+                          {pctTarjeta > 0 && (
+                            <div style={{ width: `${pctTarjeta}%`, background: 'var(--bronze-light)', height: '100%', transition: 'width 0.3s ease' }} title={`Tarjeta: ${pctTarjeta.toFixed(1)}%`} />
+                          )}
+                          {pctTransfer > 0 && (
+                            <div style={{ width: `${pctTransfer}%`, background: 'var(--blue-light)', height: '100%', transition: 'width 0.3s ease' }} title={`Transferencia/SPEI: ${pctTransfer.toFixed(1)}%`} />
+                          )}
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-around', fontSize: 10, flexWrap: 'wrap', gap: '8px 16px', marginTop: 4 }}>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 4, color: 'var(--success)', cursor: 'pointer', fontWeight: rfModalDetalleMetodo === 'efectivo' ? 'bold' : 'normal', textDecoration: rfModalDetalleMetodo === 'efectivo' ? 'underline' : 'none' }} onClick={() => setRfModalDetalleMetodo(rfModalDetalleMetodo === 'efectivo' ? null : 'efectivo')}>
+                            <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--success)' }} />
+                            Efectivo: {pctEfectivo.toFixed(1)}% (${resumenFinanciero.efectivoIngresos.toLocaleString('es-MX', { maximumFractionDigits: 0 })})
                           </span>
-                        )}
-                      </div>
-                      
-                      {resumenFinanciero.listMesas.length === 0 ? (
-                        <div style={{ fontSize: 11, color: 'var(--text-muted)', background: 'var(--bg-elevated)', padding: '10px 12px', borderRadius: 6, border: '1px solid var(--border)' }}>
-                          No hay transacciones registradas de rentas de mesas en este periodo.
-                        </div>
-                      ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 180, overflowY: 'auto', background: 'var(--bg-elevated)', padding: 8, borderRadius: 6, border: '1px solid var(--border)' }}>
-                          {resumenFinanciero.listMesas.map((e, idx) => (
-                            <div key={e.id || idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: 4 }}>
-                              <div>
-                                <span style={{ color: 'var(--text-secondary)', fontSize: 9, marginRight: 6 }}>
-                                  {new Date(e.fecha).toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit' })} {new Date(e.fecha).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
-                                </span>
-                                <strong style={{ color: '#fff' }}>{e.detalle || e.accion}</strong>
-                                <span style={{ color: 'var(--text-muted)', fontSize: 10, marginLeft: 6 }}>({e.operador})</span>
-                              </div>
-                              <span style={{ color: 'var(--success)', fontWeight: 'bold' }}>+${Math.abs(e.monto).toLocaleString()}</span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Sección Barra */}
-                    <div>
-                      <div style={{ fontSize: 12, fontWeight: 'bold', color: 'var(--bronze-light)', marginBottom: 6, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span>Ventas de Barra ({resumenFinanciero.listBar.length})</span>
-                        {!resumenFinanciero.ventasBarUsadasFallback && (
-                          <span style={{ fontSize: 10, fontWeight: 'normal', color: 'var(--success)' }}>
-                            Real: ${resumenFinanciero.listBar.reduce((s, c) => s + Number(c.monto), 0).toLocaleString()}
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 4, color: 'var(--bronze-light)', cursor: 'pointer', fontWeight: rfModalDetalleMetodo === 'tarjeta' ? 'bold' : 'normal', textDecoration: rfModalDetalleMetodo === 'tarjeta' ? 'underline' : 'none' }} onClick={() => setRfModalDetalleMetodo(rfModalDetalleMetodo === 'tarjeta' ? null : 'tarjeta')}>
+                            <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--bronze-light)' }} />
+                            Tarjeta: {pctTarjeta.toFixed(1)}% (${resumenFinanciero.tarjetaIngresos.toLocaleString('es-MX', { maximumFractionDigits: 0 })})
                           </span>
-                        )}
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 4, color: 'var(--blue-light)', cursor: 'pointer', fontWeight: rfModalDetalleMetodo === 'transferencia' ? 'bold' : 'normal', textDecoration: rfModalDetalleMetodo === 'transferencia' ? 'underline' : 'none' }} onClick={() => setRfModalDetalleMetodo(rfModalDetalleMetodo === 'transferencia' ? null : 'transferencia')}>
+                            <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--blue-light)' }} />
+                            Transf. / SPEI: {pctTransfer.toFixed(1)}% (${resumenFinanciero.transferIngresos.toLocaleString('es-MX', { maximumFractionDigits: 0 })})
+                          </span>
+                        </div>
                       </div>
-                      
-                      {resumenFinanciero.listBar.length === 0 ? (
-                        <div style={{ fontSize: 11, color: 'var(--text-muted)', background: 'var(--bg-elevated)', padding: '10px 12px', borderRadius: 6, border: '1px solid var(--border)' }}>
-                          No hay tickets de barra en este periodo.
-                        </div>
-                      ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 180, overflowY: 'auto', background: 'var(--bg-elevated)', padding: 8, borderRadius: 6, border: '1px solid var(--border)' }}>
-                          {resumenFinanciero.listBar.map((c, idx) => (
-                            <div key={c.id || idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: 4 }}>
-                              <div>
-                                <span style={{ color: 'var(--text-secondary)', fontSize: 9, marginRight: 6 }}>
-                                  ID: {c.id}
-                                </span>
-                                <strong style={{ color: '#fff' }}>Ticket de barra</strong>
-                                <span className="badge badge-secondary" style={{ fontSize: 8, marginLeft: 6, padding: '1px 3px', textTransform: 'uppercase' }}>{c.metodo}</span>
-                              </div>
-                              <span style={{ color: 'var(--success)', fontWeight: 'bold' }}>+${Number(c.monto).toLocaleString()}</span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
+                    );
+                  })()}
 
-                    {/* Sección Torneos */}
-                    <div>
-                      <div style={{ fontSize: 12, fontWeight: 'bold', color: 'var(--bronze-light)', marginBottom: 6 }}>
-                        Torneos en el Periodo ({resumenFinanciero.torneosPeriodo.length})
-                      </div>
-                      
-                      {resumenFinanciero.torneosPeriodo.length === 0 ? (
-                        <div style={{ fontSize: 11, color: 'var(--text-muted)', background: 'var(--bg-elevated)', padding: '10px 12px', borderRadius: 6, border: '1px solid var(--border)' }}>
-                          No hay torneos registrados en este periodo.
-                        </div>
-                      ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 150, overflowY: 'auto', background: 'var(--bg-elevated)', padding: 8, borderRadius: 6, border: '1px solid var(--border)' }}>
-                          {resumenFinanciero.torneosPeriodo.map((t, idx) => {
-                            const cost = parseFloat(t.inscripcion?.replace('$', '') || 0);
-                            const totalT = cost * (t.jugadores || 0);
-                            return (
-                              <div key={t.id || idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: 4 }}>
-                                <div>
-                                  <strong style={{ color: '#fff' }}>{t.nombre}</strong>
-                                  <span style={{ color: 'var(--text-muted)', fontSize: 9, marginLeft: 6 }}>
-                                    {new Date(t.fechaInicio).toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit' })} · {t.jugadores || 0} jug. @ ${cost}
-                                  </span>
-                                </div>
-                                <span style={{ color: 'var(--success)', fontWeight: 'bold' }}>+${totalT.toLocaleString()}</span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-
+                  {/* Selector de Fichas/Tabs para Métodos */}
+                  <div style={{ display: 'flex', gap: 6, margin: '2px 0 6px 0', borderBottom: '1px solid var(--border)', paddingBottom: 8, overflowX: 'auto' }}>
+                    {[
+                      { val: null, label: 'Resumen Categorizado' },
+                      { val: 'efectivo', label: `Ver Efectivo (${resumenFinanciero.transaccionesDetalle.filter(t => t.metodo === 'efectivo').length})` },
+                      { val: 'tarjeta', label: `Ver Tarjeta (${resumenFinanciero.transaccionesDetalle.filter(t => t.metodo === 'tarjeta').length})` },
+                      { val: 'transferencia', label: `Ver Transf. / SPEI (${resumenFinanciero.transaccionesDetalle.filter(t => t.metodo === 'transferencia').length})` }
+                    ].map(tab => (
+                      <button
+                        key={tab.val || 'todos'}
+                        onClick={() => setRfModalDetalleMetodo(tab.val)}
+                        style={{
+                          padding: '4px 10px',
+                          fontSize: '10.5px',
+                          fontWeight: rfModalDetalleMetodo === tab.val ? 'bold' : 'normal',
+                          background: rfModalDetalleMetodo === tab.val ? 'var(--bronze)' : 'var(--bg-elevated)',
+                          color: rfModalDetalleMetodo === tab.val ? '#fff' : 'var(--text-secondary)',
+                          border: '1px solid ' + (rfModalDetalleMetodo === tab.val ? 'var(--bronze-light)' : 'var(--border)'),
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap',
+                          transition: 'all 0.2s ease'
+                        }}
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
                   </div>
+
+                  {rfModalDetalleMetodo !== null ? (
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                        <span style={{ fontSize: 12, fontWeight: 'bold', color: 'var(--bronze-light)' }}>
+                          Listado de Cobros en {rfModalDetalleMetodo.toUpperCase()} ({rfFiltro === 'ultimo corte' ? 'último corte' : rfFiltro})
+                        </span>
+                        <span style={{ fontSize: 12, fontWeight: 'bold', color: 'var(--success)' }}>
+                          Total: ${resumenFinanciero.transaccionesDetalle
+                            .filter(t => t.metodo === rfModalDetalleMetodo)
+                            .reduce((s, t) => s + t.monto, 0)
+                            .toLocaleString()} MXN
+                        </span>
+                      </div>
+                      
+                      {resumenFinanciero.transaccionesDetalle.filter(t => t.metodo === rfModalDetalleMetodo).length === 0 ? (
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)', background: 'var(--bg-elevated)', padding: '20px', borderRadius: 6, border: '1px solid var(--border)', textAlign: 'center' }}>
+                          No hay transacciones registradas con este medio de pago en este periodo.
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 320, overflowY: 'auto', background: 'var(--bg-elevated)', padding: 10, borderRadius: 6, border: '1px solid var(--border)' }}>
+                          {resumenFinanciero.transaccionesDetalle
+                            .filter(t => t.metodo === rfModalDetalleMetodo)
+                            .map((t, idx) => (
+                              <div key={t.id || idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: 6 }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <span style={{ color: 'var(--text-secondary)', fontSize: 9 }}>
+                                      {t.fecha ? new Date(t.fecha).toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit' }) : ''} {t.hora || ''}
+                                    </span>
+                                    <span className="badge badge-secondary" style={{ fontSize: 8, padding: '1px 3px', textTransform: 'uppercase' }}>{t.metodo}</span>
+                                  </div>
+                                  <strong style={{ color: '#fff' }}>{t.descripcion}</strong>
+                                  <span style={{ color: 'var(--text-muted)', fontSize: 9 }}>Registró: {t.operador}</span>
+                                </div>
+                                <span style={{ color: 'var(--success)', fontWeight: 'bold', fontSize: 12 }}>+${t.monto.toLocaleString()}</span>
+                              </div>
+                            ))}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <>
+                      {/* Resumen de Tarjetas */}
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+                        <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 8, padding: 10, textAlign: 'center' }}>
+                          <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Rentas de Mesas</div>
+                          <div style={{ fontSize: 16, fontWeight: 'bold', color: 'var(--success)', marginTop: 4 }}>
+                            ${resumenFinanciero.rentasMesas.toLocaleString('es-MX', { maximumFractionDigits: 0 })}
+                          </div>
+                          {resumenFinanciero.rentasMesasUsadasFallback && (
+                            <div style={{ fontSize: 8, color: 'var(--warning)', marginTop: 2 }}>*Proyección IA</div>
+                          )}
+                        </div>
+                        <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 8, padding: 10, textAlign: 'center' }}>
+                          <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Ventas de Barra</div>
+                          <div style={{ fontSize: 16, fontWeight: 'bold', color: 'var(--success)', marginTop: 4 }}>
+                            ${resumenFinanciero.ventasBar.toLocaleString('es-MX', { maximumFractionDigits: 0 })}
+                          </div>
+                          {resumenFinanciero.ventasBarUsadasFallback && (
+                            <div style={{ fontSize: 8, color: 'var(--warning)', marginTop: 2 }}>*Proyección IA</div>
+                          )}
+                        </div>
+                        <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 8, padding: 10, textAlign: 'center' }}>
+                          <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Torneos</div>
+                          <div style={{ fontSize: 16, fontWeight: 'bold', color: 'var(--success)', marginTop: 4 }}>
+                            ${resumenFinanciero.inscripcionesTorneo.toLocaleString('es-MX', { maximumFractionDigits: 0 })}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Fallbacks Alerts */}
+                      {(resumenFinanciero.rentasMesasUsadasFallback || resumenFinanciero.ventasBarUsadasFallback) && (
+                        <div style={{ background: 'rgba(217, 119, 6, 0.1)', border: '1px solid rgba(217, 119, 6, 0.3)', borderRadius: 8, padding: '10px 12px', fontSize: 11, color: '#f59e0b', lineHeight: 1.4 }}>
+                          <i className="ri-information-line" style={{ marginRight: 6, verticalAlign: 'middle', fontSize: 13 }} />
+                          <strong>Nota de Trazabilidad:</strong> Algunas categorías muestran estimaciones proporcionales basadas en la actividad general del negocio porque no se detectaron cierres registrados en el rango de tiempo seleccionado.
+                        </div>
+                      )}
+
+                      {/* Detalles por Categoría */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                        
+                        {/* Sección Mesas */}
+                        <div>
+                          <div style={{ fontSize: 12, fontWeight: 'bold', color: 'var(--bronze-light)', marginBottom: 6, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span>Rentas de Mesas / Cierres ({resumenFinanciero.listMesas.length})</span>
+                            {!resumenFinanciero.rentasMesasUsadasFallback && (
+                              <span style={{ fontSize: 10, fontWeight: 'normal', color: 'var(--success)' }}>
+                                Real: ${resumenFinanciero.listMesas.reduce((s, e) => s + Math.abs(Number(e.monto) || 0), 0).toLocaleString()}
+                              </span>
+                            )}
+                          </div>
+                          
+                          {resumenFinanciero.listMesas.length === 0 ? (
+                            <div style={{ fontSize: 11, color: 'var(--text-muted)', background: 'var(--bg-elevated)', padding: '10px 12px', borderRadius: 6, border: '1px solid var(--border)' }}>
+                              No hay transacciones registradas de rentas de mesas en este periodo.
+                            </div>
+                          ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 150, overflowY: 'auto', background: 'var(--bg-elevated)', padding: 8, borderRadius: 6, border: '1px solid var(--border)' }}>
+                              {resumenFinanciero.listMesas.map((e, idx) => (
+                                <div key={e.id || idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: 4 }}>
+                                  <div>
+                                    <span style={{ color: 'var(--text-secondary)', fontSize: 9, marginRight: 6 }}>
+                                      {new Date(e.fecha).toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit' })} {new Date(e.fecha).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
+                                    </span>
+                                    <strong style={{ color: '#fff' }}>{e.detalle || e.accion}</strong>
+                                    <span style={{ color: 'var(--text-muted)', fontSize: 10, marginLeft: 6 }}>({e.operador})</span>
+                                  </div>
+                                  <span style={{ color: 'var(--success)', fontWeight: 'bold' }}>+${Math.abs(e.monto).toLocaleString()}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Sección Barra */}
+                        <div>
+                          <div style={{ fontSize: 12, fontWeight: 'bold', color: 'var(--bronze-light)', marginBottom: 6, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span>Ventas de Barra ({resumenFinanciero.listBar.length})</span>
+                            {!resumenFinanciero.ventasBarUsadasFallback && (
+                              <span style={{ fontSize: 10, fontWeight: 'normal', color: 'var(--success)' }}>
+                                Real: ${resumenFinanciero.listBar.reduce((s, c) => s + Number(c.monto), 0).toLocaleString()}
+                              </span>
+                            )}
+                          </div>
+                          
+                          {resumenFinanciero.listBar.length === 0 ? (
+                            <div style={{ fontSize: 11, color: 'var(--text-muted)', background: 'var(--bg-elevated)', padding: '10px 12px', borderRadius: 6, border: '1px solid var(--border)' }}>
+                              No hay tickets de barra en este periodo.
+                            </div>
+                          ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 150, overflowY: 'auto', background: 'var(--bg-elevated)', padding: 8, borderRadius: 6, border: '1px solid var(--border)' }}>
+                              {resumenFinanciero.listBar.map((c, idx) => (
+                                <div key={c.id || idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: 4 }}>
+                                  <div>
+                                    <span style={{ color: 'var(--text-secondary)', fontSize: 9, marginRight: 6 }}>
+                                      ID: {c.id}
+                                    </span>
+                                    <strong style={{ color: '#fff' }}>Ticket de barra</strong>
+                                    <span className="badge badge-secondary" style={{ fontSize: 8, marginLeft: 6, padding: '1px 3px', textTransform: 'uppercase' }}>{c.metodo}</span>
+                                  </div>
+                                  <span style={{ color: 'var(--success)', fontWeight: 'bold' }}>+${Number(c.monto).toLocaleString()}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Sección Torneos */}
+                        <div>
+                          <div style={{ fontSize: 12, fontWeight: 'bold', color: 'var(--bronze-light)', marginBottom: 6 }}>
+                            Torneos en el Periodo ({resumenFinanciero.torneosPeriodo.length})
+                          </div>
+                          
+                          {resumenFinanciero.torneosPeriodo.length === 0 ? (
+                            <div style={{ fontSize: 11, color: 'var(--text-muted)', background: 'var(--bg-elevated)', padding: '10px 12px', borderRadius: 6, border: '1px solid var(--border)' }}>
+                              No hay torneos registrados en este periodo.
+                            </div>
+                          ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 150, overflowY: 'auto', background: 'var(--bg-elevated)', padding: 8, borderRadius: 6, border: '1px solid var(--border)' }}>
+                              {resumenFinanciero.torneosPeriodo.map((t, idx) => {
+                                const cost = parseFloat(t.inscripcion?.replace('$', '') || 0);
+                                const totalT = cost * (t.jugadores || 0);
+                                return (
+                                  <div key={t.id || idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: 4 }}>
+                                    <div>
+                                      <strong style={{ color: '#fff' }}>{t.nombre}</strong>
+                                      <span style={{ color: 'var(--text-muted)', fontSize: 9, marginLeft: 6 }}>
+                                        {new Date(t.fechaInicio).toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit' })} · {t.jugadores || 0} jug. @ ${cost}
+                                      </span>
+                                    </div>
+                                    <span style={{ color: 'var(--success)', fontWeight: 'bold' }}>+${totalT.toLocaleString()}</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+
+                      </div>
+                    </>
+                  )}
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -5769,7 +5964,7 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
             </div>
             
             <div className="modal-footer" style={{ borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', padding: '12px 20px' }}>
-              <button className="btn btn-secondary" onClick={() => setRfModalTipo(null)} style={{ fontSize: 11 }}>Cerrar</button>
+              <button className="btn btn-secondary" onClick={() => { setRfModalTipo(null); setRfModalDetalleMetodo(null); }} style={{ fontSize: 11 }}>Cerrar</button>
             </div>
           </div>
         </div>
