@@ -99,6 +99,7 @@ export default function CajaPanel({ showToast }) {
   const [limiteCortesCaja, setLimiteCortesCaja] = useState(10);
   const [filtroCorteInicio, setFiltroCorteInicio] = useState('');
   const [filtroCorteFin, setFiltroCorteFin] = useState('');
+  const [filtroCorteOperador, setFiltroCorteOperador] = useState('');
 
   // Estados de Bitácora y Stock
   const [bitacora, setBitacora] = useState([]);
@@ -1259,9 +1260,13 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
         const endTime = new Date(filtroCorteFin + 'T23:59:59').getTime();
         if (corteTime > endTime) return false;
       }
+      if (filtroCorteOperador) {
+        const opStr = (c.operador || '').toLowerCase();
+        if (!opStr.includes(filtroCorteOperador.toLowerCase())) return false;
+      }
       return true;
     });
-  }, [historialCortes, filtroCorteInicio, filtroCorteFin]);
+  }, [historialCortes, filtroCorteInicio, filtroCorteFin, filtroCorteOperador]);
 
   const auditoriaCruzadaInventario = useMemo(() => {
     const start = ultimoCorteFecha ? new Date(ultimoCorteFecha).getTime() : Date.now() - 24 * 60 * 60 * 1000;
@@ -4207,11 +4212,69 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
           {cortesFiltrados.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <span style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', textAlign: 'center', borderBottom: '1px solid var(--border)', paddingBottom: 4, marginBottom: 2 }}>Historial Cortes</span>
+              
+              {/* Filtros rápidos del historial */}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 4 }}>
+                <input
+                  type="text"
+                  placeholder="Filtrar por cajero..."
+                  value={filtroCorteOperador}
+                  onChange={e => setFiltroCorteOperador(e.target.value)}
+                  style={{
+                    flex: '1 1 100%',
+                    background: 'var(--bg-elevated)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 4,
+                    color: '#fff',
+                    fontSize: 9.5,
+                    padding: '2px 6px',
+                    height: 20
+                  }}
+                />
+                <input
+                  type="date"
+                  value={filtroCorteInicio}
+                  onChange={e => setFiltroCorteInicio(e.target.value)}
+                  style={{
+                    flex: '1 1 calc(50% - 2px)',
+                    background: 'var(--bg-elevated)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 4,
+                    color: '#fff',
+                    fontSize: 9.5,
+                    padding: '2px 4px',
+                    height: 20
+                  }}
+                  title="Fecha inicio"
+                />
+                <input
+                  type="date"
+                  value={filtroCorteFin}
+                  onChange={e => setFiltroCorteFin(e.target.value)}
+                  style={{
+                    flex: '1 1 calc(50% - 2px)',
+                    background: 'var(--bg-elevated)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 4,
+                    color: '#fff',
+                    fontSize: 9.5,
+                    padding: '2px 4px',
+                    height: 20
+                  }}
+                  title="Fecha fin"
+                />
+              </div>
+
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 180, overflowY: 'auto', paddingRight: 4 }}>
                 {cortesFiltrados.slice(0, 15).map(c => {
                   const dateObj = new Date(c.fecha);
                   const dateStr = dateObj.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: '2-digit' });
                   const timeStr = dateObj.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+                  
+                  const diffVal = Number(c.diferencia) || 0;
+                  const statusColor = diffVal === 0 ? 'var(--success)' : 'var(--danger)';
+                  const statusIcon = diffVal === 0 ? 'ri-checkbox-circle-fill' : 'ri-error-warning-fill';
+
                   return (
                     <button
                       key={c.id}
@@ -4243,15 +4306,28 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
                       }}
                       className="btn btn-secondary btn-xs"
                       style={{ fontSize: 10, padding: '4px 6px', width: '100%', textAlign: 'left', display: 'flex', justifyContent: 'space-between', background: 'var(--bg-elevated)', border: '1px solid rgba(255,255,255,0.03)', borderRadius: 4 }}
+                      title={`Operador: ${c.operador || 'Cajero'}. Diferencia: $${diffVal.toLocaleString('es-MX')}`}
                     >
-                      <span>📅 {dateStr}</span>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        📅 {dateStr}
+                        <i className={statusIcon} style={{ color: statusColor, fontSize: 10 }} title={diffVal === 0 ? "Corte cuadrado" : `Diferencia: $${diffVal.toLocaleString('es-MX')}`} />
+                      </span>
                       <span style={{ color: 'var(--text-muted)' }}>{timeStr}</span>
                     </button>
                   );
                 })}
+                {historialCortes.length === limiteCortesCaja && (
+                  <button
+                    onClick={() => setLimiteCortesCaja(prev => prev + 15)}
+                    className="btn btn-secondary btn-xs"
+                    style={{ fontSize: 9.5, padding: '3px 6px', width: '100%', marginTop: 2, background: 'transparent', border: '1px dashed var(--border)', color: 'var(--text-secondary)' }}
+                  >
+                    <i className="ri-arrow-down-double-line" /> Cargar más cortes...
+                  </button>
+                )}
+              </div>
             </div>
-          </div>
-        )}
+          )}
       </div>
     </div>
 
