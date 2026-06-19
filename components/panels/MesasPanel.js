@@ -5195,8 +5195,9 @@ export default function MesasPanel({ showToast }) {
                 </span>
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 6, minHeight: 18 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6, minHeight: 18 }}>
                 <span>{mesa.tipo}</span>
+                <span style={{ fontWeight: '600', color: 'var(--bronze-light)' }}>${mesa.tarifa}/h</span>
               </div>
 
 
