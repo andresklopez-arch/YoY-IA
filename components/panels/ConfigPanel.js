@@ -138,6 +138,8 @@ export default function ConfigPanel({ showToast }) {
     discrepancyThreshold: 100
   });
   const [savingTelegram, setSavingTelegram] = useState(false);
+  const [pendingAlerts, setPendingAlerts] = useState([]);
+  const [loadingPending, setLoadingPending] = useState(false);
 
   // --- Estados de Registro de Errores (Crashes) ---
   const [crashLogs, setCrashLogs] = useState([]);
@@ -365,7 +367,25 @@ export default function ConfigPanel({ showToast }) {
         console.error('Error al restaurar borradores:', err);
       }
     }
-    return () => unsubMesas();
+    // Escuchar alertas de Telegram pendientes en tiempo real (Sugerencia 1)
+    const unsubPending = onSnapshot(collection(db, 'telegram_alert_pending'), snap => {
+      const list = [];
+      snap.forEach(doc => {
+        list.push({ id: doc.id, ...doc.data() });
+      });
+      // Ordenar por fecha de creación descendente
+      list.sort((a, b) => {
+        const t1 = a.createdAt?.seconds || 0;
+        const t2 = b.createdAt?.seconds || 0;
+        return t2 - t1;
+      });
+      setPendingAlerts(list);
+    }, err => console.error("Error al escuchar alertas de Telegram pendientes:", err));
+
+    return () => {
+      unsubMesas();
+      unsubPending();
+    };
   }, []);
 
   // --- Guardar borradores automáticamente al cambiar de estado ---
@@ -1785,6 +1805,79 @@ export default function ConfigPanel({ showToast }) {
                 >
                   <i className="ri-save-line" /> {savingTelegram ? 'Guardando...' : 'Guardar Telegram'}
                 </button>
+              </div>
+
+              {/* Cola de Reintentos de Alertas (Sugerencia 1) */}
+              <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid var(--border)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <div style={{ fontSize: 11, fontWeight: '600', color: 'var(--text-primary)' }}>
+                    <i className="ri-time-line" style={{ marginRight: 4, color: 'var(--bronze)' }} />
+                    Cola de Reintentos ({pendingAlerts.length})
+                  </div>
+                  {pendingAlerts.length > 0 && (
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={async () => {
+                        setLoadingPending(true);
+                        try {
+                          const res = await fetch('/api/telegram/retry-alerts', {
+                            headers: { 'Authorization': 'Bearer central-retry-secret-key-2026' }
+                          });
+                          const data = await res.json();
+                          if (res.ok) {
+                            showToast(`Se procesaron ${data.processed} alertas en cola.`, 'success');
+                          } else {
+                            showToast(`Fallo al procesar reintentos: ${data.error}`, 'danger');
+                          }
+                        } catch (err) {
+                          showToast(`Error de conexión: ${err.message}`, 'danger');
+                        } finally {
+                          setLoadingPending(false);
+                        }
+                      }}
+                      disabled={loadingPending}
+                      style={{ fontSize: 9.5, padding: '2px 6px', height: 22 }}
+                    >
+                      {loadingPending ? 'Reintentando...' : 'Reintentar Todo'}
+                    </button>
+                  )}
+                </div>
+
+                {pendingAlerts.length === 0 ? (
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)', textAlign: 'center', padding: '10px 0', background: 'var(--bg-elevated)', borderRadius: 6 }}>
+                    <i className="ri-checkbox-circle-line" style={{ color: 'var(--success)', marginRight: 4 }} />
+                    No hay alertas pendientes en cola.
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 180, overflowY: 'auto', paddingRight: 4 }}>
+                    {pendingAlerts.map(alert => {
+                      const limitSnippet = alert.text ? (alert.text.length > 60 ? alert.text.substring(0, 60) + '...' : alert.text) : '';
+                      const dateStr = alert.createdAt ? new Date(alert.createdAt.seconds * 1000).toLocaleString('es-MX', { hour: '2-digit', minute: '2-digit' }) : 'Reciente';
+                      
+                      return (
+                        <div key={alert.id} style={{ padding: 6, borderRadius: 6, background: 'var(--bg-elevated)', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 2 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontSize: 9, fontWeight: 'bold', color: 'var(--bronze)' }}>
+                              Intento: {alert.retries || 0}/5
+                            </span>
+                            <span style={{ fontSize: 8.5, color: 'var(--text-muted)' }}>
+                              {dateStr}
+                            </span>
+                          </div>
+                          <div style={{ fontSize: 9.5, color: 'var(--text-secondary)', whiteSpace: 'pre-wrap' }}>
+                            {limitSnippet}
+                          </div>
+                          {alert.lastError && (
+                            <div style={{ fontSize: 8.5, color: 'var(--danger)', fontStyle: 'italic', marginTop: 1 }}>
+                              Error: {alert.lastError}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </div>
             </div>
