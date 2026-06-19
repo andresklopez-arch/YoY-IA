@@ -6,6 +6,23 @@ import { obfuscate, deobfuscate, hashPasswordSecure } from '@/lib/crypto';
 import { QRCodeCanvas } from 'qrcode.react';
 import JSZip from 'jszip';
 
+const ALERTAS_DEFINITIONS = [
+  { id: 'stockBajo', label: 'Alerta de Stock Bajo', sub: 'Notifica cuando un insumo o producto esté por debajo del stock óptimo' },
+  { id: 'altaOcupacion', label: 'Alerta de Alta Ocupación', sub: 'Sugerir tarifas dinámicas al superar 70% de ocupación de mesas' },
+  { id: 'clienteNoAtendido', label: 'Cliente no Atendido', sub: 'Mesa ocupada sin comandas registradas en los últimos 15 minutos' },
+  { id: 'altoConsumo', label: 'Producto en Alto Consumo', sub: 'Insumo con velocidad de consumo inusual que arriesga desabasto hoy' },
+  { id: 'mesaSinConsumo', label: 'Mesa sin Consumo', sub: 'Mesa ocupada por más de 2 horas con consumo acumulado menor a $100' },
+  { id: 'descuadreCaja', label: 'Descuadre de Caja', sub: 'Discrepancia en caja mayor al umbral dinámico o histórico de cortes' },
+  { id: 'comandaSinMesa', label: 'Comanda sin Mesa', sub: 'Comanda de cocina/barra asignada a una mesa en estado Libre' },
+  { id: 'tiempoExcesivo', label: 'Tiempo Excesivo', sub: 'Mesa de juego activa por más de 4 horas continuas sin pre-ticket impreso' },
+  { id: 'insumoCritico', label: 'Insumo Crítico Bajo', sub: 'Insumo clave para platillo estrella por debajo de su punto de reorden' },
+  { id: 'comandaDemorada', label: 'Comanda Demorada', sub: 'Orden en cocina/barra que excede los 20 minutos de preparación' },
+  { id: 'inactividadMesero', label: 'Inactividad de Meseros', sub: 'Frecuencia de comandas menor al promedio histórico en horas pico' },
+  { id: 'sinPersonalActivo', label: 'Sin Personal Activo', sub: 'Cuentas activas en caja pero ningún mesero con check-in en nómina' },
+  { id: 'excesoCortesias', label: 'Exceso de Cortesías', sub: 'Cortesías o descuentos aplicados superan el límite del turno actual' },
+  { id: 'tarifaDinamicaRecomendada', label: 'Recomendación de Tarifa', sub: 'Sugerir cambio de tarifa por alta demanda según día y hora' }
+];
+
 function areMesasEqual(arr1, arr2) {
   if (!arr1 || !arr2) return arr1 === arr2;
   if (arr1.length !== arr2.length) return false;
@@ -55,8 +72,25 @@ export default function ConfigPanel({ showToast }) {
   });
 
 
-  const [notifStock, setNotifStock] = useState(true);
-  const [notifOcupacion, setNotifOcupacion] = useState(true);
+  const [iaAlerts, setIaAlerts] = useState({
+    activeIds: ['stockBajo', 'altaOcupacion'],
+    states: {
+      stockBajo: true,
+      altaOcupacion: true,
+      clienteNoAtendido: true,
+      altoConsumo: true,
+      mesaSinConsumo: true,
+      descuadreCaja: true,
+      comandaSinMesa: true,
+      tiempoExcesivo: true,
+      insumoCritico: true,
+      comandaDemorada: true,
+      inactividadMesero: true,
+      sinPersonalActivo: true,
+      excesoCortesias: true,
+      tarifaDinamicaRecomendada: true
+    }
+  });
 
   // Estados de Gestión de Usuarios
   const [usuarios, setUsuarios] = useState([]);
@@ -308,6 +342,33 @@ export default function ConfigPanel({ showToast }) {
         });
       }
     }).catch(err => console.error("Error al cargar configuración de Telegram:", err));
+
+    // Escuchar configuración de Alertas IA en tiempo real
+    const unsubIaAlerts = onSnapshot(doc(db, 'config', 'ia_alertas'), snap => {
+      if (snap.exists()) {
+        const d = snap.data();
+        setIaAlerts({
+          activeIds: d.activeIds || ['stockBajo', 'altaOcupacion'],
+          states: d.states || {
+            stockBajo: true,
+            altaOcupacion: true,
+            clienteNoAtendido: true,
+            altoConsumo: true,
+            mesaSinConsumo: true,
+            descuadreCaja: true,
+            comandaSinMesa: true,
+            tiempoExcesivo: true,
+            insumoCritico: true,
+            comandaDemorada: true,
+            inactividadMesero: true,
+            sinPersonalActivo: true,
+            excesoCortesias: true,
+            tarifaDinamicaRecomendada: true
+          }
+        });
+      }
+    });
+
     // Escuchar mesas de Firestore en tiempo real como fuente única de verdad
     const docRef = doc(db, 'config', 'mesas_estado');
     const unsubMesas = onSnapshot(docRef, snap => {
@@ -406,6 +467,7 @@ export default function ConfigPanel({ showToast }) {
       unsubMesas();
       unsubPending();
       unsubExtras();
+      unsubIaAlerts();
     };
   }, []);
 
@@ -601,6 +663,55 @@ export default function ConfigPanel({ showToast }) {
     } catch (err) {
       console.error("Error al guardar configuración de sucursal:", err);
       showToast('Error al guardar configuración: ' + err.message, 'error');
+    }
+  };
+
+  const handleAgregarAlerta = async (id) => {
+    const updatedActive = [...iaAlerts.activeIds];
+    if (!updatedActive.includes(id)) {
+      updatedActive.push(id);
+    }
+    const updatedStates = { ...iaAlerts.states };
+    updatedStates[id] = true;
+
+    const newConfig = { activeIds: updatedActive, states: updatedStates };
+    setIaAlerts(newConfig);
+
+    try {
+      await setDoc(doc(db, 'config', 'ia_alertas'), newConfig);
+      showToast(`Alerta "${ALERTAS_DEFINITIONS.find(d => d.id === id)?.label}" añadida al monitoreo IA.`, 'success');
+    } catch (err) {
+      console.error(err);
+      showToast('Error al guardar configuración: ' + err.message, 'danger');
+    }
+  };
+
+  const handleToggleAlerta = async (id) => {
+    const updatedStates = { ...iaAlerts.states };
+    updatedStates[id] = !updatedStates[id];
+
+    const newConfig = { ...iaAlerts, states: updatedStates };
+    setIaAlerts(newConfig);
+
+    try {
+      await setDoc(doc(db, 'config', 'ia_alertas'), newConfig);
+    } catch (err) {
+      console.error(err);
+      showToast('Error al actualizar estado: ' + err.message, 'danger');
+    }
+  };
+
+  const handleQuitarAlerta = async (id) => {
+    const updatedActive = iaAlerts.activeIds.filter(x => x !== id);
+    const newConfig = { ...iaAlerts, activeIds: updatedActive };
+    setIaAlerts(newConfig);
+
+    try {
+      await setDoc(doc(db, 'config', 'ia_alertas'), newConfig);
+      showToast(`Alerta removida del monitoreo activo.`, 'secondary');
+    } catch (err) {
+      console.error(err);
+      showToast('Error al guardar configuración: ' + err.message, 'danger');
     }
   };
 
@@ -1909,24 +2020,106 @@ export default function ConfigPanel({ showToast }) {
               <div className="card-header" style={{ marginBottom: 12 }}>
                 <h3 className="card-title"><i className="ri-robot-line" style={{ marginRight: 6 }} />Alertas IA</h3>
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {[
-                  { label: 'Alerta de Stock Bajo', sub: 'Notificar cuando un producto esté bajo mínimo', state: notifStock, set: setNotifStock },
-                  { label: 'Alerta de Alta Ocupación', sub: 'Sugerir surge pricing al superar 70%', state: notifOcupacion, set: setNotifOcupacion },
-                ].map((item, i) => (
-                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: i === 0 ? '1px solid var(--border)' : 'none' }}>
-                    <div>
-                      <div style={{ fontSize: 13, fontWeight: 700 }}>{item.label}</div>
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{item.sub}</div>
+              
+              {/* Menú seleccionable de alertas disponibles */}
+              {ALERTAS_DEFINITIONS.filter(def => !iaAlerts.activeIds.includes(def.id)).length > 0 && (
+                <div style={{ marginBottom: 14 }}>
+                  <select
+                    onChange={(e) => {
+                      const id = e.target.value;
+                      if (id) {
+                        handleAgregarAlerta(id);
+                        e.target.value = '';
+                      }
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      borderRadius: 8,
+                      background: 'var(--bg-elevated)',
+                      border: '1px solid var(--border)',
+                      color: '#fff',
+                      fontSize: 12,
+                      cursor: 'pointer',
+                      outline: 'none'
+                    }}
+                  >
+                    <option value="">➕ Añadir Nueva Alerta IA...</option>
+                    {ALERTAS_DEFINITIONS.filter(def => !iaAlerts.activeIds.includes(def.id)).map(def => (
+                      <option key={def.id} value={def.id}>
+                        {def.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: '350px', overflowY: 'auto', paddingRight: 4 }}>
+                {iaAlerts.activeIds.map((id, i) => {
+                  const def = ALERTAS_DEFINITIONS.find(d => d.id === id);
+                  if (!def) return null;
+                  const isEnabled = iaAlerts.states[id] !== false;
+                  return (
+                    <div key={id} style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      padding: '10px 0',
+                      borderBottom: i < iaAlerts.activeIds.length - 1 ? '1px solid var(--border)' : 'none'
+                    }}>
+                      <div style={{ flex: 1, paddingRight: 10 }}>
+                        <div style={{ fontSize: 13, fontWeight: 700 }}>{def.label}</div>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, lineHeight: 1.3 }}>{def.sub}</div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        {/* Switch */}
+                        <div
+                          onClick={() => handleToggleAlerta(id)}
+                          style={{
+                            width: 40,
+                            height: 20,
+                            borderRadius: 10,
+                            cursor: 'pointer',
+                            transition: 'all 0.2s',
+                            background: isEnabled ? 'var(--bronze)' : 'var(--bg-elevated)',
+                            border: `1px solid ${isEnabled ? 'var(--bronze)' : 'var(--border)'}`,
+                            position: 'relative'
+                          }}
+                        >
+                          <div style={{
+                            width: 14,
+                            height: 14,
+                            borderRadius: '50%',
+                            background: '#fff',
+                            position: 'absolute',
+                            top: 2,
+                            left: isEnabled ? 24 : 2,
+                            transition: 'left 0.2s'
+                          }} />
+                        </div>
+                        {/* Quitar de la pantalla */}
+                        <button
+                          onClick={() => handleQuitarAlerta(id)}
+                          title="Remover de la pantalla"
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: 'var(--text-muted)',
+                            cursor: 'pointer',
+                            padding: 4,
+                            display: 'flex',
+                            alignItems: 'center',
+                            transition: 'color 0.2s'
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.color = 'var(--danger)'}
+                          onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-muted)'}
+                        >
+                          <i className="ri-delete-bin-line" style={{ fontSize: 14 }} />
+                        </button>
+                      </div>
                     </div>
-                    <div
-                      onClick={() => item.set(p => !p)}
-                      style={{ width: 44, height: 24, borderRadius: 12, cursor: 'pointer', transition: 'all 0.2s', background: item.state ? 'var(--bronze)' : 'var(--bg-elevated)', border: `1px solid ${item.state ? 'var(--bronze)' : 'var(--border)'}`, position: 'relative' }}
-                    >
-                      <div style={{ width: 18, height: 18, borderRadius: '50%', background: '#fff', position: 'absolute', top: 2, left: item.state ? 22 : 2, transition: 'left 0.2s' }} />
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
             <div className="card" style={{ padding: '12px 14px' }}>

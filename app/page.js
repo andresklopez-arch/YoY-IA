@@ -310,6 +310,30 @@ function AppContent() {
   const [iaPrevisiones, setIaPrevisiones] = useState({});
   const [cocinaSolicitudes, setCocinaSolicitudes] = useState([]);
 
+  const [mesas, setMesas] = useState([]);
+  const [cuentas, setCuentas] = useState([]);
+  const [personalActivo, setPersonalActivo] = useState([]);
+  const [ultimoCorte, setUltimoCorte] = useState(null);
+  const [iaAlerts, setIaAlerts] = useState({
+    activeIds: ['stockBajo', 'altaOcupacion'],
+    states: {
+      stockBajo: true,
+      altaOcupacion: true,
+      clienteNoAtendido: true,
+      altoConsumo: true,
+      mesaSinConsumo: true,
+      descuadreCaja: true,
+      comandaSinMesa: true,
+      tiempoExcesivo: true,
+      insumoCritico: true,
+      comandaDemorada: true,
+      inactividadMesero: true,
+      sinPersonalActivo: true,
+      excesoCortesias: true,
+      tarifaDinamicaRecomendada: true
+    }
+  });
+
   useEffect(() => {
     if (typeof window !== 'undefined' && 'Notification' in window) {
       if (Notification.permission !== 'granted' && Notification.permission !== 'denied') {
@@ -464,6 +488,272 @@ function AppContent() {
     });
     return unsub;
   }, [user]);
+
+  // 3. Escuchar configuración de Alertas IA
+  useEffect(() => {
+    if (!user) return;
+    const unsubIaAlerts = onSnapshot(doc(db, 'config', 'ia_alertas'), snap => {
+      if (snap.exists()) {
+        const d = snap.data();
+        setIaAlerts({
+          activeIds: d.activeIds || ['stockBajo', 'altaOcupacion'],
+          states: d.states || {
+            stockBajo: true,
+            altaOcupacion: true,
+            clienteNoAtendido: true,
+            altoConsumo: true,
+            mesaSinConsumo: true,
+            descuadreCaja: true,
+            comandaSinMesa: true,
+            tiempoExcesivo: true,
+            insumoCritico: true,
+            comandaDemorada: true,
+            inactividadMesero: true,
+            sinPersonalActivo: true,
+            excesoCortesias: true,
+            tarifaDinamicaRecomendada: true
+          }
+        });
+      }
+    });
+    return unsubIaAlerts;
+  }, [user]);
+
+  // 4. Escuchar mesas, cuentas y personal en tiempo real para las alertas IA
+  useEffect(() => {
+    if (!user) return;
+    const unsubMesas = onSnapshot(doc(db, 'config', 'mesas_estado'), snap => {
+      if (snap.exists()) {
+        setMesas(snap.data().mesas || []);
+      }
+    });
+    const unsubCuentas = onSnapshot(doc(db, 'config', 'cuentas_estado'), snap => {
+      if (snap.exists()) {
+        setCuentas(snap.data().cuentas || []);
+      }
+    });
+    const unsubAsistencia = onSnapshot(collection(db, 'nomina_asistencia'), snap => {
+      const list = [];
+      snap.forEach(doc => {
+        list.push({ id: doc.id, ...doc.data() });
+      });
+      setPersonalActivo(list);
+    });
+    const qCortes = query(collection(db, 'cortes_caja'), orderBy('fecha', 'desc'), limit(1));
+    const unsubCortes = onSnapshot(qCortes, snap => {
+      if (!snap.empty) {
+        setUltimoCorte({ id: snap.docs[0].id, ...snap.docs[0].data() });
+      }
+    });
+
+    return () => {
+      unsubMesas();
+      unsubCuentas();
+      unsubAsistencia();
+      unsubCortes();
+    };
+  }, [user]);
+
+  // Evaluador de Alertas IA
+  const evalAlertasIA = () => {
+    const list = [];
+    if (!iaAlerts || !iaAlerts.activeIds) return list;
+
+    iaAlerts.activeIds.forEach(id => {
+      if (!iaAlerts.states || iaAlerts.states[id] === false) return;
+
+      switch (id) {
+        case 'stockBajo':
+          if (insumosBajos.length > 0) {
+            list.push({
+              id,
+              icon: '⚠️',
+              text: `Monitoreo de Inventario: Hay ${insumosBajos.length} insumo(s) por debajo de su nivel óptimo (${insumosBajos.slice(0, 2).map(i => i.nombre).join(', ')}).`,
+              btnText: 'Ver Inventario',
+              panel: 'config'
+            });
+          }
+          break;
+        case 'altaOcupacion':
+          const ocupadas = mesas.filter(m => m.estado === 'ocupada').length;
+          const pct = mesas.length > 0 ? (ocupadas / mesas.length) * 100 : 0;
+          if (pct >= 70) {
+            list.push({
+              id,
+              icon: '📈',
+              text: `Alta Ocupación: Se supera el 70% de mesas ocupadas (${ocupadas}/${mesas.length}). Sugerir tarifa dinámica.`,
+              btnText: 'Ver Mesas',
+              panel: 'mesas'
+            });
+          }
+          break;
+        case 'clienteNoAtendido':
+          const mesasSinAtender = mesas.filter(m => {
+            if (m.estado !== 'ocupada' || !m.inicio) return false;
+            const elapsedMin = (Date.now() - m.inicio) / 60000;
+            if (elapsedMin < 15) return false;
+            const cuenta = cuentas.find(c => c.mesaId === m.id);
+            if (!cuenta || !cuenta.consumos || cuenta.consumos.length === 0) return true;
+            const lastTime = cuenta.consumos.reduce((max, item) => Math.max(max, item.timestamp || 0), m.inicio);
+            return (Date.now() - lastTime) / 60000 > 15;
+          });
+          if (mesasSinAtender.length > 0) {
+            list.push({
+              id,
+              icon: '⏳',
+              text: `Cliente no Atendido: Mesa(s) [${mesasSinAtender.map(m => m.nombre || m.id).join(', ')}] llevan más de 15 minutos sin atención.`,
+              btnText: 'Ver Mesas',
+              panel: 'mesas'
+            });
+          }
+          break;
+        case 'altoConsumo':
+          const desabastoList = Object.entries(iaPrevisiones).filter(([_, data]) => data.riesgoDesabasto === true);
+          if (desabastoList.length > 0) {
+            list.push({
+              id,
+              icon: '🧠',
+              text: `Alerta IA (Riesgo de Desabasto): Insumo(s) [${desabastoList.map(([name]) => name).join(', ')}] en alto consumo y pueden agotarse hoy.`,
+              btnText: 'Ver Inventario',
+              panel: 'config'
+            });
+          }
+          break;
+        case 'mesaSinConsumo':
+          const mesasSinConsumoList = mesas.filter(m => {
+            if (m.estado !== 'ocupada' || !m.inicio) return false;
+            const elapsedHrs = (Date.now() - m.inicio) / 3600000;
+            if (elapsedHrs < 2) return false;
+            const cuenta = cuentas.find(c => c.mesaId === m.id);
+            const sumConsumos = cuenta && cuenta.consumos ? cuenta.consumos.reduce((sum, item) => sum + item.precio * item.cantidad, 0) : 0;
+            return sumConsumos < 100;
+          });
+          if (mesasSinConsumoList.length > 0) {
+            list.push({
+              id,
+              icon: '🥤',
+              text: `Mesa sin Consumo: Mesa(s) [${mesasSinConsumoList.map(m => m.nombre || m.id).join(', ')}] llevan más de 2 horas con consumo menor a $100.`,
+              btnText: 'Ver Mesas',
+              panel: 'mesas'
+            });
+          }
+          break;
+        case 'descuadreCaja':
+          if (ultimoCorte && Math.abs(ultimoCorte.diferencia || 0) > 100) {
+            list.push({
+              id,
+              icon: '💵',
+              text: `Descuadre de Caja: Se detectó una diferencia de $${Math.abs(ultimoCorte.diferencia).toFixed(2)} MXN en el último corte de caja.`,
+              btnText: 'Ir a Caja',
+              panel: 'caja'
+            });
+          }
+          break;
+        case 'comandaSinMesa':
+          const comandasHuerfanas = cocinaSolicitudes.filter(s => {
+            if (!s.mesaId) return false;
+            const mesa = mesas.find(m => m.id === s.mesaId);
+            return !mesa || mesa.estado !== 'ocupada';
+          });
+          if (comandasHuerfanas.length > 0) {
+            list.push({
+              id,
+              icon: '🚫',
+              text: `Comanda sin Mesa: Hay comanda(s) enviadas a la mesa libre/inexistente [${comandasHuerfanas.map(c => c.mesaId).join(', ')}].`,
+              btnText: 'Ver Pedidos',
+              panel: 'bar'
+            });
+          }
+          break;
+        case 'tiempoExcesivo':
+          const mesasExcesivas = mesas.filter(m => {
+            if (m.estado !== 'ocupada' || !m.inicio) return false;
+            const elapsedHrs = (Date.now() - m.inicio) / 3600000;
+            return elapsedHrs > 4 && !m.preTicketImpreso;
+          });
+          if (mesasExcesivas.length > 0) {
+            list.push({
+              id,
+              icon: '🕰️',
+              text: `Tiempo Excesivo: Mesa(s) [${mesasExcesivas.map(m => m.nombre || m.id).join(', ')}] llevan más de 4 horas jugando sin emitir cuenta.`,
+              btnText: 'Ver Mesas',
+              panel: 'mesas'
+            });
+          }
+          break;
+        case 'insumoCritico':
+          const insCriticos = insumosBajos.filter(i => (i.stockOptimo && i.stock <= i.stockOptimo * 0.3));
+          if (insCriticos.length > 0) {
+            list.push({
+              id,
+              icon: '🚨',
+              text: `Insumo Crítico Bajo: ${insCriticos.length} insumo(s) clave en nivel crítico (menos del 30% de óptimo: ${insCriticos.slice(0, 2).map(i => i.nombre).join(', ')}).`,
+              btnText: 'Ver Inventario',
+              panel: 'config'
+            });
+          }
+          break;
+        case 'comandaDemorada':
+          const ordenesDemoradas = cocinaSolicitudes.filter(s => {
+            if (s.estado !== 'pendiente' || !s.createdAt) return false;
+            const elapsedMin = (Date.now() - s.createdAt) / 60000;
+            return elapsedMin > 20;
+          });
+          if (ordenesDemoradas.length > 0) {
+            list.push({
+              id,
+              icon: '🍳',
+              text: `Comanda Demorada: Hay ${ordenesDemoradas.length} orden(es) de barra/cocina demorada(s) por más de 20 minutos.`,
+              btnText: 'Ver Barra/Cocina',
+              panel: 'bar'
+            });
+          }
+          break;
+        case 'sinPersonalActivo':
+          const personalActivoCount = personalActivo ? personalActivo.length : 0;
+          const mesasOcupadasCount = mesas.filter(m => m.estado === 'ocupada').length;
+          if (mesasOcupadasCount > 0 && personalActivoCount === 0) {
+            list.push({
+              id,
+              icon: '👤',
+              text: `Sin Personal Activo: Hay ${mesasOcupadasCount} mesa(s) ocupada(s) pero no hay registros de check-in activos en nómina.`,
+              btnText: 'Ver Nómina',
+              panel: 'nomina'
+            });
+          }
+          break;
+        case 'excesoCortesias':
+          const cortesiasCount = (cuentas || []).reduce((sum, c) => sum + (c.cortesiasCount || 0), 0);
+          if (cortesiasCount > 5) {
+            list.push({
+              id,
+              icon: '🎁',
+              text: `Exceso de Cortesías: Se han registrado ${cortesiasCount} cortesías en el turno actual, superando la recomendación diaria.`,
+              btnText: 'Ver Auditoría',
+              panel: 'caja'
+            });
+          }
+          break;
+        case 'tarifaDinamicaRecomendada':
+          const dt = new Date();
+          const day = dt.getDay();
+          const hour = dt.getHours();
+          const activeMesasCount = mesas.filter(m => m.estado === 'ocupada').length;
+          if ((day === 5 || day === 6) && hour >= 18 && activeMesasCount >= mesas.length * 0.5) {
+            list.push({
+              id,
+              icon: '⚡',
+              text: `Recomendación de Tarifa: Alta afluencia fin de semana. Se sugiere activar Tarifa Dinámica (+15% por hora).`,
+              btnText: 'Ir a Tarifas',
+              panel: 'config'
+            });
+          }
+          break;
+      }
+    });
+
+    return list;
+  };
 
   // Motor de Aprendizaje IA Diario
   const ejecutarAprendizajeIA = async () => {
@@ -1418,6 +1708,8 @@ function AppContent() {
     ),
   };
 
+  const activeAlertsList = evalAlertasIA();
+
   return (
     <div className="app-wrapper">
       <div className="main-content">
@@ -1430,61 +1722,71 @@ function AppContent() {
           }}
         />
 
-        {/* Banner de Insumos Críticos / Faltantes */}
-        {(insumosBajos.length > 0 || cocinaSolicitudes.length > 0 || Object.entries(iaPrevisiones).some(([_, data]) => data.riesgoDesabasto === true)) && (
+        {/* Banner de Insumos Críticos / Faltantes y Alertas IA */}
+        {(cocinaSolicitudes.length > 0 || activeAlertsList.length > 0) && (
           <div style={{
-            background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.15), rgba(205, 127, 50, 0.08))',
-            borderBottom: '1px solid rgba(239, 68, 68, 0.3)',
-            padding: '10px 24px',
+            background: 'linear-gradient(135deg, rgba(20, 20, 25, 0.95), rgba(40, 30, 25, 0.95))',
+            borderBottom: '1px solid rgba(205, 127, 50, 0.25)',
+            padding: '8px 24px',
             display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            gap: 12,
-            animation: 'slideDownAlert 0.4s ease'
+            flexDirection: 'column',
+            gap: 8,
+            animation: 'slideDownAlert 0.4s ease',
+            maxHeight: '200px',
+            overflowY: 'auto',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.4)'
           }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, textAlign: 'left' }}>
-              {/* Cocina Solicitudes de Surtido URGENTE */}
-              {cocinaSolicitudes.length > 0 && (
+            {/* Cocina Solicitudes de Surtido URGENTE (Siempre Prioritario) */}
+            {cocinaSolicitudes.length > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0', borderBottom: activeAlertsList.length > 0 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, animation: 'pulseRedAlert 1.5s infinite' }}>
-                  <i className="ri-broadcast-line" style={{ fontSize: 18, color: 'var(--danger)' }} />
-                  <span style={{ fontSize: 13, color: '#fff', fontWeight: 800 }}>
+                  <i className="ri-broadcast-line" style={{ fontSize: 16, color: 'var(--danger)' }} />
+                  <span style={{ fontSize: 12, color: '#fff', fontWeight: 800 }}>
                     ATENCIÓN: Cocina solicita surtir urgente: <strong style={{ color: 'var(--danger)', textDecoration: 'underline' }}>{cocinaSolicitudes.map(s => s.nombre).join(', ')}</strong>
                   </span>
                 </div>
-              )}
-              {insumosBajos.length > 0 && (
+                <button
+                  className="btn btn-danger btn-xs"
+                  onClick={() => setActivePanel('bar')}
+                  style={{ padding: '2px 8px', fontSize: 10, borderRadius: 6 }}
+                >
+                  Surtir Barra/Cocina
+                </button>
+              </div>
+            )}
+
+            {/* Alertas IA Dinámicas */}
+            {activeAlertsList.map((alert, idx) => (
+              <div key={idx} style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: '4px 0',
+                borderBottom: idx < activeAlertsList.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none'
+              }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span style={{ fontSize: 16, animation: 'pulse 1s infinite' }}>⚠️</span>
+                  <span style={{ fontSize: 14 }}>{alert.icon}</span>
                   <span style={{ fontSize: 12, color: '#fff', fontWeight: 600 }}>
-                    MONITOREO DE INVENTARIO: Hay <strong style={{ color: 'var(--bronze-light)' }}>{insumosBajos.length} insumo(s)</strong> por debajo de su nivel óptimo ({insumosBajos.slice(0, 3).map(i => i.nombre).join(', ')}{insumosBajos.length > 3 ? '...' : ''}).
+                    {alert.text}
                   </span>
                 </div>
-              )}
-              {Object.entries(iaPrevisiones).some(([_, data]) => data.riesgoDesabasto === true) && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--danger)', fontWeight: 700, paddingLeft: 26 }}>
-                  <i className="ri-brain-line" style={{ fontSize: 13 }} /> ALERTA IA: {Object.entries(iaPrevisiones)
-                    .filter(([_, data]) => data.riesgoDesabasto === true)
-                    .slice(0, 2)
-                    .map(([name, data]) => `Riesgo de desabasto en [${name}] (${data.motivo})`)
-                    .join(' | ')}
-                </div>
-              )}
-            </div>
-            <button 
-              className="btn btn-secondary btn-xs" 
-              onClick={() => setActivePanel('config')} 
-              style={{ 
-                padding: '4px 10px', 
-                fontSize: 10, 
-                borderRadius: 6, 
-                color: '#fff', 
-                borderColor: Object.entries(iaPrevisiones).some(([_, data]) => data.riesgoDesabasto === true) ? 'var(--bronze-light)' : 'var(--border)',
-                boxShadow: Object.entries(iaPrevisiones).some(([_, data]) => data.riesgoDesabasto === true) ? '0 0 10px rgba(227, 168, 105, 0.4)' : 'none',
-                animation: Object.entries(iaPrevisiones).some(([_, data]) => data.riesgoDesabasto === true) ? 'breathingGoldenGlow 2s infinite ease-in-out' : 'none'
-              }}
-            >
-              Ver Inventario
-            </button>
+                <button
+                  className="btn btn-secondary btn-xs"
+                  onClick={() => setActivePanel(alert.panel)}
+                  style={{
+                    padding: '2px 8px',
+                    fontSize: 10,
+                    borderRadius: 6,
+                    color: '#fff',
+                    borderColor: 'var(--border)',
+                    background: 'rgba(255,255,255,0.04)',
+                    cursor: 'pointer'
+                  }}
+                >
+                  {alert.btnText}
+                </button>
+              </div>
+            ))}
           </div>
         )}
 
