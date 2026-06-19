@@ -242,6 +242,24 @@ export default function CajaPanel({ showToast }) {
     return () => unsub();
   }, []);
 
+  useEffect(() => {
+    // Procesar cola de reintentos de alertas de Telegram en segundo plano
+    const ejecutarReintentos = async () => {
+      try {
+        await fetch('/api/telegram/retry-alerts');
+      } catch (err) {
+        console.warn("Fallo silencioso al reintentar envío de alertas de Telegram en cola:", err);
+      }
+    };
+    
+    // Ejecutar al montar el panel
+    ejecutarReintentos();
+
+    // Reintentar periódicamente cada 5 minutos
+    const interval = setInterval(ejecutarReintentos, 300000);
+    return () => clearInterval(interval);
+  }, []);
+
   // Simulador de Tarifas
   const [surgePercent, setSurgePercent] = useState(20);
   const [discountPercent, setDiscountPercent] = useState(15);
@@ -2190,14 +2208,55 @@ ${diferenciaVal < 0 ? '1. Implementar auditoría ciega por turnos.\n2. Conciliar
         gastosDetalle: calculationsCorte.gastosDetalle
       });
 
-      // Alerta de descuadre de caja
+      // Alerta de descuadre de caja (Sugerencia 3: Tolerancia Dinámica)
       if (telegramConfig && telegramConfig.enabled && telegramConfig.notifyDisruptiveAlerts) {
-        const threshold = telegramConfig.discrepancyThreshold !== undefined ? Number(telegramConfig.discrepancyThreshold) : 100;
+        let stdDev = 0;
+        let historicosStr = 'No hay suficiente historial para desviación estándar.';
+        try {
+          const qCortes = query(
+            collection(db, 'cortes_caja'),
+            orderBy('fecha', 'desc'),
+            limit(30)
+          );
+          const snapCortes = await getDocs(qCortes);
+          const diffs = [];
+          snapCortes.forEach(doc => {
+            const data = doc.data();
+            if (data.diferencia !== undefined) {
+              diffs.push(Number(data.diferencia));
+            }
+          });
+          if (diffs.length >= 3) {
+            const mean = diffs.reduce((s, v) => s + v, 0) / diffs.length;
+            const variance = diffs.reduce((s, v) => s + Math.pow(v - mean, 2), 0) / diffs.length;
+            stdDev = Math.sqrt(variance);
+            historicosStr = `Basado en ${diffs.length} cortes históricos (Desv. Est. σ: $${stdDev.toFixed(1)} MXN).`;
+          }
+        } catch (errCortes) {
+          console.error("Error al calcular desviación estándar de cortes históricos:", errCortes);
+        }
+
+        const thresholdBase = telegramConfig.discrepancyThreshold !== undefined ? Number(telegramConfig.discrepancyThreshold) : 100;
+        const pctThreshold = 0.015 * Math.abs(calculationsCorte.efectivoEsperado);
+        
+        // Tolerancia Dinámica: Mayor entre el umbral base, 1.5 * σ de historial, o el 1.5% del efectivo esperado.
+        const dynamicThreshold = Math.max(thresholdBase, 1.5 * stdDev, pctThreshold);
         const diffAbs = Math.abs(diferencia);
-        if (diffAbs > threshold) {
+        
+        if (diffAbs > dynamicThreshold) {
           try {
             const formattedDiff = diferencia >= 0 ? `+$${diferencia.toLocaleString('es-MX')}` : `-$${diffAbs.toLocaleString('es-MX')}`;
             const nowStr = new Date().toLocaleString('es-MX', { timeZone: 'America/Mexico_City' });
+            
+            let analisisMetodo = `El descuadre actual de $${diffAbs.toLocaleString('es-MX')} MXN supera el umbral dinámico adaptativo de $${Math.round(dynamicThreshold).toLocaleString('es-MX')} MXN. `;
+            if (dynamicThreshold === pctThreshold) {
+              analisisMetodo += `(Activado por el límite de volumen de turno del 1.5% de efectivo esperado).`;
+            } else if (dynamicThreshold === 1.5 * stdDev) {
+              analisisMetodo += `(Activado por el límite de variación histórica de 1.5σ).`;
+            } else {
+              analisisMetodo += `(Activado por el umbral base estático establecido por el administrador).`;
+            }
+
             const alertMsg = `✈️ *[YoY Billar - Alerta IA]*\n\n` +
                              `⚠️ *Desviación Crítica de Caja (Arqueo)*\n` +
                              `👤 *Operador:* ${nombreOperador}\n` +
@@ -2205,7 +2264,8 @@ ${diferenciaVal < 0 ? '1. Implementar auditoría ciega por turnos.\n2. Conciliar
                              `💵 *Efectivo Contado:* $${sumaContada.toLocaleString('es-MX')}\n` +
                              `📊 *Diferencia / Descuadre:* *${formattedDiff}* ⚠️\n` +
                              `📅 *Hora:* ${nowStr}\n\n` +
-                             `*Análisis IA:* El descuadre supera el umbral de tolerancia de $${threshold}. Se sugiere revisión inmediata.`;
+                             `*Análisis IA:* ${analisisMetodo}\n` +
+                             `*Historial:* ${historicosStr}`;
 
             await fetch('/api/telegram/send-alert', {
               method: 'POST',

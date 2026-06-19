@@ -2,9 +2,52 @@ import { NextResponse } from 'next/server';
 import { db } from '@/lib/firebase';
 import { doc, getDoc, addDoc, collection, serverTimestamp } from 'firebase/firestore';
 
-export async function POST(request) {
+// Helper para encolar alertas fallidas en la colección telegram_alert_pending
+async function enqueueFailedAlert(body, errorMsg, resolvedChatId, resolvedToken) {
   try {
-    const body = await request.json();
+    let { token, chatId, phone, text, mode } = body;
+    
+    // Usar valores resueltos si están disponibles
+    const finalToken = token || resolvedToken || process.env.TELEGRAM_OFFICIAL_BOT_TOKEN;
+    let finalChatId = chatId || resolvedChatId;
+    
+    // Si no tenemos chatId pero tenemos el teléfono, buscar vinculación
+    if (!finalChatId && phone) {
+      const cleanPhone = phone.replace(/\D/g, '');
+      const vincRef = doc(db, 'telegram_vinculaciones', cleanPhone);
+      const vincSnap = await getDoc(vincRef);
+      if (vincSnap.exists()) {
+        finalChatId = vincSnap.data().chatId;
+      }
+    }
+
+    if (!finalToken || !finalChatId) {
+      console.warn("No se pudo encolar alerta pendiente por falta de token o chatId:", { phone, mode });
+      return;
+    }
+
+    await addDoc(collection(db, 'telegram_alert_pending'), {
+      token: finalToken,
+      chatId: finalChatId,
+      phone: phone || null,
+      text: text,
+      mode: mode || 'custom',
+      retries: 0,
+      lastError: errorMsg,
+      createdAt: new Date(),
+      nextRetryAt: new Date() // Intentar de inmediato en el próximo barrido
+    });
+  } catch (err) {
+    console.error("Error al encolar alerta en telegram_alert_pending:", err);
+  }
+}
+
+export async function POST(request) {
+  let body = {};
+  let targetChatId = null;
+  let targetToken = null;
+  try {
+    body = await request.json();
     let { token, chatId, phone, text, mode, sucursalName } = body;
 
     // Obtener nombre de sucursal si no viene en el body
@@ -23,10 +66,11 @@ export async function POST(request) {
     // Prepend sucursal name multitenant prefix
     if (sucursalName && text && !text.startsWith('🏢')) {
       text = `🏢 *[${sucursalName}]*\n\n${text}`;
+      body.text = text; // Actualizar en el cuerpo para guardarlo en la cola de pendientes
     }
 
-    let targetToken = token;
-    let targetChatId = chatId;
+    targetToken = token;
+    targetChatId = chatId;
 
     // Obtener token oficial desde variables de entorno
     const officialBotToken = process.env.TELEGRAM_OFFICIAL_BOT_TOKEN;
@@ -102,6 +146,9 @@ export async function POST(request) {
           } catch (logErr) {
             console.error("Error al registrar bitácora de alertas (Case B Failed):", logErr);
           }
+          // Encolar alerta pendiente localmente
+          await enqueueFailedAlert(body, dataCentral.error || 'Error central', targetChatId, targetToken);
+
           return NextResponse.json({ error: dataCentral.error || 'Error en el servidor central de SaaS' }, { status: resCentral.status });
         }
       } catch (errCentral) {
@@ -119,6 +166,9 @@ export async function POST(request) {
         } catch (logErr) {
           console.error("Error al registrar bitácora de alertas (Case B Exception):", logErr);
         }
+        // Encolar alerta pendiente localmente
+        await enqueueFailedAlert(body, 'No se pudo conectar con el servidor central: ' + errCentral.message, targetChatId, targetToken);
+
         return NextResponse.json({ error: 'No se pudo conectar con el servidor central de ALR SaaS: ' + errCentral.message }, { status: 502 });
       }
     }
@@ -173,6 +223,9 @@ export async function POST(request) {
       } catch (logErr) {
         console.error("Error al registrar bitácora de alertas (Failed):", logErr);
       }
+      // Encolar alerta pendiente localmente
+      await enqueueFailedAlert(body, errorData.description || 'Error de Telegram', targetChatId, targetToken);
+
       return NextResponse.json({ error: errorData.description || 'Error al enviar mensaje a Telegram' }, { status: res.status });
     }
   } catch (err) {
@@ -180,7 +233,7 @@ export async function POST(request) {
     try {
       await addDoc(collection(db, 'telegram_alert_logs'), {
         phone: body.phone || null,
-        chatId: body.chatId || null,
+        chatId: targetChatId || body.chatId || null,
         text: body.text || '',
         mode: body.mode || 'unknown',
         status: 'failed',
@@ -190,6 +243,9 @@ export async function POST(request) {
     } catch (logErr) {
       console.error("Error al registrar bitácora de alertas (Catch):", logErr);
     }
+    // Encolar alerta pendiente localmente
+    await enqueueFailedAlert(body, err.message, targetChatId, targetToken);
+
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
