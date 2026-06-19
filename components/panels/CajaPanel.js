@@ -531,6 +531,56 @@ export default function CajaPanel({ showToast }) {
         return cDoc.fecha >= start && cDoc.fecha <= end;
       });
 
+      // Consulta de Empleados y Registros de Asistencia
+      const snapEmp = await getDocs(collection(db, 'nomina_empleados'));
+      const listEmpleados = snapEmp.docs.map(d => ({ id: d.id, ...d.data() }));
+
+      const snapAsistencia = await getDocs(collection(db, 'nomina_asistencia_log'));
+      const listAsistencias = snapAsistencia.docs.map(d => {
+        const dData = d.data();
+        const timeVal = dData.createdAt?.toDate 
+          ? dData.createdAt.toDate().getTime() 
+          : (dData.createdAt ? new Date(dData.createdAt).getTime() : new Date(`${dData.fecha}T${dData.hora || '12:00:00'}`).getTime());
+        return {
+          id: d.id,
+          ...dData,
+          time: timeVal
+        };
+      });
+
+      const startTime = new Date(start).getTime();
+      const endTime = new Date(end).getTime();
+      const filteredAsistencias = listAsistencias.filter(log => log.time >= startTime && log.time <= endTime);
+
+      const horasTrabajadasColaboradores = listEmpleados.map(emp => {
+        const empLogs = filteredAsistencias
+          .filter(log => log.empleadoId === emp.id)
+          .sort((a, b) => a.time - b.time);
+
+        let totalMs = 0;
+        let lastEntradaTime = null;
+        
+        empLogs.forEach(log => {
+          if (log.tipo === 'entrada') {
+            lastEntradaTime = log.time;
+          } else if (log.tipo === 'salida' && lastEntradaTime !== null) {
+            totalMs += (log.time - lastEntradaTime);
+            lastEntradaTime = null;
+          }
+        });
+        
+        if (lastEntradaTime !== null && endTime >= Date.now()) {
+          totalMs += (Date.now() - lastEntradaTime);
+        }
+        
+        const hrs = totalMs / 3600000;
+        return {
+          nombre: `${emp.nombre} ${emp.apellido || ''}`.trim(),
+          rol: emp.rol || 'Staff',
+          horas: hrs
+        };
+      }).filter(emp => emp.horas > 0);
+
       let totalHorasMesa = 0;
       let countUsoMesas = 0;
       listEventos.forEach(e => {
@@ -784,6 +834,7 @@ export default function CajaPanel({ showToast }) {
         promedioRotacionVal,
         pagosPorHora,
         promedioPrepVal,
+        horasTrabajadasColaboradores,
         rawEventos: listEventos,
         rawPedidos: listPedidos,
         rawCortes: listCortes
@@ -806,10 +857,20 @@ export default function CajaPanel({ showToast }) {
 
   const exportarReporte = async (formato) => {
     if (!datosReporte) return;
-    const { period, start, end, rawEventos } = datosReporte;
+    const { period, start, end, rawEventos, horasTrabajadasColaboradores } = datosReporte;
 
     const fechaInicioFmt = new Date(start).toLocaleDateString('es-MX');
     const fechaFinFmt = new Date(end).toLocaleDateString('es-MX');
+
+    // Sanitización CSV (Sugerencia de Seguridad)
+    const sanitizeCSV = (str) => {
+      if (str === null || str === undefined) return '';
+      const clean = String(str).replace(/"/g, '""');
+      if (['=', '+', '-', '@'].includes(clean.charAt(0))) {
+        return `'${clean}`;
+      }
+      return clean;
+    };
 
     if (formato === 'excel') {
       let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
@@ -817,12 +878,19 @@ export default function CajaPanel({ showToast }) {
 
       rawEventos.forEach(e => {
         const fechaStr = new Date(e.fecha).toLocaleString('es-MX').replace(/,/g, '');
-        const accionStr = (e.accion || '').replace(/"/g, '""');
-        const detalleStr = (e.detalle || '').replace(/"/g, '""');
+        const accionStr = sanitizeCSV(e.accion);
+        const detalleStr = sanitizeCSV(e.detalle);
         const montoStr = e.monto || 0;
-        const operadorStr = (e.operador || '').replace(/"/g, '""');
+        const operadorStr = sanitizeCSV(e.operador);
         csvContent += `"${fechaStr}","${accionStr}","${detalleStr}",${montoStr},"${operadorStr}"\n`;
       });
+
+      if (horasTrabajadasColaboradores && horasTrabajadasColaboradores.length > 0) {
+        csvContent += "\nCOLABORADOR,ROL,HORAS TRABAJADAS (QR)\n";
+        horasTrabajadasColaboradores.forEach(emp => {
+          csvContent += `"${sanitizeCSV(emp.nombre)}","${sanitizeCSV(emp.rol)}",${emp.horas.toFixed(1)}\n`;
+        });
+      }
 
       const encodedUri = encodeURI(csvContent);
       const link = document.createElement("a");
@@ -850,6 +918,30 @@ export default function CajaPanel({ showToast }) {
         </tr>
       `).join('');
 
+      const horasRows = (horasTrabajadasColaboradores || []).map(emp => `
+        <tr>
+          <td>${emp.nombre}</td>
+          <td>${emp.rol}</td>
+          <td align="right">${emp.horas.toFixed(1)} hrs</td>
+        </tr>
+      `).join('');
+
+      const horasSection = horasTrabajadasColaboradores && horasTrabajadasColaboradores.length > 0 ? `
+        <h3>Pase de Lista (Horas Trabajadas por Colaborador con QR)</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Colaborador</th>
+              <th>Rol</th>
+              <th>Horas Trabajadas</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${horasRows}
+          </tbody>
+        </table>
+      ` : '';
+
       printWindow.document.write(`
         <html>
           <head>
@@ -857,6 +949,7 @@ export default function CajaPanel({ showToast }) {
             <style>
               body { font-family: sans-serif; padding: 20px; color: #333; }
               h1 { color: #85582b; font-size: 20px; border-bottom: 2px solid #85582b; padding-bottom: 8px; }
+              h3 { color: #85582b; font-size: 14px; margin-top: 25px; }
               table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 11px; }
               th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
               th { background-color: #f2f2f2; }
@@ -868,6 +961,7 @@ export default function CajaPanel({ showToast }) {
             <p><b>Rango:</b> ${fechaInicioFmt} al ${fechaFinFmt}</p>
             <p><b>Monto de Ventas Totales:</b> $${datosReporte.totalVentasPeriodoVal.toLocaleString('es-MX')}</p>
             <p><b>Tiempo de Mesas en Uso:</b> ${datosReporte.totalHorasMesa.toFixed(1)} hrs</p>
+            
             <table>
               <thead>
                 <tr>
@@ -882,6 +976,9 @@ export default function CajaPanel({ showToast }) {
                 ${tableRows}
               </tbody>
             </table>
+
+            ${horasSection}
+
             <script>
               window.onload = function() {
                 window.print();
@@ -917,6 +1014,15 @@ export default function CajaPanel({ showToast }) {
             text += `🕒 *Tiempo Prom. Rotación:* ${datosReporte.promedioRotacionVal.toFixed(0)} min\n`;
             text += `🍔 *Barra (Top Productos):* ${datosReporte.topItems.slice(0, 3).map(i => `${i.nombre} (${i.cant} pz)`).join(', ') || 'Sin consumos'}\n`;
             text += `⚡ *Preparación Promedio:* ${datosReporte.promedioPrepVal.toFixed(1)} min\n\n`;
+
+            if (horasTrabajadasColaboradores && horasTrabajadasColaboradores.length > 0) {
+              text += `👥 *Horas Trabajadas (Pase de Lista QR):*\n`;
+              horasTrabajadasColaboradores.forEach(emp => {
+                text += `• ${emp.nombre} (${emp.rol}): ${emp.horas.toFixed(1)} hrs\n`;
+              });
+              text += `\n`;
+            }
+
             text += `📄 _Detalle enviado a solicitud del Administrador._`;
 
             const res = await fetch('/api/telegram/send-alert', {
@@ -5043,6 +5149,24 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
                       <span>Preparación Barra/Cocina Prom.:</span>
                       <span style={{ color: '#fff' }}>{datosReporte.promedioPrepVal.toFixed(1)} min</span>
                     </div>
+                  </div>
+                </div>
+
+                {/* Pase de Lista (Horas QR) */}
+                <div style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid var(--border)', borderRadius: 6, padding: 10 }}>
+                  <span style={{ fontSize: 10, color: 'var(--text-secondary)', fontWeight: 800, textTransform: 'uppercase', display: 'block', borderBottom: '1px solid var(--border)', paddingBottom: 4, marginBottom: 6 }}>Pase de Lista (Horas QR)</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 90, overflowY: 'auto' }}>
+                    {datosReporte.horasTrabajadasColaboradores?.map(emp => (
+                      <div key={emp.nombre} style={{ fontSize: 9.5, display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed rgba(255,255,255,0.03)', paddingBottom: 2 }}>
+                        <span style={{ color: '#fff', fontWeight: 600 }}>{emp.nombre} ({emp.rol}):</span>
+                        <span style={{ color: 'var(--success)', fontWeight: 700 }}>
+                          {emp.horas.toFixed(1)} hrs
+                        </span>
+                      </div>
+                    ))}
+                    {(!datosReporte.horasTrabajadasColaboradores || datosReporte.horasTrabajadasColaboradores.length === 0) && (
+                      <span style={{ fontSize: 10, color: 'var(--text-muted)', fontStyle: 'italic' }}>Sin horas registradas con QR</span>
+                    )}
                   </div>
                 </div>
               </div>
