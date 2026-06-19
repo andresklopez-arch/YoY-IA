@@ -279,7 +279,6 @@ export default function CajaPanel({ showToast }) {
     }, err => console.warn("Error loading queue waitlist:", err));
 
     return () => {
-      unsubLogs();
       unsubFila();
     };
   }, [esCajero]);
