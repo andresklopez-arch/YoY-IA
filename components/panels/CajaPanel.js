@@ -118,6 +118,8 @@ export default function CajaPanel({ showToast }) {
   // Estados de Inteligencia y Reportes
   const [filtroGrafico, setFiltroGrafico] = useState('semana'); // 'semana' | 'mes' | 'anio'
   const [pronosticoRango, setPronosticoRango] = useState('24h'); // '24h' | '48h' | '72h'
+  const [rfFiltro, setRfFiltro] = useState('7d');
+  const [rfModalTipo, setRfModalTipo] = useState(null);
   const [gastosList, setGastosList] = useState([]);
   const [nominaPagosList, setNominaPagosList] = useState([]);
   const [empleadosList, setEmpleadosList] = useState([]);
@@ -1404,6 +1406,173 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
       margenUtilidad
     };
   }, [bitacora, cobros, totalGastosPeriodo, totalNominaPeriodo, limiteFecha, totalHoy, diasFiltro, ahora]);
+
+  const resumenFinanciero = useMemo(() => {
+    const ahoraMs = Date.now();
+    let limiteMs = 0;
+    
+    // Determine the start date of the period
+    if (rfFiltro === 'Hoy') {
+      const hoyStart = new Date();
+      hoyStart.setHours(0, 0, 0, 0);
+      limiteMs = hoyStart.getTime();
+    } else if (rfFiltro === '7d') {
+      limiteMs = ahoraMs - 7 * 24 * 60 * 60 * 1000;
+    } else if (rfFiltro === '15d') {
+      limiteMs = ahoraMs - 15 * 24 * 60 * 60 * 1000;
+    } else if (rfFiltro === '1m') {
+      limiteMs = ahoraMs - 30 * 24 * 60 * 60 * 1000;
+    } else if (rfFiltro === '6m') {
+      limiteMs = ahoraMs - 180 * 24 * 60 * 60 * 1000;
+    } else if (rfFiltro === '1a') {
+      limiteMs = ahoraMs - 365 * 24 * 60 * 60 * 1000;
+    } else if (rfFiltro === 'ultimo corte') {
+      limiteMs = ultimoCorteFecha ? new Date(ultimoCorteFecha).getTime() : (ahoraMs - 24 * 60 * 60 * 1000);
+    } else {
+      // 'vida' / all time
+      limiteMs = 0;
+    }
+
+    let diasFiltro = 7;
+    if (rfFiltro === 'Hoy') diasFiltro = 1;
+    else if (rfFiltro === '7d') diasFiltro = 7;
+    else if (rfFiltro === '15d') diasFiltro = 15;
+    else if (rfFiltro === '1m') diasFiltro = 30;
+    else if (rfFiltro === '6m') diasFiltro = 180;
+    else if (rfFiltro === '1a') diasFiltro = 365;
+    else if (rfFiltro === 'ultimo corte') {
+      const msDiff = ahoraMs - limiteMs;
+      diasFiltro = Math.max(0.1, msDiff / (24 * 60 * 60 * 1000));
+    } else { // vida
+      diasFiltro = 365; // default fallback days
+    }
+
+    // Filter bitacora events in period
+    const eventosPeriodo = bitacora.filter(e => {
+      if (!e.fecha) return false;
+      const t = new Date(e.fecha).getTime();
+      return t >= limiteMs;
+    });
+
+    // Rentas de mesas de billar: suma de cierres en el periodo
+    const listMesas = eventosPeriodo.filter(e => e.accion === 'Cierre Directo' || e.accion === 'Mesa a Cuenta');
+    const sumMesas = listMesas.reduce((s, e) => s + Math.abs(Number(e.monto) || 0), 0);
+    
+    // We check if it is active or fallback
+    const rentasMesasUsadasFallback = sumMesas === 0;
+    const rentasMesas = sumMesas > 0 ? sumMesas : (totalHoy * 0.45 * (diasFiltro / 1));
+
+    // Ventas de barra
+    const listBar = cobros.filter(c => c.tipo === 'bar' && c.monto > 0 && (c.id > 1000000 ? c.id : ahoraMs) >= limiteMs);
+    const sumBar = listBar.reduce((s, c) => s + Number(c.monto), 0);
+    const ventasBarUsadasFallback = sumBar === 0;
+    const ventasBar = sumBar > 0 ? sumBar : (totalHoy * 0.35 * (diasFiltro / 1));
+
+    // Torneos
+    let inscripcionesTorneo = 0;
+    let torneosPeriodo = [];
+    if (typeof window !== 'undefined') {
+      try {
+        const rawTorneos = localStorage.getItem('yoy_billar_torneos');
+        if (rawTorneos) {
+          const torneos = deobfuscate(rawTorneos) || [];
+          torneosPeriodo = torneos.filter(t => new Date(t.fechaInicio).getTime() >= limiteMs);
+          inscripcionesTorneo = torneosPeriodo.reduce((s, t) => {
+            const cost = parseFloat(t.inscripcion?.replace('$', '') || 0);
+            return s + (cost * (t.jugadores || 0));
+          }, 0);
+        }
+      } catch (err) { console.warn(err); }
+    }
+
+    const totalIngresos = rentasMesas + ventasBar + inscripcionesTorneo;
+    const cogsBar = ventasBar * 0.35;
+    const cogsTorneos = inscripcionesTorneo * 0.40;
+    const totalCOGS = cogsBar + cogsTorneos;
+    const utilidadBruta = totalIngresos - totalCOGS;
+
+    // Gastos G
+    const listGastos = gastosList.filter(g => {
+      const fechaG = g.fecha ? new Date(g.fecha).getTime() : 0;
+      return fechaG >= limiteMs;
+    });
+    const totalGastosPeriodo = listGastos.reduce((sum, g) => sum + (Number(g.monto) || 0), 0);
+    const gastosGUsadasFallback = totalGastosPeriodo === 0;
+    const gastosG = totalGastosPeriodo > 0 ? totalGastosPeriodo : (totalIngresos * 0.12);
+
+    // Nomina
+    const listNomina = nominaPagosList.filter(p => {
+      const fechaP = p.fecha ? new Date(p.fecha).getTime() : 0;
+      return fechaP >= limiteMs;
+    });
+    const totalNominaPeriodo = listNomina.reduce((sum, p) => sum + (Number(p.total || p.totalNeto) || 0), 0);
+    const nominaSUsadasFallback = totalNominaPeriodo === 0;
+    const nominaS = totalNominaPeriodo > 0 ? totalNominaPeriodo : (totalIngresos * 0.20);
+
+    const totalOPEX = gastosG + nominaS;
+    const utilidadNeta = utilidadBruta - totalOPEX;
+    const margenUtilidad = totalIngresos > 0 ? (utilidadNeta / totalIngresos) * 100 : 0;
+
+    // Cash and Digital split in this period
+    let efectivoIngresos = 0;
+    let digitalIngresos = 0;
+
+    // Mesa / Cierres
+    listMesas.forEach(e => {
+      const detLower = (e.detalle || '').toLowerCase();
+      const montoVal = Math.abs(Number(e.monto) || 0);
+      if (detLower.includes('tarjeta') || detLower.includes('transferencia') || detLower.includes('spei') || detLower.includes('qr')) {
+        digitalIngresos += montoVal;
+      } else {
+        efectivoIngresos += montoVal;
+      }
+    });
+
+    // Ventas Barra
+    listBar.forEach(c => {
+      const montoVal = Number(c.monto) || 0;
+      if (c.metodo === 'tarjeta' || c.metodo === 'spei' || c.metodo === 'transferencia' || c.metodo === 'qr') {
+        digitalIngresos += montoVal;
+      } else {
+        efectivoIngresos += montoVal;
+      }
+    });
+
+    // Torneos
+    efectivoIngresos += inscripcionesTorneo;
+
+    // Gastos G y nómina restados del flujo general
+    const totalEfectivoPeriodo = Math.max(0, efectivoIngresos - totalOPEX);
+    const totalDigitalPeriodo = digitalIngresos;
+
+    return {
+      rentasMesas,
+      ventasBar,
+      inscripcionesTorneo,
+      totalIngresos,
+      cogsBar,
+      cogsTorneos,
+      totalCOGS,
+      utilidadBruta,
+      gastosG,
+      nominaS,
+      totalOPEX,
+      utilidadNeta,
+      margenUtilidad,
+      efectivoPeriodo: totalEfectivoPeriodo,
+      digitalPeriodo: totalDigitalPeriodo,
+      listMesas,
+      listBar,
+      torneosPeriodo,
+      listGastos,
+      listNomina,
+      rentasMesasUsadasFallback,
+      ventasBarUsadasFallback,
+      gastosGUsadasFallback,
+      nominaSUsadasFallback,
+      limiteMs
+    };
+  }, [rfFiltro, bitacora, cobros, gastosList, nominaPagosList, ultimoCorteFecha, totalHoy]);
 
   // Satisfacción
   const totalEncuestas = encuestasList.length;
@@ -3578,35 +3747,104 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
                     <span className="badge badge-success" style={{ fontSize: 9, padding: '2px 4px' }}>En Vivo</span>
                   </div>
                   
+                  {/* Selector de Períodos */}
+                  <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', margin: '2px 0 6px 0' }}>
+                    {['Hoy', '7d', '15d', '1m', '6m', '1a', 'vida', 'ultimo corte'].map(filtro => (
+                      <button
+                        key={filtro}
+                        onClick={() => setRfFiltro(filtro)}
+                        style={{
+                          padding: '2px 6px',
+                          fontSize: '9.5px',
+                          fontWeight: rfFiltro === filtro ? 'bold' : 'normal',
+                          background: rfFiltro === filtro ? 'var(--bronze)' : 'var(--bg-elevated)',
+                          color: rfFiltro === filtro ? '#fff' : 'var(--text-secondary)',
+                          border: '1px solid ' + (rfFiltro === filtro ? 'var(--bronze-light)' : 'var(--border)'),
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease'
+                        }}
+                      >
+                        {filtro === 'ultimo corte' ? 'último corte' : filtro}
+                      </button>
+                    ))}
+                  </div>
+
                   <div style={{ display: 'grid', gridTemplateColumns: '1.1fr 1fr', gap: '8px 16px', fontSize: 12.5 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                       <span style={{ color: 'var(--text-secondary)' }}>Efectivo:</span>
-                      <span style={{ fontWeight: 700, color: 'var(--success)' }}>${totalEfectivoEsperado.toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
+                      <span style={{ fontWeight: 700, color: 'var(--success)' }}>
+                        ${resumenFinanciero.efectivoPeriodo.toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                      </span>
                     </div>
                     
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ color: 'var(--text-secondary)' }}>Ingresos:</span>
-                      <span style={{ fontWeight: 700, color: 'var(--success)' }}>${finanzas.totalIngresos.toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
+                      <span
+                        style={{
+                          color: 'var(--text-secondary)',
+                          textDecoration: 'underline',
+                          textDecorationStyle: 'dotted',
+                          cursor: 'pointer'
+                        }}
+                        onClick={() => setRfModalTipo('ingresos')}
+                      >
+                        Ingresos:
+                      </span>
+                      <span
+                        style={{
+                          fontWeight: 700,
+                          color: 'var(--success)',
+                          textDecoration: 'underline',
+                          textDecorationStyle: 'dotted',
+                          cursor: 'pointer'
+                        }}
+                        onClick={() => setRfModalTipo('ingresos')}
+                      >
+                        ${resumenFinanciero.totalIngresos.toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                      </span>
                     </div>
 
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                       <span style={{ color: 'var(--text-secondary)' }}>Digital:</span>
                       <span style={{ fontWeight: 700, color: 'var(--blue-light)' }}>
-                        ${totalDigitalEsperado.toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                        ${resumenFinanciero.digitalPeriodo.toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                       </span>
                     </div>
                     
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ color: 'var(--text-secondary)' }}>Gastos:</span>
-                      <span style={{ fontWeight: 700, color: 'var(--danger)' }}>-${finanzas.totalOPEX.toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
+                      <span
+                        style={{
+                          color: 'var(--text-secondary)',
+                          textDecoration: 'underline',
+                          textDecorationStyle: 'dotted',
+                          cursor: 'pointer'
+                        }}
+                        onClick={() => setRfModalTipo('gastos')}
+                      >
+                        Gastos:
+                      </span>
+                      <span
+                        style={{
+                          fontWeight: 700,
+                          color: 'var(--danger)',
+                          textDecoration: 'underline',
+                          textDecorationStyle: 'dotted',
+                          cursor: 'pointer'
+                        }}
+                        onClick={() => setRfModalTipo('gastos')}
+                      >
+                        -${resumenFinanciero.totalOPEX.toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                      </span>
                     </div>
 
                     <div style={{ gridColumn: 'span 2', display: 'flex', justifyContent: 'space-between', fontSize: 13.5, fontWeight: 800, borderTop: '1px solid var(--border-bronze)', paddingTop: 8, marginTop: 4 }}>
                       <span style={{ color: '#fff' }}>Utilidad Neta (P&L):</span>
                       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                        <span style={{ color: 'var(--bronze-light)' }}>${finanzas.utilidadNeta.toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
-                        <span style={{ fontSize: 10.5, color: finanzas.margenUtilidad >= 0 ? 'var(--success)' : 'var(--danger)' }}>
-                          ({finanzas.margenUtilidad.toFixed(1)}% Margen)
+                        <span style={{ color: 'var(--bronze-light)' }}>
+                          ${resumenFinanciero.utilidadNeta.toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                        </span>
+                        <span style={{ fontSize: 10.5, color: resumenFinanciero.margenUtilidad >= 0 ? 'var(--success)' : 'var(--danger)' }}>
+                          ({resumenFinanciero.margenUtilidad.toFixed(1)}% Margen)
                         </span>
                       </div>
                     </div>
@@ -5265,6 +5503,273 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
             
             <div className="modal-footer" style={{ borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', padding: '12px 20px' }}>
               <button className="btn btn-secondary" onClick={() => setModalConsultarClienteOpen(false)} style={{ fontSize: 11 }}>Cerrar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {rfModalTipo && (
+        <div className="modal-overlay" onClick={() => setRfModalTipo(null)}>
+          <div className="modal" style={{ maxWidth: 650, width: '90%' }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <span className="modal-title">
+                <i className={rfModalTipo === 'ingresos' ? "ri-arrow-left-right-line" : "ri-indeterminate-circle-line"} style={{ marginRight: 8, color: 'var(--bronze-light)' }} />
+                Desglose de {rfModalTipo === 'ingresos' ? 'Ingresos' : 'Gastos y Egresos'} ({rfFiltro === 'ultimo corte' ? 'último corte' : rfFiltro})
+              </span>
+              <button onClick={() => setRfModalTipo(null)} className="btn-icon btn btn-secondary" style={{ background: 'none', border: 'none' }}>
+                <i className="ri-close-line" style={{ fontSize: 20 }} />
+              </button>
+            </div>
+            
+            <div className="modal-body" style={{ maxHeight: '70vh', overflowY: 'auto', padding: '16px 20px' }}>
+              {rfModalTipo === 'ingresos' ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  {/* Resumen de Tarjetas */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+                    <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 8, padding: 10, textAlign: 'center' }}>
+                      <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Rentas de Mesas</div>
+                      <div style={{ fontSize: 16, fontWeight: 'bold', color: 'var(--success)', marginTop: 4 }}>
+                        ${resumenFinanciero.rentasMesas.toLocaleString('es-MX', { maximumFractionDigits: 0 })}
+                      </div>
+                      {resumenFinanciero.rentasMesasUsadasFallback && (
+                        <div style={{ fontSize: 8, color: 'var(--warning)', marginTop: 2 }}>*Proyección IA</div>
+                      )}
+                    </div>
+                    <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 8, padding: 10, textAlign: 'center' }}>
+                      <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Ventas de Barra</div>
+                      <div style={{ fontSize: 16, fontWeight: 'bold', color: 'var(--success)', marginTop: 4 }}>
+                        ${resumenFinanciero.ventasBar.toLocaleString('es-MX', { maximumFractionDigits: 0 })}
+                      </div>
+                      {resumenFinanciero.ventasBarUsadasFallback && (
+                        <div style={{ fontSize: 8, color: 'var(--warning)', marginTop: 2 }}>*Proyección IA</div>
+                      )}
+                    </div>
+                    <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 8, padding: 10, textAlign: 'center' }}>
+                      <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Torneos</div>
+                      <div style={{ fontSize: 16, fontWeight: 'bold', color: 'var(--success)', marginTop: 4 }}>
+                        ${resumenFinanciero.inscripcionesTorneo.toLocaleString('es-MX', { maximumFractionDigits: 0 })}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Fallbacks Alerts */}
+                  {(resumenFinanciero.rentasMesasUsadasFallback || resumenFinanciero.ventasBarUsadasFallback) && (
+                    <div style={{ background: 'rgba(217, 119, 6, 0.1)', border: '1px solid rgba(217, 119, 6, 0.3)', borderRadius: 8, padding: '10px 12px', fontSize: 11, color: '#f59e0b', lineHeight: 1.4 }}>
+                      <i className="ri-information-line" style={{ marginRight: 6, verticalAlign: 'middle', fontSize: 13 }} />
+                      <strong>Nota de Trazabilidad:</strong> Algunas categorías muestran estimaciones proporcionales basadas en la actividad general del negocio porque no se detectaron cierres registrados en el rango de tiempo seleccionado.
+                    </div>
+                  )}
+
+                  {/* Detalles por Categoría */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    
+                    {/* Sección Mesas */}
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 'bold', color: 'var(--bronze-light)', marginBottom: 6, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span>Rentas de Mesas / Cierres ({resumenFinanciero.listMesas.length})</span>
+                        {!resumenFinanciero.rentasMesasUsadasFallback && (
+                          <span style={{ fontSize: 10, fontWeight: 'normal', color: 'var(--success)' }}>
+                            Real: ${resumenFinanciero.listMesas.reduce((s, e) => s + Math.abs(Number(e.monto) || 0), 0).toLocaleString()}
+                          </span>
+                        )}
+                      </div>
+                      
+                      {resumenFinanciero.listMesas.length === 0 ? (
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)', background: 'var(--bg-elevated)', padding: '10px 12px', borderRadius: 6, border: '1px solid var(--border)' }}>
+                          No hay transacciones registradas de rentas de mesas en este periodo.
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 180, overflowY: 'auto', background: 'var(--bg-elevated)', padding: 8, borderRadius: 6, border: '1px solid var(--border)' }}>
+                          {resumenFinanciero.listMesas.map((e, idx) => (
+                            <div key={e.id || idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: 4 }}>
+                              <div>
+                                <span style={{ color: 'var(--text-secondary)', fontSize: 9, marginRight: 6 }}>
+                                  {new Date(e.fecha).toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit' })} {new Date(e.fecha).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
+                                </span>
+                                <strong style={{ color: '#fff' }}>{e.detalle || e.accion}</strong>
+                                <span style={{ color: 'var(--text-muted)', fontSize: 10, marginLeft: 6 }}>({e.operador})</span>
+                              </div>
+                              <span style={{ color: 'var(--success)', fontWeight: 'bold' }}>+${Math.abs(e.monto).toLocaleString()}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Sección Barra */}
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 'bold', color: 'var(--bronze-light)', marginBottom: 6, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span>Ventas de Barra ({resumenFinanciero.listBar.length})</span>
+                        {!resumenFinanciero.ventasBarUsadasFallback && (
+                          <span style={{ fontSize: 10, fontWeight: 'normal', color: 'var(--success)' }}>
+                            Real: ${resumenFinanciero.listBar.reduce((s, c) => s + Number(c.monto), 0).toLocaleString()}
+                          </span>
+                        )}
+                      </div>
+                      
+                      {resumenFinanciero.listBar.length === 0 ? (
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)', background: 'var(--bg-elevated)', padding: '10px 12px', borderRadius: 6, border: '1px solid var(--border)' }}>
+                          No hay tickets de barra en este periodo.
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 180, overflowY: 'auto', background: 'var(--bg-elevated)', padding: 8, borderRadius: 6, border: '1px solid var(--border)' }}>
+                          {resumenFinanciero.listBar.map((c, idx) => (
+                            <div key={c.id || idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: 4 }}>
+                              <div>
+                                <span style={{ color: 'var(--text-secondary)', fontSize: 9, marginRight: 6 }}>
+                                  ID: {c.id}
+                                </span>
+                                <strong style={{ color: '#fff' }}>Ticket de barra</strong>
+                                <span className="badge badge-secondary" style={{ fontSize: 8, marginLeft: 6, padding: '1px 3px', textTransform: 'uppercase' }}>{c.metodo}</span>
+                              </div>
+                              <span style={{ color: 'var(--success)', fontWeight: 'bold' }}>+${Number(c.monto).toLocaleString()}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Sección Torneos */}
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 'bold', color: 'var(--bronze-light)', marginBottom: 6 }}>
+                        Torneos en el Periodo ({resumenFinanciero.torneosPeriodo.length})
+                      </div>
+                      
+                      {resumenFinanciero.torneosPeriodo.length === 0 ? (
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)', background: 'var(--bg-elevated)', padding: '10px 12px', borderRadius: 6, border: '1px solid var(--border)' }}>
+                          No hay torneos registrados en este periodo.
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 150, overflowY: 'auto', background: 'var(--bg-elevated)', padding: 8, borderRadius: 6, border: '1px solid var(--border)' }}>
+                          {resumenFinanciero.torneosPeriodo.map((t, idx) => {
+                            const cost = parseFloat(t.inscripcion?.replace('$', '') || 0);
+                            const totalT = cost * (t.jugadores || 0);
+                            return (
+                              <div key={t.id || idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: 4 }}>
+                                <div>
+                                  <strong style={{ color: '#fff' }}>{t.nombre}</strong>
+                                  <span style={{ color: 'var(--text-muted)', fontSize: 9, marginLeft: 6 }}>
+                                    {new Date(t.fechaInicio).toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit' })} · {t.jugadores || 0} jug. @ ${cost}
+                                  </span>
+                                </div>
+                                <span style={{ color: 'var(--success)', fontWeight: 'bold' }}>+${totalT.toLocaleString()}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  {/* Resumen de Tarjetas */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 8, padding: 10, textAlign: 'center' }}>
+                      <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Gastos de Operación (OPEX)</div>
+                      <div style={{ fontSize: 16, fontWeight: 'bold', color: 'var(--danger)', marginTop: 4 }}>
+                        ${resumenFinanciero.gastosG.toLocaleString('es-MX', { maximumFractionDigits: 0 })}
+                      </div>
+                      {resumenFinanciero.gastosGUsadasFallback && (
+                        <div style={{ fontSize: 8, color: 'var(--warning)', marginTop: 2 }}>*Proyección IA</div>
+                      )}
+                    </div>
+                    <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 8, padding: 10, textAlign: 'center' }}>
+                      <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Pago de Nómina</div>
+                      <div style={{ fontSize: 16, fontWeight: 'bold', color: 'var(--danger)', marginTop: 4 }}>
+                        ${resumenFinanciero.nominaS.toLocaleString('es-MX', { maximumFractionDigits: 0 })}
+                      </div>
+                      {resumenFinanciero.nominaSUsadasFallback && (
+                        <div style={{ fontSize: 8, color: 'var(--warning)', marginTop: 2 }}>*Proyección IA</div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Fallbacks Alerts */}
+                  {(resumenFinanciero.gastosGUsadasFallback || resumenFinanciero.nominaSUsadasFallback) && (
+                    <div style={{ background: 'rgba(217, 119, 6, 0.1)', border: '1px solid rgba(217, 119, 6, 0.3)', borderRadius: 8, padding: '10px 12px', fontSize: 11, color: '#f59e0b', lineHeight: 1.4 }}>
+                      <i className="ri-information-line" style={{ marginRight: 6, verticalAlign: 'middle', fontSize: 13 }} />
+                      <strong>Nota de Auditoría:</strong> Algunas cifras muestran estimaciones proporcionales debido a la falta de registros directos de egresos/nómina en el rango de tiempo seleccionado.
+                    </div>
+                  )}
+
+                  {/* Detalles por Categoría */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    
+                    {/* Egresos */}
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 'bold', color: 'var(--bronze-light)', marginBottom: 6, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span>Gastos Operacionales Registrados ({resumenFinanciero.listGastos.length})</span>
+                        {!resumenFinanciero.gastosGUsadasFallback && (
+                          <span style={{ fontSize: 10, fontWeight: 'normal', color: 'var(--danger)' }}>
+                            Real: ${resumenFinanciero.listGastos.reduce((s, g) => s + (Number(g.monto) || 0), 0).toLocaleString()}
+                          </span>
+                        )}
+                      </div>
+                      
+                      {resumenFinanciero.listGastos.length === 0 ? (
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)', background: 'var(--bg-elevated)', padding: '10px 12px', borderRadius: 6, border: '1px solid var(--border)' }}>
+                          No hay egresos registrados en este periodo.
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 180, overflowY: 'auto', background: 'var(--bg-elevated)', padding: 8, borderRadius: 6, border: '1px solid var(--border)' }}>
+                          {resumenFinanciero.listGastos.map((g, idx) => (
+                            <div key={g.id || idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: 4 }}>
+                              <div>
+                                <span style={{ color: 'var(--text-secondary)', fontSize: 9, marginRight: 6 }}>
+                                  {g.fecha}
+                                </span>
+                                <strong style={{ color: '#fff' }}>{g.descripcion || g.concepto}</strong>
+                                <span style={{ color: 'var(--text-muted)', fontSize: 9, marginLeft: 6 }}>({g.categoria || 'General'})</span>
+                              </div>
+                              <span style={{ color: 'var(--danger)', fontWeight: 'bold' }}>-${(Number(g.monto) || 0).toLocaleString()}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Nómina */}
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 'bold', color: 'var(--bronze-light)', marginBottom: 6, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span>Pagos de Nómina y Adelantos ({resumenFinanciero.listNomina.length})</span>
+                        {!resumenFinanciero.nominaSUsadasFallback && (
+                          <span style={{ fontSize: 10, fontWeight: 'normal', color: 'var(--danger)' }}>
+                            Real: ${resumenFinanciero.listNomina.reduce((s, p) => s + (Number(p.total || p.totalNeto) || 0), 0).toLocaleString()}
+                          </span>
+                        )}
+                      </div>
+                      
+                      {resumenFinanciero.listNomina.length === 0 ? (
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)', background: 'var(--bg-elevated)', padding: '10px 12px', borderRadius: 6, border: '1px solid var(--border)' }}>
+                          No hay pagos de nómina conciliados en este periodo.
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 180, overflowY: 'auto', background: 'var(--bg-elevated)', padding: 8, borderRadius: 6, border: '1px solid var(--border)' }}>
+                          {resumenFinanciero.listNomina.map((p, idx) => (
+                            <div key={p.id || idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: 4 }}>
+                              <div>
+                                <span style={{ color: 'var(--text-secondary)', fontSize: 9, marginRight: 6 }}>
+                                  {p.fecha}
+                                </span>
+                                <strong style={{ color: '#fff' }}>Pago: {p.nombreEmpleado}</strong>
+                                <span style={{ color: 'var(--text-muted)', fontSize: 9, marginLeft: 6 }}>{p.notas ? `(${p.notas})` : ''}</span>
+                              </div>
+                              <span style={{ color: 'var(--danger)', fontWeight: 'bold' }}>-${(Number(p.total || p.totalNeto) || 0).toLocaleString()}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            <div className="modal-footer" style={{ borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', padding: '12px 20px' }}>
+              <button className="btn btn-secondary" onClick={() => setRfModalTipo(null)} style={{ fontSize: 11 }}>Cerrar</button>
             </div>
           </div>
         </div>
