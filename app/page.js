@@ -66,6 +66,42 @@ class ErrorBoundary extends Component {
   }
 }
 
+// ── UTILIDADES DE SINCRONIZACIÓN DE CRASH LOGS ──
+function saveCrashLogLocally(log) {
+  if (typeof window === 'undefined') return;
+  try {
+    const pending = localStorage.getItem('yoy_pending_crash_logs');
+    const list = pending ? JSON.parse(pending) : [];
+    list.push(log);
+    localStorage.setItem('yoy_pending_crash_logs', JSON.stringify(list));
+    console.log('[PanelErrorBoundary] Log de crash guardado en localStorage (offline).');
+  } catch (e) {
+    console.error('Error al guardar crash log localmente:', e);
+  }
+}
+
+function syncPendingCrashLogs() {
+  if (typeof window === 'undefined') return;
+  try {
+    const pending = localStorage.getItem('yoy_pending_crash_logs');
+    if (!pending) return;
+    const list = JSON.parse(pending);
+    if (list.length === 0) return;
+
+    console.log(`[YoY Sync] Sincronizando ${list.length} crash logs offline...`);
+    Promise.all(list.map(log => {
+      return addDoc(collection(db, 'app_crash_logs'), log);
+    })).then(() => {
+      localStorage.removeItem('yoy_pending_crash_logs');
+      console.log(`[YoY Sync] Sincronizacion exitosa.`);
+    }).catch(err => {
+      console.warn('[YoY Sync] Error al sincronizar logs offline:', err);
+    });
+  } catch (e) {
+    console.error('Error en syncPendingCrashLogs:', e);
+  }
+}
+
 // ── PANEL ERROR BOUNDARY: captura crashes locales por panel sin tumbar la navegación ──
 class PanelErrorBoundary extends Component {
   constructor(props) {
@@ -87,8 +123,7 @@ class PanelErrorBoundary extends Component {
       const userEmail = this.props.user?.email || 'no-autenticado';
       const userId = this.props.user?.uid || 'no-autenticado';
 
-      // 1. Guardar log en Firestore
-      addDoc(collection(db, 'app_crash_logs'), {
+      const logData = {
         panelName,
         errorMessage: errMessage,
         errorStack: errStack,
@@ -98,7 +133,13 @@ class PanelErrorBoundary extends Component {
         userEmail,
         userId,
         createdAt: new Date().toISOString()
-      }).catch(e => console.error('[PanelErrorBoundary] Error al guardar log en Firestore:', e));
+      };
+
+      // 1. Guardar log en Firestore (con fallback offline a localStorage)
+      addDoc(collection(db, 'app_crash_logs'), logData).catch(e => {
+        console.error('[PanelErrorBoundary] Error al guardar log en Firestore, guardando localmente:', e);
+        saveCrashLogLocally(logData);
+      });
 
       // 2. Enviar Alerta a Telegram
       getDoc(doc(db, 'config', 'telegram')).then(snap => {
@@ -228,6 +269,11 @@ function AppContent() {
     calculateScrollbarWidth();
     window.addEventListener('resize', calculateScrollbarWidth);
     return () => window.removeEventListener('resize', calculateScrollbarWidth);
+  }, []);
+
+  // Sincronizar crash logs offline pendientes en segundo plano
+  useEffect(() => {
+    syncPendingCrashLogs();
   }, []);
 
   // Limpiar Service Workers obsoletos y caché del navegador para evitar assets obsoletos

@@ -139,6 +139,8 @@ export default function ConfigPanel({ showToast }) {
   const [crashLogs, setCrashLogs] = useState([]);
   const [loadingLogs, setLoadingLogs] = useState(true);
   const [selectedLogId, setSelectedLogId] = useState(null);
+  const [logSearchQuery, setLogSearchQuery] = useState('');
+  const [logPanelFilter, setLogPanelFilter] = useState('todos');
 
   const fetchUsuarios = async () => {
     setLoadingUsuarios(true);
@@ -398,6 +400,24 @@ export default function ConfigPanel({ showToast }) {
       setLoadingLogs(false);
     });
     return () => unsubLogs();
+  }, []);
+
+  // --- Autopurgado automático de logs antiguos (> 30 logs) ---
+  useEffect(() => {
+    getDocs(query(collection(db, 'app_crash_logs'), orderBy('createdAt', 'desc'))).then(snap => {
+      if (snap.size > 30) {
+        const docs = [];
+        snap.forEach(d => docs.push({ id: d.id, ...d.data() }));
+        const toDelete = docs.slice(30);
+        const batch = writeBatch(db);
+        toDelete.forEach(d => {
+          batch.delete(doc(db, 'app_crash_logs', d.id));
+        });
+        batch.commit().then(() => {
+          console.log(`[YoY Prune] Se eliminaron ${toDelete.length} logs de error antiguos.`);
+        }).catch(err => console.error("Error al autopurgar logs antiguos:", err));
+      }
+    }).catch(err => console.error("Error al verificar tamaño de logs para purgar:", err));
   }, []);
 
   const handleClearCrashLogs = async () => {
@@ -2147,6 +2167,36 @@ export default function ConfigPanel({ showToast }) {
               <p style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 12, lineHeight: 1.4 }}>
                 Últimos 10 fallos críticos reportados en tiempo real por el sistema de monitoreo.
               </p>
+
+              {/* Filtros de logs */}
+              {crashLogs.length > 0 && (
+                <div style={{ display: 'flex', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
+                  <div style={{ flex: 1, minWidth: 150 }}>
+                    <input 
+                      type="text"
+                      className="form-input"
+                      placeholder="Buscar por mensaje o usuario..."
+                      value={logSearchQuery}
+                      onChange={e => setLogSearchQuery(e.target.value)}
+                      style={{ fontSize: 11, padding: '5px 10px' }}
+                    />
+                  </div>
+                  <div style={{ width: 140 }}>
+                    <select
+                      className="form-input"
+                      value={logPanelFilter}
+                      onChange={e => setLogPanelFilter(e.target.value)}
+                      style={{ fontSize: 11, padding: '5px' }}
+                    >
+                      <option value="todos">Todos los Paneles</option>
+                      {Array.from(new Set(crashLogs.map(l => l.panelName))).map(pName => (
+                        <option key={pName} value={pName}>{pName}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
+
               {loadingLogs ? (
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', padding: '12px 0' }}>Cargando registros...</div>
               ) : crashLogs.length === 0 ? (
@@ -2154,48 +2204,71 @@ export default function ConfigPanel({ showToast }) {
                   ✓ No se han reportado errores en el sistema. ¡Operación saludable!
                 </div>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 300, overflowY: 'auto' }}>
-                  {crashLogs.map((log) => {
-                    const isExpanded = selectedLogId === log.id;
-                    const dateStr = log.createdAt ? new Date(log.createdAt).toLocaleString() : 'Desconocida';
-                    return (
-                      <div key={log.id} style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 10px', fontSize: 11 }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
-                          <span style={{ fontWeight: 800, color: '#ef4444', textTransform: 'uppercase' }}>
-                            Panel: {log.panelName}
-                          </span>
-                          <span style={{ color: 'var(--text-muted)', fontSize: 9.5 }}>{dateStr}</span>
-                        </div>
-                        <div style={{ marginTop: 4, fontWeight: 600, color: 'var(--text-main)', wordBreak: 'break-all', textAlign: 'left' }}>
-                          {log.errorMessage}
-                        </div>
-                        <div style={{ marginTop: 4, fontSize: 9.5, color: 'var(--text-secondary)', display: 'flex', gap: 12 }}>
-                          <span><strong>User:</strong> {log.userEmail}</span>
-                          <span><strong>URL:</strong> {log.url ? log.url.split('/').pop() : ''}</span>
-                        </div>
-                        
-                        {log.errorStack && (
-                          <button
-                            type="button"
-                            onClick={() => setSelectedLogId(isExpanded ? null : log.id)}
-                            style={{ background: 'none', border: 'none', color: 'var(--bronze-light)', cursor: 'pointer', padding: '4px 0 0 0', fontSize: 9.5, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 3 }}
-                          >
-                            <i className={isExpanded ? 'ri-arrow-up-s-line' : 'ri-arrow-down-s-line'} />
-                            {isExpanded ? 'Ocultar detalles' : 'Ver detalles técnicos'}
-                          </button>
-                        )}
+                (() => {
+                  const filteredLogs = crashLogs.filter(log => {
+                    const matchesSearch = logSearchQuery.trim() === '' || 
+                      (log.errorMessage && log.errorMessage.toLowerCase().includes(logSearchQuery.toLowerCase())) ||
+                      (log.userEmail && log.userEmail.toLowerCase().includes(logSearchQuery.toLowerCase()));
+                      
+                    const matchesPanel = logPanelFilter === 'todos' || 
+                      (log.panelName && log.panelName.toLowerCase() === logPanelFilter.toLowerCase());
+                      
+                    return matchesSearch && matchesPanel;
+                  });
 
-                        {isExpanded && (
-                          <div style={{ marginTop: 6, background: 'var(--bg-main)', padding: 8, borderRadius: 6, border: '1px solid var(--border)', overflowX: 'auto', fontFamily: 'monospace', fontSize: 9, whiteSpace: 'pre-wrap', color: 'var(--text-muted)', maxHeight: 150, overflowY: 'auto', textAlign: 'left' }}>
-                            <strong>Stack Trace:</strong>{"\n"}{log.errorStack}{"\n\n"}
-                            <strong>Component Stack:</strong>{"\n"}{log.componentStack}{"\n\n"}
-                            <strong>User Agent:</strong>{"\n"}{log.userAgent}
-                          </div>
-                        )}
+                  if (filteredLogs.length === 0) {
+                    return (
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', padding: '12px 0' }}>
+                        No se encontraron registros que coincidan con la búsqueda.
                       </div>
                     );
-                  })}
-                </div>
+                  }
+
+                  return (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 300, overflowY: 'auto' }}>
+                      {filteredLogs.map((log) => {
+                        const isExpanded = selectedLogId === log.id;
+                        const dateStr = log.createdAt ? new Date(log.createdAt).toLocaleString() : 'Desconocida';
+                        return (
+                          <div key={log.id} style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 10px', fontSize: 11 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+                              <span style={{ fontWeight: 800, color: '#ef4444', textTransform: 'uppercase' }}>
+                                Panel: {log.panelName}
+                              </span>
+                              <span style={{ color: 'var(--text-muted)', fontSize: 9.5 }}>{dateStr}</span>
+                            </div>
+                            <div style={{ marginTop: 4, fontWeight: 600, color: 'var(--text-main)', wordBreak: 'break-all', textAlign: 'left' }}>
+                              {log.errorMessage}
+                            </div>
+                            <div style={{ marginTop: 4, fontSize: 9.5, color: 'var(--text-secondary)', display: 'flex', gap: 12 }}>
+                              <span><strong>User:</strong> {log.userEmail}</span>
+                              <span><strong>URL:</strong> {log.url ? log.url.split('/').pop() : ''}</span>
+                            </div>
+                            
+                            {log.errorStack && (
+                              <button
+                                type="button"
+                                onClick={() => setSelectedLogId(isExpanded ? null : log.id)}
+                                style={{ background: 'none', border: 'none', color: 'var(--bronze-light)', cursor: 'pointer', padding: '4px 0 0 0', fontSize: 9.5, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 3 }}
+                              >
+                                <i className={isExpanded ? 'ri-arrow-up-s-line' : 'ri-arrow-down-s-line'} />
+                                {isExpanded ? 'Ocultar detalles' : 'Ver detalles técnicos'}
+                              </button>
+                            )}
+
+                            {isExpanded && (
+                              <div style={{ marginTop: 6, background: 'var(--bg-main)', padding: 8, borderRadius: 6, border: '1px solid var(--border)', overflowX: 'auto', fontFamily: 'monospace', fontSize: 9, whiteSpace: 'pre-wrap', color: 'var(--text-muted)', maxHeight: 150, overflowY: 'auto', textAlign: 'left' }}>
+                                <strong>Stack Trace:</strong>{"\n"}{log.errorStack}{"\n\n"}
+                                <strong>Component Stack:</strong>{"\n"}{log.componentStack}{"\n\n"}
+                                <strong>User Agent:</strong>{"\n"}{log.userAgent}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()
               )}
             </div>
             </div>
