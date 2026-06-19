@@ -36,11 +36,114 @@ export default function BarPanel({ showToast }) {
   const [filtro, setFiltro] = useState('Todas');
   const [busqueda, setBusqueda] = useState('');
   
-  // Categorías dinámicas (Soporte para añadir nuevas)
-  const [categorias, setCategorias] = useState(['Todas', 'Cerveza', 'Refresco', 'Snack', 'Comida', 'Bebida']);
+  // Pestañas de inventario
+  const [inventarioTab, setInventarioTab] = useState('productos'); // 'productos' | 'insumos'
+
+  // --- Estados de Recetario y Costeo ---
+  const [recetas, setRecetas] = useState([]);
+  const [recetaEditando, setRecetaEditando] = useState(null); // { productoId, nombre, precioVenta, ingredientes: [] }
+  const [insumoIdSel, setInsumoIdSel] = useState('');
+  const [cantInsumo, setCantInsumo] = useState('');
+  const [mermaInsumo, setMermaInsumo] = useState('0');
 
   useEffect(() => {
-    const defaultCats = ['Todas', 'Cerveza', 'Refresco', 'Snack', 'Comida', 'Bebida'];
+    setFiltro('Todas');
+  }, [inventarioTab]);
+
+  const handleLocalChange = (prodId, field, value) => {
+    const updated = productos.map(p => {
+      if (p.id === prodId) {
+        return { ...p, [field]: value };
+      }
+      return p;
+    });
+    setProductos(updated);
+  };
+
+  const handleUpdateProductoField = async (prodId, field, value) => {
+    let parsedValue = value;
+    if (field === 'stock' || field === 'stockMin') {
+      parsedValue = parseInt(value);
+      if (isNaN(parsedValue)) parsedValue = 0;
+    } else if (field === 'precioCosto' || field === 'precioVenta') {
+      parsedValue = parseFloat(value);
+      if (isNaN(parsedValue)) parsedValue = 0;
+    }
+
+    const updatedProductos = productos.map(p => {
+      if (p.id === prodId) {
+        if (field === 'stock' && p.stock !== parsedValue) {
+          const diff = parsedValue - p.stock;
+          const logData = {
+            id: Date.now(),
+            fecha: new Date().toLocaleDateString('es-MX'),
+            hora: new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }),
+            producto: p.nombre,
+            tipo: diff > 0 ? 'Entrada (Edición Directa)' : 'Salida (Edición Directa)',
+            cantidad: Math.abs(diff),
+            usuario: user?.email || 'Admin',
+            motivo: 'Ajuste de inventario en tabla directa'
+          };
+          const savedLogs = localStorage.getItem('yoy_billar_stock_logs');
+          const currentLogs = savedLogs ? deobfuscate(savedLogs) || [] : [];
+          localStorage.setItem('yoy_billar_stock_logs', obfuscate([logData, ...currentLogs]));
+          addDoc(collection(db, 'bitacora'), {
+            timestamp: serverTimestamp(),
+            modulo: 'Inventario',
+            accion: 'Ajuste Stock Directo',
+            detalle: `Se editó stock de "${p.nombre}" de ${p.stock} a ${parsedValue} (${diff > 0 ? '+' : ''}${diff})`,
+            operador: user?.email || 'Admin'
+          }).catch(err => console.error("Error al loggear bitácora:", err));
+        }
+        return { ...p, [field]: parsedValue, updatedAt: new Date().toISOString() };
+      }
+      return p;
+    });
+
+    setProductos(updatedProductos);
+    localStorage.setItem('yoy_billar_stock', obfuscate(updatedProductos));
+    try {
+      await setDoc(doc(db, 'config', 'inventario'), {
+        productos: updatedProductos,
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+    } catch (err) {
+      console.error("Error al actualizar producto en Firestore:", err);
+    }
+  };
+
+  const inputStyle = {
+    background: 'transparent',
+    border: '1px solid transparent',
+    color: 'var(--text-primary)',
+    padding: '2px 4px',
+    borderRadius: 4,
+    width: '100%',
+    transition: 'all 0.15s ease',
+  };
+
+  const handleInputFocus = (e) => {
+    e.target.style.borderColor = 'var(--bronze-light)';
+    e.target.style.background = 'rgba(0,0,0,0.25)';
+  };
+
+  const handleInputBlur = (e, prodId, field) => {
+    e.target.style.borderColor = 'transparent';
+    e.target.style.background = 'transparent';
+    handleUpdateProductoField(prodId, field, e.target.value);
+  };
+
+  const handleInputKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      e.target.blur();
+    }
+  };
+
+  // Categorías dinámicas (Soporte para añadir nuevas)
+  const [categorias, setCategorias] = useState(['Todas', 'Cerveza', 'Refresco', 'Snack', 'Comida', 'Bebida', 'Insumo']);
+
+  useEffect(() => {
+    const defaultCats = ['Todas', 'Cerveza', 'Refresco', 'Snack', 'Comida', 'Bebida', 'Insumo'];
     const extraCats = productos
       .map(p => p.categoria)
       .filter(cat => cat && !defaultCats.includes(cat));
@@ -240,6 +343,23 @@ export default function BarPanel({ showToast }) {
         if (savedCuentas) {
           setCuentasActivas(deobfuscate(savedCuentas) || []);
         }
+
+        // Cargar Recetario
+        const savedRecetas = localStorage.getItem('yoy_recetas_costeo');
+        if (savedRecetas) {
+          setRecetas(deobfuscate(savedRecetas) || []);
+        } else {
+          const initRecetas = [
+            {
+              productoId: 3, // Nachos
+              ingredientes: [
+                { insumoId: 4, nombreInsumo: 'Papas Fritas Crujientes', cantidad: 0.5, mermaPct: 5, precioCosto: 20 }
+              ]
+            }
+          ];
+          setRecetas(initRecetas);
+          localStorage.setItem('yoy_recetas_costeo', obfuscate(initRecetas));
+        }
       } catch (err) {
         console.error(err);
       }
@@ -301,7 +421,25 @@ export default function BarPanel({ showToast }) {
       }
     });
 
-    return unsub;
+    // Escucha en tiempo real de Firestore para las recetas
+    const unsubRecetas = onSnapshot(doc(db, 'config', 'recetas'), snap => {
+      if (snap.exists()) {
+        const firestoreRecetas = snap.data().recetas || [];
+        if (firestoreRecetas.length > 0) {
+          setRecetas(firestoreRecetas);
+          try {
+            localStorage.setItem('yoy_recetas_costeo', obfuscate(firestoreRecetas));
+          } catch (e) {}
+        }
+      }
+    }, err => {
+      console.warn("Error al escuchar recetas en Firestore:", err);
+    });
+
+    return () => {
+      unsub();
+      unsubRecetas();
+    };
   }, []);
 
   // Escuchar historial_stock en tiempo real desde Firestore para auditoría
@@ -339,6 +477,116 @@ export default function BarPanel({ showToast }) {
     }
   };
 
+  // ── MÉTODOS DEL RECETARIO ────────────────────────────
+  const getReceta = (prodId) => recetas.find(r => r.productoId === prodId);
+
+  const calcularCostoReceta = (receta) => {
+    if (!receta || !receta.ingredientes) return 0;
+    return receta.ingredientes.reduce((sum, ing) => {
+      const prod = productos.find(p => p.id === ing.insumoId);
+      const costoUnidad = prod ? prod.precioCosto : (ing.precioCosto || 0);
+      const mermaFactor = 1 + (ing.mermaPct || 0) / 100;
+      return sum + (ing.cantidad * costoUnidad * mermaFactor);
+    }, 0);
+  };
+
+  const getCostoProducto = (prod) => {
+    const rec = getReceta(prod.id);
+    if (rec) return calcularCostoReceta(rec);
+    return prod.precioCosto || 0;
+  };
+
+  const handleAbrirReceta = (prod) => {
+    const recExistente = getReceta(prod.id) || {
+      productoId: prod.id,
+      nombre: prod.nombre,
+      precioVenta: prod.precioVenta,
+      ingredientes: []
+    };
+    setRecetaEditando({ ...recExistente, nombre: prod.nombre, precioVenta: prod.precioVenta });
+    setInsumoIdSel('');
+    setCantInsumo('');
+    setMermaInsumo('0');
+  };
+
+  const handleAddIngrediente = () => {
+    if (!insumoIdSel || !cantInsumo) {
+      showToast('Selecciona un ingrediente y define la cantidad', 'warning');
+      return;
+    }
+    const insumoId = parseInt(insumoIdSel);
+    const cant = parseFloat(cantInsumo);
+    const merma = parseFloat(mermaInsumo) || 0;
+
+    const insumoProd = productos.find(p => p.id === insumoId);
+    if (!insumoProd) return;
+
+    if (recetaEditando.ingredientes.some(i => i.insumoId === insumoId)) {
+      showToast('Este ingrediente ya está en la receta', 'error');
+      return;
+    }
+
+    const nuevoIng = {
+      insumoId,
+      nombreInsumo: insumoProd.nombre,
+      cantidad: cant,
+      mermaPct: merma,
+      precioCosto: insumoProd.precioCosto,
+      unidad: insumoProd.unidad || 'pz'
+    };
+
+    setRecetaEditando(p => ({
+      ...p,
+      ingredientes: [...p.ingredientes, nuevoIng]
+    }));
+
+    setInsumoIdSel('');
+    setCantInsumo('');
+    setMermaInsumo('0');
+    showToast('Ingrediente agregado a la receta temporal', 'success');
+  };
+
+  const handleRemoveIngrediente = (insumoId) => {
+    setRecetaEditando(p => ({
+      ...p,
+      ingredientes: p.ingredientes.filter(i => i.insumoId !== insumoId)
+    }));
+  };
+
+  const handleGuardarReceta = async () => {
+    let nuevasRecetas;
+    const existe = recetas.some(r => r.productoId === recetaEditando.productoId);
+    if (existe) {
+      nuevasRecetas = recetas.map(r => r.productoId === recetaEditando.productoId ? recetaEditando : r);
+    } else {
+      nuevasRecetas = [...recetas, recetaEditando];
+    }
+    setRecetas(nuevasRecetas);
+    localStorage.setItem('yoy_recetas_costeo', obfuscate(nuevasRecetas));
+
+    try {
+      await setDoc(doc(db, 'config', 'recetas'), {
+        recetas: nuevasRecetas,
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+    } catch (e) {
+      console.error("Error al guardar recetas en Firestore:", e);
+    }
+
+    const nuevoCosto = calcularCostoReceta(recetaEditando);
+
+    const nuevosProductos = productos.map(p => {
+      if (p.id === recetaEditando.productoId) {
+        return { ...p, precioCosto: Math.round(nuevoCosto), lastModified: Date.now() };
+      }
+      return p;
+    });
+    
+    await saveState(nuevosProductos, logs);
+    setRecetaEditando(null);
+    showToast('Receta guardada y costo del POS actualizado', 'success');
+  };
+
   // Sincronización automática con la Bitácora General de Caja (Recomendación 3)
   const registrarEnBitacoraGeneral = async (accion, detalle, monto = 0) => {
     const nombreOperador = user ? (user.name || user.alias || user.email) : 'Sistema IA / Inventario';
@@ -356,8 +604,12 @@ export default function BarPanel({ showToast }) {
     }
   };
 
-  // Filtrado de productos según la modalidad de auditoría e inventario IA
+  // Filtrado de productos según la pestaña (Productos vs Insumos) y la modalidad de auditoría/inventario IA
   const productosFiltradosRaw = productos.filter(p => {
+    const isCatInsumo = p.categoria && p.categoria.toLowerCase() === 'insumo';
+    const tabOk = inventarioTab === 'insumos' ? isCatInsumo : !isCatInsumo;
+    if (!tabOk) return false;
+
     const catOk = filtro === 'Todas' || p.categoria === filtro;
     const busOk = !busqueda || p.nombre.toLowerCase().includes(busqueda.toLowerCase());
     if (!catOk || !busOk) return false;
@@ -1646,7 +1898,11 @@ export default function BarPanel({ showToast }) {
               value={filtro}
               onChange={e => setFiltro(e.target.value)}
             >
-              {categorias.map(c => (
+              {categorias.filter(c => {
+                if (c === 'Todas') return true;
+                const isCatInsumo = c.toLowerCase() === 'insumo';
+                return inventarioTab === 'insumos' ? isCatInsumo : !isCatInsumo;
+              }).map(c => (
                 <option key={c} value={c}>
                   {c === 'Todas' ? 'Todas las Categorias' : `Categ: ${c}`}
                 </option>
@@ -1702,10 +1958,56 @@ export default function BarPanel({ showToast }) {
                 <i className="ri-file-pdf-line" /> Exportar Reporte IA
               </button>
             </div>
+            {/* PESTAÑAS DE PRODUCTOS / INSUMOS */}
+            <div style={{ display: 'flex', gap: 16, borderBottom: '1px solid var(--border)', marginBottom: 12 }}>
+              <button
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: inventarioTab === 'productos' ? 'var(--bronze-light)' : 'var(--text-muted)',
+                  borderBottom: inventarioTab === 'productos' ? '2px solid var(--bronze-light)' : '2px solid transparent',
+                  padding: '6px 12px',
+                  cursor: 'pointer',
+                  fontWeight: 'bold',
+                  fontSize: 12,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  transition: 'all 0.2s ease',
+                  outline: 'none'
+                }}
+                onClick={() => setInventarioTab('productos')}
+              >
+                <i className="ri-archive-line" /> Productos
+              </button>
+              <button
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: inventarioTab === 'insumos' ? 'var(--bronze-light)' : 'var(--text-muted)',
+                  borderBottom: inventarioTab === 'insumos' ? '2px solid var(--bronze-light)' : '2px solid transparent',
+                  padding: '6px 12px',
+                  cursor: 'pointer',
+                  fontWeight: 'bold',
+                  fontSize: 12,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  transition: 'all 0.2s ease',
+                  outline: 'none'
+                }}
+                onClick={() => setInventarioTab('insumos')}
+              >
+                <i className="ri-restaurant-2-line" /> Insumos
+              </button>
+            </div>
+
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: densidadVista === 'compact' ? 12 : 13, textAlign: 'left' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--border)', color: 'var(--text-muted)' }}>
-                  <th style={{ padding: densidadVista === 'compact' ? '6px 8px' : '12px 8px' }}>Producto</th>
+                  <th style={{ padding: densidadVista === 'compact' ? '6px 8px' : '12px 8px' }}>
+                    {inventarioTab === 'insumos' ? 'Insumo' : 'Producto'}
+                  </th>
                   <th style={{ padding: densidadVista === 'compact' ? '6px 8px' : '12px 8px' }}>Categoría</th>
                   <th style={{ padding: densidadVista === 'compact' ? '6px 8px' : '12px 8px', textAlign: 'center' }}>Stock</th>
                   <th style={{ padding: densidadVista === 'compact' ? '6px 8px' : '12px 8px', textAlign: 'center' }}>Mínimo</th>
@@ -1720,46 +2022,146 @@ export default function BarPanel({ showToast }) {
                   const esCritico = p.stock <= p.stockMin;
                   return (
                     <tr key={p.id} style={{ borderBottom: '1px solid var(--border)', background: esCritico ? 'rgba(239,68,68,0.02)' : 'none' }}>
-                      <td style={{ padding: densidadVista === 'compact' ? '6px 8px' : '12px 8px', fontWeight: 600 }}>
-                        {p.nombre}
-                        {p.activoIA === false && (
-                          <span style={{ 
-                            fontSize: densidadVista === 'compact' ? 8 : 9, 
-                            color: 'var(--text-muted)', 
-                            marginLeft: 6, 
-                            fontWeight: 400, 
-                            border: '1px solid rgba(255,255,255,0.1)', 
-                            padding: densidadVista === 'compact' ? '1px 3px' : '2px 5px', 
-                            borderRadius: densidadVista === 'compact' ? 3 : 4, 
-                            background: 'rgba(255,255,255,0.02)', 
-                            display: 'inline-block' 
-                          }}>
-                            IA Off
-                          </span>
-                        )}
+                      <td style={{ padding: densidadVista === 'compact' ? '4px 8px' : '8px', fontWeight: 600 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', width: '100%' }}>
+                          <input 
+                            type="text"
+                            value={p.nombre || ''}
+                            onChange={e => handleLocalChange(p.id, 'nombre', e.target.value)}
+                            onFocus={handleInputFocus}
+                            onBlur={e => handleInputBlur(e, p.id, 'nombre')}
+                            onKeyDown={handleInputKeyDown}
+                            style={{ ...inputStyle, fontWeight: 600, width: '100%', minWidth: 100 }}
+                          />
+                          {p.activoIA === false && (
+                            <span style={{ 
+                              fontSize: densidadVista === 'compact' ? 8 : 9, 
+                              color: 'var(--text-muted)', 
+                              marginLeft: 6, 
+                              fontWeight: 400, 
+                              border: '1px solid rgba(255,255,255,0.1)', 
+                              padding: densidadVista === 'compact' ? '1px 3px' : '2px 5px', 
+                              borderRadius: densidadVista === 'compact' ? 3 : 4, 
+                              background: 'rgba(255,255,255,0.02)', 
+                              display: 'inline-block',
+                              flexShrink: 0
+                            }}>
+                              IA Off
+                            </span>
+                          )}
+                        </div>
                       </td>
-                      <td style={{ padding: densidadVista === 'compact' ? '6px 8px' : '12px 8px' }}>
-                        <span className={`badge ${getCategoriaBadgeClass(p.categoria)}`} style={{ fontSize: densidadVista === 'compact' ? 9 : 10, padding: '2px 6px' }}>
-                          {p.categoria}
-                        </span>
+                      <td style={{ padding: densidadVista === 'compact' ? '4px 8px' : '8px' }}>
+                        <select
+                          value={p.categoria || ''}
+                          onChange={e => handleUpdateProductoField(p.id, 'categoria', e.target.value)}
+                          style={{
+                            background: 'transparent',
+                            border: '1px solid transparent',
+                            borderRadius: 4,
+                            color: 'var(--text-primary)',
+                            padding: '2px 4px',
+                            fontSize: 11,
+                            cursor: 'pointer',
+                            width: '100%'
+                          }}
+                          onFocus={handleInputFocus}
+                          onBlur={e => {
+                            e.target.style.borderColor = 'transparent';
+                            e.target.style.background = 'transparent';
+                          }}
+                        >
+                          {categorias.filter(c => c !== 'Todas').map(c => (
+                            <option key={c} value={c} style={{ background: 'var(--bg-elevated)', color: 'var(--text-primary)' }}>{c}</option>
+                          ))}
+                        </select>
                       </td>
-                      <td style={{ padding: densidadVista === 'compact' ? '6px 8px' : '12px 8px', textAlign: 'center', fontWeight: 700, color: esCritico ? 'var(--danger)' : 'var(--text-primary)' }}>
-                        {p.stock} <span style={{ fontSize: densidadVista === 'compact' ? 9 : 10, fontWeight: 400, color: 'var(--text-muted)' }}>{p.unidad}</span>
+                      <td style={{ padding: densidadVista === 'compact' ? '4px 8px' : '8px', textAlign: 'center' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
+                          <input 
+                            type="number"
+                            value={p.stock}
+                            onChange={e => handleLocalChange(p.id, 'stock', e.target.value)}
+                            onFocus={handleInputFocus}
+                            onBlur={e => handleInputBlur(e, p.id, 'stock')}
+                            onKeyDown={handleInputKeyDown}
+                            style={{ ...inputStyle, textAlign: 'center', fontWeight: 700, width: 50, color: esCritico ? 'var(--danger)' : 'var(--text-primary)' }}
+                          />
+                          <span style={{ fontSize: 9, color: 'var(--text-muted)', flexShrink: 0 }}>{p.unidad}</span>
+                        </div>
                       </td>
-                      <td style={{ padding: densidadVista === 'compact' ? '6px 8px' : '12px 8px', textAlign: 'center', color: 'var(--text-muted)' }}>{p.stockMin}</td>
-                      <td style={{ padding: densidadVista === 'compact' ? '6px 8px' : '12px 8px', textAlign: 'right', color: 'var(--text-muted)' }}>${p.precioCosto}</td>
-                      <td style={{ padding: densidadVista === 'compact' ? '6px 8px' : '12px 8px', textAlign: 'right', fontWeight: 700 }}>${p.precioVenta}</td>
+                      <td style={{ padding: densidadVista === 'compact' ? '4px 8px' : '8px', textAlign: 'center' }}>
+                        <input 
+                          type="number"
+                          value={p.stockMin}
+                          onChange={e => handleLocalChange(p.id, 'stockMin', e.target.value)}
+                          onFocus={handleInputFocus}
+                          onBlur={e => handleInputBlur(e, p.id, 'stockMin')}
+                          onKeyDown={handleInputKeyDown}
+                          style={{ ...inputStyle, textAlign: 'center', color: 'var(--text-muted)', width: 45 }}
+                        />
+                      </td>
+                      <td style={{ padding: densidadVista === 'compact' ? '4px 8px' : '8px', textAlign: 'right' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 2 }}>
+                          <span style={{ color: 'var(--text-muted)', fontSize: 10 }}>$</span>
+                          <input 
+                            type="number"
+                            step="0.01"
+                            value={p.precioCosto}
+                            onChange={e => handleLocalChange(p.id, 'precioCosto', e.target.value)}
+                            onFocus={handleInputFocus}
+                            onBlur={e => handleInputBlur(e, p.id, 'precioCosto')}
+                            onKeyDown={handleInputKeyDown}
+                            style={{ ...inputStyle, textAlign: 'right', color: 'var(--text-muted)', width: 55 }}
+                          />
+                        </div>
+                      </td>
+                      <td style={{ padding: densidadVista === 'compact' ? '4px 8px' : '8px', textAlign: 'right' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 2 }}>
+                          <span style={{ color: 'var(--text-primary)', fontSize: 10, fontWeight: 700 }}>$</span>
+                          <input 
+                            type="number"
+                            step="0.01"
+                            value={p.precioVenta}
+                            onChange={e => handleLocalChange(p.id, 'precioVenta', e.target.value)}
+                            onFocus={handleInputFocus}
+                            onBlur={e => handleInputBlur(e, p.id, 'precioVenta')}
+                            onKeyDown={handleInputKeyDown}
+                            style={{ ...inputStyle, textAlign: 'right', fontWeight: 700, width: 55 }}
+                          />
+                        </div>
+                      </td>
                       <td style={{ padding: densidadVista === 'compact' ? '6px 8px' : '12px 8px', textAlign: 'center' }}>
                         <span className={`badge ${parseFloat(calcMargen(p)) > 50 ? 'badge-success' : 'badge-bronze'}`} style={{ padding: densidadVista === 'compact' ? '2px 6px' : '4px 8px', fontSize: densidadVista === 'compact' ? 10 : 11 }}>{calcMargen(p)}%</span>
                       </td>
-                      <td style={{ padding: densidadVista === 'compact' ? '6px 8px' : '12px 8px', textAlign: 'center' }}>
-                        <button
-                          className="btn btn-secondary btn-xs"
-                          style={{ padding: densidadVista === 'compact' ? '3px 6px' : '6px 10px', fontSize: densidadVista === 'compact' ? 10 : 11 }}
-                          onClick={() => setModalAjuste(p)}
-                        >
-                          Ajustar
-                        </button>
+                      <td style={{ padding: densidadVista === 'compact' ? '4px 8px' : '8px', textAlign: 'center' }}>
+                        <div style={{ display: 'flex', gap: 4, justifyContent: 'center' }}>
+                          <button
+                            className="btn btn-secondary btn-xs"
+                            style={{ padding: densidadVista === 'compact' ? '3px 6px' : '6px 10px', fontSize: densidadVista === 'compact' ? 10 : 11 }}
+                            onClick={() => setModalAjuste(p)}
+                          >
+                            Ajustar
+                          </button>
+                          {inventarioTab === 'productos' && (
+                            <button
+                              className="btn btn-secondary btn-xs"
+                              style={{ 
+                                padding: densidadVista === 'compact' ? '3px 6px' : '6px 10px', 
+                                fontSize: densidadVista === 'compact' ? 10 : 11,
+                                color: 'var(--bronze-light)',
+                                borderColor: 'var(--border-bronze)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                              }}
+                              onClick={() => handleAbrirReceta(p)}
+                              title="Configurar Receta"
+                            >
+                              <i className="ri-restaurant-line" />
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -2887,6 +3289,116 @@ export default function BarPanel({ showToast }) {
                 }}
               >
                 Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Configurar Receta */}
+      {recetaEditando && (
+        <div className="modal-overlay" onClick={() => setRecetaEditando(null)}>
+          <div className="modal" style={{ maxWidth: 550, maxHeight: '80vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <span className="modal-title"><i className="ri-restaurant-line" style={{ marginRight: 8 }} />Receta: {recetaEditando.nombre}</span>
+              <button onClick={() => setRecetaEditando(null)} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 20 }}>✕</button>
+            </div>
+            
+            <div className="modal-body" style={{ overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {/* Formulario agregar ingrediente */}
+              <div style={{ background: 'var(--bg-elevated)', borderRadius: 12, padding: 14, border: '1px solid var(--border)' }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--bronze-light)', marginBottom: 10 }}>Agregar Ingrediente / Insumo</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: 10, marginBottom: 10 }}>
+                  <div className="form-group">
+                    <label className="form-label" style={{ fontSize: 9 }}>Seleccionar Insumo</label>
+                    <select className="form-select" value={insumoIdSel} onChange={e => setInsumoIdSel(e.target.value)} style={{ padding: '6px 10px', fontSize: 11, height: 'auto' }}>
+                      <option value="">-- Seleccionar --</option>
+                      {productos.filter(p => p.categoria && p.categoria.toLowerCase() === 'insumo').map(p => (
+                        <option key={p.id} value={p.id}>{p.nombre} (${p.precioCosto}/{p.unidad})</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label" style={{ fontSize: 9 }}>Cantidad (de la unidad)</label>
+                    <input className="form-input" type="number" step="0.01" min="0.01" placeholder="Ej: 0.15" value={cantInsumo} onChange={e => setCantInsumo(e.target.value)} style={{ padding: '6px 10px', fontSize: 11 }} />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label" style={{ fontSize: 9 }}>Merma Estimada (%)</label>
+                    <input className="form-input" type="number" min="0" max="100" placeholder="Ej: 5" value={mermaInsumo} onChange={e => setMermaInsumo(e.target.value)} style={{ padding: '6px 10px', fontSize: 11 }} />
+                  </div>
+                </div>
+                <button type="button" className="btn btn-primary btn-sm" onClick={handleAddIngrediente} style={{ width: '100%' }}>
+                  + Agregar Ingrediente
+                </button>
+              </div>
+
+              {/* Listado de ingredientes actuales */}
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 8 }}>Ingredientes de la Receta</div>
+                {(!recetaEditando.ingredientes || recetaEditando.ingredientes.length === 0) ? (
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', padding: '20px 0' }}>Sin ingredientes configurados aún</div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {recetaEditando.ingredientes.map((ing, i) => {
+                      const ingProd = productos.find(p => p.id === ing.insumoId);
+                      const costoUnit = ingProd ? ingProd.precioCosto : (ing.precioCosto || 0);
+                      const costPortion = ing.cantidad * costoUnit * (1 + (ing.mermaPct || 0) / 100);
+
+                      return (
+                        <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 10 }}>
+                          <div>
+                            <div style={{ fontSize: 12, fontWeight: 700 }}>{ing.nombreInsumo}</div>
+                            <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+                              Cant: {ing.cantidad} {ing.unidad} · Merma: {ing.mermaPct}% · Unitario: ${costoUnit}/{ing.unidad}
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                            <span style={{ fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 700, color: 'var(--bronze-light)' }}>
+                              ${costPortion.toFixed(2)}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveIngrediente(ing.insumoId)}
+                              style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: 16 }}
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Resumen de costos y margen */}
+              <div style={{ marginTop: 'auto', background: 'var(--bronze-subtle)', border: '1px solid var(--border-bronze)', borderRadius: 12, padding: 14, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Costo Total Calculado</div>
+                  <div style={{ fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 900, color: 'var(--bronze-light)' }}>
+                    ${calcularCostoReceta(recetaEditando).toFixed(2)}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Margen de Ganancia (%)</div>
+                  <div style={{
+                    fontFamily: 'var(--font-display)',
+                    fontSize: 20,
+                    fontWeight: 900,
+                    color: (recetaEditando.precioVenta - calcularCostoReceta(recetaEditando)) > 0 ? 'var(--success)' : 'var(--danger)'
+                  }}>
+                    {recetaEditando.precioVenta > 0
+                      ? (((recetaEditando.precioVenta - calcularCostoReceta(recetaEditando)) / recetaEditando.precioVenta) * 100).toFixed(1)
+                      : 0}%
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="modal-footer">
+              <button className="btn btn-secondary" onClick={() => setRecetaEditando(null)}>Cancelar</button>
+              <button className="btn btn-primary" onClick={handleGuardarReceta}>
+                <i className="ri-save-line" /> Guardar Receta
               </button>
             </div>
           </div>

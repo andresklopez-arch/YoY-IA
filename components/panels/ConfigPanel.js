@@ -39,7 +39,7 @@ const hashPassword = (pwd) => {
 };
 
 export default function ConfigPanel({ showToast }) {
-  const [subTab, setSubTab] = useState('general'); // 'general' | 'recetario'
+  // subTab recetario removed
   const [previewQr, setPreviewQr] = useState(null);
 
 
@@ -110,14 +110,6 @@ export default function ConfigPanel({ showToast }) {
     notifyPayments: true
   });
   const [savingTelegram, setSavingTelegram] = useState(false);
-
-  // --- Estados de Recetario y Costeo ---
-  const [productos, setProductos] = useState([]);
-  const [recetas, setRecetas] = useState([]);
-  const [recetaEditando, setRecetaEditando] = useState(null); // { productoId, nombre, precioVenta, ingredientes: [] }
-  const [insumoIdSel, setInsumoIdSel] = useState('');
-  const [cantInsumo, setCantInsumo] = useState('');
-  const [mermaInsumo, setMermaInsumo] = useState('0');
 
   const fetchUsuarios = async () => {
     setLoadingUsuarios(true);
@@ -311,40 +303,7 @@ export default function ConfigPanel({ showToast }) {
           setTicketConfig(JSON.parse(savedTicket));
         }
 
-        // Cargar Stock de Inventario
-        const savedStock = localStorage.getItem('yoy_billar_stock');
-        if (savedStock) {
-          setProductos(deobfuscate(savedStock) || []);
-        } else {
-          const defaultProds = [
-            { id: 1, nombre: 'Cerveza Corona Extra', categoria: 'Cerveza', precioCosto: 22, precioVenta: 45, stock: 0, stockMin: 30, stockOptimo: 150, unidad: 'bot' },
-            { id: 2, nombre: 'Refresco Coca-Cola 355ml', categoria: 'Refresco', precioCosto: 14, precioVenta: 30, stock: 0, stockMin: 20, stockOptimo: 100, unidad: 'pz' },
-            { id: 3, nombre: 'Nachos con Queso Gigantes', categoria: 'Snack', precioCosto: 32, precioVenta: 75, stock: 0, stockMin: 15, stockOptimo: 60, unidad: 'porc' },
-            { id: 4, nombre: 'Papas Fritas Crujientes', categoria: 'Snack', precioCosto: 20, precioVenta: 55, stock: 0, stockMin: 12, stockOptimo: 50, unidad: 'porc' },
-            { id: 5, nombre: 'Alitas de Pollo x10', categoria: 'Comida', precioCosto: 58, precioVenta: 120, stock: 0, stockMin: 10, stockOptimo: 45, unidad: 'pz' },
-            { id: 6, nombre: 'Café Americano Organico', categoria: 'Bebida', precioCosto: 12, precioVenta: 35, stock: 0, stockMin: 25, stockOptimo: 120, unidad: 'taza' },
-            { id: 7, nombre: 'Agua Embotellada 600ml', categoria: 'Bebida', precioCosto: 8, precioVenta: 20, stock: 0, stockMin: 40, stockOptimo: 180, unidad: 'pz' },
-          ];
-          setProductos(defaultProds);
-          localStorage.setItem('yoy_billar_stock', obfuscate(defaultProds));
-        }
-
-        // Cargar Recetario
-        const savedRecetas = localStorage.getItem('yoy_recetas_costeo');
-        if (savedRecetas) {
-          setRecetas(deobfuscate(savedRecetas) || []);
-        } else {
-          const initRecetas = [
-            {
-              productoId: 3, // Nachos
-              ingredientes: [
-                { insumoId: 4, nombreInsumo: 'Papas Fritas Crujientes', cantidad: 0.5, mermaPct: 5, precioCosto: 20 }
-              ]
-            }
-          ];
-          setRecetas(initRecetas);
-          localStorage.setItem('yoy_recetas_costeo', obfuscate(initRecetas));
-        }
+        // Cleaned up stock and recipe loading
       } catch (err) {
         console.error(err);
       }
@@ -987,107 +946,8 @@ export default function ConfigPanel({ showToast }) {
     }
   };
 
-  // ── MÉTODOS DEL RECETARIO ────────────────────────────
-  const getReceta = (prodId) => recetas.find(r => r.productoId === prodId);
 
-  const calcularCostoReceta = (receta) => {
-    if (!receta || !receta.ingredientes) return 0;
-    return receta.ingredientes.reduce((sum, ing) => {
-      const prod = productos.find(p => p.id === ing.insumoId);
-      const costoUnidad = prod ? prod.precioCosto : (ing.precioCosto || 0);
-      const mermaFactor = 1 + (ing.mermaPct || 0) / 100;
-      return sum + (ing.cantidad * costoUnidad * mermaFactor);
-    }, 0);
-  };
-
-  const getCostoProducto = (prod) => {
-    const rec = getReceta(prod.id);
-    if (rec) return calcularCostoReceta(rec);
-    return prod.precioCosto || 0;
-  };
-
-  const handleAbrirReceta = (prod) => {
-    const recExistente = getReceta(prod.id) || {
-      productoId: prod.id,
-      nombre: prod.nombre,
-      precioVenta: prod.precioVenta,
-      ingredientes: []
-    };
-    setRecetaEditando({ ...recExistente, nombre: prod.nombre, precioVenta: prod.precioVenta });
-    setInsumoIdSel('');
-    setCantInsumo('');
-    setMermaInsumo('0');
-  };
-
-  const handleAddIngrediente = () => {
-    if (!insumoIdSel || !cantInsumo) {
-      showToast('Selecciona un ingrediente y define la cantidad', 'warning');
-      return;
-    }
-    const insumoId = parseInt(insumoIdSel);
-    const cant = parseFloat(cantInsumo);
-    const merma = parseFloat(mermaInsumo) || 0;
-
-    const insumoProd = productos.find(p => p.id === insumoId);
-    if (!insumoProd) return;
-
-    if (recetaEditando.ingredientes.some(i => i.insumoId === insumoId)) {
-      showToast('Este ingrediente ya está en la receta', 'error');
-      return;
-    }
-
-    const nuevoIng = {
-      insumoId,
-      nombreInsumo: insumoProd.nombre,
-      cantidad: cant,
-      mermaPct: merma,
-      precioCosto: insumoProd.precioCosto,
-      unidad: insumoProd.unidad || 'pz'
-    };
-
-    setRecetaEditando(p => ({
-      ...p,
-      ingredientes: [...p.ingredientes, nuevoIng]
-    }));
-
-    setInsumoIdSel('');
-    setCantInsumo('');
-    setMermaInsumo('0');
-    showToast('Ingrediente agregado a la receta temporal', 'success');
-  };
-
-  const handleRemoveIngrediente = (insumoId) => {
-    setRecetaEditando(p => ({
-      ...p,
-      ingredientes: p.ingredientes.filter(i => i.insumoId !== insumoId)
-    }));
-  };
-
-  const handleGuardarReceta = () => {
-    let nuevasRecetas;
-    const existe = recetas.some(r => r.productoId === recetaEditando.productoId);
-    if (existe) {
-      nuevasRecetas = recetas.map(r => r.productoId === recetaEditando.productoId ? recetaEditando : r);
-    } else {
-      nuevasRecetas = [...recetas, recetaEditando];
-    }
-    setRecetas(nuevasRecetas);
-    localStorage.setItem('yoy_recetas_costeo', obfuscate(nuevasRecetas));
-
-    const nuevoCosto = calcularCostoReceta(recetaEditando);
-
-    const nuevosProductos = productos.map(p => {
-      if (p.id === recetaEditando.productoId) {
-        return { ...p, precioCosto: Math.round(nuevoCosto), lastModified: Date.now() };
-      }
-      return p;
-    });
-    setProductos(nuevosProductos);
-    localStorage.setItem('yoy_billar_stock', obfuscate(nuevosProductos));
-
-    setRecetaEditando(null);
-    showToast('Receta guardada y costo del POS actualizado', 'success');
-  };
+  // Recipe methods removed
 
   return (
     <div>
@@ -1116,26 +976,7 @@ export default function ConfigPanel({ showToast }) {
           <p className="page-subtitle" style={{ margin: 0, fontSize: '11px', color: 'var(--text-muted)' }}>Ajustes del sistema, sucursal, tarifas y recetario de costeo</p>
         </div>
 
-        {/* SELECTOR DE SUBTABS COMPACTO */}
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button
-            className={`btn btn-sm ${subTab === 'general' ? 'btn-primary' : 'btn-secondary'}`}
-            onClick={() => setSubTab('general')}
-            style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', fontSize: '10px' }}
-          >
-            <i className="ri-settings-4-line" style={{ fontSize: '12px' }} /> Ajustes Generales
-          </button>
-          <button
-            className={`btn btn-sm ${subTab === 'recetario' ? 'btn-primary' : 'btn-secondary'}`}
-            onClick={() => setSubTab('recetario')}
-            style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', fontSize: '10px' }}
-          >
-            <i className="ri-restaurant-line" style={{ fontSize: '12px' }} /> Recetario y Costeo Dinámico
-          </button>
-        </div>
       </div>
-
-      {subTab === 'general' ? (
         <div style={{ maxWidth: '1200px', margin: '0 auto', width: '100%' }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, alignItems: 'start' }}>
             
@@ -1972,238 +1813,7 @@ export default function ConfigPanel({ showToast }) {
           </div>
         </div>
 
-      ) : (
-        /* MÓDULO DE RECETARIO Y COSTEO DINÁMICO */
-        <div className="card">
-          <div className="card-header" style={{ marginBottom: 16 }}>
-            <div>
-              <h3 className="card-title"><i className="ri-restaurant-line" style={{ marginRight: 6 }} />Recetario de Alimentos y Costeo</h3>
-              <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0 }}>Vincula productos del POS con sus ingredientes del inventario de insumos para calcular margen bruto real.</p>
-            </div>
-          </div>
-
-          <div className="table-wrapper" style={{ border: 'none' }}>
-            <table>
-              <thead>
-                <tr>
-                  <th>Producto</th>
-                  <th>Categoría</th>
-                  <th>Precio Venta</th>
-                  <th>Costo Preparación</th>
-                  <th>Margen Bruto (%)</th>
-                  <th>Estado Receta</th>
-                  <th>Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {productos.map(p => {
-                  const rec = getReceta(p.id);
-                  const costoPrep = getCostoProducto(p);
-                  const margen = p.precioVenta > 0 ? ((p.precioVenta - costoPrep) / p.precioVenta * 100).toFixed(1) : 0;
-                  const esBajoMargen = margen < 50;
-
-                  return (
-                    <tr key={p.id}>
-                      <td style={{ fontWeight: 700 }}>{p.nombre}</td>
-                      <td>{p.categoria}</td>
-                      <td style={{ fontFamily: 'var(--font-display)', fontWeight: 700 }}>${p.precioVenta}</td>
-                      <td style={{ fontFamily: 'var(--font-display)', fontWeight: 700, color: 'var(--bronze-light)' }}>
-                        ${costoPrep.toFixed(2)}
-                      </td>
-                      <td>
-                        <span style={{
-                          fontWeight: 800,
-                          color: esBajoMargen ? 'var(--danger)' : 'var(--success)'
-                        }}>
-                          {margen}%
-                        </span>
-                      </td>
-                      <td>
-                        <span className={`badge ${rec ? 'badge-success' : 'badge-warning'}`}>
-                          {rec ? 'Receta Configurada' : 'Costo Directo'}
-                        </span>
-                      </td>
-                      <td>
-                        <button className="btn btn-secondary btn-sm" onClick={() => handleAbrirReceta(p)} style={{ fontSize: 11, padding: '4px 8px' }}>
-                          <i className="ri-restaurant-line" style={{ marginRight: 4 }} /> Configurar
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* Modal de Previsualización de QR */}
-      {previewQr && (
-        <div className="modal-overlay" onClick={() => setPreviewQr(null)}>
-          <div className="modal" style={{ maxWidth: 350, textAlign: 'center' }} onClick={e => e.stopPropagation()}>
-            <div className="modal-header">
-              <span className="modal-title"><i className="ri-qr-code-line" style={{ marginRight: 8 }} />Previsualizar QR</span>
-              <button onClick={() => setPreviewQr(null)} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 20 }}>✕</button>
-            </div>
-            
-            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, padding: '20px 10px' }}>
-              <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)' }}>{previewQr.title}</div>
-              
-              <div style={{ background: '#fff', padding: 16, borderRadius: 12, display: 'inline-block', boxShadow: '0 4px 12px rgba(0,0,0,0.25)', marginTop: 8 }}>
-                <QRCodeCanvas
-                  value={previewQr.value}
-                  size={220}
-                  level="H"
-                />
-              </div>
-              
-              <p style={{ fontSize: 11, color: 'var(--text-muted)', wordBreak: 'break-all', margin: '4px 0 10px 0', padding: '0 10px' }}>
-                {previewQr.value}
-              </p>
-            </div>
-            
-            <div className="modal-footer" style={{ display: 'flex', gap: 10 }}>
-              <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setPreviewQr(null)}>Cerrar</button>
-              <button 
-                className="btn btn-primary" 
-                style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }} 
-                onClick={() => {
-                  const canvasId = previewQr.filename === 'fila_de_espera.png' ? 'qr-canvas-fila' : `qr-canvas-mesa-${previewQr.mesaId}`;
-                  const canvas = document.getElementById(canvasId);
-                  if (canvas) {
-                    const dataUrl = canvas.toDataURL('image/png');
-                    const tempLink = document.createElement('a');
-                    tempLink.style.display = 'none';
-                    tempLink.href = dataUrl;
-                    tempLink.setAttribute('download', previewQr.filename);
-                    document.body.appendChild(tempLink);
-                    tempLink.click();
-                    document.body.removeChild(tempLink);
-                    showToast('QR descargado con éxito ✓', 'success');
-                  } else {
-                    showToast('Error al descargar QR', 'error');
-                  }
-                  setPreviewQr(null);
-                }}
-              >
-                <i className="ri-download-2-line" /> Descargar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal de Configurar Receta */}
-      {recetaEditando && (
-        <div className="modal-overlay" onClick={() => setRecetaEditando(null)}>
-          <div className="modal" style={{ maxWidth: 550, maxHeight: '80vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
-            <div className="modal-header">
-              <span className="modal-title"><i className="ri-restaurant-line" style={{ marginRight: 8 }} />Receta: {recetaEditando.nombre}</span>
-              <button onClick={() => setRecetaEditando(null)} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 20 }}>✕</button>
-            </div>
-            
-            <div className="modal-body" style={{ overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: 14 }}>
-              {/* Formulario agregar ingrediente */}
-              <div style={{ background: 'var(--bg-elevated)', borderRadius: 12, padding: 14, border: '1px solid var(--border)' }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--bronze-light)', marginBottom: 10 }}>Agregar Ingrediente / Insumo</div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: 10, marginBottom: 10 }}>
-                  <div className="form-group">
-                    <label className="form-label" style={{ fontSize: 9 }}>Seleccionar Insumo</label>
-                    <select className="form-select" value={insumoIdSel} onChange={e => setInsumoIdSel(e.target.value)} style={{ padding: '6px 10px', fontSize: 11, height: 'auto' }}>
-                      <option value="">-- Seleccionar --</option>
-                      {productos.map(p => (
-                        <option key={p.id} value={p.id}>{p.nombre} (${p.precioCosto}/{p.unidad})</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label" style={{ fontSize: 9 }}>Cantidad (de la unidad)</label>
-                    <input className="form-input" type="number" step="0.01" min="0.01" placeholder="Ej: 0.15" value={cantInsumo} onChange={e => setCantInsumo(e.target.value)} style={{ padding: '6px 10px', fontSize: 11 }} />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label" style={{ fontSize: 9 }}>Merma Estimada (%)</label>
-                    <input className="form-input" type="number" min="0" max="100" placeholder="Ej: 5" value={mermaInsumo} onChange={e => setMermaInsumo(e.target.value)} style={{ padding: '6px 10px', fontSize: 11 }} />
-                  </div>
-                </div>
-                <button type="button" className="btn btn-primary btn-sm" onClick={handleAddIngrediente} style={{ width: '100%' }}>
-                  + Agregar Ingrediente
-                </button>
-              </div>
-
-              {/* Listado de ingredientes actuales */}
-              <div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 8 }}>Ingredientes de la Receta</div>
-                {recetaEditando.ingredientes.length === 0 ? (
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', padding: '20px 0' }}>Sin ingredientes configurados aún</div>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {recetaEditando.ingredientes.map((ing, i) => {
-                      const ingProd = productos.find(p => p.id === ing.insumoId);
-                      const costoUnit = ingProd ? ingProd.precioCosto : (ing.precioCosto || 0);
-                      const costPortion = ing.cantidad * costoUnit * (1 + (ing.mermaPct || 0) / 100);
-
-                      return (
-                        <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 10 }}>
-                          <div>
-                            <div style={{ fontSize: 12, fontWeight: 700 }}>{ing.nombreInsumo}</div>
-                            <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>
-                              Cant: {ing.cantidad} {ing.unidad} · Merma: {ing.mermaPct}% · Unitario: ${costoUnit}/{ing.unidad}
-                            </div>
-                          </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                            <span style={{ fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 700, color: 'var(--bronze-light)' }}>
-                              ${costPortion.toFixed(2)}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveIngrediente(ing.insumoId)}
-                              style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: 16 }}
-                            >
-                              ✕
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-
-              {/* Resumen de costos y margen */}
-              <div style={{ marginTop: 'auto', background: 'var(--bronze-subtle)', border: '1px solid var(--border-bronze)', borderRadius: 12, padding: 14, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                <div>
-                  <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Costo Total Calculado</div>
-                  <div style={{ fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 900, color: 'var(--bronze-light)' }}>
-                    ${calcularCostoReceta(recetaEditando).toFixed(2)}
-                  </div>
-                </div>
-                <div>
-                  <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Margen de Ganancia (%)</div>
-                  <div style={{
-                    fontFamily: 'var(--font-display)',
-                    fontSize: 20,
-                    fontWeight: 900,
-                    color: (recetaEditando.precioVenta - calcularCostoReceta(recetaEditando)) > 0 ? 'var(--success)' : 'var(--danger)'
-                  }}>
-                    {recetaEditando.precioVenta > 0
-                      ? (((recetaEditando.precioVenta - calcularCostoReceta(recetaEditando)) / recetaEditando.precioVenta) * 100).toFixed(1)
-                      : 0}%
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="modal-footer">
-              <button className="btn btn-secondary" onClick={() => setRecetaEditando(null)}>Cancelar</button>
-              <button className="btn btn-primary" onClick={handleGuardarReceta}>
-                <i className="ri-save-line" /> Guardar Receta
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal de Crear Usuario */}
+            {/* Modal de Crear Usuario */}
       {showAddUserModal && (
         <div style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)',
