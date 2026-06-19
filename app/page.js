@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, Component, useRef } from 'react';
+import { useState, useEffect, Component, useRef, useMemo } from 'react';
 import Topbar from '@/components/Topbar';
 import ToastContainer from '@/components/ToastContainer';
 import MesasPanel from '@/components/panels/MesasPanel';
@@ -554,8 +554,8 @@ function AppContent() {
     };
   }, [user]);
 
-  // Evaluador de Alertas IA
-  const evalAlertasIA = () => {
+  // Evaluador de Alertas IA (Memorizado para optimizar rendimiento)
+  const activeAlertsList = useMemo(() => {
     const list = [];
     if (!iaAlerts || !iaAlerts.activeIds) return list;
 
@@ -753,7 +753,7 @@ function AppContent() {
     });
 
     return list;
-  };
+  }, [iaAlerts, insumosBajos, mesas, cuentas, iaPrevisiones, ultimoCorte, cocinaSolicitudes, personalActivo]);
 
   // Motor de Aprendizaje IA Diario
   const ejecutarAprendizajeIA = async () => {
@@ -1707,8 +1707,6 @@ function AppContent() {
       </PanelErrorBoundary>
     ),
   };
-
-  const activeAlertsList = evalAlertasIA();
 
   return (
     <div className="app-wrapper">
