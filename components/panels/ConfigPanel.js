@@ -89,7 +89,8 @@ export default function ConfigPanel({ showToast }) {
       sinPersonalActivo: true,
       excesoCortesias: true,
       tarifaDinamicaRecomendada: true
-    }
+    },
+    telegramAlerts: {}
   });
 
   // Estados de Gestión de Usuarios
@@ -364,7 +365,8 @@ export default function ConfigPanel({ showToast }) {
             sinPersonalActivo: true,
             excesoCortesias: true,
             tarifaDinamicaRecomendada: true
-          }
+          },
+          telegramAlerts: d.telegramAlerts || {}
         });
       }
     });
@@ -712,6 +714,27 @@ export default function ConfigPanel({ showToast }) {
     } catch (err) {
       console.error(err);
       showToast('Error al guardar configuración: ' + err.message, 'danger');
+    }
+  };
+
+  const handleToggleTelegramAlerta = async (id) => {
+    const updatedTelegramAlerts = { ...(iaAlerts.telegramAlerts || {}) };
+    updatedTelegramAlerts[id] = !updatedTelegramAlerts[id];
+
+    const newConfig = { ...iaAlerts, telegramAlerts: updatedTelegramAlerts };
+    setIaAlerts(newConfig);
+
+    try {
+      await setDoc(doc(db, 'config', 'ia_alertas'), newConfig);
+      showToast(
+        updatedTelegramAlerts[id] 
+          ? `Notificación de Telegram habilitada para esta alerta.` 
+          : `Notificación de Telegram deshabilitada para esta alerta.`,
+        'success'
+      );
+    } catch (err) {
+      console.error(err);
+      showToast('Error al actualizar notificación de Telegram: ' + err.message, 'danger');
     }
   };
 
@@ -2097,6 +2120,33 @@ export default function ConfigPanel({ showToast }) {
                             transition: 'left 0.2s'
                           }} />
                         </div>
+                        {/* Telegram Alert Toggle */}
+                        <button
+                          onClick={() => handleToggleTelegramAlerta(id)}
+                          title={iaAlerts.telegramAlerts && iaAlerts.telegramAlerts[id] ? "Desactivar alertas por Telegram" : "Habilitar alertas por Telegram"}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: iaAlerts.telegramAlerts && iaAlerts.telegramAlerts[id] ? '#0088cc' : 'var(--text-muted)',
+                            cursor: 'pointer',
+                            padding: 4,
+                            display: 'flex',
+                            alignItems: 'center',
+                            transition: 'color 0.2s',
+                          }}
+                          onMouseEnter={(e) => {
+                            if (!(iaAlerts.telegramAlerts && iaAlerts.telegramAlerts[id])) {
+                              e.currentTarget.style.color = '#0088cc';
+                            }
+                          }}
+                          onMouseLeave={(e) => {
+                            if (!(iaAlerts.telegramAlerts && iaAlerts.telegramAlerts[id])) {
+                              e.currentTarget.style.color = 'var(--text-muted)';
+                            }
+                          }}
+                        >
+                          <i className="ri-telegram-line" style={{ fontSize: 16 }} />
+                        </button>
                         {/* Quitar de la pantalla */}
                         <button
                           onClick={() => handleQuitarAlerta(id)}

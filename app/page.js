@@ -331,7 +331,8 @@ function AppContent() {
       sinPersonalActivo: true,
       excesoCortesias: true,
       tarifaDinamicaRecomendada: true
-    }
+    },
+    telegramAlerts: {}
   });
 
   useEffect(() => {
@@ -512,7 +513,8 @@ function AppContent() {
             sinPersonalActivo: true,
             excesoCortesias: true,
             tarifaDinamicaRecomendada: true
-          }
+          },
+          telegramAlerts: d.telegramAlerts || {}
         });
       }
     });
@@ -553,6 +555,39 @@ function AppContent() {
       unsubCortes();
     };
   }, [user]);
+
+  // --- Estado y Handlers para Alertas Silenciadas (Snooze por 1 hora) ---
+  const [snoozedAlerts, setSnoozedAlerts] = useState({});
+
+  // Cargar de localStorage al inicio
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem('yoy_snoozed_alerts');
+        if (stored) {
+          setSnoozedAlerts(JSON.parse(stored));
+        }
+      } catch (e) {
+        console.error("Error al cargar alertas silenciadas de localStorage:", e);
+      }
+    }
+  }, []);
+
+  const handleSnoozeAlert = (alertId) => {
+    const until = Date.now() + 3600000; // 1 hora de silencio
+    const updated = { ...snoozedAlerts, [alertId]: until };
+    setSnoozedAlerts(updated);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('yoy_snoozed_alerts', JSON.stringify(updated));
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  };
+
+  // Ref para rastrear envíos de Telegram y evitar duplicados/spam
+  const lastSentTelegramAlerts = useRef({});
 
   // Evaluador de Alertas IA (Memorizado para optimizar rendimiento)
   const activeAlertsList = useMemo(() => {
@@ -754,6 +789,86 @@ function AppContent() {
 
     return list;
   }, [iaAlerts, insumosBajos, mesas, cuentas, iaPrevisiones, ultimoCorte, cocinaSolicitudes, personalActivo]);
+
+  // Alertas IA que no están silenciadas actualmente
+  const displayedAlerts = useMemo(() => {
+    const ahora = Date.now();
+    return activeAlertsList.filter(alert => {
+      const until = snoozedAlerts[alert.id];
+      return !until || ahora > until;
+    });
+  }, [activeAlertsList, snoozedAlerts]);
+
+  // Enviar notificaciones de Telegram para Alertas IA configuradas (Opcional y con control de duplicados)
+  useEffect(() => {
+    if (!user || !activeAlertsList || activeAlertsList.length === 0) return;
+
+    const sendTelegramAlerts = async () => {
+      try {
+        let tgConfig = null;
+        for (const alert of activeAlertsList) {
+          const alertId = alert.id;
+          
+          // Verificar si esta alerta tiene habilitado el envío por Telegram
+          if (!iaAlerts.telegramAlerts || !iaAlerts.telegramAlerts[alertId]) {
+            continue;
+          }
+
+          // Evitar re-enviar la misma alerta en menos de 1 hora (3600000 ms)
+          const ahora = Date.now();
+          const lastSentTime = lastSentTelegramAlerts.current[alertId] || 0;
+          if (ahora - lastSentTime < 3600000) {
+            continue;
+          }
+
+          // Cargar configuración de Telegram
+          if (!tgConfig) {
+            const snap = await getDoc(doc(db, 'config', 'telegram'));
+            if (snap.exists()) {
+              tgConfig = snap.data();
+            }
+          }
+
+          if (tgConfig && tgConfig.enabled) {
+            // Actualizar timestamp de envío antes de disparar el fetch para evitar race conditions
+            lastSentTelegramAlerts.current[alertId] = ahora;
+
+            const text = `🤖 *ALERTA IA CRÍTICA* 🤖\n\n` +
+              `• *Alerta:* ${alert.text}\n` +
+              `• *Acción:* ${alert.btnText}\n` +
+              `• *Fecha:* ${new Date().toLocaleString()}`;
+
+            fetch('/api/telegram/send-alert', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                mode: tgConfig.mode,
+                token: tgConfig.botToken,
+                chatId: tgConfig.chatId,
+                phone: tgConfig.phone,
+                text: text
+              })
+            })
+            .then(res => res.json())
+            .then(data => {
+              if (data && data.success) {
+                console.log(`Telegram enviado para alerta ${alertId}`);
+              } else {
+                console.error(`Error al enviar Telegram para alerta ${alertId}:`, data?.error || 'Error desconocido');
+              }
+            })
+            .catch(err => {
+              console.error(`Error de red al enviar Telegram para alerta ${alertId}:`, err);
+            });
+          }
+        }
+      } catch (err) {
+        console.error("Error al procesar envío de Telegram para Alertas IA:", err);
+      }
+    };
+
+    sendTelegramAlerts();
+  }, [activeAlertsList, iaAlerts.telegramAlerts, user]);
 
   // Motor de Aprendizaje IA Diario
   const ejecutarAprendizajeIA = async () => {
@@ -1721,7 +1836,7 @@ function AppContent() {
         />
 
         {/* Banner de Insumos Críticos / Faltantes y Alertas IA */}
-        {(cocinaSolicitudes.length > 0 || activeAlertsList.length > 0) && (
+        {(cocinaSolicitudes.length > 0 || displayedAlerts.length > 0) && (
           <div style={{
             background: 'linear-gradient(135deg, rgba(20, 20, 25, 0.95), rgba(40, 30, 25, 0.95))',
             borderBottom: '1px solid rgba(205, 127, 50, 0.25)',
@@ -1736,7 +1851,7 @@ function AppContent() {
           }}>
             {/* Cocina Solicitudes de Surtido URGENTE (Siempre Prioritario) */}
             {cocinaSolicitudes.length > 0 && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0', borderBottom: activeAlertsList.length > 0 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0', borderBottom: displayedAlerts.length > 0 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, animation: 'pulseRedAlert 1.5s infinite' }}>
                   <i className="ri-broadcast-line" style={{ fontSize: 16, color: 'var(--danger)' }} />
                   <span style={{ fontSize: 12, color: '#fff', fontWeight: 800 }}>
@@ -1754,13 +1869,13 @@ function AppContent() {
             )}
 
             {/* Alertas IA Dinámicas */}
-            {activeAlertsList.map((alert, idx) => (
+            {displayedAlerts.map((alert, idx) => (
               <div key={idx} style={{
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
                 padding: '4px 0',
-                borderBottom: idx < activeAlertsList.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none'
+                borderBottom: idx < displayedAlerts.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none'
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <span style={{ fontSize: 14 }}>{alert.icon}</span>
@@ -1768,21 +1883,42 @@ function AppContent() {
                     {alert.text}
                   </span>
                 </div>
-                <button
-                  className="btn btn-secondary btn-xs"
-                  onClick={() => setActivePanel(alert.panel)}
-                  style={{
-                    padding: '2px 8px',
-                    fontSize: 10,
-                    borderRadius: 6,
-                    color: '#fff',
-                    borderColor: 'var(--border)',
-                    background: 'rgba(255,255,255,0.04)',
-                    cursor: 'pointer'
-                  }}
-                >
-                  {alert.btnText}
-                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <button
+                    className="btn btn-secondary btn-xs"
+                    onClick={() => setActivePanel(alert.panel)}
+                    style={{
+                      padding: '2px 8px',
+                      fontSize: 10,
+                      borderRadius: 6,
+                      color: '#fff',
+                      borderColor: 'var(--border)',
+                      background: 'rgba(255,255,255,0.04)',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {alert.btnText}
+                  </button>
+                  <button
+                    onClick={() => handleSnoozeAlert(alert.id)}
+                    title="Silenciar por 1 hora"
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: 'rgba(255,255,255,0.3)',
+                      cursor: 'pointer',
+                      padding: '2px 6px',
+                      fontSize: 12,
+                      display: 'flex',
+                      alignItems: 'center',
+                      transition: 'color 0.2s'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.color = '#fff'}
+                    onMouseLeave={(e) => e.currentTarget.style.color = 'rgba(255,255,255,0.3)'}
+                  >
+                    <i className="ri-notification-off-line" />
+                  </button>
+                </div>
               </div>
             ))}
           </div>
