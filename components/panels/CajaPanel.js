@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useMemo, Fragment, useRef } from 'react';
 import { db } from '@/lib/firebase';
-import { doc, onSnapshot, query, collection, orderBy, limit, getDocs, getDoc, startAfter, writeBatch, addDoc, serverTimestamp, where, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { doc, onSnapshot, query, collection, orderBy, limit, getDocs, getDoc, startAfter, writeBatch, addDoc, serverTimestamp, where, setDoc, updateDoc, deleteDoc, increment } from 'firebase/firestore';
 import { deobfuscate, obfuscate } from '@/lib/crypto';
 import { useAuth } from '@/lib/auth-context';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip as RechartsTooltip, PieChart as RechartsPieChart, Pie, Cell } from 'recharts';
@@ -216,6 +216,11 @@ export default function CajaPanel({ showToast }) {
   const [rfFiltro, setRfFiltro] = useState('7d');
   const [rfModalTipo, setRfModalTipo] = useState(null);
   const [rfModalDetalleMetodo, setRfModalDetalleMetodo] = useState(null);
+  const [resumenesDiariosList, setResumenesDiariosList] = useState([]);
+  const [detalleTransaccionesHistorial, setDetalleTransaccionesHistorial] = useState([]);
+  const [detalleTransaccionesLoading, setDetalleTransaccionesLoading] = useState(false);
+  const [detalleTransaccionesLastDoc, setDetalleTransaccionesLastDoc] = useState(null);
+  const [detalleTransaccionesHasMore, setDetalleTransaccionesHasMore] = useState(true);
   const [conciliacionFile, setConciliacionFile] = useState(null);
   const [conciliacionLoading, setConciliacionLoading] = useState(false);
   const [conciliacionReport, setConciliacionReport] = useState(null);
@@ -576,6 +581,306 @@ export default function CajaPanel({ showToast }) {
       };
     }
   }, []);
+
+  // --- Resúmenes Diarios en Firestore, Retrorellenado e Historial ---
+  const registrarEnResumenDiario = async (monto, categoria, metodo, fechaOptional = null) => {
+    try {
+      const fecha = fechaOptional || new Date().toISOString().split('T')[0];
+      const docRef = doc(db, 'resumenes_diarios', fecha);
+      const updates = {
+        ultimoUpdate: new Date().toISOString()
+      };
+      const m = Number(monto) || 0;
+      if (m === 0) return;
+
+      if (categoria === 'rentasMesas') updates.rentasMesas = increment(m);
+      else if (categoria === 'ventasBar') updates.ventasBar = increment(m);
+      else if (categoria === 'inscripcionesTorneo') updates.inscripcionesTorneo = increment(m);
+      else if (categoria === 'gastosG') updates.gastosG = increment(m);
+      else if (categoria === 'nominaS') updates.nominaS = increment(m);
+
+      if (['rentasMesas', 'ventasBar', 'inscripcionesTorneo'].includes(categoria)) {
+        const met = (metodo || 'efectivo').toLowerCase();
+        if (met === 'tarjeta') {
+          updates.tarjetaIngresos = increment(m);
+        } else if (met === 'transferencia' || met === 'spei' || met === 'qr') {
+          updates.transferIngresos = increment(m);
+        } else {
+          updates.efectivoIngresos = increment(m);
+        }
+      }
+
+      await setDoc(docRef, updates, { merge: true });
+    } catch (err) {
+      console.error("Error al registrar en resumen diario:", err);
+    }
+  };
+
+  const verificarYRetrorellenarHistorial = async () => {
+    try {
+      const rdSnap = await getDocs(collection(db, 'resumenes_diarios'));
+      const existingDocs = {};
+      rdSnap.docs.forEach(doc => {
+        existingDocs[doc.id] = doc.data();
+      });
+
+      const hoyStr = new Date().toISOString().split('T')[0];
+      const bitacoraSnap = await getDocs(query(collection(db, 'bitacora'), where('fecha', '<', hoyStr + 'T00:00:00')));
+      
+      const dailyData = {};
+
+      bitacoraSnap.docs.forEach(doc => {
+        const d = doc.data();
+        if (!d.fecha) return;
+        const dateStr = d.fecha.split('T')[0];
+        if (dateStr >= hoyStr) return;
+
+        if (!dailyData[dateStr]) {
+          dailyData[dateStr] = {
+            rentasMesas: 0,
+            ventasBar: 0,
+            inscripcionesTorneo: 0,
+            efectivoIngresos: 0,
+            tarjetaIngresos: 0,
+            transferIngresos: 0,
+            gastosG: 0,
+            nominaS: 0
+          };
+        }
+
+        const montoVal = Math.abs(Number(d.monto) || 0);
+        const detLower = (d.detalle || '').toLowerCase();
+        let metodo = d.metodoPago || 'efectivo';
+        if (!d.metodoPago) {
+          if (detLower.includes('tarjeta')) metodo = 'tarjeta';
+          else if (detLower.includes('transferencia') || detLower.includes('spei') || detLower.includes('qr')) metodo = 'transferencia';
+        }
+        if (metodo === 'spei' || metodo === 'qr') metodo = 'transferencia';
+
+        if (d.accion === 'Cierre Directo' || d.accion === 'Mesa a Cuenta') {
+          dailyData[dateStr].rentasMesas += montoVal;
+          if (metodo === 'tarjeta') dailyData[dateStr].tarjetaIngresos += montoVal;
+          else if (metodo === 'transferencia') dailyData[dateStr].transferIngresos += montoVal;
+          else dailyData[dateStr].efectivoIngresos += montoVal;
+        } else if (d.accion === 'Venta Barra' || d.accion === 'Cobro Barra') {
+          dailyData[dateStr].ventasBar += montoVal;
+          if (metodo === 'tarjeta') dailyData[dateStr].tarjetaIngresos += montoVal;
+          else if (metodo === 'transferencia') dailyData[dateStr].transferIngresos += montoVal;
+          else dailyData[dateStr].efectivoIngresos += montoVal;
+        } else if (d.accion === 'Torneos - Registro') {
+          dailyData[dateStr].inscripcionesTorneo += montoVal;
+          if (metodo === 'tarjeta') dailyData[dateStr].tarjetaIngresos += montoVal;
+          else if (metodo === 'transferencia') dailyData[dateStr].transferIngresos += montoVal;
+          else dailyData[dateStr].efectivoIngresos += montoVal;
+        } else if (d.accion === 'Cobro Manual') {
+          if (detLower.includes('bar')) {
+            dailyData[dateStr].ventasBar += montoVal;
+          } else {
+            dailyData[dateStr].rentasMesas += montoVal;
+          }
+          if (metodo === 'tarjeta') dailyData[dateStr].tarjetaIngresos += montoVal;
+          else if (metodo === 'transferencia') dailyData[dateStr].transferIngresos += montoVal;
+          else dailyData[dateStr].efectivoIngresos += montoVal;
+        }
+      });
+
+      gastosList.forEach(g => {
+        if (!g.fecha) return;
+        const dateStr = g.fecha.split('T')[0];
+        if (dateStr >= hoyStr) return;
+
+        if (!dailyData[dateStr]) {
+          dailyData[dateStr] = {
+            rentasMesas: 0,
+            ventasBar: 0,
+            inscripcionesTorneo: 0,
+            efectivoIngresos: 0,
+            tarjetaIngresos: 0,
+            transferIngresos: 0,
+            gastosG: 0,
+            nominaS: 0
+          };
+        }
+        dailyData[dateStr].gastosG += Number(g.monto) || 0;
+      });
+
+      nominaPagosList.forEach(p => {
+        if (!p.fecha) return;
+        const dateStr = p.fecha.split('T')[0];
+        if (dateStr >= hoyStr) return;
+
+        if (!dailyData[dateStr]) {
+          dailyData[dateStr] = {
+            rentasMesas: 0,
+            ventasBar: 0,
+            inscripcionesTorneo: 0,
+            efectivoIngresos: 0,
+            tarjetaIngresos: 0,
+            transferIngresos: 0,
+            gastosG: 0,
+            nominaS: 0
+          };
+        }
+        dailyData[dateStr].nominaS += Number(p.total || p.totalNeto) || 0;
+      });
+
+      const batch = writeBatch(db);
+      let count = 0;
+
+      for (const [dateStr, data] of Object.entries(dailyData)) {
+        const existing = existingDocs[dateStr];
+        const needsUpdate = !existing ||
+          Number(existing.rentasMesas || 0) !== data.rentasMesas ||
+          Number(existing.ventasBar || 0) !== data.ventasBar ||
+          Number(existing.inscripcionesTorneo || 0) !== data.inscripcionesTorneo ||
+          Number(existing.gastosG || 0) !== data.gastosG ||
+          Number(existing.nominaS || 0) !== data.nominaS ||
+          Number(existing.efectivoIngresos || 0) !== data.efectivoIngresos ||
+          Number(existing.tarjetaIngresos || 0) !== data.tarjetaIngresos ||
+          Number(existing.transferIngresos || 0) !== data.transferIngresos;
+
+        if (needsUpdate) {
+          const docRef = doc(db, 'resumenes_diarios', dateStr);
+          batch.set(docRef, {
+            fecha: dateStr,
+            ...data,
+            ultimoUpdate: new Date().toISOString()
+          });
+          count++;
+        }
+      }
+
+      if (count > 0) {
+        await batch.commit();
+        console.log(`✓ Retrorellenado y Sincronización exitosa: se actualizaron/crearon ${count} resúmenes diarios.`);
+      }
+    } catch (err) {
+      console.error("Error en retrorellenado de resúmenes diarios:", err);
+    }
+  };
+
+  const cargarTransaccionesHistoricas = async (isNew = false) => {
+    if (rfFiltro === 'Hoy' || rfFiltro === 'ultimo corte') return;
+    if (!rfModalDetalleMetodo) return;
+
+    setDetalleTransaccionesLoading(true);
+    try {
+      const ahora = Date.now();
+      let startDate = new Date();
+      if (rfFiltro === '7d') startDate.setDate(startDate.getDate() - 7);
+      else if (rfFiltro === '15d') startDate.setDate(startDate.getDate() - 15);
+      else if (rfFiltro === '1m') startDate.setMonth(startDate.getMonth() - 1);
+      else if (rfFiltro === '6m') startDate.setMonth(startDate.getMonth() - 6);
+      else if (rfFiltro === '1a') startDate.setFullYear(startDate.getFullYear() - 1);
+      else startDate = new Date('2020-01-01');
+
+      const startStr = startDate.toISOString().split('T')[0];
+
+      let constraints = [
+        collection(db, 'bitacora'),
+        where('fecha', '>=', startStr + 'T00:00:00'),
+        where('metodoPago', '==', rfModalDetalleMetodo),
+        orderBy('fecha', 'desc'),
+        limit(50)
+      ];
+
+      if (!isNew && detalleTransaccionesLastDoc) {
+        constraints.push(startAfter(detalleTransaccionesLastDoc));
+      }
+
+      const q = query(...constraints);
+      const snap = await getDocs(q);
+
+      const list = snap.docs.map(doc => {
+        const d = doc.data();
+        return {
+          id: doc.id,
+          tipo: d.accion?.includes('Mesa') || d.accion?.includes('Cierre') ? 'mesa' : (d.accion?.includes('Barra') ? 'bar' : 'torneo'),
+          fecha: d.fecha,
+          hora: new Date(d.fecha).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }),
+          descripcion: d.detalle || d.accion || 'Cobro',
+          operador: d.operador || 'Cajero',
+          monto: Math.abs(Number(d.monto) || 0),
+          metodo: d.metodoPago || 'efectivo'
+        };
+      });
+
+      setDetalleTransaccionesLastDoc(snap.docs[snap.docs.length - 1] || null);
+      setDetalleTransaccionesHasMore(snap.docs.length === 50);
+
+      if (isNew) {
+        setDetalleTransaccionesHistorial(list);
+      } else {
+        setDetalleTransaccionesHistorial(prev => [...prev, ...list]);
+      }
+    } catch (err) {
+      console.error("Error al cargar transacciones históricas:", err);
+    } finally {
+      setDetalleTransaccionesLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (rfFiltro === 'Hoy' || rfFiltro === 'ultimo corte') {
+      setResumenesDiariosList([]);
+      return;
+    }
+
+    const ahora = new Date();
+    let startDate = new Date();
+    if (rfFiltro === '7d') startDate.setDate(ahora.getDate() - 7);
+    else if (rfFiltro === '15d') startDate.setDate(ahora.getDate() - 15);
+    else if (rfFiltro === '1m') startDate.setMonth(ahora.getMonth() - 1);
+    else if (rfFiltro === '6m') startDate.setMonth(ahora.getMonth() - 6);
+    else if (rfFiltro === '1a') startDate.setFullYear(ahora.getFullYear() - 1);
+    else startDate = new Date('2020-01-01');
+
+    const startStr = startDate.toISOString().split('T')[0];
+
+    const q = query(
+      collection(db, 'resumenes_diarios'),
+      where('fecha', '>=', startStr),
+      orderBy('fecha', 'asc')
+    );
+
+    const unsub = onSnapshot(q, (snap) => {
+      const list = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setResumenesDiariosList(list);
+    }, (err) => {
+      console.error("Error al escuchar resumenes_diarios:", err);
+    });
+
+    return () => unsub();
+  }, [rfFiltro]);
+
+  const retrofillRun = useRef(false);
+  useEffect(() => {
+    if (retrofillRun.current) return;
+    if (gastosList.length > 0 && nominaPagosList.length > 0) {
+      retrofillRun.current = true;
+      verificarYRetrorellenarHistorial();
+    }
+  }, [gastosList, nominaPagosList]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (!retrofillRun.current) {
+        retrofillRun.current = true;
+        verificarYRetrorellenarHistorial();
+      }
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    if (rfModalDetalleMetodo && rfFiltro !== 'Hoy' && rfFiltro !== 'ultimo corte') {
+      cargarTransaccionesHistoricas(true);
+    } else {
+      setDetalleTransaccionesHistorial([]);
+      setDetalleTransaccionesLastDoc(null);
+      setDetalleTransaccionesHasMore(false);
+    }
+  }, [rfModalDetalleMetodo, rfFiltro]);
 
   // --- Helpers de IndexedDB para Caché Asíncrona y Cola Offline (Sugerencias 1, 2 y 3) ---
   const openReportDB = () => {
@@ -1811,6 +2116,22 @@ export default function CajaPanel({ showToast }) {
       await addDoc(collection(db, 'bitacora'), eventData);
       // Invalida cache de reportes cuando se registra un nuevo evento
       clearPersistedCache();
+
+      // Incrementar atómicamente en resumenes_diarios
+      let category = null;
+      if (accion === 'Cierre Directo' || accion === 'Mesa a Cuenta') {
+        category = 'rentasMesas';
+      } else if (accion === 'Venta Barra' || accion === 'Cobro Barra') {
+        category = 'ventasBar';
+      } else if (accion === 'Torneos - Registro') {
+        category = 'inscripcionesTorneo';
+      } else if (accion === 'Cobro Manual') {
+        category = (detalle || '').toLowerCase().includes('bar') ? 'ventasBar' : 'rentasMesas';
+      }
+      if (category) {
+        const hoyStr = new Date().toISOString().split('T')[0];
+        registrarEnResumenDiario(montoVal, category, finalMetodoPago, hoyStr);
+      }
     } catch (e) {
       console.error("Error al registrar evento remotamente, guardando en cola local:", e);
       await queueOfflineEvent(eventData);
@@ -2399,6 +2720,8 @@ ${diferenciaVal < 0 ? '1. Implementar auditoría ciega por turnos.\n2. Conciliar
       setMostrarResumenCorteModal(true);
 
       showToast(`Corte registrado exitosamente. Diferencia: $${diferencia.toLocaleString()}`, diferencia >= 0 ? 'success' : 'danger');
+      // Forzar actualización de resúmenes diarios al realizar corte
+      verificarYRetrorellenarHistorial();
     } catch (err) {
       console.error("Error al procesar el corte de caja:", err);
       showToast("Error al guardar el corte de caja en la base de datos.", "danger");
@@ -2800,68 +3123,22 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
     };
   }, [bitacora, cobros, totalGastosPeriodo, totalNominaPeriodo, limiteFecha, totalHoy, diasFiltro, ahora]);
 
-  const resumenFinanciero = useMemo(() => {
-    const ahoraMs = Date.now();
-    let limiteMs = 0;
-    
-    // Determine the start date of the period
-    if (rfFiltro === 'Hoy') {
-      const hoyStart = new Date();
-      hoyStart.setHours(0, 0, 0, 0);
-      limiteMs = hoyStart.getTime();
-    } else if (rfFiltro === '7d') {
-      limiteMs = ahoraMs - 7 * 24 * 60 * 60 * 1000;
-    } else if (rfFiltro === '15d') {
-      limiteMs = ahoraMs - 15 * 24 * 60 * 60 * 1000;
-    } else if (rfFiltro === '1m') {
-      limiteMs = ahoraMs - 30 * 24 * 60 * 60 * 1000;
-    } else if (rfFiltro === '6m') {
-      limiteMs = ahoraMs - 180 * 24 * 60 * 60 * 1000;
-    } else if (rfFiltro === '1a') {
-      limiteMs = ahoraMs - 365 * 24 * 60 * 60 * 1000;
-    } else if (rfFiltro === 'ultimo corte') {
-      limiteMs = ultimoCorteFecha ? new Date(ultimoCorteFecha).getTime() : (ahoraMs - 24 * 60 * 60 * 1000);
-    } else {
-      // 'vida' / all time
-      limiteMs = 0;
-    }
+  const datosHoy = useMemo(() => {
+    const hoyStart = new Date();
+    hoyStart.setHours(0, 0, 0, 0);
+    const hoyStartMs = hoyStart.getTime();
 
-    let diasFiltro = 7;
-    if (rfFiltro === 'Hoy') diasFiltro = 1;
-    else if (rfFiltro === '7d') diasFiltro = 7;
-    else if (rfFiltro === '15d') diasFiltro = 15;
-    else if (rfFiltro === '1m') diasFiltro = 30;
-    else if (rfFiltro === '6m') diasFiltro = 180;
-    else if (rfFiltro === '1a') diasFiltro = 365;
-    else if (rfFiltro === 'ultimo corte') {
-      const msDiff = ahoraMs - limiteMs;
-      diasFiltro = Math.max(0.1, msDiff / (24 * 60 * 60 * 1000));
-    } else { // vida
-      diasFiltro = 365; // default fallback days
-    }
-
-    // Filter bitacora events in period
-    const eventosPeriodo = bitacora.filter(e => {
+    const eventosHoy = bitacora.filter(e => {
       if (!e.fecha) return false;
-      const t = new Date(e.fecha).getTime();
-      return t >= limiteMs;
+      return new Date(e.fecha).getTime() >= hoyStartMs;
     });
 
-    // Rentas de mesas de billar: suma de cierres en el periodo
-    const listMesas = eventosPeriodo.filter(e => e.accion === 'Cierre Directo' || e.accion === 'Mesa a Cuenta');
-    const sumMesas = listMesas.reduce((s, e) => s + Math.abs(Number(e.monto) || 0), 0);
-    
-    // We check if it is active or fallback
-    const rentasMesasUsadasFallback = sumMesas === 0;
-    const rentasMesas = sumMesas > 0 ? sumMesas : (totalHoy * 0.45 * (diasFiltro / 1));
+    const listMesas = eventosHoy.filter(e => e.accion === 'Cierre Directo' || e.accion === 'Mesa a Cuenta');
+    const rentasMesas = listMesas.reduce((s, e) => s + Math.abs(Number(e.monto) || 0), 0);
 
-    // Ventas de barra
-    const listBar = cobros.filter(c => c.tipo === 'bar' && c.monto > 0 && (c.id > 1000000 ? c.id : ahoraMs) >= limiteMs);
-    const sumBar = listBar.reduce((s, c) => s + Number(c.monto), 0);
-    const ventasBarUsadasFallback = sumBar === 0;
-    const ventasBar = sumBar > 0 ? sumBar : (totalHoy * 0.35 * (diasFiltro / 1));
+    const listBar = cobros.filter(c => c.tipo === 'bar' && c.monto > 0 && (c.id > 1000000 ? c.id : Date.now()) >= hoyStartMs);
+    const ventasBar = listBar.reduce((s, c) => s + Number(c.monto), 0);
 
-    // Torneos
     let inscripcionesTorneo = 0;
     let torneosPeriodo = [];
     if (typeof window !== 'undefined') {
@@ -2869,7 +3146,7 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
         const rawTorneos = localStorage.getItem('yoy_billar_torneos');
         if (rawTorneos) {
           const torneos = deobfuscate(rawTorneos) || [];
-          torneosPeriodo = torneos.filter(t => new Date(t.fechaInicio).getTime() >= limiteMs);
+          torneosPeriodo = torneos.filter(t => new Date(t.fechaInicio).getTime() >= hoyStartMs);
           inscripcionesTorneo = torneosPeriodo.reduce((s, t) => {
             const cost = parseFloat(t.inscripcion?.replace('$', '') || 0);
             return s + (cost * (t.jugadores || 0));
@@ -2878,115 +3155,373 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
       } catch (err) { console.warn(err); }
     }
 
+    const listGastos = gastosList.filter(g => {
+      const fechaG = g.fecha ? new Date(g.fecha).getTime() : 0;
+      return fechaG >= hoyStartMs;
+    });
+    const gastosG = listGastos.reduce((sum, g) => sum + (Number(g.monto) || 0), 0);
+
+    const listNomina = nominaPagosList.filter(p => {
+      const fechaP = p.fecha ? new Date(p.fecha).getTime() : 0;
+      return fechaP >= hoyStartMs;
+    });
+    const nominaS = listNomina.reduce((sum, p) => sum + (Number(p.total || p.totalNeto) || 0), 0);
+
+    let efectivoIngresos = 0;
+    let tarjetaIngresos = 0;
+    let transferIngresos = 0;
+
+    listMesas.forEach(e => {
+      const detLower = (e.detalle || '').toLowerCase();
+      const montoVal = Math.abs(Number(e.monto) || 0);
+      if (detLower.includes('tarjeta')) tarjetaIngresos += montoVal;
+      else if (detLower.includes('transferencia') || detLower.includes('spei') || detLower.includes('qr')) transferIngresos += montoVal;
+      else efectivoIngresos += montoVal;
+    });
+
+    listBar.forEach(c => {
+      const montoVal = Number(c.monto) || 0;
+      const metodo = (c.metodo || 'efectivo').toLowerCase();
+      if (metodo === 'tarjeta') tarjetaIngresos += montoVal;
+      else if (metodo === 'spei' || metodo === 'transferencia' || metodo === 'transfer' || metodo === 'qr') transferIngresos += montoVal;
+      else efectivoIngresos += montoVal;
+    });
+
+    torneosPeriodo.forEach(t => {
+      const totalT = (parseFloat(t.inscripcion?.replace('$', '') || 0) * (t.jugadores || 0)) || 0;
+      efectivoIngresos += totalT;
+    });
+
+    return {
+      rentasMesas,
+      ventasBar,
+      inscripcionesTorneo,
+      gastosG,
+      nominaS,
+      efectivoIngresos,
+      tarjetaIngresos,
+      transferIngresos,
+      listMesas,
+      listBar,
+      torneosPeriodo,
+      listGastos,
+      listNomina,
+      hoyStartMs
+    };
+  }, [bitacora, cobros, gastosList, nominaPagosList]);
+
+  const resumenFinanciero = useMemo(() => {
+    const ahoraMs = Date.now();
+    const hoyStr = new Date().toISOString().split('T')[0];
+
+    // Case 1: Today
+    if (rfFiltro === 'Hoy') {
+      const totalIngresos = datosHoy.rentasMesas + datosHoy.ventasBar + datosHoy.inscripcionesTorneo;
+      const cogsBar = datosHoy.ventasBar * 0.35;
+      const cogsTorneos = datosHoy.inscripcionesTorneo * 0.40;
+      const totalCOGS = cogsBar + cogsTorneos;
+      const utilidadBruta = totalIngresos - totalCOGS;
+      const totalOPEX = datosHoy.gastosG + datosHoy.nominaS;
+      const utilidadNeta = utilidadBruta - totalOPEX;
+      const margenUtilidad = totalIngresos > 0 ? (utilidadNeta / totalIngresos) * 100 : 0;
+      
+      const totalEfectivoPeriodo = Math.max(0, datosHoy.efectivoIngresos - totalOPEX);
+      const totalDigitalPeriodo = datosHoy.tarjetaIngresos + datosHoy.transferIngresos;
+
+      const transaccionesDetalle = [];
+      
+      datosHoy.listMesas.forEach(e => {
+        const detLower = (e.detalle || '').toLowerCase();
+        const montoVal = Math.abs(Number(e.monto) || 0);
+        let metodo = 'efectivo';
+        if (detLower.includes('tarjeta')) metodo = 'tarjeta';
+        else if (detLower.includes('transferencia') || detLower.includes('spei') || detLower.includes('qr')) metodo = 'transferencia';
+        transaccionesDetalle.push({
+          id: e.id || `mesa-${e.fecha}-${montoVal}-${Math.random()}`,
+          tipo: 'mesa',
+          fecha: e.fecha,
+          hora: new Date(e.fecha).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }),
+          descripcion: e.detalle || e.accion || 'Cierre de Mesa',
+          operador: e.operador || 'Cajero',
+          monto: montoVal,
+          metodo
+        });
+      });
+
+      datosHoy.listBar.forEach(c => {
+        const montoVal = Number(c.monto) || 0;
+        let metodo = 'efectivo';
+        const m = (c.metodo || 'efectivo').toLowerCase();
+        if (m === 'tarjeta') metodo = 'tarjeta';
+        else if (m === 'spei' || m === 'transferencia' || m === 'transfer' || m === 'qr') metodo = 'transferencia';
+        transaccionesDetalle.push({
+          id: c.id || `bar-${c.id || Date.now()}-${montoVal}-${Math.random()}`,
+          tipo: 'bar',
+          fecha: c.id > 1000000000000 ? new Date(c.id).toISOString() : new Date().toISOString(),
+          hora: c.id > 1000000000000 ? new Date(c.id).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }) : '',
+          descripcion: c.descripcion || `Consumo de barra (Ticket ${c.id || ''})`,
+          operador: c.usuario || 'Barman',
+          monto: montoVal,
+          metodo
+        });
+      });
+
+      datosHoy.torneosPeriodo.forEach(t => {
+        const totalT = (parseFloat(t.inscripcion?.replace('$', '') || 0) * (t.jugadores || 0)) || 0;
+        if (totalT > 0) {
+          transaccionesDetalle.push({
+            id: t.id || `torneo-${t.fechaInicio}-${totalT}`,
+            tipo: 'torneo',
+            fecha: t.fechaInicio,
+            hora: new Date(t.fechaInicio).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }),
+            descripcion: `Inscripción Torneo: ${t.nombre || 'Torneo'}`,
+            operador: t.organizador || 'Organizador',
+            monto: totalT,
+            metodo: 'efectivo'
+          });
+        }
+      });
+
+      return {
+        rentasMesas: datosHoy.rentasMesas,
+        ventasBar: datosHoy.ventasBar,
+        inscripcionesTorneo: datosHoy.inscripcionesTorneo,
+        totalIngresos,
+        cogsBar,
+        cogsTorneos,
+        totalCOGS,
+        utilidadBruta,
+        gastosG: datosHoy.gastosG,
+        nominaS: datosHoy.nominaS,
+        totalOPEX,
+        utilidadNeta,
+        margenUtilidad,
+        efectivoPeriodo: totalEfectivoPeriodo,
+        digitalPeriodo: totalDigitalPeriodo,
+        efectivoIngresos: datosHoy.efectivoIngresos,
+        tarjetaIngresos: datosHoy.tarjetaIngresos,
+        transferIngresos: datosHoy.transferIngresos,
+        transaccionesDetalle,
+        listMesas: datosHoy.listMesas,
+        listBar: datosHoy.listBar,
+        torneosPeriodo: datosHoy.torneosPeriodo,
+        listGastos: datosHoy.listGastos,
+        listNomina: datosHoy.listNomina,
+        rentasMesasUsadasFallback: false,
+        ventasBarUsadasFallback: false,
+        gastosGUsadasFallback: false,
+        nominaSUsadasFallback: false,
+        limiteMs: datosHoy.hoyStartMs
+      };
+    }
+
+    // Case 2: Ultimo Corte
+    if (rfFiltro === 'ultimo corte') {
+      const limiteMs = ultimoCorteFecha ? new Date(ultimoCorteFecha).getTime() : (ahoraMs - 24 * 60 * 60 * 1000);
+      
+      const eventosPeriodo = bitacora.filter(e => {
+        if (!e.fecha) return false;
+        return new Date(e.fecha).getTime() >= limiteMs;
+      });
+
+      const listMesas = eventosPeriodo.filter(e => e.accion === 'Cierre Directo' || e.accion === 'Mesa a Cuenta');
+      const rentasMesas = listMesas.reduce((s, e) => s + Math.abs(Number(e.monto) || 0), 0);
+
+      const listBar = cobros.filter(c => c.tipo === 'bar' && c.monto > 0 && (c.id > 1000000 ? c.id : ahoraMs) >= limiteMs);
+      const ventasBar = listBar.reduce((s, c) => s + Number(c.monto), 0);
+
+      let inscripcionesTorneo = 0;
+      let torneosPeriodo = [];
+      if (typeof window !== 'undefined') {
+        try {
+          const rawTorneos = localStorage.getItem('yoy_billar_torneos');
+          if (rawTorneos) {
+            const torneos = deobfuscate(rawTorneos) || [];
+            torneosPeriodo = torneos.filter(t => new Date(t.fechaInicio).getTime() >= limiteMs);
+            inscripcionesTorneo = torneosPeriodo.reduce((s, t) => {
+              const cost = parseFloat(t.inscripcion?.replace('$', '') || 0);
+              return s + (cost * (t.jugadores || 0));
+            }, 0);
+          }
+        } catch (err) { console.warn(err); }
+      }
+
+      const totalIngresos = rentasMesas + ventasBar + inscripcionesTorneo;
+      const cogsBar = ventasBar * 0.35;
+      const cogsTorneos = inscripcionesTorneo * 0.40;
+      const totalCOGS = cogsBar + cogsTorneos;
+      const utilidadBruta = totalIngresos - totalCOGS;
+
+      const listGastos = gastosList.filter(g => {
+        const fechaG = g.fecha ? new Date(g.fecha).getTime() : 0;
+        return fechaG >= limiteMs;
+      });
+      const totalGastosPeriodo = listGastos.reduce((sum, g) => sum + (Number(g.monto) || 0), 0);
+      const gastosG = totalGastosPeriodo;
+
+      const listNomina = nominaPagosList.filter(p => {
+        const fechaP = p.fecha ? new Date(p.fecha).getTime() : 0;
+        return fechaP >= limiteMs;
+      });
+      const totalNominaPeriodo = listNomina.reduce((sum, p) => sum + (Number(p.total || p.totalNeto) || 0), 0);
+      const nominaS = totalNominaPeriodo;
+
+      const totalOPEX = gastosG + nominaS;
+      const utilidadNeta = utilidadBruta - totalOPEX;
+      const margenUtilidad = totalIngresos > 0 ? (utilidadNeta / totalIngresos) * 100 : 0;
+
+      let efectivoIngresos = 0;
+      let tarjetaIngresos = 0;
+      let transferIngresos = 0;
+      const transaccionesDetalle = [];
+
+      listMesas.forEach(e => {
+        const detLower = (e.detalle || '').toLowerCase();
+        const montoVal = Math.abs(Number(e.monto) || 0);
+        let metodo = 'efectivo';
+        if (detLower.includes('tarjeta')) {
+          metodo = 'tarjeta';
+          tarjetaIngresos += montoVal;
+        } else if (detLower.includes('transferencia') || detLower.includes('spei') || detLower.includes('qr')) {
+          metodo = 'transferencia';
+          transferIngresos += montoVal;
+        } else {
+          efectivoIngresos += montoVal;
+        }
+        transaccionesDetalle.push({
+          id: e.id || `mesa-${e.fecha}-${montoVal}-${Math.random()}`,
+          tipo: 'mesa',
+          fecha: e.fecha,
+          hora: new Date(e.fecha).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }),
+          descripcion: e.detalle || e.accion || 'Cierre de Mesa',
+          operador: e.operador || 'Cajero',
+          monto: montoVal,
+          metodo
+        });
+      });
+
+      listBar.forEach(c => {
+        const montoVal = Number(c.monto) || 0;
+        let metodo = 'efectivo';
+        const m = (c.metodo || 'efectivo').toLowerCase();
+        if (m === 'tarjeta') {
+          metodo = 'tarjeta';
+          tarjetaIngresos += montoVal;
+        } else if (m === 'spei' || m === 'transferencia' || m === 'transfer' || m === 'qr') {
+          metodo = 'transferencia';
+          transferIngresos += montoVal;
+        } else {
+          efectivoIngresos += montoVal;
+        }
+        transaccionesDetalle.push({
+          id: c.id || `bar-${c.id || Date.now()}-${montoVal}-${Math.random()}`,
+          tipo: 'bar',
+          fecha: c.id > 1000000000000 ? new Date(c.id).toISOString() : new Date().toISOString(),
+          hora: c.id > 1000000000000 ? new Date(c.id).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }) : '',
+          descripcion: c.descripcion || `Consumo de barra (Ticket ${c.id || ''})`,
+          operador: c.usuario || 'Barman',
+          monto: montoVal,
+          metodo
+        });
+      });
+
+      torneosPeriodo.forEach(t => {
+        const totalT = (parseFloat(t.inscripcion?.replace('$', '') || 0) * (t.jugadores || 0)) || 0;
+        if (totalT > 0) {
+          efectivoIngresos += totalT;
+          transaccionesDetalle.push({
+            id: t.id || `torneo-${t.fechaInicio}-${totalT}`,
+            tipo: 'torneo',
+            fecha: t.fechaInicio,
+            hora: new Date(t.fechaInicio).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }),
+            descripcion: `Inscripción Torneo: ${t.nombre || 'Torneo'}`,
+            operador: t.organizador || 'Organizador',
+            monto: totalT,
+            metodo: 'efectivo'
+          });
+        }
+      });
+
+      const totalEfectivoPeriodo = Math.max(0, efectivoIngresos - totalOPEX);
+      const totalDigitalPeriodo = tarjetaIngresos + transferIngresos;
+
+      return {
+        rentasMesas,
+        ventasBar,
+        inscripcionesTorneo,
+        totalIngresos,
+        cogsBar,
+        cogsTorneos,
+        totalCOGS,
+        utilidadBruta,
+        gastosG,
+        nominaS,
+        totalOPEX,
+        utilidadNeta,
+        margenUtilidad,
+        efectivoPeriodo: totalEfectivoPeriodo,
+        digitalPeriodo: totalDigitalPeriodo,
+        efectivoIngresos,
+        tarjetaIngresos,
+        transferIngresos,
+        transaccionesDetalle,
+        listMesas,
+        listBar,
+        torneosPeriodo,
+        listGastos,
+        listNomina,
+        rentasMesasUsadasFallback: false,
+        ventasBarUsadasFallback: false,
+        gastosGUsadasFallback: false,
+        nominaSUsadasFallback: false,
+        limiteMs
+      };
+    }
+
+    // Case 3: Historical filter (7d, 15d, 1m, 6m, 1a, vida) - aggregated from resumenesDiariosList + datosHoy
+    let rentasMesas = datosHoy.rentasMesas;
+    let ventasBar = datosHoy.ventasBar;
+    let inscripcionesTorneo = datosHoy.inscripcionesTorneo;
+    let gastosG = datosHoy.gastosG;
+    let nominaS = datosHoy.nominaS;
+    let efectivoIngresos = datosHoy.efectivoIngresos;
+    let tarjetaIngresos = datosHoy.tarjetaIngresos;
+    let transferIngresos = datosHoy.transferIngresos;
+
+    resumenesDiariosList.forEach(d => {
+      if (d.id === hoyStr) return; // Skip today to prevent double counting
+      rentasMesas += Number(d.rentasMesas || 0);
+      ventasBar += Number(d.ventasBar || 0);
+      inscripcionesTorneo += Number(d.inscripcionesTorneo || 0);
+      gastosG += Number(d.gastosG || 0);
+      nominaS += Number(d.nominaS || 0);
+      efectivoIngresos += Number(d.efectivoIngresos || 0);
+      tarjetaIngresos += Number(d.tarjetaIngresos || 0);
+      transferIngresos += Number(d.transferIngresos || 0);
+    });
+
     const totalIngresos = rentasMesas + ventasBar + inscripcionesTorneo;
     const cogsBar = ventasBar * 0.35;
     const cogsTorneos = inscripcionesTorneo * 0.40;
     const totalCOGS = cogsBar + cogsTorneos;
     const utilidadBruta = totalIngresos - totalCOGS;
-
-    // Gastos G
-    const listGastos = gastosList.filter(g => {
-      const fechaG = g.fecha ? new Date(g.fecha).getTime() : 0;
-      return fechaG >= limiteMs;
-    });
-    const totalGastosPeriodo = listGastos.reduce((sum, g) => sum + (Number(g.monto) || 0), 0);
-    const gastosGUsadasFallback = totalGastosPeriodo === 0;
-    const gastosG = totalGastosPeriodo > 0 ? totalGastosPeriodo : (totalIngresos * 0.12);
-
-    // Nomina
-    const listNomina = nominaPagosList.filter(p => {
-      const fechaP = p.fecha ? new Date(p.fecha).getTime() : 0;
-      return fechaP >= limiteMs;
-    });
-    const totalNominaPeriodo = listNomina.reduce((sum, p) => sum + (Number(p.total || p.totalNeto) || 0), 0);
-    const nominaSUsadasFallback = totalNominaPeriodo === 0;
-    const nominaS = totalNominaPeriodo > 0 ? totalNominaPeriodo : (totalIngresos * 0.20);
-
     const totalOPEX = gastosG + nominaS;
     const utilidadNeta = utilidadBruta - totalOPEX;
     const margenUtilidad = totalIngresos > 0 ? (utilidadNeta / totalIngresos) * 100 : 0;
-
-    // Cash, Card and Transfer splits in this period
-    let efectivoIngresos = 0;
-    let tarjetaIngresos = 0;
-    let transferIngresos = 0;
-    const transaccionesDetalle = [];
-
-    // Mesa / Cierres
-    listMesas.forEach(e => {
-      const detLower = (e.detalle || '').toLowerCase();
-      const montoVal = Math.abs(Number(e.monto) || 0);
-      let metodo = 'efectivo';
-      if (detLower.includes('tarjeta')) {
-        metodo = 'tarjeta';
-        tarjetaIngresos += montoVal;
-      } else if (detLower.includes('transferencia') || detLower.includes('spei') || detLower.includes('qr')) {
-        metodo = 'transferencia';
-        transferIngresos += montoVal;
-      } else {
-        efectivoIngresos += montoVal;
-      }
-
-      transaccionesDetalle.push({
-        id: e.id || `mesa-${e.fecha}-${montoVal}-${Math.random()}`,
-        tipo: 'mesa',
-        fecha: e.fecha,
-        hora: new Date(e.fecha).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }),
-        descripcion: e.detalle || e.accion || 'Cierre de Mesa',
-        operador: e.operador || 'Cajero',
-        monto: montoVal,
-        metodo
-      });
-    });
-
-    // Ventas Barra
-    listBar.forEach(c => {
-      const montoVal = Number(c.monto) || 0;
-      let metodo = 'efectivo';
-      if (c.metodo === 'tarjeta') {
-        metodo = 'tarjeta';
-        tarjetaIngresos += montoVal;
-      } else if (c.metodo === 'spei' || c.metodo === 'transferencia' || c.metodo === 'qr') {
-        metodo = 'transferencia';
-        transferIngresos += montoVal;
-      } else {
-        efectivoIngresos += montoVal;
-      }
-
-      transaccionesDetalle.push({
-        id: c.id || `bar-${c.id || Date.now()}-${montoVal}-${Math.random()}`,
-        tipo: 'bar',
-        fecha: c.id > 1000000000000 ? new Date(c.id).toISOString() : new Date().toISOString(),
-        hora: c.id > 1000000000000 ? new Date(c.id).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }) : '',
-        descripcion: `Consumo de barra (Ticket ${c.id || ''})`,
-        operador: c.usuario || 'Barman',
-        monto: montoVal,
-        metodo
-      });
-    });
-
-    // Torneos
-    torneosPeriodo.forEach(t => {
-      const cost = parseFloat(t.inscripcion?.replace('$', '') || 0);
-      const totalT = cost * (t.jugadores || 0);
-      if (totalT > 0) {
-        efectivoIngresos += totalT;
-        transaccionesDetalle.push({
-          id: t.id || `torneo-${t.fechaInicio}-${totalT}`,
-          tipo: 'torneo',
-          fecha: t.fechaInicio,
-          hora: new Date(t.fechaInicio).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }),
-          descripcion: `Inscripción Torneo: ${t.nombre || 'Torneo'}`,
-          operador: t.organizador || 'Organizador',
-          monto: totalT,
-          metodo: 'efectivo'
-        });
-      }
-    });
-
-    // Gastos G y nómina restados del flujo general
     const totalEfectivoPeriodo = Math.max(0, efectivoIngresos - totalOPEX);
     const totalDigitalPeriodo = tarjetaIngresos + transferIngresos;
+
+    const nowMs = Date.now();
+    let limitDays = 7;
+    if (rfFiltro === '15d') limitDays = 15;
+    else if (rfFiltro === '1m') limitDays = 30;
+    else if (rfFiltro === '6m') limitDays = 180;
+    else if (rfFiltro === '1a') limitDays = 365;
+    else if (rfFiltro === 'vida') limitDays = 9999;
+    const limitMs = nowMs - limitDays * 24 * 60 * 60 * 1000;
+
+    const listGastos = gastosList.filter(g => g.fecha && new Date(g.fecha).getTime() >= limitMs);
+    const listNomina = nominaPagosList.filter(p => p.fecha && new Date(p.fecha).getTime() >= limitMs);
 
     return {
       rentasMesas,
@@ -3007,19 +3542,27 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
       efectivoIngresos,
       tarjetaIngresos,
       transferIngresos,
-      transaccionesDetalle,
-      listMesas,
-      listBar,
-      torneosPeriodo,
+      transaccionesDetalle: [], // Loaded on-demand
+      listMesas: [], // Loaded on-demand
+      listBar: [], // Loaded on-demand
+      torneosPeriodo: [], // Loaded on-demand
       listGastos,
       listNomina,
-      rentasMesasUsadasFallback,
-      ventasBarUsadasFallback,
-      gastosGUsadasFallback,
-      nominaSUsadasFallback,
-      limiteMs
+      rentasMesasUsadasFallback: false,
+      ventasBarUsadasFallback: false,
+      gastosGUsadasFallback: false,
+      nominaSUsadasFallback: false,
+      limiteMs: limitMs
     };
-  }, [rfFiltro, bitacora, cobros, gastosList, nominaPagosList, ultimoCorteFecha, totalHoy]);
+  }, [rfFiltro, resumenesDiariosList, datosHoy, gastosList, nominaPagosList, ultimoCorteFecha]);
+
+  const totalMontoMetodo = useMemo(() => {
+    if (!rfModalDetalleMetodo) return 0;
+    if (rfModalDetalleMetodo === 'efectivo') return resumenFinanciero.efectivoIngresos;
+    if (rfModalDetalleMetodo === 'tarjeta') return resumenFinanciero.tarjetaIngresos;
+    if (rfModalDetalleMetodo === 'transferencia') return resumenFinanciero.transferIngresos;
+    return 0;
+  }, [rfModalDetalleMetodo, resumenFinanciero]);
 
   // Satisfacción
   const totalEncuestas = encuestasList.length;
@@ -8025,22 +8568,24 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
                             Listado de Cobros en {rfModalDetalleMetodo.toUpperCase()} ({rfFiltro === 'ultimo corte' ? 'último corte' : rfFiltro})
                           </span>
                           <span style={{ fontSize: 12, fontWeight: 'bold', color: 'var(--success)' }}>
-                            Total: ${resumenFinanciero.transaccionesDetalle
-                              .filter(t => t.metodo === rfModalDetalleMetodo)
-                              .reduce((s, t) => s + t.monto, 0)
-                              .toLocaleString()} MXN
+                            Total: ${totalMontoMetodo.toLocaleString()} MXN
                           </span>
                         </div>
                         
-                        {resumenFinanciero.transaccionesDetalle.filter(t => t.metodo === rfModalDetalleMetodo).length === 0 ? (
+                        {detalleTransaccionesLoading && (rfFiltro !== 'Hoy' && rfFiltro !== 'ultimo corte') && (
+                          <div style={{ fontSize: 11, color: 'var(--text-muted)', background: 'var(--bg-elevated)', padding: '20px', borderRadius: 6, border: '1px solid var(--border)', textAlign: 'center' }}>
+                            Cargando cobros desde el historial en la nube...
+                          </div>
+                        )}
+                        
+                        {(!detalleTransaccionesLoading || (rfFiltro === 'Hoy' || rfFiltro === 'ultimo corte')) && (rfFiltro === 'Hoy' || rfFiltro === 'ultimo corte' ? resumenFinanciero.transaccionesDetalle.filter(t => t.metodo === rfModalDetalleMetodo) : detalleTransaccionesHistorial).length === 0 ? (
                           <div style={{ fontSize: 11, color: 'var(--text-muted)', background: 'var(--bg-elevated)', padding: '20px', borderRadius: 6, border: '1px solid var(--border)', textAlign: 'center' }}>
                             No hay transacciones registradas con este medio de pago en este periodo.
                           </div>
                         ) : (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 320, overflowY: 'auto', background: 'var(--bg-elevated)', padding: 10, borderRadius: 6, border: '1px solid var(--border)' }}>
-                            {resumenFinanciero.transaccionesDetalle
-                              .filter(t => t.metodo === rfModalDetalleMetodo)
-                              .map((t, idx) => (
+                          (!detalleTransaccionesLoading || (rfFiltro === 'Hoy' || rfFiltro === 'ultimo corte')) && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 320, overflowY: 'auto', background: 'var(--bg-elevated)', padding: 10, borderRadius: 6, border: '1px solid var(--border)' }}>
+                              {(rfFiltro === 'Hoy' || rfFiltro === 'ultimo corte' ? resumenFinanciero.transaccionesDetalle.filter(t => t.metodo === rfModalDetalleMetodo) : detalleTransaccionesHistorial).map((t, idx) => (
                                 <div key={t.id || idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: 6 }}>
                                   <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -8055,7 +8600,18 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
                                   <span style={{ color: 'var(--success)', fontWeight: 'bold', fontSize: 12 }}>+${t.monto.toLocaleString()}</span>
                                 </div>
                               ))}
-                          </div>
+                              {(rfFiltro !== 'Hoy' && rfFiltro !== 'ultimo corte') && detalleTransaccionesHasMore && (
+                                <button
+                                  onClick={() => cargarTransaccionesHistoricas(false)}
+                                  disabled={detalleTransaccionesLoading}
+                                  className="btn btn-secondary btn-sm"
+                                  style={{ marginTop: 8, fontSize: 10, padding: '4px 8px', alignSelf: 'center', background: 'var(--bg-elevated)', border: '1px solid var(--border-bronze)', color: 'var(--bronze-light)' }}
+                                >
+                                  {detalleTransaccionesLoading ? 'Cargando...' : 'Cargar más transacciones'}
+                                </button>
+                              )}
+                            </div>
+                          )
                         )}
                       </div>
                     )

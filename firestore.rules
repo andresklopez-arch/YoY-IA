@@ -144,5 +144,8 @@ service cloud.firestore {
     match /tarifas_cambios_log/{document} {
       allow read, write: if true;
     }
+    match /resumenes_diarios/{document} {
+      allow read, write: if true;
+    }
   }
 }
