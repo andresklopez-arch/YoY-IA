@@ -1797,7 +1797,7 @@ let globalRentaExtras = [
 // ── PANEL PRINCIPAL DE MESAS ──────────────────────────────
 export default function MesasPanel({ showToast }) {
   const { user } = useAuth();
-  const [mesas, setMesas] = useState(INIT_MESAS);
+  const [mesas, setMesas] = useState([]);
   const [rentaExtras, setRentaExtras] = useState(globalRentaExtras);
 
   useEffect(() => {
@@ -3402,10 +3402,8 @@ export default function MesasPanel({ showToast }) {
         hasLoadedFromFirestoreRef.current = true;
         const savedMesas = localStorage.getItem('yoy_billar_mesas');
         const initialMesas = savedMesas ? (deobfuscate(savedMesas) || INIT_MESAS) : INIT_MESAS;
-        setDoc(docRef, {
-          mesas: initialMesas,
-          updatedAt: serverTimestamp()
-        }).catch(err => console.error("Error al inicializar mesas en Firestore:", err));
+        console.warn("config/mesas_estado no existe en Firestore. Usando mesas locales/iniciales.");
+        setMesas(initialMesas);
       }
     }, err => {
       console.error("Error al escuchar mesas en tiempo real:", err);
