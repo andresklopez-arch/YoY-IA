@@ -14,6 +14,14 @@ const normalizeText = (str) => {
   return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
 };
 
+const startsWithBoundary = (fullStr, subStr) => {
+  if (!fullStr || !subStr) return false;
+  if (!fullStr.startsWith(subStr)) return false;
+  if (fullStr.length === subStr.length) return true;
+  const nextChar = fullStr.charAt(subStr.length);
+  return !/[a-zA-Z0-9]/.test(nextChar);
+};
+
 // ═══════════════════════════════════════════════════════════
 // VISTA MESERO — Dashboard de pedidos y asistencias en tiempo real
 // ═══════════════════════════════════════════════════════════
@@ -113,7 +121,7 @@ function MeseroContent() {
     return mesas.find(m => 
       (c.mesaId && String(m.id) === String(c.mesaId)) ||
       (c.cliente && (
-        (m.cliente && !['publico'].includes(normalizeText(m.cliente)) && normalizeText(c.cliente).startsWith(normalizeText(m.cliente))) ||
+        (m.cliente && !['publico'].includes(normalizeText(m.cliente)) && startsWithBoundary(normalizeText(c.cliente), normalizeText(m.cliente))) ||
         normalizeText(c.cliente) === `mesa ${m.id}` ||
         normalizeText(c.cliente) === `mesa ${m.id} - pendiente` ||
         normalizeText(c.cliente).startsWith(`mesa ${m.id} `)
@@ -140,7 +148,7 @@ function MeseroContent() {
         const tieneCuenta = cuentasFiltradas.some(c => 
           (c.mesaId && String(c.mesaId) === String(m.id)) ||
           (c.cliente && (
-            (m.cliente && !['publico'].includes(normalizeText(m.cliente)) && normalizeText(c.cliente).startsWith(normalizeText(m.cliente))) ||
+            (m.cliente && !['publico'].includes(normalizeText(m.cliente)) && startsWithBoundary(normalizeText(c.cliente), normalizeText(m.cliente))) ||
             normalizeText(c.cliente) === `mesa ${m.id}` ||
             normalizeText(c.cliente) === `mesa ${m.id} - pendiente` ||
             normalizeText(c.cliente).startsWith(`mesa ${m.id} `)
@@ -369,6 +377,7 @@ function MeseroContent() {
   const alertasAsistenciaParaMi = alertasAsistencia.filter(isAlertaParaMi);
 
   const prevAlertasCountRef = useRef(0);
+  const notifiedAssistIds = useRef(new Set());
   useEffect(() => {
     if (alertasAsistenciaParaMi.length > prevAlertasCountRef.current) {
       setShowAsistenciaModal(true);
@@ -562,31 +571,17 @@ function MeseroContent() {
       setAlertasAsistencia(filtered);
 
       // Si la app está en segundo plano y llega nueva alerta, disparar Web Notification
-      if (items.length > 0 && typeof window !== 'undefined' && document.hidden) {
-        const masReciente = items[0];
-        const isForMe = (() => {
-          const alertaMeseroId = masReciente.meseroId;
-          const alertaMeseroIds = masReciente.meseroIds || [];
-          
-          if (alertaMeseroId && alertaMeseroId === user?.uid) return true;
-          if (alertaMeseroIds.includes(user?.uid)) return true;
-          
-          if (!alertaMeseroId && alertaMeseroIds.length === 0) {
-            if (masReciente.mesaId) {
-              const mesaAsoc = mesasRef.current?.find(m => String(m.id) === String(masReciente.mesaId));
-              if (mesaAsoc) {
-                const mesaWaiters = mesaAsoc.meseroIds && Array.isArray(mesaAsoc.meseroIds) ? mesaAsoc.meseroIds : (mesaAsoc.meseroId ? [mesaAsoc.meseroId] : []);
-                if (mesaWaiters.length > 0) {
-                  return mesaWaiters.includes(user?.uid);
-                }
-              }
-            }
-            return true;
-          }
-          return false;
-        })();
-        
-        if (isForMe && Notification.permission === 'granted') {
+      const unattendedForMe = filtered.filter(isAlertaParaMi);
+      unattendedForMe.sort((a, b) => {
+        const tA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : (a.createdAt || 0);
+        const tB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : (b.createdAt || 0);
+        return tB - tA;
+      });
+
+      if (unattendedForMe.length > 0 && typeof window !== 'undefined' && document.hidden) {
+        const masReciente = unattendedForMe[0];
+        if (Notification.permission === 'granted' && !notifiedAssistIds.current.has(masReciente.id)) {
+          notifiedAssistIds.current.add(masReciente.id);
           new Notification(`🚨 Mesa ${masReciente.mesaId} - ${masReciente.etiqueta || 'Nuevo Pedido'}`, {
             body: `El cliente solicita: ${masReciente.etiqueta || 'Preparación de consumos'}`,
             icon: '/icon.png',
@@ -730,15 +725,12 @@ function MeseroContent() {
       const docRef = doc(db, 'mesa_pedidos', id);
       const snap = await getDoc(docRef);
       if (snap.exists()) {
-        const data = snap.data();
         const updateData = {
           atendidoMesero: true,
           entregadoAt: serverTimestamp(), // Registrar hora de entrega para auditoría de tiempos
           updatedAt: serverTimestamp(),
+          estado: 'entregado'
         };
-        if (data.atendidoAdmin === true) {
-          updateData.estado = 'entregado';
-        }
         await updateDoc(docRef, updateData);
       }
     } catch (e) {
@@ -758,10 +750,8 @@ function MeseroContent() {
         };
         // Solo archivar si no es un pedido (ya que el pedido debe seguir en cocina/entrega)
         if (data.tipo !== 'pedido') {
-          if (data.atendidoAdmin === true) {
-            updateData.estado = 'atendido';
-            updateData.atendidoAt = serverTimestamp();
-          }
+          updateData.estado = 'atendido';
+          updateData.atendidoAt = serverTimestamp();
         }
         await updateDoc(docRef, updateData);
       }

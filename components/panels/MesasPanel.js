@@ -2273,10 +2273,8 @@ export default function MesasPanel({ showToast }) {
         };
         // Solo archivar si no es un pedido (ya que el pedido debe seguir en cocina/entrega)
         if (data.tipo !== 'pedido') {
-          if (data.atendidoMesero === true) {
-            updateData.estado = 'atendido';
-            updateData.atendidoAt = serverTimestamp();
-          }
+          updateData.estado = 'atendido';
+          updateData.atendidoAt = serverTimestamp();
         }
         await updateDoc(docRef, updateData);
         showToast('Solicitud marcada como atendida ✓', 'success');
