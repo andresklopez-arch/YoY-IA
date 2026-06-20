@@ -467,17 +467,20 @@ export default function CajaPanel({ showToast }) {
       try {
         const saved = localStorage.getItem('yoy_caja_cobros');
         if (saved) {
-          setCobros(JSON.parse(saved));
+          const parsed = JSON.parse(saved);
+          const cleanData = parsed.filter(c => 
+            c.descripcion !== 'Comanda - 4 Coronas + Botana' && 
+            c.descripcion !== 'Mesa 2 - 1.5h' && 
+            c.descripcion !== 'Compra de bebidas' && 
+            c.descripcion !== 'Mesa 1 - 3h' &&
+            c.descripcion !== 'Comanda - 4 Coronas + Botana (Mock)' &&
+            !(c.descripcion && c.descripcion.includes('Consumo de barra (Ticket'))
+          );
+          setCobros(cleanData);
+          localStorage.setItem('yoy_caja_cobros', JSON.stringify(cleanData));
         } else {
-          const TRANSACCIONES_INI = [
-            { id: Date.now() - 3600000 * 2, tipo: 'mesa', descripcion: 'Mesa 2 - 1.5h', cliente: 'Carlos R.', monto: 120, metodo: 'efectivo', hora: '14:30', color: 'var(--success)' },
-            { id: Date.now() - 3600000 * 4, tipo: 'bar',  descripcion: 'Comanda - 4 Coronas + Botana', cliente: 'Mesa 7', monto: 280, metodo: 'efectivo', hora: '13:15', color: 'var(--success)' },
-            { id: Date.now() - 3600000 * 6, tipo: 'mesa', descripcion: 'Mesa 3 - 2h', cliente: 'Pedro M.', monto: 160, metodo: 'spei', hora: '12:00', color: 'var(--success)' },
-            { id: Date.now() - 3600000 * 8, tipo: 'gasto',descripcion: 'Compra de bebidas', cliente: 'Proveedor ABC', monto: -650, metodo: 'efectivo', hora: '11:00', color: 'var(--danger)' },
-            { id: Date.now() - 3600000 * 10, tipo: 'mesa', descripcion: 'Mesa 1 - 3h', cliente: 'Torneo Local', monto: 240, metodo: 'efectivo', hora: '09:30', color: 'var(--success)' },
-          ];
-          setCobros(TRANSACCIONES_INI);
-          localStorage.setItem('yoy_caja_cobros', JSON.stringify(TRANSACCIONES_INI));
+          setCobros([]);
+          localStorage.setItem('yoy_caja_cobros', JSON.stringify([]));
         }
       } catch (err) { console.error(err); }
     }
