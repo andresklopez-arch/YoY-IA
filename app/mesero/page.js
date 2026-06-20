@@ -388,6 +388,21 @@ function MeseroContent() {
   }, [alertasAsistenciaParaMi.length]);
 
   // Estados para el panel de Cuentas Activas integrado
+  const [permissionStatus, setPermissionStatus] = useState('default');
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      setPermissionStatus(Notification.permission);
+    }
+  }, []);
+
+  const solicitarPermisoNotificaciones = async () => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      const permission = await Notification.requestPermission();
+      setPermissionStatus(permission);
+    }
+  };
+
   const [expandedIds, setExpandedIds] = useState({});
   const [filtroMesaTexto, setFiltroMesaTexto] = useState('');
   const [verSoloMisMesas, setVerSoloMisMesas] = useState(false);
@@ -581,6 +596,13 @@ function MeseroContent() {
       if (unattendedForMe.length > 0 && typeof window !== 'undefined' && document.hidden) {
         const masReciente = unattendedForMe[0];
         if (Notification.permission === 'granted' && !notifiedAssistIds.current.has(masReciente.id)) {
+          // Mantener el Set por debajo de 100 elementos (FIFO) para evitar acumulación en memoria
+          if (notifiedAssistIds.current.size >= 100) {
+            const oldestId = notifiedAssistIds.current.values().next().value;
+            if (oldestId) {
+              notifiedAssistIds.current.delete(oldestId);
+            }
+          }
           notifiedAssistIds.current.add(masReciente.id);
           new Notification(`🚨 Mesa ${masReciente.mesaId} - ${masReciente.etiqueta || 'Nuevo Pedido'}`, {
             body: `El cliente solicita: ${masReciente.etiqueta || 'Preparación de consumos'}`,
@@ -1063,6 +1085,72 @@ function MeseroContent() {
               <i className="ri-volume-up-line" />
               Sonido ON
             </div>
+
+            {/* Notificaciones Push Status */}
+            {permissionStatus === 'granted' ? (
+              <div
+                title="Notificaciones push del sistema activadas con éxito"
+                style={{
+                  background: 'var(--bg-elevated)',
+                  border: '1px solid rgba(34,197,94,0.3)',
+                  borderRadius: 10,
+                  padding: '8px 12px',
+                  color: 'var(--success)',
+                  fontSize: 13,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  cursor: 'default',
+                  userSelect: 'none'
+                }}
+              >
+                <i className="ri-notification-3-line" />
+                Push ON
+              </div>
+            ) : permissionStatus === 'denied' ? (
+              <div
+                title="Las notificaciones push están bloqueadas en este navegador. Revisa la configuración de tu navegador."
+                style={{
+                  background: 'var(--bg-elevated)',
+                  border: '1px solid rgba(239,68,68,0.3)',
+                  borderRadius: 10,
+                  padding: '8px 12px',
+                  color: '#ef4444',
+                  fontSize: 13,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  cursor: 'help',
+                  userSelect: 'none'
+                }}
+              >
+                <i className="ri-notification-off-line" />
+                Push Bloqueado
+              </div>
+            ) : (
+              <button
+                onClick={solicitarPermisoNotificaciones}
+                title="Haz clic para activar las notificaciones push en este dispositivo"
+                style={{
+                  background: 'var(--bg-elevated)',
+                  border: '1px solid rgba(234,179,8,0.4)',
+                  borderRadius: 10,
+                  padding: '8px 12px',
+                  color: '#eab308',
+                  fontSize: 13,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(234,179,8,0.08)'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-elevated)'; }}
+              >
+                <i className="ri-notification-line" />
+                Activar Push
+              </button>
+            )}
 
             {/* Botón Cerrar Sesión */}
             <button
