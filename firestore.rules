@@ -126,6 +126,9 @@ service cloud.firestore {
       allow read, create: if true;
       allow update, delete: if false;
     }
+    match /conciliaciones_bancarias/{document} {
+      allow read, write: if true;
+    }
     match /auditoria_sistema/{document} {
       allow read, write: if true;
     }

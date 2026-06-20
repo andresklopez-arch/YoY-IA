@@ -216,6 +216,12 @@ export default function CajaPanel({ showToast }) {
   const [rfFiltro, setRfFiltro] = useState('7d');
   const [rfModalTipo, setRfModalTipo] = useState(null);
   const [rfModalDetalleMetodo, setRfModalDetalleMetodo] = useState(null);
+  const [conciliacionFile, setConciliacionFile] = useState(null);
+  const [conciliacionLoading, setConciliacionLoading] = useState(false);
+  const [conciliacionReport, setConciliacionReport] = useState(null);
+  const [conciliacionError, setConciliacionError] = useState(null);
+  const [conciliacionGuardando, setConciliacionGuardando] = useState(false);
+  const [conciliacionExitoGuardado, setConciliacionExitoGuardado] = useState(false);
   const [gastosList, setGastosList] = useState([]);
   const [nominaPagosList, setNominaPagosList] = useState([]);
   const [empleadosList, setEmpleadosList] = useState([]);
@@ -3562,6 +3568,124 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
     setNuevoMonto('');
     setNuevaDesc('');
     setPinAutorizacion('');
+  };
+
+  const conciliarRegistrarCobroFaltante = async (monto, descripcion, metodo) => {
+    const cleanMetodo = metodo === 'transferencia' ? 'spei' : (metodo || 'spei');
+    const nuevoCobro = {
+      id: Date.now(),
+      tipo: 'manual',
+      descripcion: `${descripcion} (Conciliado con IA)`,
+      cliente: 'Manual (IA)',
+      monto: Number(monto),
+      metodo: cleanMetodo,
+      hora: new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }),
+      color: 'var(--success)'
+    };
+    setCobros(prev => [nuevoCobro, ...prev]);
+    await registrarEvento('Cobro Manual', `Cobro manual (Conciliación IA): ${descripcion}. Método: ${cleanMetodo.toUpperCase()}`, Number(monto), 'info', cleanMetodo);
+    showToast(`Cobro faltante de $${monto} registrado exitosamente`, 'success');
+  };
+
+  const ejecutarConciliacionIA = async () => {
+    if (!conciliacionFile) return;
+    setConciliacionLoading(true);
+    setConciliacionError(null);
+    setConciliacionReport(null);
+
+    try {
+      const reader = new FileReader();
+      reader.onload = async () => {
+        try {
+          const base64Data = reader.result.split(',')[1];
+          const fileType = conciliacionFile.type;
+
+          const payload = {
+            fileData: base64Data,
+            fileType: fileType,
+            yoyTransactions: resumenFinanciero.transaccionesDetalle.map(t => ({
+              id: t.id,
+              fecha: t.fecha,
+              monto: t.monto,
+              metodo: t.metodo,
+              descripcion: t.descripcion,
+              tipo: t.tipo,
+              operador: t.operador
+            }))
+          };
+
+          const res = await fetch('/api/conciliacion/analizar', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+
+          const data = await res.json();
+          if (!res.ok) {
+            throw new Error(data.error || 'Ocurrió un error al procesar el archivo.');
+          }
+
+          setConciliacionReport(data);
+        } catch (innerErr) {
+          setConciliacionError(innerErr.message);
+        } finally {
+          setConciliacionLoading(false);
+        }
+      };
+
+      reader.onerror = () => {
+        setConciliacionError('Error al leer el archivo local.');
+        setConciliacionLoading(false);
+      };
+
+      reader.readAsDataURL(conciliacionFile);
+
+    } catch (err) {
+      setConciliacionError(err.message);
+      setConciliacionLoading(false);
+    }
+  };
+
+  const guardarReporteConciliacion = async () => {
+    if (!conciliacionReport) return;
+    setConciliacionGuardando(true);
+    try {
+      const docRef = await addDoc(collection(db, 'conciliaciones_bancarias'), {
+        fecha: new Date().toISOString(),
+        periodo: rfFiltro,
+        archivoNombre: conciliacionFile?.name || 'Archivo',
+        resumen: conciliacionReport.summary,
+        discrepanciasYoyCount: conciliacionReport.unmatchedYoy.length,
+        discrepanciasBancoCount: conciliacionReport.unmatchedBank.length,
+        operador: user?.displayName || user?.email || 'Cajero',
+        matches: conciliacionReport.matches.map(m => ({
+          yoyId: m.yoy.id,
+          yoyDescripcion: m.yoy.descripcion,
+          yoyMonto: m.yoy.cleanMonto,
+          bankMonto: m.bank.monto,
+          bankDescripcion: m.bank.descripcion
+        })),
+        unmatchedYoy: conciliacionReport.unmatchedYoy.map(t => ({
+          id: t.id,
+          descripcion: t.descripcion,
+          monto: t.cleanMonto
+        })),
+        unmatchedBank: conciliacionReport.unmatchedBank.map(t => ({
+          descripcion: t.descripcion,
+          monto: t.monto,
+          fecha: t.fecha
+        }))
+      });
+
+      setConciliacionExitoGuardado(true);
+      showToast('Reporte de conciliación guardado con éxito 💾', 'success');
+      await registrarEvento('Conciliación Guardada', `Reporte de conciliación bancaria guardado: ${conciliacionFile?.name}. ID: ${docRef.id}`, 0, 'info');
+    } catch (err) {
+      console.error(err);
+      showToast('Error al guardar el reporte: ' + err.message, 'danger');
+    } finally {
+      setConciliacionGuardando(false);
+    }
   };
 
   const guardarNuevaMeta = async () => {
@@ -7623,7 +7747,8 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
                       { val: null, label: 'Resumen Categorizado' },
                       { val: 'efectivo', label: `Ver Efectivo (${resumenFinanciero.transaccionesDetalle.filter(t => t.metodo === 'efectivo').length})` },
                       { val: 'tarjeta', label: `Ver Tarjeta (${resumenFinanciero.transaccionesDetalle.filter(t => t.metodo === 'tarjeta').length})` },
-                      { val: 'transferencia', label: `Ver Transf. / SPEI (${resumenFinanciero.transaccionesDetalle.filter(t => t.metodo === 'transferencia').length})` }
+                      { val: 'transferencia', label: `Ver Transf. / SPEI (${resumenFinanciero.transaccionesDetalle.filter(t => t.metodo === 'transferencia').length})` },
+                      { val: 'conciliacion_ia', label: `✨ Conciliar con IA` }
                     ].map(tab => (
                       <button
                         key={tab.val || 'todos'}
@@ -7647,45 +7772,293 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
                   </div>
 
                   {rfModalDetalleMetodo !== null ? (
-                    <div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                        <span style={{ fontSize: 12, fontWeight: 'bold', color: 'var(--bronze-light)' }}>
-                          Listado de Cobros en {rfModalDetalleMetodo.toUpperCase()} ({rfFiltro === 'ultimo corte' ? 'último corte' : rfFiltro})
-                        </span>
-                        <span style={{ fontSize: 12, fontWeight: 'bold', color: 'var(--success)' }}>
-                          Total: ${resumenFinanciero.transaccionesDetalle
-                            .filter(t => t.metodo === rfModalDetalleMetodo)
-                            .reduce((s, t) => s + t.monto, 0)
-                            .toLocaleString()} MXN
-                        </span>
-                      </div>
-                      
-                      {resumenFinanciero.transaccionesDetalle.filter(t => t.metodo === rfModalDetalleMetodo).length === 0 ? (
-                        <div style={{ fontSize: 11, color: 'var(--text-muted)', background: 'var(--bg-elevated)', padding: '20px', borderRadius: 6, border: '1px solid var(--border)', textAlign: 'center' }}>
-                          No hay transacciones registradas con este medio de pago en este periodo.
+                    rfModalDetalleMetodo === 'conciliacion_ia' ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                        <div style={{ background: 'rgba(255,255,255,0.01)', padding: 12, borderRadius: 8, border: '1px solid var(--border)' }}>
+                          <h4 style={{ fontSize: 13, fontWeight: 'bold', color: 'var(--bronze-light)', margin: '0 0 6px 0', display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <i className="ri-magic-line" /> Conciliación Bancaria Asistida por IA (Gemini)
+                          </h4>
+                          <p style={{ fontSize: 10.5, color: 'var(--text-secondary)', lineHeight: '1.4', margin: 0 }}>
+                            Sube el estado de cuenta o comprobante (PDF o Imagen). La IA extraerá los depósitos y cargos y los cruzará con las transacciones de YoY registradas para el periodo activo (<strong>{rfFiltro === 'ultimo corte' ? 'último corte' : rfFiltro}</strong>).
+                          </p>
+                          <p style={{ fontSize: 9.5, color: 'var(--text-muted)', marginTop: 4, fontStyle: 'italic', margin: 0 }}>
+                            🔒 El archivo se procesa temporalmente en memoria y se descarta de inmediato. No se guarda ninguna imagen ni archivo físico.
+                          </p>
                         </div>
-                      ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 320, overflowY: 'auto', background: 'var(--bg-elevated)', padding: 10, borderRadius: 6, border: '1px solid var(--border)' }}>
-                          {resumenFinanciero.transaccionesDetalle
-                            .filter(t => t.metodo === rfModalDetalleMetodo)
-                            .map((t, idx) => (
-                              <div key={t.id || idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: 6 }}>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                    <span style={{ color: 'var(--text-secondary)', fontSize: 9 }}>
-                                      {t.fecha ? new Date(t.fecha).toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit' }) : ''} {t.hora || ''}
-                                    </span>
-                                    <span className="badge badge-secondary" style={{ fontSize: 8, padding: '1px 3px', textTransform: 'uppercase' }}>{t.metodo}</span>
-                                  </div>
-                                  <strong style={{ color: '#fff' }}>{t.descripcion}</strong>
-                                  <span style={{ color: 'var(--text-muted)', fontSize: 9 }}>Registró: {t.operador}</span>
-                                </div>
-                                <span style={{ color: 'var(--success)', fontWeight: 'bold', fontSize: 12 }}>+${t.monto.toLocaleString()}</span>
+
+                        {/* File Upload Zone */}
+                        {!conciliacionReport && !conciliacionLoading && (
+                          <div 
+                            style={{
+                              border: '2px dashed var(--border)',
+                              borderRadius: 8,
+                              padding: '24px 16px',
+                              textAlign: 'center',
+                              background: 'var(--bg-elevated)',
+                              cursor: 'pointer',
+                              transition: 'all 0.2s ease'
+                            }}
+                            onClick={() => document.getElementById('conciliacion-file-input').click()}
+                            onDragOver={(e) => e.preventDefault()}
+                            onDrop={(e) => {
+                              e.preventDefault();
+                              if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                                setConciliacionFile(e.dataTransfer.files[0]);
+                                setConciliacionError(null);
+                              }
+                            }}
+                          >
+                            <input 
+                              id="conciliacion-file-input" 
+                              type="file" 
+                              accept=".pdf,image/png,image/jpeg,image/jpg" 
+                              style={{ display: 'none' }} 
+                              onChange={(e) => {
+                                if (e.target.files && e.target.files[0]) {
+                                  setConciliacionFile(e.target.files[0]);
+                                  setConciliacionError(null);
+                                }
+                              }}
+                            />
+                            <i className="ri-upload-cloud-2-line" style={{ fontSize: 32, color: 'var(--text-muted)' }} />
+                            <div style={{ fontSize: 11, fontWeight: 'bold', color: '#fff', marginTop: 8 }}>
+                              {conciliacionFile ? `Archivo seleccionado: ${conciliacionFile.name}` : 'Arrastra aquí tu PDF/Imagen o haz clic para buscar'}
+                            </div>
+                            <div style={{ fontSize: 9.5, color: 'var(--text-secondary)', marginTop: 4 }}>
+                              Soporta PDF, PNG, JPG hasta 4MB
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Selected File Details & Trigger */}
+                        {conciliacionFile && !conciliacionReport && !conciliacionLoading && (
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-elevated)', padding: '10px 12px', borderRadius: 6, border: '1px solid var(--border)' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <i className={conciliacionFile.type === 'application/pdf' ? "ri-file-pdf-line" : "ri-image-line"} style={{ fontSize: 20, color: 'var(--bronze-light)' }} />
+                              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                <span style={{ fontSize: 11, fontWeight: 'bold', color: '#fff', maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{conciliacionFile.name}</span>
+                                <span style={{ fontSize: 9, color: 'var(--text-secondary)' }}>{(conciliacionFile.size / 1024).toFixed(1)} KB</span>
                               </div>
-                            ))}
+                            </div>
+                            <div style={{ display: 'flex', gap: 6 }}>
+                              <button 
+                                className="btn btn-secondary" 
+                                style={{ fontSize: 10, padding: '4px 8px' }} 
+                                onClick={() => {
+                                  setConciliacionFile(null);
+                                  setConciliacionError(null);
+                                }}
+                              >
+                                Quitar
+                              </button>
+                              <button 
+                                className="btn btn-primary" 
+                                style={{ fontSize: 10, padding: '4px 10px', background: 'var(--bronze)' }} 
+                                onClick={ejecutarConciliacionIA}
+                              >
+                                🚀 Analizar con IA
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Loading State */}
+                        {conciliacionLoading && (
+                          <div style={{ textAlign: 'center', padding: '24px 16px', background: 'var(--bg-elevated)', borderRadius: 8, border: '1px solid var(--border)' }}>
+                            <div className="spinner" style={{ margin: '0 auto 12px auto', width: 24, height: 24, border: '3px solid rgba(255,255,255,0.1)', borderTopColor: 'var(--bronze-light)', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+                            <div style={{ fontSize: 11, fontWeight: 'bold', color: '#fff' }}>Procesando con Gemini IA...</div>
+                            <div style={{ fontSize: 9.5, color: 'var(--text-secondary)', marginTop: 4 }}>
+                              Extrayendo transacciones y comparándolas con YoY. Esto puede tardar 5-10 segundos.
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Error Alert */}
+                        {conciliacionError && (
+                          <div style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid var(--danger)', padding: 12, borderRadius: 6, color: 'var(--danger)', fontSize: 10.5, lineHeight: '1.4' }}>
+                            <i className="ri-error-warning-line" style={{ marginRight: 6 }} />
+                            {conciliacionError}
+                          </div>
+                        )}
+
+                        {/* Comparison Report Result */}
+                        {conciliacionReport && (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                            {/* Report Summary Cards */}
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+                              <div style={{ background: 'var(--bg-elevated)', padding: 8, borderRadius: 6, border: '1px solid var(--border)', textAlign: 'center' }}>
+                                <div style={{ fontSize: 9, color: 'var(--text-secondary)' }}>Conciliados</div>
+                                <div style={{ fontSize: 14, fontWeight: 'bold', color: 'var(--success)' }}>
+                                  {conciliacionReport.summary.matchedCount}
+                                </div>
+                              </div>
+                              <div style={{ background: 'var(--bg-elevated)', padding: 8, borderRadius: 6, border: '1px solid var(--border)', textAlign: 'center' }}>
+                                <div style={{ fontSize: 9, color: 'var(--text-secondary)' }}>Falta en YoY</div>
+                                <div style={{ fontSize: 14, fontWeight: 'bold', color: 'var(--danger)' }}>
+                                  {conciliacionReport.summary.unmatchedBankCount}
+                                </div>
+                              </div>
+                              <div style={{ background: 'var(--bg-elevated)', padding: 8, borderRadius: 6, border: '1px solid var(--border)', textAlign: 'center' }}>
+                                <div style={{ fontSize: 9, color: 'var(--text-secondary)' }}>Falta en Banco</div>
+                                <div style={{ fontSize: 14, fontWeight: 'bold', color: 'var(--bronze-light)' }}>
+                                  {conciliacionReport.summary.unmatchedYoyCount}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Discrepancies details */}
+                            <div style={{ background: 'rgba(255,255,255,0.01)', padding: 12, borderRadius: 8, border: '1px solid var(--border)' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                                <h5 style={{ fontSize: 11.5, fontWeight: 'bold', color: '#fff', margin: 0 }}>
+                                  Resultado del Análisis
+                                </h5>
+                                <div style={{ display: 'flex', gap: 6 }}>
+                                  <button 
+                                    className="btn btn-secondary" 
+                                    style={{ fontSize: 9, padding: '2px 6px' }} 
+                                    onClick={() => {
+                                      setConciliacionReport(null);
+                                      setConciliacionFile(null);
+                                      setConciliacionExitoGuardado(false);
+                                    }}
+                                  >
+                                    Nuevo Análisis
+                                  </button>
+                                  {!conciliacionExitoGuardado ? (
+                                    <button 
+                                      className="btn btn-primary" 
+                                      style={{ fontSize: 9, padding: '2px 6px', background: 'var(--success)', border: 'none' }} 
+                                      onClick={guardarReporteConciliacion}
+                                      disabled={conciliacionGuardando}
+                                    >
+                                      {conciliacionGuardando ? 'Guardando...' : '💾 Guardar Reporte'}
+                                    </button>
+                                  ) : (
+                                    <span style={{ fontSize: 9, color: 'var(--success)', fontWeight: 'bold', display: 'flex', alignItems: 'center' }}>
+                                      ✓ Guardado
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* 1. Mismatched Bank Statement Deposits (Missing in YoY) */}
+                              <div style={{ marginBottom: 12 }}>
+                                <div style={{ fontSize: 10, fontWeight: 'bold', color: 'var(--danger)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--danger)' }} />
+                                  Movimientos Bancarios No Registrados en YoY ({conciliacionReport.unmatchedBank.length})
+                                </div>
+                                {conciliacionReport.unmatchedBank.length === 0 ? (
+                                  <div style={{ fontSize: 9.5, color: 'var(--text-muted)', fontStyle: 'italic', padding: 4 }}>
+                                    No se encontraron depósitos o cargos faltantes en YoY.
+                                  </div>
+                                ) : (
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 120, overflowY: 'auto' }}>
+                                    {conciliacionReport.unmatchedBank.map((item, idx) => (
+                                      <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-elevated)', padding: '6px 8px', borderRadius: 4, border: '1px solid rgba(239, 68, 68, 0.2)' }}>
+                                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                            <span style={{ fontSize: 8.5, color: 'var(--text-secondary)' }}>{item.fecha}</span>
+                                            <strong style={{ fontSize: 9.5, color: '#fff' }}>{item.descripcion}</strong>
+                                          </div>
+                                        </div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                          <span style={{ fontSize: 10.5, fontWeight: 'bold', color: item.monto > 0 ? 'var(--success)' : 'var(--danger)' }}>
+                                            {item.monto > 0 ? `+$${item.monto.toLocaleString()}` : `-$${Math.abs(item.monto).toLocaleString()}`}
+                                          </span>
+                                          {item.monto > 0 && (
+                                            <button 
+                                              className="btn btn-secondary" 
+                                              style={{ fontSize: 8, padding: '2px 4px', background: 'var(--success)', color: '#fff', border: 'none' }}
+                                              onClick={() => conciliarRegistrarCobroFaltante(item.monto, item.descripcion, 'transferencia')}
+                                            >
+                                              Registrar
+                                            </button>
+                                          )}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* 2. Mismatched YoY Payments (Missing in Bank Statement) */}
+                              <div>
+                                <div style={{ fontSize: 10, fontWeight: 'bold', color: 'var(--bronze-light)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--bronze-light)' }} />
+                                  Registros de YoY No Reflejados en el Banco ({conciliacionReport.unmatchedYoy.length})
+                                </div>
+                                {conciliacionReport.unmatchedYoy.length === 0 ? (
+                                  <div style={{ fontSize: 9.5, color: 'var(--text-muted)', fontStyle: 'italic', padding: 4 }}>
+                                    Todos los cobros de YoY están reflejados en el banco.
+                                  </div>
+                                ) : (
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 120, overflowY: 'auto' }}>
+                                    {conciliacionReport.unmatchedYoy.map((item, idx) => (
+                                      <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-elevated)', padding: '6px 8px', borderRadius: 4, border: '1px solid rgba(205, 127, 50, 0.2)' }}>
+                                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                            <span style={{ fontSize: 8.5, color: 'var(--text-secondary)' }}>
+                                              {item.fecha ? new Date(item.fecha).toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit' }) : ''}
+                                            </span>
+                                            <strong style={{ fontSize: 9.5, color: '#fff' }}>{item.descripcion}</strong>
+                                            <span className="badge badge-secondary" style={{ fontSize: 7, padding: '1px 3px' }}>{item.metodo}</span>
+                                          </div>
+                                          <span style={{ fontSize: 8, color: 'var(--text-muted)' }}>Cajero: {item.operador}</span>
+                                        </div>
+                                        <span style={{ fontSize: 10.5, fontWeight: 'bold', color: item.isExpense ? 'var(--danger)' : 'var(--success)' }}>
+                                          {item.isExpense ? `-$${item.cleanMonto.toLocaleString()}` : `+$${item.cleanMonto.toLocaleString()}`}
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                          <span style={{ fontSize: 12, fontWeight: 'bold', color: 'var(--bronze-light)' }}>
+                            Listado de Cobros en {rfModalDetalleMetodo.toUpperCase()} ({rfFiltro === 'ultimo corte' ? 'último corte' : rfFiltro})
+                          </span>
+                          <span style={{ fontSize: 12, fontWeight: 'bold', color: 'var(--success)' }}>
+                            Total: ${resumenFinanciero.transaccionesDetalle
+                              .filter(t => t.metodo === rfModalDetalleMetodo)
+                              .reduce((s, t) => s + t.monto, 0)
+                              .toLocaleString()} MXN
+                          </span>
                         </div>
-                      )}
-                    </div>
+                        
+                        {resumenFinanciero.transaccionesDetalle.filter(t => t.metodo === rfModalDetalleMetodo).length === 0 ? (
+                          <div style={{ fontSize: 11, color: 'var(--text-muted)', background: 'var(--bg-elevated)', padding: '20px', borderRadius: 6, border: '1px solid var(--border)', textAlign: 'center' }}>
+                            No hay transacciones registradas con este medio de pago en este periodo.
+                          </div>
+                        ) : (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 320, overflowY: 'auto', background: 'var(--bg-elevated)', padding: 10, borderRadius: 6, border: '1px solid var(--border)' }}>
+                            {resumenFinanciero.transaccionesDetalle
+                              .filter(t => t.metodo === rfModalDetalleMetodo)
+                              .map((t, idx) => (
+                                <div key={t.id || idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: 6 }}>
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                      <span style={{ color: 'var(--text-secondary)', fontSize: 9 }}>
+                                        {t.fecha ? new Date(t.fecha).toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit' }) : ''} {t.hora || ''}
+                                      </span>
+                                      <span className="badge badge-secondary" style={{ fontSize: 8, padding: '1px 3px', textTransform: 'uppercase' }}>{t.metodo}</span>
+                                    </div>
+                                    <strong style={{ color: '#fff' }}>{t.descripcion}</strong>
+                                    <span style={{ color: 'var(--text-muted)', fontSize: 9 }}>Registró: {t.operador}</span>
+                                  </div>
+                                  <span style={{ color: 'var(--success)', fontWeight: 'bold', fontSize: 12 }}>+${t.monto.toLocaleString()}</span>
+                                </div>
+                              ))}
+                          </div>
+                        )}
+                      </div>
+                    )
                   ) : (
                     <>
                       {/* Resumen de Tarjetas */}
