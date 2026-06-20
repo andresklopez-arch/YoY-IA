@@ -15,6 +15,7 @@ import { AuthProvider, useAuth } from '@/lib/auth-context';
 import { collection, query, where, orderBy, limit, onSnapshot, doc, updateDoc, serverTimestamp, getDoc, addDoc, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { obfuscateWithKey } from '@/lib/crypto';
+import { getBusinessDate } from '@/lib/date-utils';
 
 // ── ERROR BOUNDARY: captura crashes en paneles sin matar la app ──
 class ErrorBoundary extends Component {
@@ -244,6 +245,7 @@ function AppContent() {
 
   const [fichajeSoporteExitoso, setFichajeSoporteExitoso] = useState(null);
   const [fichajeError, setFichajeError] = useState(null);
+  const [qrDecisionEmployee, setQrDecisionEmployee] = useState(null);
   const [scanParams, setScanParams] = useState(() => {
     if (typeof window !== 'undefined') {
       try {
@@ -1247,6 +1249,50 @@ function AppContent() {
     }
   };
 
+  const checkAsistenciaAndDecide = async (params) => {
+    try {
+      const scanId = params.scanId;
+      const empDoc = await getDoc(doc(db, 'nomina_empleados', scanId));
+      
+      if (empDoc.exists()) {
+        const empData = empDoc.data();
+        const fechaHoy = getBusinessDate();
+        
+        // Buscar logs de asistencia de hoy para este empleado
+        const q = query(
+          collection(db, 'nomina_asistencia_log'),
+          where('empleadoId', '==', scanId),
+          where('fecha', '==', fechaHoy)
+        );
+        const snap = await getDocs(q);
+        const logs = snap.docs.map(d => d.data());
+        const statusLogs = logs.filter(l => l.tipo === 'entrada' || l.tipo === 'salida');
+
+        // Ordenar desc por fecha
+        statusLogs.sort((a, b) => {
+          const tA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : (a.createdAt || 0);
+          const tB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : (b.createdAt || 0);
+          return tB - tA;
+        });
+
+        const isCurrentlyCheckedIn = statusLogs.length > 0 && statusLogs[0].tipo === 'entrada';
+
+        if (isCurrentlyCheckedIn) {
+          // Mostrar pantalla de decisión
+          setQrDecisionEmployee({ id: scanId, ...empData, params });
+        } else {
+          // Si no está de turno o es su entrada inicial, registrar normal
+          procesarLoginQR(params);
+        }
+      } else {
+        procesarLoginQR(params);
+      }
+    } catch (err) {
+      console.error("Error al verificar asistencia previa:", err);
+      procesarLoginQR(params); // Fallback
+    }
+  };
+
   // Escuchar si se abre la app escaneando un código QR con ?scanId=xxx (Para iniciar sesión en el dispositivo del empleado)
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -1272,7 +1318,7 @@ function AppContent() {
     const newUrl = window.location.pathname;
     window.history.replaceState({}, document.title, newUrl);
 
-    procesarLoginQR(params);
+    checkAsistenciaAndDecide(params);
   }, [loginWithEmpleadoId, logout]);
 
   // 1. Escuchar capturas de venta del mesero
@@ -2052,6 +2098,137 @@ function AppContent() {
                 {sonidoAdmin ? 'Chime ON' : 'Silencio'}
               </button>
               <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>YoY IA Billar By Alfonso Iturbide</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de decisión al escanear QR con sesión activa */}
+      {qrDecisionEmployee && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100vw',
+            height: '100vh',
+            background: 'rgba(13, 13, 15, 0.96)',
+            backdropFilter: 'blur(8px)',
+            zIndex: 99999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 24
+          }}
+        >
+          <div
+            style={{
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border-bronze)',
+              borderRadius: 16,
+              padding: 28,
+              maxWidth: 400,
+              width: '100%',
+              textAlign: 'center',
+              boxShadow: '0 20px 40px rgba(0,0,0,0.6)'
+            }}
+          >
+            <i className="ri-shield-user-line" style={{ fontSize: 48, color: 'var(--bronze-light)', display: 'block', marginBottom: 16 }} />
+            <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 800, textTransform: 'uppercase', color: 'var(--text)', marginBottom: 8 }}>
+              Turno Activo Detectado
+            </h2>
+            <p style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 24, lineHeight: 1.5 }}>
+              Hola <strong>{qrDecisionEmployee.nombre}</strong>. Ya tienes un turno registrado como <strong>PRESENTE</strong> hoy. ¿Qué deseas hacer?
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {/* Opción 1: Solo recuperar pantalla */}
+              <button
+                onClick={async () => {
+                  try {
+                    await loginWithEmpleadoId(qrDecisionEmployee.id);
+                    showToast('Pantalla recuperada con éxito ✓', 'success');
+                    
+                    // Redireccionar según el rol
+                    const rolLower = (qrDecisionEmployee.rol || '').toLowerCase();
+                    if (rolLower.includes('mesero')) {
+                      window.location.href = '/mesero';
+                    } else {
+                      window.location.href = '/cocina';
+                    }
+                  } catch (err) {
+                    console.error("Error al recuperar pantalla:", err);
+                    alert("Error: " + err.message);
+                  } finally {
+                    setQrDecisionEmployee(null);
+                  }
+                }}
+                style={{
+                  background: 'linear-gradient(135deg, var(--bronze), var(--bronze-light))',
+                  color: '#0d0d0f',
+                  border: 'none',
+                  borderRadius: 10,
+                  padding: '14px 20px',
+                  fontWeight: 700,
+                  fontSize: 14,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                  transition: 'transform 0.2s',
+                  boxShadow: '0 4px 12px rgba(205,127,50,0.3)'
+                }}
+                onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-1px)'; }}
+                onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; }}
+              >
+                <i className="ri-external-link-line" />
+                Recuperar mi Pantalla
+              </button>
+
+              {/* Opción 2: Registrar Salida (Pase de lista normal) */}
+              <button
+                onClick={() => {
+                  const params = qrDecisionEmployee.params;
+                  setQrDecisionEmployee(null);
+                  procesarLoginQR(params);
+                }}
+                style={{
+                  background: 'rgba(239, 68, 68, 0.1)',
+                  color: '#ef4444',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  borderRadius: 10,
+                  padding: '12px 20px',
+                  fontWeight: 600,
+                  fontSize: 13,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                  transition: 'background 0.2s'
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239, 68, 68, 0.18)'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'; }}
+              >
+                <i className="ri-logout-box-line" />
+                Registrar Salida de Turno
+              </button>
+
+              {/* Opción Cancelar / Cerrar */}
+              <button
+                onClick={() => setQrDecisionEmployee(null)}
+                style={{
+                  background: 'transparent',
+                  color: 'var(--text-muted)',
+                  border: 'none',
+                  fontSize: 12,
+                  marginTop: 8,
+                  cursor: 'pointer'
+                }}
+              >
+                Cancelar
+              </button>
             </div>
           </div>
         </div>

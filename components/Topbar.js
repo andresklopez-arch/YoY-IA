@@ -65,6 +65,56 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
   const [focusedEmpleadoQR, setFocusedEmpleadoQR] = useState(null);
   const [qrCountdown, setQrCountdown] = useState(0);
   const [recentFichajes, setRecentFichajes] = useState([]);
+  const [showMeseroDropdown, setShowMeseroDropdown] = useState(false);
+  const [workingMeseros, setWorkingMeseros] = useState([]);
+
+  useEffect(() => {
+    // 1. Escuchar empleados activos
+    const qEmp = query(
+      collection(db, 'nomina_empleados'), 
+      where('estado', '==', 'activo')
+    );
+    const unsubEmp = onSnapshot(qEmp, snapEmp => {
+      const allActive = snapEmp.docs.map(d => ({ id: d.id, ...d.data() }));
+      const activeMeseros = allActive.filter(emp => 
+        (emp.rol || emp.role || '').toLowerCase().includes('mesero')
+      );
+
+      // 2. Escuchar asistencia de hoy
+      const fechaHoy = getBusinessDate();
+      const qAsist = query(
+        collection(db, 'nomina_asistencia'), 
+        where('fecha', '==', fechaHoy)
+      );
+      
+      const unsubAsist = onSnapshot(qAsist, snapAsist => {
+        const presentIds = new Set(snapAsist.docs.map(doc => doc.data().empleadoId));
+        
+        // Filtrar meseros activos que tienen asistencia registrada hoy
+        const working = activeMeseros.filter(m => presentIds.has(m.id));
+        setWorkingMeseros(working);
+      }, err => {
+        console.error("Error listening to attendance for working meseros:", err);
+      });
+
+      return () => unsubAsist();
+    }, err => {
+      console.error("Error listening to active employees:", err);
+    });
+
+    return unsubEmp;
+  }, []);
+
+  useEffect(() => {
+    if (!showMeseroDropdown) return;
+    const handleOutsideClick = (e) => {
+      if (!e.target.closest('.topbar-quick-actions')) {
+        setShowMeseroDropdown(false);
+      }
+    };
+    window.addEventListener('click', handleOutsideClick);
+    return () => window.removeEventListener('click', handleOutsideClick);
+  }, [showMeseroDropdown]);
 
   // Estados para asignación interactiva de mesas en pase de lista
   const [todasLasMesas, setTodasLasMesas] = useState([]);
@@ -795,14 +845,21 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
           { label: 'Torneos', icon: 'ri-trophy-line', color: '#ffd700', nav: 'torneos', shortcut: 'Alt + 4' },
           { label: 'Nómina', icon: 'ri-briefcase-4-line', color: 'var(--bronze-light)', nav: 'nomina', badge: alertasNomina.length, shortcut: 'Alt + 5' },
           { label: 'Ajustes', icon: 'ri-settings-4-line', color: 'var(--text-muted)', nav: 'config', shortcut: 'Alt + 6' },
-          { label: 'Mesero', icon: 'ri-customer-service-2-line', color: 'var(--success)', href: '/mesero', badge: pedidosPendientes, shortcut: 'Alt + 7' },
+          { label: 'Mesero', icon: 'ri-customer-service-2-line', color: 'var(--success)', isDropdown: true, badge: pedidosPendientes, shortcut: 'Alt + 7' },
           { label: 'Cocina', icon: 'ri-restaurant-line', color: 'var(--blue-light)', href: '/cocina', badge: pedidosCocina, shortcut: 'Alt + 8' },
         ].map((a, i) => {
           const isActive = activePanel === a.nav;
-          return (
+          const buttonElement = (
             <button
-              key={i}
-              onClick={() => a.href ? window.open(a.href, '_blank') : onNavigate(a.nav)}
+              onClick={() => {
+                if (a.isDropdown) {
+                  setShowMeseroDropdown(!showMeseroDropdown);
+                } else if (a.href) {
+                  window.open(a.href, '_blank');
+                } else {
+                  onNavigate(a.nav);
+                }
+              }}
               className={`topbar-quick-btn ${isActive ? 'active' : ''}`}
               style={{
                 '--btn-color': a.color,
@@ -852,6 +909,135 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
                 </span>
               </span>
             </button>
+          );
+
+          if (a.isDropdown) {
+            return (
+              <div key={i} style={{ position: 'relative', display: 'inline-block' }}>
+                {buttonElement}
+                {showMeseroDropdown && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: '100%',
+                      left: 0,
+                      marginTop: 8,
+                      background: 'var(--bg-elevated)',
+                      border: '1px solid var(--border)',
+                      borderRadius: 12,
+                      boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5)',
+                      minWidth: 220,
+                      zIndex: 9999,
+                      overflow: 'hidden',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      padding: '6px 0'
+                    }}
+                  >
+                    {/* Opción Todos los Meseros */}
+                    <button
+                      onClick={() => {
+                        setShowMeseroDropdown(false);
+                        window.open('/mesero', '_blank');
+                      }}
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        padding: '10px 16px',
+                        color: 'var(--text)',
+                        fontSize: 13,
+                        textAlign: 'left',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        width: '100%',
+                        transition: 'background 0.15s'
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                    >
+                      <i className="ri-group-line" style={{ color: 'var(--success)' }} />
+                      Todos los Meseros
+                    </button>
+
+                    {/* Opción Sin Mesero */}
+                    <button
+                      onClick={() => {
+                        setShowMeseroDropdown(false);
+                        window.open('/mesero?empleadoId=sin_mesero', '_blank');
+                      }}
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        padding: '10px 16px',
+                        color: 'var(--text)',
+                        fontSize: 13,
+                        textAlign: 'left',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        width: '100%',
+                        transition: 'background 0.15s'
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                    >
+                      <i className="ri-user-unfollow-line" style={{ color: '#ef4444' }} />
+                      Sin Mesero (No asignado)
+                    </button>
+
+                    <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
+                    
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', padding: '4px 16px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      Meseros en Turno ({workingMeseros.length})
+                    </div>
+
+                    {workingMeseros.length === 0 ? (
+                      <div style={{ padding: '8px 16px', fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                        Ninguno en turno hoy
+                      </div>
+                    ) : (
+                      workingMeseros.map(m => (
+                        <button
+                          key={m.id}
+                          onClick={() => {
+                            setShowMeseroDropdown(false);
+                            window.open(`/mesero?empleadoId=${m.id}`, '_blank');
+                          }}
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            padding: '10px 16px',
+                            color: 'var(--text)',
+                            fontSize: 13,
+                            textAlign: 'left',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 8,
+                            width: '100%',
+                            transition: 'background 0.15s'
+                          }}
+                          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }}
+                          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                        >
+                          <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--success)', boxShadow: '0 0 4px var(--success)' }} />
+                          {m.nombre} {m.apellido || ''}
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          }
+
+          return (
+            <div key={i} style={{ display: 'inline-block' }}>
+              {buttonElement}
+            </div>
           );
         })}
       </div>

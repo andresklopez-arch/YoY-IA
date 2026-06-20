@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import {
   collection, onSnapshot, query, where,
   orderBy, updateDoc, doc, serverTimestamp, addDoc, getDoc
@@ -26,7 +26,7 @@ const startsWithBoundary = (fullStr, subStr) => {
 // VISTA MESERO — Dashboard de pedidos y asistencias en tiempo real
 // ═══════════════════════════════════════════════════════════
 function MeseroContent() {
-  const { user, loading, logout } = useAuth();
+  const { user, loading, logout, loginWithEmpleadoId } = useAuth();
 
   const handleLogout = async () => {
     if (window.confirm('¿Estás seguro de que deseas cerrar sesión de mesero?')) {
@@ -37,23 +37,41 @@ function MeseroContent() {
 
   useEffect(() => {
     if (loading) return;
-    if (!user) {
-      window.location.href = '/';
-      return;
-    }
-    const rolLower = (user.role || '').toLowerCase();
-    const isAuthorized = 
-      rolLower.includes('admin') || 
-      rolLower.includes('cajero') || 
-      rolLower.includes('caja') || 
-      rolLower.includes('gerente') || 
-      rolLower.includes('tecnico') || 
-      rolLower.includes('mesero') ||
-      user.isFreeAccess === true;
 
-    if (!isAuthorized) {
-      window.location.href = '/';
-    }
+    const urlParams = new URLSearchParams(window.location.search);
+    const queryEmpleadoId = urlParams.get('empleadoId');
+
+    const checkAndRecoverSession = async () => {
+      if (queryEmpleadoId && queryEmpleadoId !== 'sin_mesero' && queryEmpleadoId !== 'todos' && !user) {
+        try {
+          await loginWithEmpleadoId(queryEmpleadoId);
+          return;
+        } catch (e) {
+          console.error("Error logging in via queryEmpleadoId:", e);
+        }
+      }
+
+      if (!user) {
+        window.location.href = '/';
+        return;
+      }
+
+      const rolLower = (user.role || '').toLowerCase();
+      const isAuthorized = 
+        rolLower.includes('admin') || 
+        rolLower.includes('cajero') || 
+        rolLower.includes('caja') || 
+        rolLower.includes('gerente') || 
+        rolLower.includes('tecnico') || 
+        rolLower.includes('mesero') ||
+        user.isFreeAccess === true;
+
+      if (!isAuthorized) {
+        window.location.href = '/';
+      }
+    };
+
+    checkAndRecoverSession();
   }, [user, loading]);
 
   const [pedidos, setPedidos] = useState([]);
@@ -338,19 +356,87 @@ function MeseroContent() {
   // Alertas de asistencia activa para ventana emergente
   const [alertasAsistencia, setAlertasAsistencia] = useState([]);
 
+  const [queryEmpleado, setQueryEmpleado] = useState(null);
+
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const queryId = urlParams.get('empleadoId');
+    if (queryId) {
+      if (queryId === 'sin_mesero') {
+        setQueryEmpleado({ id: 'sin_mesero', nombre: 'Sin Mesero', alias: 'Sin Mesero' });
+      } else {
+        getDoc(doc(db, 'nomina_empleados', queryId)).then(snap => {
+          if (snap.exists()) {
+            setQueryEmpleado({ id: snap.id, ...snap.data() });
+          }
+        });
+      }
+    } else {
+      setQueryEmpleado(null);
+    }
+  }, [user]);
+
+  const activeFilterId = useMemo(() => {
+    if (!user) return null;
+    const rolLower = (user.role || '').toLowerCase();
+    const isStaff = rolLower.includes('admin') || rolLower.includes('cajero') || rolLower.includes('caja') || rolLower.includes('gerente') || rolLower.includes('tecnico') || user.isFreeAccess;
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const queryId = urlParams.get('empleadoId');
+
+    if (isStaff) {
+      if (!queryId || queryId === 'todos') {
+        return 'todos';
+      }
+      return queryId;
+    } else {
+      return user.uid;
+    }
+  }, [user]);
+
+  const displayTitle = useMemo(() => {
+    if (activeFilterId === 'todos') {
+      return 'Todos los Meseros';
+    }
+    if (activeFilterId === 'sin_mesero') {
+      return 'Mesas Sin Mesero';
+    }
+    if (queryEmpleado) {
+      return `Vista Mesero · ${queryEmpleado.alias || queryEmpleado.nombre}`;
+    }
+    return `Vista Mesero · ${user?.alias || user?.name?.split(' ')[0] || ''}`;
+  }, [activeFilterId, queryEmpleado, user]);
+
   const mesasRef = useRef(mesas);
   useEffect(() => {
     mesasRef.current = mesas;
   }, [mesas]);
 
   const isAlertaParaMi = (alerta) => {
-    if (!user || !user.uid) return false;
+    if (!activeFilterId) return false;
     
-    // 1. Si la comanda/alerta tiene un meseroId explícito o arreglo meseroIds
-    if (alerta.meseroId && alerta.meseroId === user.uid) {
+    // Si queremos ver todos los meseros
+    if (activeFilterId === 'todos') return true;
+
+    // Si queremos ver sin mesero asignado
+    if (activeFilterId === 'sin_mesero') {
+      const hasMesero = alerta.meseroId || (alerta.meseroIds && alerta.meseroIds.length > 0);
+      if (hasMesero) return false;
+      if (alerta.mesaId) {
+        const mesaAsoc = mesasRef.current?.find(m => String(m.id) === String(alerta.mesaId));
+        if (mesaAsoc) {
+          const mesaHasMesero = mesaAsoc.meseroId || (mesaAsoc.meseroIds && mesaAsoc.meseroIds.length > 0);
+          if (mesaHasMesero) return false;
+        }
+      }
       return true;
     }
-    if (alerta.meseroIds && Array.isArray(alerta.meseroIds) && alerta.meseroIds.includes(user.uid)) {
+    
+    // 1. Si la comanda/alerta tiene un meseroId explícito o arreglo meseroIds
+    if (alerta.meseroId && alerta.meseroId === activeFilterId) {
+      return true;
+    }
+    if (alerta.meseroIds && Array.isArray(alerta.meseroIds) && alerta.meseroIds.includes(activeFilterId)) {
       return true;
     }
     
@@ -359,8 +445,8 @@ function MeseroContent() {
       const mesaAsoc = mesasRef.current?.find(m => String(m.id) === String(alerta.mesaId));
       if (mesaAsoc) {
         const isAssigned = 
-          (mesaAsoc.meseroId && mesaAsoc.meseroId === user.uid) ||
-          (mesaAsoc.meseroIds && Array.isArray(mesaAsoc.meseroIds) && mesaAsoc.meseroIds.includes(user.uid));
+          (mesaAsoc.meseroId && mesaAsoc.meseroId === activeFilterId) ||
+          (mesaAsoc.meseroIds && Array.isArray(mesaAsoc.meseroIds) && mesaAsoc.meseroIds.includes(activeFilterId));
         
         if (isAssigned) return true;
         
@@ -935,15 +1021,15 @@ function MeseroContent() {
   const getMesasFiltradas = () => {
     let list = getCuentasActivasUnificadas().filter(c => c.mesaId || findMesaAsociada(c));
     
-    const rolLower = (user?.role || user?.rol || '').toLowerCase();
-    const esMesero = rolLower.includes('mesero');
-
-    if ((esMesero || verSoloMisMesas) && user?.uid) {
+    if (activeFilterId && activeFilterId !== 'todos') {
       list = list.filter(c => {
         const mesaAsociada = findMesaAsociada(c);
+        if (activeFilterId === 'sin_mesero') {
+          return mesaAsociada && !mesaAsociada.meseroId && (!mesaAsociada.meseroIds || mesaAsociada.meseroIds.length === 0);
+        }
         return mesaAsociada && (
-          mesaAsociada.meseroId === user.uid || 
-          (mesaAsociada.meseroIds && Array.isArray(mesaAsociada.meseroIds) && mesaAsociada.meseroIds.includes(user.uid))
+          mesaAsociada.meseroId === activeFilterId || 
+          (mesaAsociada.meseroIds && Array.isArray(mesaAsociada.meseroIds) && mesaAsociada.meseroIds.includes(activeFilterId))
         );
       });
     }
@@ -968,10 +1054,13 @@ function MeseroContent() {
   const getCuentasDirectasFiltradas = () => {
     let list = getCuentasActivasUnificadas().filter(c => !c.mesaId && !findMesaAsociada(c));
     
-    const rolLower = (user?.role || user?.rol || '').toLowerCase();
-    const esMesero = rolLower.includes('mesero');
-    if ((esMesero || verSoloMisMesas) && user?.uid) {
-      list = list.filter(c => c.meseroId === user.uid);
+    if (activeFilterId && activeFilterId !== 'todos') {
+      list = list.filter(c => {
+        if (activeFilterId === 'sin_mesero') {
+          return !c.meseroId;
+        }
+        return c.meseroId === activeFilterId;
+      });
     }
 
     const term = filtroCuentaTexto.trim().toLowerCase();
@@ -987,7 +1076,7 @@ function MeseroContent() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', maxWidth: 900, margin: '0 auto' }}>
           <div>
             <h1 style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--bronze-light)', lineHeight: 1 }}>
-              🎱 Vista Mesero {user?.name ? `· ${user.alias || user.name.split(' ')[0]}` : ''}
+              🎱 {displayTitle}
               {isOffline && (
                 <span style={{ fontSize: 10, background: 'var(--danger)', color: '#fff', padding: '3px 8px', borderRadius: 10, fontWeight: 700, letterSpacing: 'normal' }}>
                   OFFLINE
