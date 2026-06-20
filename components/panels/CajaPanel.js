@@ -618,6 +618,14 @@ export default function CajaPanel({ showToast }) {
 
   const verificarYRetrorellenarHistorial = async () => {
     try {
+      // Idempotencia: Verificar si ya fue completado e indexado
+      const lockRef = doc(db, 'config', 'retrofill');
+      const lockSnap = await getDoc(lockRef);
+      if (lockSnap.exists() && lockSnap.data().completado) {
+        console.log("✓ Retrorellenado histórico ya completado según Firestore (idempotente).");
+        return;
+      }
+
       const rdSnap = await getDocs(collection(db, 'resumenes_diarios'));
       const existingDocs = {};
       rdSnap.docs.forEach(doc => {
@@ -754,6 +762,10 @@ export default function CajaPanel({ showToast }) {
         await batch.commit();
         console.log(`✓ Retrorellenado y Sincronización exitosa: se actualizaron/crearon ${count} resúmenes diarios.`);
       }
+      
+      // Marcar como completado en Firestore para evitar recálculos futuros
+      await setDoc(lockRef, { completado: true, ultimoUpdate: new Date().toISOString() }, { merge: true });
+      console.log("✓ Bloqueo de retrorellenado registrado en Firestore config/retrofill.");
     } catch (err) {
       console.error("Error en retrorellenado de resúmenes diarios:", err);
     }
