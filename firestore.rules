@@ -44,7 +44,8 @@ service cloud.firestore {
       allow read, write: if true;
     }
     match /bitacora/{document} {
-      allow read, write: if true;
+      allow read: if true;
+      allow write: if !('metodoPago' in request.resource.data) || request.resource.data.metodoPago in ['efectivo', 'tarjeta', 'transferencia', 'spei', 'qr'];
     }
     match /intentos_fallidos_qr/{document} {
       allow create: if true;
@@ -73,7 +74,8 @@ service cloud.firestore {
 
     // 8. Catálogos y Operación general del Billar
     match /gastos/{document} {
-      allow read, write: if true;
+      allow read: if true;
+      allow write: if !('metodoPago' in request.resource.data) || request.resource.data.metodoPago in ['efectivo', 'tarjeta', 'transferencia', 'spei', 'qr'];
     }
     match /historial_ocupacion/{document} {
       allow read, write: if true;
@@ -119,6 +121,10 @@ service cloud.firestore {
     }
     match /mermas_auditoria/{document} {
       allow read, write: if true;
+    }
+    match /auditorias_cortes/{document} {
+      allow read, create: if true;
+      allow update, delete: if false;
     }
     match /auditoria_sistema/{document} {
       allow read, write: if true;

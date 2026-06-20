@@ -1756,16 +1756,42 @@ export default function CajaPanel({ showToast }) {
   }, [mesas, cuentasActivas, telegramConfig]);
 
   // Helper para auditoría bitácora / registrar auditoría (Sugerencias 1 y 2)
-  const registrarEvento = async (accion, detalle, monto = 0, tipo = 'info') => {
+  const registrarEvento = async (accion, detalle, monto = 0, tipo = 'info', metodoPago = null) => {
+    // Sugerencia 2: Estandarización y validación estricta de métodos de pago
+    let finalMetodoPago = metodoPago;
+    const montoVal = Number(monto);
+    if (montoVal !== 0 && !finalMetodoPago) {
+      const detLower = (detalle || '').toLowerCase();
+      if (detLower.includes('tarjeta')) {
+        finalMetodoPago = 'tarjeta';
+      } else if (detLower.includes('transferencia') || detLower.includes('spei') || detLower.includes('qr')) {
+        finalMetodoPago = 'transferencia';
+      } else {
+        finalMetodoPago = 'efectivo';
+      }
+    }
+
+    // Normalizar a los valores que acepta firestore.rules
+    if (finalMetodoPago) {
+      finalMetodoPago = finalMetodoPago.toLowerCase();
+      if (finalMetodoPago === 'spei' || finalMetodoPago === 'qr') {
+        finalMetodoPago = 'transferencia';
+      }
+    }
+
     const eventData = {
       accion,
       detalle,
-      monto: Number(monto),
+      monto: montoVal,
       operador: user ? (user.name || user.alias || user.email) : 'Sistema',
       rolOperador: user ? (user.role || 'staff') : 'sistema',
       fecha: new Date().toISOString(),
       tipo
     };
+
+    if (finalMetodoPago) {
+      eventData.metodoPago = finalMetodoPago;
+    }
 
     const isOnline = await checkRealInternet();
     if (!isOnline) {
@@ -2209,6 +2235,19 @@ ${diferenciaVal < 0 ? '1. Implementar auditoría ciega por turnos.\n2. Conciliar
         cantidadesDenom: cantidades,
         ingresosDetalle: calculationsCorte.ingresosDetalle,
         gastosDetalle: calculationsCorte.gastosDetalle
+      });
+
+      // Registrar auditoría de corte inmutable
+      await setDoc(doc(db, 'auditorias_cortes', docRef.id), {
+        corteId: docRef.id,
+        fecha: serverTimestamp(),
+        operador: nombreOperador,
+        efectivoContado: sumaContada,
+        efectivoEsperado: calculationsCorte.efectivoEsperado,
+        diferencia: diferencia,
+        discrepanciaReconciliada: false,
+        comentarioReconciliacion: '',
+        auditorResponsable: ''
       });
 
       // Alerta de descuadre de caja (Sugerencia 3: Tolerancia Dinámica)
@@ -3516,7 +3555,7 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
     };
 
     setCobros(prev => [nuevoCobro, ...prev]);
-    await registrarEvento('Cobro Manual', `Cobro manual registrado: ${nuevaDesc}. Método: ${nuevoMetodo.toUpperCase()}`, monto, 'info');
+    await registrarEvento('Cobro Manual', `Cobro manual registrado: ${nuevaDesc}. Método: ${nuevoMetodo.toUpperCase()}`, monto, 'info', nuevoMetodo);
     showToast(`Cobro manual de $${monto} registrado con éxito 💸`, 'success');
 
     setMostrarCobroManual(false);
