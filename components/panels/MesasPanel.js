@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, Component } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { obfuscate, deobfuscate, hashNip } from '@/lib/crypto';
@@ -34,6 +34,141 @@ const normalizeText = (str) => {
   if (!str) return '';
   return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
 };
+
+const getCuentaAsociadaSafe = (mesa, cuentasActivas) => {
+  const defaultObject = {
+    id: null,
+    mesaId: mesa ? mesa.id : null,
+    cliente: mesa ? (mesa.cliente || 'Público') : 'Público',
+    consumos: [],
+    tiempoJuego: 0,
+    subtotal: 0,
+    total: 0,
+    isDefaultNullObject: true
+  };
+
+  if (!mesa || !cuentasActivas) return defaultObject;
+
+  const mesaId = mesa.id;
+  const mesaClienteNormalized = normalizeText(mesa.cliente);
+
+  const found = cuentasActivas.find(c => {
+    if (c.mesaId === mesaId) return true;
+    if (!c.cliente) return false;
+    const cClienteNormalized = normalizeText(c.cliente);
+    if (mesaClienteNormalized && !['público', 'publico'].includes(mesaClienteNormalized) && cClienteNormalized === mesaClienteNormalized) return true;
+    if (cClienteNormalized === `mesa ${mesaId}`) return true;
+    return false;
+  });
+
+  if (found) {
+    return {
+      ...found,
+      consumos: found.consumos || []
+    };
+  }
+
+  return defaultObject;
+};
+
+class ModalErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error(`[ModalErrorBoundary] Crash in modal [${this.props.name || 'desconocido'}]:`, error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="modal-overlay" style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.7)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 2000,
+          padding: 16
+        }}>
+          <div className="modal-content card" style={{
+            maxWidth: 450,
+            width: '100%',
+            backgroundColor: '#1c1c1e',
+            color: '#fff',
+            borderRadius: 12,
+            border: '1px solid var(--danger)',
+            boxShadow: '0 8px 32px rgba(255, 0, 0, 0.2)',
+            overflow: 'hidden'
+          }}>
+            <div className="modal-header" style={{
+              padding: '16px 20px',
+              borderBottom: '1px solid #2c2c2e',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10
+            }}>
+              <i className="ri-error-warning-fill" style={{ color: 'var(--danger)', fontSize: 20 }} />
+              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>Error al Cargar Modal</h3>
+            </div>
+            <div className="modal-body" style={{ padding: '20px 24px', fontSize: 13, lineHeight: '1.5' }}>
+              <p>Ocurrió un error inesperado al renderizar el modal <strong>{this.props.name || ''}</strong>.</p>
+              <div style={{
+                backgroundColor: '#0c0c0e',
+                padding: 12,
+                borderRadius: 6,
+                fontFamily: 'monospace',
+                fontSize: 11,
+                color: '#ff6b6b',
+                maxHeight: 150,
+                overflowY: 'auto',
+                border: '1px solid #2c2c2e',
+                marginTop: 10,
+                wordBreak: 'break-all',
+                whiteSpace: 'pre-wrap'
+              }}>
+                {this.state.error && this.state.error.toString()}
+              </div>
+            </div>
+            <div className="modal-footer" style={{
+              padding: '12px 20px',
+              borderTop: '1px solid #2c2c2e',
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: 10,
+              backgroundColor: '#151517'
+            }}>
+              <button 
+                className="btn btn-secondary" 
+                onClick={() => {
+                  this.setState({ hasError: false, error: null });
+                  if (this.props.onClose) this.props.onClose();
+                }}
+                style={{ fontSize: 12, padding: '6px 16px' }}
+              >
+                Cerrar Modal
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+
 
 const isRealName = (name) => {
   const normalized = (name || '').trim().toLowerCase();
@@ -544,13 +679,7 @@ function ModalAbrirMesa({ mesa, adminPinHash, hashPassword, onClose, onConfirm }
 
 // ── MODAL CERRAR MESA ────────────────────────────────────
 function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], registrarNuevoClienteDirectorio, mesas = [], unloadedConsumos, onClose, onCerrar, onAgregarACuenta, imprimirPreTicket, onImprimirPreTicket }) {
-  const cuentaAsociada = cuentasActivas.find(c => 
-    c.mesaId === mesa.id ||
-    (c.cliente && (
-      (mesa.cliente && !['público', 'publico'].includes(normalizeText(mesa.cliente)) && normalizeText(c.cliente) === normalizeText(mesa.cliente)) || 
-      normalizeText(c.cliente) === `mesa ${mesa.id}`
-    ))
-  );
+  const cuentaAsociada = getCuentaAsociadaSafe(mesa, cuentasActivas);
 
   const [elapsed, setElapsed] = useState(Date.now() - (mesa.inicio || Date.now()));
   const [metodo, setMetodo] = useState('efectivo');
@@ -605,7 +734,7 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
 
   // Pre-seleccionar la cuenta asociada de la mesa si existe
   useEffect(() => {
-    if (cuentaAsociada) {
+    if (cuentaAsociada && !cuentaAsociada.isDefaultNullObject) {
       setCuentaSeleccionada(cuentaAsociada.id);
       const isGeneric = !isRealName(cuentaAsociada.cliente);
       if (isGeneric) {
@@ -1027,7 +1156,7 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
                 <div className="form-group" style={{ gap: 2 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <label className="form-label" style={{ fontSize: 9, marginBottom: 0 }}>Seleccionar Cuenta Activa</label>
-                    {cuentaAsociada && (
+                    {cuentaAsociada && !cuentaAsociada.isDefaultNullObject && (
                       <span style={{ fontSize: 8, color: 'var(--success)', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 2 }}>
                         <i className="ri-checkbox-circle-fill" /> Cuenta detectada ✓
                       </span>
@@ -3197,16 +3326,8 @@ export default function MesasPanel({ showToast }) {
   const consumosPorMesa = useMemo(() => {
     const map = {};
     mesas.forEach(m => {
-      const cuentaAsociada = cuentasActivas.find(c => 
-        c.mesaId === m.id ||
-        (c.cliente && (
-          (m.cliente && !['publico'].includes(normalizeText(m.cliente)) && normalizeText(c.cliente) === normalizeText(m.cliente)) || 
-          normalizeText(c.cliente) === `mesa ${m.id}`
-        ))
-      );
-      const loaded = cuentaAsociada 
-        ? (cuentaAsociada.consumos || []).reduce((s, item) => s + item.precio * item.cantidad, 0)
-        : 0;
+      const cuentaAsociada = getCuentaAsociadaSafe(m, cuentasActivas);
+      const loaded = cuentaAsociada.consumos.reduce((s, item) => s + item.precio * item.cantidad, 0);
       const unloaded = unloadedConsumos[m.id] || 0;
       map[m.id] = loaded + unloaded;
     });
@@ -3758,6 +3879,66 @@ export default function MesasPanel({ showToast }) {
 
   const agregarSesionACuenta = async ({ costo, cuentaId, nombreNuevo }) => {
     let targetId = cuentaId;
+    const mesaId = modalCerrar.id;
+
+    // ── RECONCILIACIÓN EN CALIENTE DE CONSUMOS (Sugerencia 3) ──
+    const qPending = query(
+      collection(db, 'mesa_pedidos'),
+      where('mesaId', '==', mesaId),
+      where('estado', 'in', ['pendiente', 'listo', 'en_camino', 'entregado'])
+    );
+    const pendingSnap = await getDocs(qPending);
+    
+    const pendingItems = [];
+    const pendingDocsToUpdate = [];
+    
+    pendingSnap.docs.forEach(docSnap => {
+      const docData = docSnap.data();
+      pendingDocsToUpdate.push({ id: docSnap.id, data: docData });
+      if (!docData.cargadoACuenta) {
+        const items = docData.items || [];
+        items.forEach(item => {
+          pendingItems.push({
+            id: item.productoId || item.id || Date.now() + Math.random(),
+            producto: item.nombre || item.producto,
+            precio: item.precio,
+            cantidad: item.cantidad
+          });
+        });
+      }
+    });
+
+    // Descontar inventario de los items pendientes en Firestore
+    if (pendingItems.length > 0) {
+      try {
+        await runTransaction(db, async (transaction) => {
+          const invRef = doc(db, 'config', 'inventario');
+          const invSnap = await transaction.get(invRef);
+          if (invSnap.exists()) {
+            const parsed = invSnap.data().productos || [];
+            const updatedStock = parsed.map(p => {
+              let totalQtyToDiscount = 0;
+              pendingItems.forEach(item => {
+                if (item.id === p.id) {
+                  totalQtyToDiscount += item.cantidad;
+                }
+              });
+              if (totalQtyToDiscount > 0) {
+                return { ...p, stock: Math.max(0, p.stock - totalQtyToDiscount), lastModified: Date.now() };
+              }
+              return p;
+            });
+            transaction.update(invRef, {
+              productos: updatedStock,
+              updatedAt: serverTimestamp()
+            });
+            localStorage.setItem('yoy_billar_stock', obfuscate(updatedStock));
+          }
+        });
+      } catch (stockErr) {
+        console.error("Error al actualizar inventario para consumos pendientes:", stockErr);
+      }
+    }
 
     // Fail-safe: si no viene cuentaId pero ya existe una cuenta activa para esta mesa o este cliente, asociarla
     if (!targetId && nombreNuevo) {
@@ -3775,17 +3956,23 @@ export default function MesasPanel({ showToast }) {
     if (targetId) {
       await actualizarCuentasFirestore(prev => {
         const cuentaMesaActual = prev.find(c => c.mesaId === modalCerrar.id);
-        let consumosAFusionar = [];
-        if (cuentaMesaActual && String(cuentaMesaActual.id) !== String(targetId)) {
-          consumosAFusionar = cuentaMesaActual.consumos || [];
-        }
-
+        
         let tempCuentas = prev.map(c => {
           if (String(c.id) === String(targetId)) {
             const nuevosConsumos = (c.consumos || []).map(i => ({ ...i }));
-            consumosAFusionar.forEach(itemItem => {
+            
+            // 1. Fusionar consumos de la mesa actual si es una cuenta diferente
+            let consumosMesa = [];
+            if (cuentaMesaActual && String(cuentaMesaActual.id) !== String(targetId)) {
+              consumosMesa = cuentaMesaActual.consumos || [];
+            }
+            
+            // 2. Unir consumos de mesa y pendientes
+            const itemsUnir = [...consumosMesa, ...pendingItems];
+            
+            itemsUnir.forEach(itemItem => {
               const existeItem = nuevosConsumos.find(i => 
-                (itemItem.productoId && i.productoId === itemItem.productoId) || 
+                (itemItem.id && i.id === itemItem.id) || 
                 i.producto.toLowerCase() === itemItem.producto.toLowerCase()
               );
               if (existeItem) {
@@ -3820,16 +4007,55 @@ export default function MesasPanel({ showToast }) {
       showToast(`Mesa cerrada. Costo de $${costo} MXN agregado a la cuenta del cliente.`, 'success');
       registrarEvento('Mesa a Cuenta', `Mesa ${modalCerrar.nombre} agregada a la cuenta de ${clientName}`, costo);
     } else {
+      const cuentaMesaActual = cuentasActivas.find(c => c.mesaId === modalCerrar.id);
+      const consumosMesa = cuentaMesaActual ? (cuentaMesaActual.consumos || []) : [];
+      
+      const nuevosConsumos = [...consumosMesa];
+      pendingItems.forEach(pendingItem => {
+        const existeItem = nuevosConsumos.find(i => 
+          (pendingItem.id && i.id === pendingItem.id) || 
+          i.producto.toLowerCase() === pendingItem.producto.toLowerCase()
+        );
+        if (existeItem) {
+          existeItem.cantidad += pendingItem.cantidad;
+        } else {
+          nuevosConsumos.push({ ...pendingItem });
+        }
+      });
+
       const nueva = {
         id: Date.now(),
         cliente: nombreNuevo,
         tiempoJuego: costo,
-        consumos: [],
+        consumos: nuevosConsumos,
         inicio: Date.now()
       };
-      await actualizarCuentasFirestore(prev => [...prev, nueva]);
+      
+      await actualizarCuentasFirestore(prev => {
+        let filtered = prev;
+        if (cuentaMesaActual) {
+          filtered = prev.filter(c => String(c.id) !== String(cuentaMesaActual.id));
+        }
+        return [...filtered, nueva];
+      });
       showToast(`Mesa cerrada. Cuenta abierta para ${nombreNuevo} con $${costo} MXN de tiempo.`, 'success');
       registrarEvento('Mesa a Cuenta Nueva', `Mesa ${modalCerrar.nombre} agregada a una cuenta nueva para ${nombreNuevo}`, costo);
+    }
+
+    // Desactivar/atender/finalizar todas las alertas y consumos de la mesa en Firestore en lote (batch)
+    if (pendingDocsToUpdate.length > 0) {
+      const batch = writeBatch(db);
+      pendingDocsToUpdate.forEach(item => {
+        const nuevoEstado = item.data.estado === 'entregado' ? 'finalizado' : 'atendido';
+        batch.update(doc(db, 'mesa_pedidos', item.id), {
+          estado: nuevoEstado,
+          cargadoACuenta: true,
+          atendidoAdmin: true,
+          atendidoAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        });
+      });
+      await batch.commit();
     }
 
     setMesas(prev => prev.map(m => m.id === modalCerrar.id
@@ -3933,14 +4159,8 @@ export default function MesasPanel({ showToast }) {
   };
 
   const imprimirPreTicket = (mesa) => {
-    const cuentaAsociada = cuentasActivas.find(c => 
-      c.mesaId === mesa.id ||
-      (c.cliente && (
-        (mesa.cliente && !['público', 'publico'].includes(mesa.cliente.toLowerCase()) && c.cliente.toLowerCase() === mesa.cliente.toLowerCase()) || 
-        c.cliente.toLowerCase() === `mesa ${mesa.id}`
-      ))
-    );
-    const consumos = cuentaAsociada ? cuentaAsociada.consumos : [];
+    const cuentaAsociada = getCuentaAsociadaSafe(mesa, cuentasActivas);
+    const consumos = cuentaAsociada.consumos;
     const costoTiempo = calcCosto({ ...mesa, inicio: mesa.inicio });
     const consumosTotal = consumos.reduce((sum, item) => sum + item.precio * item.cantidad, 0);
     const total = mesa.socios ? consumosTotal : (costoTiempo + consumosTotal);
@@ -4500,24 +4720,58 @@ export default function MesasPanel({ showToast }) {
       const clientName = mesa ? mesa.cliente : 'Público';
 
       // Buscar la cuenta asociada para auditar el detalle de consumos al cerrar
-      const cuentaAsociada = cuentasActivas.find(c => 
-        c.mesaId === mesaId ||
-        (c.cliente && (
-          (mesa && mesa.cliente && !['público', 'publico'].includes(mesa.cliente.toLowerCase()) && c.cliente.toLowerCase() === mesa.cliente.toLowerCase()) || 
-          c.cliente.toLowerCase() === `mesa ${mesaId}`
-        ))
+      const cuentaAsociada = getCuentaAsociadaSafe(mesa, cuentasActivas);
+
+      // ── RECONCILIACIÓN EN CALIENTE DE CONSUMOS (Sugerencia 3) ──
+      // Obtener todos los pedidos no cargados de esta mesa
+      const qPendingOrders = query(
+        collection(db, 'mesa_pedidos'),
+        where('mesaId', '==', mesaId),
+        where('estado', 'in', ['pendiente', 'listo', 'en_camino', 'entregado'])
       );
+      const pendingSnap = await getDocs(qPendingOrders);
+      
+      const pendingItems = [];
+      const pendingDocsToUpdate = [];
+      
+      pendingSnap.docs.forEach(docSnap => {
+        const docData = docSnap.data();
+        pendingDocsToUpdate.push({ id: docSnap.id, data: docData });
+        if (!docData.cargadoACuenta) {
+          const items = docData.items || [];
+          items.forEach(item => {
+            pendingItems.push({
+              id: item.productoId || item.id || Date.now() + Math.random(),
+              producto: item.nombre || item.producto,
+              precio: item.precio,
+              cantidad: item.cantidad
+            });
+          });
+        }
+      });
+
+      // Consolidar consumos cargados y descargados
+      const consumosConsolidados = [...cuentaAsociada.consumos];
+      pendingItems.forEach(pendingItem => {
+        const existe = consumosConsolidados.find(i => 
+          (pendingItem.id && i.id === pendingItem.id) || 
+          i.producto.toLowerCase() === pendingItem.producto.toLowerCase()
+        );
+        if (existe) {
+          existe.cantidad += pendingItem.cantidad;
+        } else {
+          consumosConsolidados.push(pendingItem);
+        }
+      });
 
       // Registrar SIEMPRE el cierre en historial_stock para auditoría en la nube (evitando pérdida de información)
-      const itemsAuditoria = (cuentaAsociada && cuentaAsociada.consumos)
-        ? cuentaAsociada.consumos.map(item => ({
-            productoId: item.id || 0,
-            nombre: item.producto,
-            precio: item.precio,
-            cantidad: item.cantidad,
-            subtotal: item.precio * item.cantidad
-          }))
-        : [];
+      const itemsAuditoria = consumosConsolidados.map(item => ({
+        productoId: item.id || 0,
+        nombre: item.producto,
+        precio: item.precio,
+        cantidad: item.cantidad,
+        subtotal: item.precio * item.cantidad
+      }));
 
       // Ejecutar la liquidación de la cuenta y el registro de auditoría en una transacción atómica
       const stockRef = doc(collection(db, 'historial_stock'));
@@ -4537,6 +4791,37 @@ export default function MesasPanel({ showToast }) {
             c.cliente.toLowerCase() === `mesa ${mesaId}`
           )))
         );
+
+        // Descontar inventario central de los items pendientes reconciliados si aplica
+        const invRef = doc(db, 'config', 'inventario');
+        const invSnap = await transaction.get(invRef);
+        let updatedStock = null;
+        if (invSnap.exists() && pendingItems.length > 0) {
+          const parsed = invSnap.data().productos || [];
+          updatedStock = parsed.map(p => {
+            let totalQtyToDiscount = 0;
+            pendingItems.forEach(item => {
+              if (item.id === p.id) {
+                totalQtyToDiscount += item.cantidad;
+              }
+            });
+            if (totalQtyToDiscount > 0) {
+              return { ...p, stock: Math.max(0, p.stock - totalQtyToDiscount), lastModified: Date.now() };
+            }
+            return p;
+          });
+        }
+
+        // Actualizar inventario si hubo cambios
+        if (updatedStock) {
+          transaction.update(invRef, {
+            productos: updatedStock,
+            updatedAt: serverTimestamp()
+          });
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('yoy_billar_stock', obfuscate(updatedStock));
+          }
+        }
 
         // Actualizar cuentas estado
         transaction.set(cuentasRef, {
@@ -4566,7 +4851,7 @@ export default function MesasPanel({ showToast }) {
 
       // Mandar a imprimir el ticket final de cobro
       try {
-        const consumosFinal = cuentaAsociada ? (cuentaAsociada.consumos || []) : [];
+        const consumosFinal = consumosConsolidados;
         let metodoPagoImprimir = metodo || 'efectivo';
         if (metodoPagoImprimir === 'efectivo') metodoPagoImprimir = 'Efectivo';
         else if (metodoPagoImprimir === 'transferencia') metodoPagoImprimir = 'Transferencia';
@@ -4602,7 +4887,7 @@ export default function MesasPanel({ showToast }) {
       // CALCULO DE COMISIONES PARA MESEROS ASIGNADOS A LA MESA
       if (mesa) {
         const costoMesa = mesa.socios ? 0 : calcCosto(mesa);
-        const consumosFinal = cuentaAsociada ? (cuentaAsociada.consumos || []) : [];
+        const consumosFinal = consumosConsolidados;
         const costoBar = consumosFinal.reduce((sum, item) => sum + ((item.precio || item.precioVenta || 0) * (item.cantidad || 0)), 0);
         
         const waiterIds = mesa.meseroIds && Array.isArray(mesa.meseroIds) && mesa.meseroIds.length > 0 
@@ -4653,19 +4938,14 @@ export default function MesasPanel({ showToast }) {
       }
 
       // Desactivar/atender/finalizar todas las alertas y consumos de la mesa en Firestore en lote (batch)
-      const qAlerts = query(
-        collection(db, 'mesa_pedidos'),
-        where('mesaId', '==', mesaId),
-        where('estado', 'in', ['pendiente', 'listo', 'en_camino', 'entregado'])
-      );
-      const snap = await getDocs(qAlerts);
-      if (!snap.empty) {
+      if (pendingDocsToUpdate.length > 0) {
         const batch = writeBatch(db);
-        snap.docs.forEach(d => {
-          const docData = d.data();
-          const nuevoEstado = docData.estado === 'entregado' ? 'finalizado' : 'atendido';
-          batch.update(doc(db, 'mesa_pedidos', d.id), {
+        pendingDocsToUpdate.forEach(item => {
+          const nuevoEstado = item.data.estado === 'entregado' ? 'finalizado' : 'atendido';
+          batch.update(doc(db, 'mesa_pedidos', item.id), {
             estado: nuevoEstado,
+            cargadoACuenta: true,
+            atendidoAdmin: true,
             atendidoAt: serverTimestamp(),
             updatedAt: serverTimestamp()
           });
@@ -5829,136 +6109,166 @@ export default function MesasPanel({ showToast }) {
         </div>
       )}
       {modalAbrir && (
-        <ModalAbrirMesa
-          mesa={modalAbrir}
-          adminPinHash={adminPinHash}
-          hashPassword={hashPassword}
-          onClose={() => setModalAbrir(null)}
-          onConfirm={(data) => confirmarAbrirMesa(modalAbrir.id, data)}
-        />
+        <ModalErrorBoundary name="Abrir Mesa" onClose={() => setModalAbrir(null)}>
+          <ModalAbrirMesa
+            mesa={modalAbrir}
+            adminPinHash={adminPinHash}
+            hashPassword={hashPassword}
+            onClose={() => setModalAbrir(null)}
+            onConfirm={(data) => confirmarAbrirMesa(modalAbrir.id, data)}
+          />
+        </ModalErrorBoundary>
       )}
       {modalCerrar && (
-        <ModalCerrarMesa
-          mesa={mesas.find(m => m.id === modalCerrar.id) || modalCerrar}
-          cuentasActivas={cuentasActivas}
-          clientesRegistrados={clientesRegistrados}
-          registrarNuevoClienteDirectorio={registrarNuevoClienteDirectorio}
-          mesas={mesas}
-          unloadedConsumos={unloadedConsumos}
-          onClose={() => setModalCerrar(null)}
-          onCerrar={(data) => confirmarCerrarMesa(modalCerrar.id, data)}
-          onAgregarACuenta={agregarSesionACuenta}
-          imprimirPreTicket={imprimirPreTicket}
-          onImprimirPreTicket={() => registrarPreTicketMesa(modalCerrar.id)}
-        />
+        <ModalErrorBoundary name="Cerrar Mesa" onClose={() => setModalCerrar(null)}>
+          <ModalCerrarMesa
+            mesa={mesas.find(m => m.id === modalCerrar.id) || modalCerrar}
+            cuentasActivas={cuentasActivas}
+            clientesRegistrados={clientesRegistrados}
+            registrarNuevoClienteDirectorio={registrarNuevoClienteDirectorio}
+            mesas={mesas}
+            unloadedConsumos={unloadedConsumos}
+            onClose={() => setModalCerrar(null)}
+            onCerrar={(data) => confirmarCerrarMesa(modalCerrar.id, data)}
+            onAgregarACuenta={agregarSesionACuenta}
+            imprimirPreTicket={imprimirPreTicket}
+            onImprimirPreTicket={() => registrarPreTicketMesa(modalCerrar.id)}
+          />
+        </ModalErrorBoundary>
       )}
       {modalNuevaMesa && (
-        <ModalNuevaMesa
-          mesas={mesas}
-          onClose={() => setModalNuevaMesa(false)}
-          onConfirm={registrarNuevaMesa}
-        />
+        <ModalErrorBoundary name="Nueva Mesa" onClose={() => setModalNuevaMesa(false)}>
+          <ModalNuevaMesa
+            mesas={mesas}
+            onClose={() => setModalNuevaMesa(false)}
+            onConfirm={registrarNuevaMesa}
+          />
+        </ModalErrorBoundary>
       )}
       {modalFila && (
-        <ModalFilaVirtual
-          fila={fila}
-          setFila={setFila}
-          mesas={mesas}
-          onAssign={asignarClienteDeFila}
-          onClose={() => setModalFila(false)}
-          showToast={showToast}
-          imprimirComprobanteEspera={imprimirComprobanteEspera}
-          imprimirQRRegistroVirtual={imprimirQRRegistroVirtual}
-        />
+        <ModalErrorBoundary name="Fila Virtual" onClose={() => setModalFila(false)}>
+          <ModalFilaVirtual
+            fila={fila}
+            setFila={setFila}
+            mesas={mesas}
+            onAssign={asignarClienteDeFila}
+            onClose={() => setModalFila(false)}
+            showToast={showToast}
+            imprimirComprobanteEspera={imprimirComprobanteEspera}
+            imprimirQRRegistroVirtual={imprimirQRRegistroVirtual}
+          />
+        </ModalErrorBoundary>
       )}
       {modalCuentas && (
-        <ModalCuentasActivas
-          cuentas={cuentasActivas}
-          setCuentas={actualizarCuentasFirestore}
-          mesas={mesas}
-          setMesas={setMesas}
-          imprimirPreTicket={imprimirPreTicket}
-          confirmarCerrarMesa={confirmarCerrarMesa}
-          adminPinHash={adminPinHash}
-          hashPassword={hashPassword}
-          onClose={() => setModalCuentas(false)}
-          showToast={showToast}
-          registrarEvento={registrarEvento}
-          meserosPresentes={meserosPresentes}
-        />
+        <ModalErrorBoundary name="Cuentas Activas" onClose={() => setModalCuentas(false)}>
+          <ModalCuentasActivas
+            cuentas={cuentasActivas}
+            setCuentas={actualizarCuentasFirestore}
+            mesas={mesas}
+            setMesas={setMesas}
+            imprimirPreTicket={imprimirPreTicket}
+            confirmarCerrarMesa={confirmarCerrarMesa}
+            adminPinHash={adminPinHash}
+            hashPassword={hashPassword}
+            onClose={() => setModalCuentas(false)}
+            showToast={showToast}
+            registrarEvento={registrarEvento}
+            meserosPresentes={meserosPresentes}
+          />
+        </ModalErrorBoundary>
       )}
       {modalAbrirCuenta && (
-        <ModalAbrirCuentaDirecta
-          cuentas={cuentasActivas}
-          setCuentas={actualizarCuentasFirestore}
-          clientesRegistrados={clientesRegistrados}
-          registrarNuevoClienteDirectorio={registrarNuevoClienteDirectorio}
-          onClose={() => setModalAbrirCuenta(false)}
-          showToast={showToast}
-          registrarEvento={registrarEvento}
-          meserosPresentes={meserosPresentes}
-        />
+        <ModalErrorBoundary name="Abrir Cuenta Directa" onClose={() => setModalAbrirCuenta(false)}>
+          <ModalAbrirCuentaDirecta
+            cuentas={cuentasActivas}
+            setCuentas={actualizarCuentasFirestore}
+            clientesRegistrados={clientesRegistrados}
+            registrarNuevoClienteDirectorio={registrarNuevoClienteDirectorio}
+            onClose={() => setModalAbrirCuenta(false)}
+            showToast={showToast}
+            registrarEvento={registrarEvento}
+            meserosPresentes={meserosPresentes}
+          />
+        </ModalErrorBoundary>
       )}
       {modalCambiarMesa && (
-        <ModalCambiarMesa
-          mesa={modalCambiarMesa}
-          mesas={mesas}
-          onClose={() => setModalCambiarMesa(null)}
-          onConfirm={confirmarCambioMesa}
-        />
+        <ModalErrorBoundary name="Cambiar Mesa" onClose={() => setModalCambiarMesa(null)}>
+          <ModalCambiarMesa
+            mesa={modalCambiarMesa}
+            mesas={mesas}
+            onClose={() => setModalCambiarMesa(null)}
+            onConfirm={confirmarCambioMesa}
+          />
+        </ModalErrorBoundary>
       )}
       {modalVincular && (
-        <ModalVincularCliente
-          mesa={modalVincular}
-          onClose={() => setModalVincular(null)}
-          onConfirm={(nombre) => confirmarVincularCliente(modalVincular.id, nombre)}
-        />
+        <ModalErrorBoundary name="Vincular Cliente" onClose={() => setModalVincular(null)}>
+          <ModalVincularCliente
+            mesa={modalVincular}
+            onClose={() => setModalVincular(null)}
+            onConfirm={(nombre) => confirmarVincularCliente(modalVincular.id, nombre)}
+          />
+        </ModalErrorBoundary>
       )}
       {modalBitacora && (
-        <ModalBitacora
-          bitacora={bitacora}
-          onClear={limpiarBitacora}
-          onClose={() => {
-            setModalBitacora(false);
-            setLimiteBitacora(50);
-          }}
-          onLoadMore={() => setLimiteBitacora(prev => prev + 50)}
-          hasMore={hasMoreBitacora}
-        />
+        <ModalErrorBoundary name="Bitácora" onClose={() => { setModalBitacora(false); setLimiteBitacora(50); }}>
+          <ModalBitacora
+            bitacora={bitacora}
+            onClear={limpiarBitacora}
+            onClose={() => {
+              setModalBitacora(false);
+              setLimiteBitacora(50);
+            }}
+            onLoadMore={() => setLimiteBitacora(prev => prev + 50)}
+            hasMore={hasMoreBitacora}
+          />
+        </ModalErrorBoundary>
       )}
       {modalComanda && (
-        <ModalRegistrarComanda
-          mesas={mesas}
-          setMesas={setMesas}
-          cuentasActivas={cuentasActivas}
-          actualizarCuentasFirestore={actualizarCuentasFirestore}
-          onClose={() => setModalComanda(false)}
-          showToast={showToast}
-          registrarEvento={registrarEvento}
-          meserosPresentes={meserosPresentes}
-        />
+        <ModalErrorBoundary name="Registrar Comanda" onClose={() => setModalComanda(false)}>
+          <ModalRegistrarComanda
+            mesas={mesas}
+            setMesas={setMesas}
+            cuentasActivas={cuentasActivas}
+            actualizarCuentasFirestore={actualizarCuentasFirestore}
+            onClose={() => setModalComanda(false)}
+            showToast={showToast}
+            registrarEvento={registrarEvento}
+            meserosPresentes={meserosPresentes}
+          />
+        </ModalErrorBoundary>
       )}
       {mostrarCobroManual && (
-        <ModalCobroManual
-          nuevoMonto={nuevoMonto}
-          setNuevoMonto={setNuevoMonto}
-          nuevaDesc={nuevaDesc}
-          setNuevaDesc={setNuevaDesc}
-          nuevoMetodo={nuevoMetodo}
-          setNuevoMetodo={setNuevoMetodo}
-          pinAutorizacion={pinAutorizacion}
-          setPinAutorizacion={setPinAutorizacion}
-          onClose={() => {
-            if (nuevoMonto || nuevaDesc) {
-              sessionStorage.setItem('yoy_draft_cobro_manual', JSON.stringify({ nuevoMonto, nuevaDesc }));
-            }
-            setMostrarCobroManual(false);
-            setNuevoMonto('');
-            setNuevaDesc('');
-            setPinAutorizacion('');
-          }}
-          onConfirm={registrarCobroManual}
-        />
+        <ModalErrorBoundary name="Cobro Manual" onClose={() => {
+          if (nuevoMonto || nuevaDesc) {
+            sessionStorage.setItem('yoy_draft_cobro_manual', JSON.stringify({ nuevoMonto, nuevaDesc }));
+          }
+          setMostrarCobroManual(false);
+          setNuevoMonto('');
+          setNuevaDesc('');
+          setPinAutorizacion('');
+        }}>
+          <ModalCobroManual
+            nuevoMonto={nuevoMonto}
+            setNuevoMonto={setNuevoMonto}
+            nuevaDesc={nuevaDesc}
+            setNuevaDesc={setNuevaDesc}
+            nuevoMetodo={nuevoMetodo}
+            setNuevoMetodo={setNuevoMetodo}
+            pinAutorizacion={pinAutorizacion}
+            setPinAutorizacion={setPinAutorizacion}
+            onClose={() => {
+              if (nuevoMonto || nuevaDesc) {
+                sessionStorage.setItem('yoy_draft_cobro_manual', JSON.stringify({ nuevoMonto, nuevaDesc }));
+              }
+              setMostrarCobroManual(false);
+              setNuevoMonto('');
+              setNuevaDesc('');
+              setPinAutorizacion('');
+            }}
+            onConfirm={registrarCobroManual}
+          />
+        </ModalErrorBoundary>
       )}
     </div>
   );
@@ -6400,13 +6710,9 @@ function ModalCuentasActivas({
     }
 
     // Buscar la cuenta activa de la mesa destino
-    const destCuenta = cuentas.find(c => 
-      c.mesaId === destMesaId ||
-      (c.cliente && !['público', 'publico'].includes(c.cliente.toLowerCase()) && c.cliente.toLowerCase() === destMesa.cliente?.toLowerCase()) ||
-      c.cliente.toLowerCase() === `mesa ${destMesaId}`
-    );
+    const destCuenta = getCuentaAsociadaSafe(destMesa, cuentas);
 
-    if (!destCuenta) {
+    if (!destCuenta || destCuenta.isDefaultNullObject) {
       showToast('No se encontró una cuenta activa para la mesa de destino.', 'warning');
       return;
     }
@@ -6551,13 +6857,8 @@ function ModalCuentasActivas({
   if (isMesaTab && mesaSel) {
     clientName = mesaSel.cliente || `Mesa ${mesaSel.id}`;
     tiempoJuegoCosto = mesaSel.socios ? 0 : calcCosto(mesaSel);
-    cuentaAsociadaMesa = cuentas.find(c => 
-      c.cliente && (
-        (mesaSel.cliente && normalizeText(c.cliente) === normalizeText(mesaSel.cliente)) || 
-        normalizeText(c.cliente) === `mesa ${mesaSel.id}`
-      )
-    );
-    consumosList = cuentaAsociadaMesa ? cuentaAsociadaMesa.consumos : [];
+    cuentaAsociadaMesa = getCuentaAsociadaSafe(mesaSel, cuentas);
+    consumosList = cuentaAsociadaMesa.consumos;
     grandTotal = tiempoJuegoCosto + consumosList.reduce((s, i) => s + (i.precio * i.cantidad), 0);
     durationStr = formatTime(Date.now() - mesaSel.inicio);
   } else if (!isMesaTab && cuentaSel) {
@@ -6822,13 +7123,8 @@ function ModalCuentasActivas({
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 380, overflowY: 'auto' }}>
                     {mesasActivas.map(m => {
-                      const cAsoc = cuentas.find(c => 
-                        c.cliente && (
-                          (m.cliente && c.cliente.toLowerCase() === m.cliente.toLowerCase()) || 
-                          c.cliente.toLowerCase() === `mesa ${m.id}`
-                        )
-                      );
-                      const cTotal = cAsoc ? cAsoc.consumos.reduce((s, i) => s + (i.precio * i.cantidad), 0) : 0;
+                      const cAsoc = getCuentaAsociadaSafe(m, cuentas);
+                      const cTotal = cAsoc.consumos.reduce((s, i) => s + (i.precio * i.cantidad), 0);
                       const tCosto = m.socios ? 0 : calcCosto(m);
                       const totalMesa = tCosto + cTotal;
                       const tTrans = Date.now() - m.inicio;
