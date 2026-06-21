@@ -2522,7 +2522,7 @@ export default function MesasPanel({ showToast }) {
   // Cargar un pedido enviado por el cliente directamente a su cuenta de mesa y descontar inventario
   const cargarPedidoACuenta = async (mesaId, pedidoDoc, isAuto = false) => {
     if (pedidoDoc.cargadoACuenta) return;
-    const targetMesa = mesaId ? mesasRef.current.find(m => m.id === mesaId) : null;
+    const targetMesa = mesaId ? mesasRef.current.find(m => String(m.id) === String(mesaId)) : null;
     if (mesaId && !targetMesa) {
       if (mesasRef.current.length === 0) {
         // Si las mesas aún están cargando de Firestore, encolar el pedido para procesarlo después
@@ -2594,12 +2594,22 @@ export default function MesasPanel({ showToast }) {
     let clienteName = (targetMesa ? targetMesa.cliente : null) || orderClient || `Mesa ${mesaId}`;
     let updatedMesas = mesasRef.current;
     if (targetMesa && targetMesa.estado !== 'ocupada') {
-      updatedMesas = mesasRef.current.map(m => m.id === mesaId
+      updatedMesas = mesasRef.current.map(m => String(m.id) === String(mesaId)
         ? { ...m, estado: 'ocupada', cliente: clienteName, inicio: Date.now(), clienteUid: pedidoDoc.clienteUid || '' }
         : m
       );
       setMesas(updatedMesas);
       localStorage.setItem('yoy_billar_mesas', obfuscate(updatedMesas));
+      
+      try {
+        await setDoc(doc(db, 'config', 'mesas_estado'), {
+          mesas: updatedMesas,
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+      } catch (err) {
+        console.error("Error al guardar mesas_estado en apertura automática:", err);
+      }
+
       registrarEvento('Apertura Auto', `Mesa ${mesaId} abierta automáticamente por pedido de cliente (${clienteName})`);
       enviarAlertaMesero(mesaId, clienteName, 'Mesa Abierta (Pedido)', 'asistencia', '🎮');
     }

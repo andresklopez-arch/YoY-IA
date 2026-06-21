@@ -1418,15 +1418,15 @@ function AppContent() {
         };
         // Solo archivar si no es un pedido
         if (data.tipo !== 'pedido') {
-          if (data.atendidoMesero === true || data.estado === 'entregado') {
-            updateData.estado = 'atendido';
-            updateData.atendidoAt = serverTimestamp();
-          }
+          updateData.estado = 'atendido';
+          updateData.atendidoAt = serverTimestamp();
         }
         await updateDoc(docRef, updateData);
+        showToast('Solicitud marcada como atendida ✓', 'success');
       }
     } catch (e) {
       console.error(e);
+      showToast('Error al marcar solicitud como atendida', 'danger');
     }
   };
 
