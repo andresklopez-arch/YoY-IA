@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useMemo, Fragment, useRef } from 'react';
 import { db } from '@/lib/firebase';
-import { doc, onSnapshot, query, collection, orderBy, limit, getDocs, getDoc, startAfter, writeBatch, addDoc, serverTimestamp, where, setDoc, updateDoc, deleteDoc, increment } from 'firebase/firestore';
+import { doc, onSnapshot, query, collection, orderBy, limit, getDocs, getDoc, startAfter, writeBatch, addDoc, serverTimestamp, where, setDoc, updateDoc, deleteDoc, increment, runTransaction } from 'firebase/firestore';
 import { deobfuscate, obfuscate } from '@/lib/crypto';
 import { useAuth } from '@/lib/auth-context';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip as RechartsTooltip, PieChart as RechartsPieChart, Pie, Cell } from 'recharts';
@@ -216,6 +216,7 @@ export default function CajaPanel({ showToast }) {
   const [rfFiltro, setRfFiltro] = useState('7d');
   const [rfModalTipo, setRfModalTipo] = useState(null);
   const [rfModalDetalleMetodo, setRfModalDetalleMetodo] = useState(null);
+  const [rfSyncProgress, setRfSyncProgress] = useState(null);
   const [resumenesDiariosList, setResumenesDiariosList] = useState([]);
   const [detalleTransaccionesHistorial, setDetalleTransaccionesHistorial] = useState([]);
   const [detalleTransaccionesLoading, setDetalleTransaccionesLoading] = useState(false);
@@ -618,13 +619,31 @@ export default function CajaPanel({ showToast }) {
 
   const verificarYRetrorellenarHistorial = async () => {
     try {
-      // Idempotencia: Verificar si ya fue completado e indexado
+      // Idempotencia transaccional: Verificar y apartar el lock de forma atómica
       const lockRef = doc(db, 'config', 'retrofill');
-      const lockSnap = await getDoc(lockRef);
-      if (lockSnap.exists() && lockSnap.data().completado) {
+      let yaCompletado = false;
+      
+      try {
+        await runTransaction(db, async (transaction) => {
+          const lockSnap = await transaction.get(lockRef);
+          if (lockSnap.exists() && lockSnap.data().completado) {
+            yaCompletado = true;
+          } else {
+            // Registrar inicio en progreso
+            transaction.set(lockRef, { completado: false, iniciadoEn: new Date().toISOString() }, { merge: true });
+          }
+        });
+      } catch (transErr) {
+        console.error("Error al adquirir lock transaccional de retrofill:", transErr);
+        return;
+      }
+
+      if (yaCompletado) {
         console.log("✓ Retrorellenado histórico ya completado según Firestore (idempotente).");
         return;
       }
+
+      setRfSyncProgress(0); // Iniciar barra de progreso visual
 
       const rdSnap = await getDocs(collection(db, 'resumenes_diarios'));
       const existingDocs = {};
@@ -633,11 +652,52 @@ export default function CajaPanel({ showToast }) {
       });
 
       const hoyStr = new Date().toISOString().split('T')[0];
-      const bitacoraSnap = await getDocs(query(collection(db, 'bitacora'), where('fecha', '<', hoyStr + 'T00:00:00')));
+      
+      // Paginación segmentada de la bitácora para evitar desbordamiento de memoria y costos
+      let q = query(
+        collection(db, 'bitacora'),
+        where('fecha', '<', hoyStr + 'T00:00:00'),
+        orderBy('fecha'),
+        limit(500)
+      );
+      
+      let allDocs = [];
+      let hasMore = true;
+      let lastDoc = null;
+      let totalProcesados = 0;
+
+      while (hasMore) {
+        if (lastDoc) {
+          q = query(
+            collection(db, 'bitacora'),
+            where('fecha', '<', hoyStr + 'T00:00:00'),
+            orderBy('fecha'),
+            startAfter(lastDoc),
+            limit(500)
+          );
+        }
+        
+        const snap = await getDocs(q);
+        if (snap.empty) {
+          hasMore = false;
+        } else {
+          allDocs = allDocs.concat(snap.docs);
+          lastDoc = snap.docs[snap.docs.length - 1];
+          totalProcesados += snap.docs.length;
+          setRfSyncProgress(totalProcesados);
+          
+          // Pausa asíncrona corta para ceder el control del hilo a la UI y evitar bloqueos
+          await new Promise(r => setTimeout(r, 60));
+          
+          if (snap.docs.length < 500) {
+            hasMore = false;
+          }
+        }
+      }
       
       const dailyData = {};
 
-      bitacoraSnap.docs.forEach(doc => {
+      allDocs.forEach(doc => {
         const d = doc.data();
         if (!d.fecha) return;
         const dateStr = d.fecha.split('T')[0];
@@ -732,8 +792,10 @@ export default function CajaPanel({ showToast }) {
         dailyData[dateStr].nominaS += Number(p.total || p.totalNeto) || 0;
       });
 
-      const batch = writeBatch(db);
+      // Escribir en lotes controlados de máximo 400 operaciones por lote para cumplir límites de Firestore
+      let batch = writeBatch(db);
       let count = 0;
+      let totalUpdated = 0;
 
       for (const [dateStr, data] of Object.entries(dailyData)) {
         const existing = existingDocs[dateStr];
@@ -755,19 +817,32 @@ export default function CajaPanel({ showToast }) {
             ultimoUpdate: new Date().toISOString()
           });
           count++;
+          totalUpdated++;
+
+          if (count === 400) {
+            await batch.commit();
+            batch = writeBatch(db);
+            count = 0;
+            console.log("✓ Lote de 400 resúmenes diarios guardado.");
+          }
         }
       }
 
       if (count > 0) {
         await batch.commit();
-        console.log(`✓ Retrorellenado y Sincronización exitosa: se actualizaron/crearon ${count} resúmenes diarios.`);
+      }
+
+      if (totalUpdated > 0) {
+        console.log(`✓ Sincronización exitosa: se actualizaron/crearon ${totalUpdated} resúmenes diarios.`);
       }
       
-      // Marcar como completado en Firestore para evitar recálculos futuros
+      // Marcar lock como completado para impedir reprocesamiento futuro
       await setDoc(lockRef, { completado: true, ultimoUpdate: new Date().toISOString() }, { merge: true });
       console.log("✓ Bloqueo de retrorellenado registrado en Firestore config/retrofill.");
+      setRfSyncProgress(null);
     } catch (err) {
       console.error("Error en retrorellenado de resúmenes diarios:", err);
+      setRfSyncProgress(null);
     }
   };
 
@@ -5985,7 +6060,23 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
                       <i className="ri-wallet-3-line" style={{ marginRight: 6 }} />
                       Resumen Financiero Unificado
                     </span>
-                    <span className="badge badge-success" style={{ fontSize: 9, padding: '2px 4px' }}>En Vivo</span>
+                    {rfSyncProgress !== null ? (
+                      <span className="badge" style={{ 
+                        fontSize: 9, 
+                        padding: '2px 4px', 
+                        background: 'rgba(243, 156, 18, 0.2)',
+                        color: '#f39c12',
+                        border: '1px solid rgba(243, 156, 18, 0.4)',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 3
+                      }}>
+                        <i className="ri-loader-4-line ri-spin" />
+                        Sincronizando ({rfSyncProgress})
+                      </span>
+                    ) : (
+                      <span className="badge badge-success" style={{ fontSize: 9, padding: '2px 4px' }}>En Vivo</span>
+                    )}
                   </div>
                   
                   {/* Selector de Períodos */}

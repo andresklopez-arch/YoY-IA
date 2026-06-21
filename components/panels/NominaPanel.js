@@ -1075,7 +1075,7 @@ export default function NominaPanel({ showToast }) {
       <div style={{ display: 'grid', gridTemplateColumns: '7fr 3fr', gap: 20, alignItems: 'start' }}>
           
           {/* COLUMNA IZQUIERDA (70%) */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20, minWidth: 0 }}>
             
             {/* SECCION 1: PASE DE LISTA RÁPIDO */}
             <div className="card">
@@ -1204,6 +1204,31 @@ export default function NominaPanel({ showToast }) {
                       horasHoy += diffMs / (1000 * 60 * 60);
                     }
 
+                    // Obtener fecha de ingreso o fallback a createdAt
+                    const getFechaIngreso = (e) => {
+                      if (e.fechaIngreso) return e.fechaIngreso;
+                      if (e.createdAt) {
+                        const d = e.createdAt.toDate ? e.createdAt.toDate() : new Date(e.createdAt);
+                        const y = d.getFullYear();
+                        const m = String(d.getMonth() + 1).padStart(2, '0');
+                        const day = String(d.getDate()).padStart(2, '0');
+                        return `${y}-${m}-${day}`;
+                      }
+                      return '';
+                    };
+
+                    const formatFechaIngreso = (dateStr) => {
+                      if (!dateStr) return '';
+                      const parts = dateStr.split('-');
+                      if (parts.length === 3) {
+                        return `${parts[2]}/${parts[1]}/${parts[0]}`;
+                      }
+                      return dateStr;
+                    };
+
+                    const fIngresoRaw = getFechaIngreso(emp);
+                    const fIngresoDisplay = formatFechaIngreso(fIngresoRaw);
+
                     return (
                       <div 
                         key={emp.id} 
@@ -1225,21 +1250,28 @@ export default function NominaPanel({ showToast }) {
                         onMouseLeave={e => { if(!esInactivo) e.currentTarget.style.borderColor = 'var(--border)'; }}
                       >
                         {/* Estado y Nombre */}
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span style={{ fontSize: 12, fontWeight: 700, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 110 }}>
-                            {emp.nombre} {emp.apellido || ''}
-                          </span>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1, marginRight: 8 }}>
+                            <span style={{ fontSize: 12, fontWeight: 700, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={`${emp.nombre} ${emp.apellido || ''}`}>
+                              {emp.nombre} {emp.apellido || ''}
+                            </span>
+                            {fIngresoDisplay && (
+                              <span style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 3 }}>
+                                📅 <span style={{ fontSize: 8 }}>Ingreso: {fIngresoDisplay}</span>
+                              </span>
+                            )}
+                          </div>
                           <span style={{ 
                             fontSize: 9, fontWeight: 800, padding: '2px 6px', borderRadius: 4,
                             background: esInactivo ? 'rgba(239,68,68,0.12)' : (estaTrabajando ? 'rgba(34,197,94,0.12)' : 'rgba(107,114,128,0.12)'),
                             color: esInactivo ? 'var(--danger)' : (estaTrabajando ? 'var(--success)' : 'var(--text-muted)'),
-                            display: 'flex', alignItems: 'center', gap: 3
+                            display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0
                           }}>
                             <span style={{ width: 6, height: 6, borderRadius: '50%', background: esInactivo ? 'var(--danger)' : (estaTrabajando ? 'var(--success)' : '#6b7280'), display: 'inline-block' }} />
                             {esInactivo ? 'INACTIVO' : (estaTrabajando ? 'TRABAJANDO' : 'NO FICHADO')}
                           </span>
                         </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: -4 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 2 }}>
                           <div style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase' }}>{emp.rol}</div>
                           <div style={{ fontSize: 9, fontWeight: 600, color: 'var(--bronze-light)' }}>
                             Horas hoy: {horasHoy.toFixed(1)} hrs
