@@ -2112,6 +2112,7 @@ export default function MesasPanel({ showToast }) {
     }
     return 0;
   });
+  const [showCuentasPopover, setShowCuentasPopover] = useState(false);
   const [clientesRegistrados, setClientesRegistrados] = useState([]);
   const [modalCambiarMesa, setModalCambiarMesa] = useState(null);
   const [modalVincular, setModalVincular] = useState(null);
@@ -2164,8 +2165,26 @@ export default function MesasPanel({ showToast }) {
       const ahora = Date.now();
       setLastCheckedTime(ahora);
       localStorage.setItem('yoy_last_checked_solicitudes', String(ahora));
+      // Sincronizar con la nube para otras computadoras
+      setDoc(doc(db, 'config', 'last_checked_cuentas'), { timestamp: ahora }, { merge: true })
+        .catch(err => console.warn("Error al sincronizar lectura de cuentas en Firestore:", err));
     }
   }, [modalCuentasSolicitadas]);
+
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, 'config', 'last_checked_cuentas'), snap => {
+      if (snap.exists()) {
+        const val = snap.data().timestamp;
+        if (val && val > lastCheckedTime) {
+          setLastCheckedTime(val);
+          localStorage.setItem('yoy_last_checked_solicitudes', String(val));
+        }
+      }
+    }, err => {
+      console.warn("Error al escuchar sincronizacion de lectura de cuentas:", err);
+    });
+    return unsub;
+  }, [lastCheckedTime]);
 
   // Cambiar el estado de la mesa rápidamente
   const cambiarEstadoRapido = (mesa, nuevoEstado) => {
@@ -5468,35 +5487,136 @@ export default function MesasPanel({ showToast }) {
         <div style={{ width: 1, height: 18, background: 'var(--border-bronze)', opacity: 0.3, margin: '0 4px' }} />
 
         {/* Botones de Acción */}
-        <button
-          className="btn btn-secondary btn-sm"
-          onClick={() => setModalCuentasSolicitadas(true)}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            color: infoCuentasSolicitadas.total > 0 ? (infoCuentasSolicitadas.tieneDirectas ? '#f59e0b' : '#ef4444') : 'var(--bronze-light)',
-            borderColor: infoCuentasSolicitadas.total > 0 ? (infoCuentasSolicitadas.tieneDirectas ? 'rgba(245, 158, 11, 0.5)' : 'rgba(239, 68, 68, 0.5)') : 'var(--border-bronze)',
-            boxShadow: infoCuentasSolicitadas.total > 0 ? (infoCuentasSolicitadas.tieneDirectas ? '0 0 10px rgba(245, 158, 11, 0.25)' : '0 0 8px rgba(239, 68, 68, 0.2)') : 'none',
-            transition: 'all 0.2s ease'
-          }}
-          title="Ver Cuentas Solicitadas"
+        <div 
+          style={{ position: 'relative', display: 'inline-block' }}
+          onMouseEnter={() => setShowCuentasPopover(true)}
+          onMouseLeave={() => setShowCuentasPopover(false)}
         >
-          <i className="ri-wallet-3-line" style={{ animation: totalNuevasCuentas > 0 ? 'pulse 1.2s infinite' : 'none' }} />
-          <span>Cuentas Solicitadas</span>
-          {totalNuevasCuentas > 0 && (
-            <span className="badge" style={{
-              background: infoCuentasSolicitadas.tieneDirectas ? '#f59e0b' : '#ef4444',
+          <button
+            className="btn btn-secondary btn-sm"
+            onClick={() => setModalCuentasSolicitadas(true)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              color: infoCuentasSolicitadas.total > 0 ? (infoCuentasSolicitadas.tieneDirectas ? '#f59e0b' : '#ef4444') : 'var(--bronze-light)',
+              borderColor: infoCuentasSolicitadas.total > 0 ? (infoCuentasSolicitadas.tieneDirectas ? 'rgba(245, 158, 11, 0.5)' : 'rgba(239, 68, 68, 0.5)') : 'var(--border-bronze)',
+              boxShadow: infoCuentasSolicitadas.total > 0 ? (infoCuentasSolicitadas.tieneDirectas ? '0 0 10px rgba(245, 158, 11, 0.25)' : '0 0 8px rgba(239, 68, 68, 0.2)') : 'none',
+              transition: 'all 0.2s ease',
+              height: '100%'
+            }}
+            title={infoCuentasSolicitadas.total > 0 ? `Tienes ${infoCuentasSolicitadas.total} cuentas pendientes (${totalNuevasCuentas} nuevas desde tu revisión)` : "Sin cobros pendientes"}
+          >
+            <i className="ri-wallet-3-line" style={{ animation: totalNuevasCuentas > 0 ? 'pulse 1.2s infinite' : 'none' }} />
+            <span>Cuentas Solicitadas</span>
+            {totalNuevasCuentas > 0 && (
+              <span className="badge" style={{
+                background: infoCuentasSolicitadas.tieneDirectas ? '#f59e0b' : '#ef4444',
+                color: '#fff',
+                marginLeft: 4,
+                padding: '2px 6px',
+                fontSize: 9,
+                borderRadius: '50%'
+              }}>
+                {totalNuevasCuentas}
+              </span>
+            )}
+          </button>
+
+          {showCuentasPopover && (
+            <div style={{
+              position: 'absolute',
+              top: 'calc(100% + 6px)',
+              left: 0,
+              width: 260,
+              background: 'rgba(20, 20, 24, 0.96)',
+              backdropFilter: 'blur(8px)',
+              border: '1px solid var(--border-bronze)',
+              borderRadius: 8,
+              boxShadow: '0 10px 25px rgba(0, 0, 0, 0.5)',
+              zIndex: 99999,
+              padding: '10px 12px',
               color: '#fff',
-              marginLeft: 4,
-              padding: '2px 6px',
-              fontSize: 9,
-              borderRadius: '50%'
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 8,
+              pointerEvents: 'none'
             }}>
-              {totalNuevasCuentas}
-            </span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: 6 }}>
+                <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--bronze-light)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  Resumen de Cuentas
+                </span>
+                <span style={{ fontSize: 9, background: 'rgba(255,255,255,0.06)', padding: '2px 6px', borderRadius: 4, color: 'var(--text-muted)' }}>
+                  {infoCuentasSolicitadas.total} pendientes
+                </span>
+              </div>
+
+              <div style={{ maxHeight: 150, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {(() => {
+                  if (!alertasMesas) return null;
+                  const pendientes = Object.values(alertasMesas)
+                    .flat()
+                    .filter(a => a && a.tipo === 'cuenta' && !a.atendidoAdmin);
+
+                  if (pendientes.length === 0) {
+                    return (
+                      <div style={{ textAlign: 'center', padding: '12px 0', color: 'var(--text-muted)', fontSize: 10 }}>
+                        ✓ Sin cobros pendientes
+                      </div>
+                    );
+                  }
+
+                  pendientes.sort((a, b) => {
+                    const tA = a.createdAt?.seconds || 0;
+                    const tB = b.createdAt?.seconds || 0;
+                    return tB - tA;
+                  });
+
+                  return pendientes.slice(0, 5).map(p => {
+                    const tieneMesa = p.mesaId && p.mesaId !== 0 && p.mesaId !== '0';
+                    return (
+                      <div 
+                        key={p.id} 
+                        style={{ 
+                          display: 'flex', 
+                          justifyContent: 'space-between', 
+                          alignItems: 'center', 
+                          padding: '6px 8px', 
+                          background: 'rgba(255,255,255,0.02)', 
+                          border: '1px solid rgba(255,255,255,0.03)', 
+                          borderRadius: 6
+                        }}
+                      >
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                          <span style={{ fontSize: 10, fontWeight: 700, color: tieneMesa ? 'var(--bronze-light)' : 'var(--text-muted)' }}>
+                            {tieneMesa ? `Mesa ${p.mesaId}` : 'Sin Mesa'}
+                          </span>
+                          <span style={{ fontSize: 9, color: 'var(--text-muted)', maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {p.cliente || 'Cliente'}
+                          </span>
+                        </div>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-main)' }}>
+                          ${(p.totalAcumulado || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+              
+              <div style={{ 
+                fontSize: 9, 
+                color: 'var(--bronze-light)', 
+                textAlign: 'center', 
+                paddingTop: 4, 
+                borderTop: '1px solid rgba(255,255,255,0.05)',
+                fontWeight: 600
+              }}>
+                Pasa al modal para ver todas o cobrar
+              </div>
+            </div>
           )}
-        </button>
+        </div>
 
         <button className="btn btn-secondary btn-sm" onClick={toggleFullscreen} title="Activar Modo Kiosco">
           <i className={isFullscreen ? 'ri-fullscreen-exit-fill' : 'ri-fullscreen-fill'} style={{ marginRight: 4 }} />
