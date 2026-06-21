@@ -210,13 +210,8 @@ async function run() {
       await page.waitForSelector('input[placeholder="Ej: Carlos Rodríguez"]', { timeout: 10000 });
       await page.type('input[placeholder="Ej: Carlos Rodríguez"]', 'Cliente Simulado Puppeteer');
       
-      // Rentar equipamiento premium
-      const checkboxes = await page.$$('input[type="checkbox"]');
-      if (checkboxes.length > 0) {
-        console.log("  Seleccionando renta de equipamiento premium opcional...");
-        await page.evaluate(el => el.click(), checkboxes[0]);
-        await delay(500);
-      }
+      // Evitar seleccionar 'esSocio' (que es checkboxes[0]) para poder probar el flujo completo de cobro y cambio.
+      await delay(500);
 
       // Iniciar Mesa
       const modalButtons = await page.$$('button');
