@@ -15,11 +15,11 @@ async function dismissAlerts(page) {
         const text = await page.evaluate(el => el.textContent, btn);
         if (text.includes('Atendido') || (text.includes('✓') && text.toLowerCase().includes('atend'))) {
           console.log(`  [ALERTA DETECTADA] Descartando alerta activa: "${text.trim()}"`);
-          await btn.click();
+          await page.evaluate(el => el.click(), btn);
           await delay(2000);
           dismissed = true;
           dismissedCount++;
-          break; // Salir y volver a buscar botones (por si la lista cambió)
+          break; // Salir y volver a buscar botones
         }
       } catch (e) {}
     }
@@ -60,10 +60,16 @@ async function run() {
     await page.waitForSelector('select.form-select', { timeout: 15000 });
     await page.select('select.form-select', 'admin1111@yoybillar.mx');
     await page.type('input[type="password"]', 'admin1111');
-    await Promise.all([
-      page.click('button[type="submit"]'),
-      page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 15000 }).catch(() => {})
-    ]);
+    
+    // Clic en el botón submit usando evaluate
+    const submitBtn = await page.$('button[type="submit"]');
+    if (submitBtn) {
+      await Promise.all([
+        page.evaluate(el => el.click(), submitBtn),
+        page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 15000 }).catch(() => {})
+      ]);
+    }
+    
     await page.waitForSelector('.page-header, .panel-header, button', { timeout: 15000 });
     console.log("✓ Login exitoso.");
     await page.screenshot({ path: 'scratch/0_login_success.png' });
@@ -88,8 +94,8 @@ async function run() {
 
     if (paseListaBtn) {
       console.log("  Abriendo modal de Pase de Lista...");
-      await paseListaBtn.click();
-      await delay(2000);
+      await page.evaluate(el => el.click(), paseListaBtn);
+      await delay(2500);
 
       // Esperar a que se carguen los empleados en el modal (icono de usuario)
       await page.waitForSelector('.ri-user-line', { timeout: 10000 }).catch(err => {
@@ -121,7 +127,7 @@ async function run() {
 
       if (firstEmployee) {
         console.log("  Haciendo clic en el primer empleado para fichar...");
-        await firstEmployee.click();
+        await page.evaluate(el => el.click(), firstEmployee);
         await delay(2500);
 
         // Si es mesero, abre el modal de asignación de mesas
@@ -137,7 +143,7 @@ async function run() {
 
         if (omitirBtn) {
           console.log(`  Confirmando asistencia con '${await page.evaluate(el => el.textContent, omitirBtn)}'...`);
-          await omitirBtn.click();
+          await page.evaluate(el => el.click(), omitirBtn);
           await delay(3000);
           console.log("✓ Asistencia fichada exitosamente.");
           await page.screenshot({ path: 'scratch/2_pase_lista_success.png' });
@@ -153,7 +159,7 @@ async function run() {
       for (const btn of closeButtons) {
         const text = await page.evaluate(el => el.textContent, btn);
         if (text.includes('Volver') || text.includes('Cancelar') || text.includes('Cerrar') || text.includes('✖')) {
-          await btn.click().catch(() => {});
+          await page.evaluate(el => el.click(), btn).catch(() => {});
           await delay(1000);
         }
       }
@@ -193,12 +199,12 @@ async function run() {
       }
       if (abrirMesaBtnInCard) {
         console.log(`  Haciendo clic en el botón 'Abrir' de la Mesa ${mesaIdSeleccionada}...`);
-        await abrirMesaBtnInCard.click();
+        await page.evaluate(el => el.click(), abrirMesaBtnInCard);
       } else {
         console.log("  No se encontró el botón 'Abrir', intentando clic general en la tarjeta...");
-        await libreCard.click();
+        await page.evaluate(el => el.click(), libreCard);
       }
-      await delay(2500);
+      await delay(3000);
 
       // Llenar el nombre en el modal
       await page.waitForSelector('input[placeholder="Ej: Carlos Rodríguez"]', { timeout: 10000 });
@@ -208,7 +214,8 @@ async function run() {
       const checkboxes = await page.$$('input[type="checkbox"]');
       if (checkboxes.length > 0) {
         console.log("  Seleccionando renta de equipamiento premium opcional...");
-        await checkboxes[0].click();
+        await page.evaluate(el => el.click(), checkboxes[0]);
+        await delay(500);
       }
 
       // Iniciar Mesa
@@ -223,7 +230,7 @@ async function run() {
       }
 
       if (iniciarMesaBtn) {
-        await iniciarMesaBtn.click();
+        await page.evaluate(el => el.click(), iniciarMesaBtn);
         await delay(4000);
         console.log(`✓ Mesa ${mesaIdSeleccionada} abierta exitosamente.`);
         await page.screenshot({ path: 'scratch/3_mesa_abierta.png' });
@@ -249,24 +256,24 @@ async function run() {
 
     if (comandaBtn && mesaIdSeleccionada) {
       console.log("  Abriendo modal de Registro de Comanda...");
-      await comandaBtn.click();
-      await delay(2000);
+      await page.evaluate(el => el.click(), comandaBtn);
+      await delay(2500);
 
       // Clic en destino Mesa
       const destButtons = await page.$$('button');
       for (const dBtn of destButtons) {
         const text = await page.evaluate(el => el.textContent, dBtn);
         if (text.trim() === 'Mesa') {
-          await dBtn.click();
+          await page.evaluate(el => el.click(), dBtn);
           break;
         }
       }
-      await delay(1000);
+      await delay(1500);
 
       // Seleccionar la mesa destino en el select
       await page.waitForSelector('select.form-select', { timeout: 10000 });
       await page.select('select.form-select', String(mesaIdSeleccionada));
-      await delay(1000);
+      await delay(1500);
 
       // Agregar un producto disponible que no esté agotado
       const productDivs = await page.$$('div');
@@ -277,10 +284,10 @@ async function run() {
           const isAgotado = text.includes('AGOTADO');
           if (text.includes('Stock:') && !isAgotado && text.includes('$')) {
             console.log(`  Agregando producto a la comanda: ${text.split('\n')[0].trim()}`);
-            await div.click();
-            await delay(500);
-            await div.click();
+            await page.evaluate(el => el.click(), div);
             await delay(1000);
+            await page.evaluate(el => el.click(), div);
+            await delay(1500);
             addedProduct = true;
             break;
           }
@@ -300,7 +307,7 @@ async function run() {
         }
 
         if (sendBtn) {
-          await sendBtn.click();
+          await page.evaluate(el => el.click(), sendBtn);
           await delay(4000);
           console.log("✓ Comanda registrada y enviada a preparación.");
           await page.screenshot({ path: 'scratch/4_comanda_enviada.png' });
@@ -326,8 +333,8 @@ async function run() {
         const text = await page.evaluate(el => el.textContent, kBtn);
         if (text.includes('Pedido Listo')) {
           console.log("  Cocinero marca comanda como lista para mesero...");
-          await kBtn.click();
-          await delay(2000);
+          await page.evaluate(el => el.click(), kBtn);
+          await delay(2500);
           listosCocina++;
         }
       } catch (e) {}
@@ -347,8 +354,8 @@ async function run() {
         const text = await page.evaluate(el => el.textContent, mBtn);
         if (text.includes('Atendido') && text.includes('✓')) {
           console.log("  Mesero descarta alerta y entrega pedido al cliente...");
-          await mBtn.click();
-          await delay(2000);
+          await page.evaluate(el => el.click(), mBtn);
+          await delay(2500);
           entregasMesero++;
         }
       } catch (e) {}
@@ -380,12 +387,12 @@ async function run() {
         const closeBtn = await targetMesaCard.$('button');
         if (closeBtn) {
           console.log(`  Abriendo modal de cobro para la Mesa ${mesaIdSeleccionada}...`);
-          await closeBtn.click();
-          await delay(3000);
+          await page.evaluate(el => el.click(), closeBtn);
+          await delay(3500);
 
           await page.waitForSelector('input[placeholder="0.00"]', { timeout: 10000 });
           await page.type('input[placeholder="0.00"]', '1000');
-          await delay(1000);
+          await delay(1500);
 
           const payButtons = await page.$$('button');
           let confirmPayBtn = null;
@@ -399,7 +406,7 @@ async function run() {
 
           if (confirmPayBtn) {
             console.log("  Confirmando cobro y liberando la mesa...");
-            await confirmPayBtn.click();
+            await page.evaluate(el => el.click(), confirmPayBtn);
             await delay(5000);
             console.log(`✓ Mesa ${mesaIdSeleccionada} cerrada y liquidada.`);
             await page.screenshot({ path: 'scratch/7_mesa_cerrada.png' });
@@ -427,7 +434,7 @@ async function run() {
 
     if (cajaTabBtn) {
       console.log("  Navegando a Caja/Inteligencia...");
-      await cajaTabBtn.click();
+      await page.evaluate(el => el.click(), cajaTabBtn);
       await delay(4000);
 
       const panelButtons = await page.$$('button');
@@ -442,8 +449,8 @@ async function run() {
 
       if (corteBtn) {
         console.log("  Abriendo modal de Corte de Caja...");
-        await corteBtn.click();
-        await delay(2000);
+        await page.evaluate(el => el.click(), corteBtn);
+        await delay(2500);
 
         const numInputs = await page.$$('input[type="number"]');
         for (const input of numInputs) {
@@ -453,7 +460,7 @@ async function run() {
             await input.type('1');
           } catch (e) {}
         }
-        await delay(1000);
+        await delay(1500);
 
         const corteConfirmButtons = await page.$$('button');
         let saveCorteBtn = null;
@@ -467,7 +474,7 @@ async function run() {
 
         if (saveCorteBtn) {
           console.log("  Guardando corte de caja...");
-          await saveCorteBtn.click();
+          await page.evaluate(el => el.click(), saveCorteBtn);
           await delay(4000);
           console.log("✓ Corte de caja guardado con éxito.");
           await page.screenshot({ path: 'scratch/8_corte_caja_success.png' });
