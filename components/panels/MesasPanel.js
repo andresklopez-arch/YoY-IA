@@ -3335,6 +3335,15 @@ export default function MesasPanel({ showToast }) {
     return map;
   }, [mesas, cuentasActivas, unloadedConsumos]);
 
+  // ── Memorización de Cuentas Pendientes Solicitadas ──
+  const totalCuentasPendientes = useMemo(() => {
+    if (!alertasMesas) return 0;
+    return Object.values(alertasMesas)
+      .flat()
+      .filter(a => a && a.tipo === 'cuenta' && !a.atendidoAdmin)
+      .length;
+  }, [alertasMesas]);
+
   // ── Helper para setDoc con reintentos y exponencial backoff ──
   const setDocWithRetry = async (docRef, data, retries = 5, delay = 500) => {
     for (let i = 0; i < retries; i++) {
@@ -5415,12 +5424,27 @@ export default function MesasPanel({ showToast }) {
             display: 'flex',
             alignItems: 'center',
             gap: 6,
-            color: 'var(--bronze-light)',
-            borderColor: 'var(--border-bronze)'
+            color: totalCuentasPendientes > 0 ? '#ef4444' : 'var(--bronze-light)',
+            borderColor: totalCuentasPendientes > 0 ? 'rgba(239, 68, 68, 0.5)' : 'var(--border-bronze)',
+            boxShadow: totalCuentasPendientes > 0 ? '0 0 8px rgba(239, 68, 68, 0.2)' : 'none',
+            transition: 'all 0.2s ease'
           }}
           title="Ver Cuentas Solicitadas"
         >
-          <i className="ri-wallet-3-line" /> Cuentas Solicitadas
+          <i className="ri-wallet-3-line" style={{ animation: totalCuentasPendientes > 0 ? 'pulse 1.2s infinite' : 'none' }} />
+          <span>Cuentas Solicitadas</span>
+          {totalCuentasPendientes > 0 && (
+            <span className="badge" style={{
+              background: '#ef4444',
+              color: '#fff',
+              marginLeft: 4,
+              padding: '2px 6px',
+              fontSize: 9,
+              borderRadius: '50%'
+            }}>
+              {totalCuentasPendientes}
+            </span>
+          )}
         </button>
 
         <button className="btn btn-secondary btn-sm" onClick={toggleFullscreen} title="Activar Modo Kiosco">
@@ -9685,7 +9709,7 @@ function ModalCuentasSolicitadas({ onClose, showToast }) {
       const q = query(
         collection(db, 'mesa_pedidos'),
         where('tipo', '==', 'cuenta'),
-        limit(40)
+        limit(100)
       );
       const snap = await getDocs(q);
       const items = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -9696,7 +9720,19 @@ function ModalCuentasSolicitadas({ onClose, showToast }) {
         return timeB - timeA;
       });
 
-      setSolicitudes(items);
+      // Calcular inicio del día comercial actual (5:00 AM)
+      const businessDateStr = getBusinessDate();
+      const [year, month, day] = businessDateStr.split('-').map(Number);
+      const businessStart = new Date(year, month - 1, day, 5, 0, 0);
+
+      // Filtrar para mostrar solo las del día comercial de hoy
+      const filtradosPorFecha = items.filter(item => {
+        if (!item.createdAt) return true; // Si es temporal/offline, se muestra
+        const itemDate = item.createdAt.toDate ? item.createdAt.toDate() : new Date(item.createdAt.seconds * 1000);
+        return itemDate >= businessStart;
+      });
+
+      setSolicitudes(filtradosPorFecha);
     } catch (err) {
       console.error("Error al cargar solicitudes de cuenta:", err);
       showToast("Error al cargar el historial de solicitudes", "danger");
