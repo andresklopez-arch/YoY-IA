@@ -30,6 +30,13 @@ function areMesasEqual(arr1, arr2) {
   return true;
 }
 
+const isValidMesasSchema = (arr) => {
+  if (!Array.isArray(arr) || arr.length === 0) return false;
+  const m = arr[0];
+  return m && typeof m === 'object' && m.hasOwnProperty('id') && m.hasOwnProperty('estado') && m.hasOwnProperty('tarifa');
+};
+
+
 const normalizeText = (str) => {
   if (!str) return '';
   return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
@@ -2193,6 +2200,7 @@ export default function MesasPanel({ showToast }) {
   const knownAlertsRef = useRef(new Set());
   const isInitialLoadRef = useRef(true);
   const prevMesasStateRef = useRef([]);
+  const backupTimeoutRef = useRef(null);
   useEffect(() => {
     if (modalCuentasSolicitadas) {
       const ahora = Date.now();
@@ -3584,14 +3592,45 @@ export default function MesasPanel({ showToast }) {
     const docRef = doc(db, 'config', 'mesas_estado');
     const backupRef = doc(db, 'config', 'mesas_estado_backup');
 
+    const enviarAlertaTelegramCritica = async (mensaje) => {
+      try {
+        const tgSnap = await getDoc(doc(db, 'config', 'telegram'));
+        if (tgSnap.exists()) {
+          const tgData = tgSnap.data();
+          const isSimplified = tgData.mode === 'simplified' || (!tgData.botToken && tgData.chatId);
+          const hasCustom = tgData.mode === 'custom' && tgData.botToken && tgData.chatId;
+
+          if (tgData.enabled && (isSimplified || hasCustom)) {
+            const sucSnap = await getDoc(doc(db, 'config', 'sucursal'));
+            const sucursalName = sucSnap.exists() ? (sucSnap.data().nombre || 'Sucursal') : 'Sucursal';
+
+            await fetch('/api/telegram/send-alert', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                mode: tgData.mode || 'simplified',
+                token: tgData.botToken,
+                chatId: tgData.chatId,
+                phone: tgData.phone || '',
+                sucursalName: sucursalName,
+                text: `⚠️ *ALERTA DE SISTEMA - AUTO-RECUPERACIÓN*\n\n${mensaje}`
+              })
+            });
+          }
+        }
+      } catch (err) {
+        console.error("Error al enviar notificación crítica a Telegram:", err);
+      }
+    };
+
     const restaurarConCascada = async (razon) => {
       console.warn(`[Restauración] Iniciando recuperación de mesas. Razón: ${razon}`);
       try {
-        // 1. Intentar restaurar desde Cloud Backup (Firestore)
+        // 1. Intentar restaurar desde Cloud Backup (Firestore) con validación de esquema
         const backupSnap = await getDoc(backupRef);
         if (backupSnap.exists()) {
           const backupData = backupSnap.data();
-          if (backupData && Array.isArray(backupData.mesas) && backupData.mesas.length > 0) {
+          if (backupData && isValidMesasSchema(backupData.mesas)) {
             console.log("[Restauración] Recuperación exitosa desde Cloud Backup.");
             setMesas(backupData.mesas);
             
@@ -3605,6 +3644,10 @@ export default function MesasPanel({ showToast }) {
               'Auto-Recuperación',
               `Catálogo de mesas restaurado exitosamente desde Cloud Backup en Firestore (Motivo: ${razon}).`
             );
+
+            enviarAlertaTelegramCritica(
+              `El catálogo de mesas de juego ha sido auto-restaurado desde la copia de seguridad redundante en la nube (Cloud Backup).\n\n*Razón de la alerta:* ${razon}`
+            );
             return;
           }
         }
@@ -3613,11 +3656,11 @@ export default function MesasPanel({ showToast }) {
       }
 
       try {
-        // 2. Intentar restaurar desde LocalStorage
+        // 2. Intentar restaurar desde LocalStorage con validación de esquema
         const savedMesas = localStorage.getItem('yoy_billar_mesas');
         if (savedMesas) {
           const localData = deobfuscate(savedMesas);
-          if (localData && Array.isArray(localData) && localData.length > 0) {
+          if (isValidMesasSchema(localData)) {
             console.log("[Restauración] Recuperación exitosa desde LocalStorage.");
             setMesas(localData);
 
@@ -3630,6 +3673,10 @@ export default function MesasPanel({ showToast }) {
             registrarEvento(
               'Auto-Recuperación',
               `Catálogo de mesas restaurado desde caché de almacenamiento local (Motivo: ${razon}).`
+            );
+
+            enviarAlertaTelegramCritica(
+              `El catálogo de mesas de juego ha sido auto-restaurado desde la caché de almacenamiento local del navegador (LocalStorage).\n\n*Razón de la alerta:* ${razon}`
             );
             return;
           }
@@ -3652,6 +3699,10 @@ export default function MesasPanel({ showToast }) {
           'Auto-Recuperación',
           `Catálogo de mesas restaurado usando los valores por defecto del sistema (Motivo: ${razon}).`
         );
+
+        enviarAlertaTelegramCritica(
+          `⚠️ *ATENCIÓN CRÍTICA*: No se encontró un backup válido en la nube ni localmente. Las mesas de juego se han inicializado con el catálogo por defecto del sistema (INIT_MESAS).\n\n*Razón de la alerta:* ${razon}`
+        );
       } catch (err) {
         console.error("Error al curar Firestore con catálogo inicial:", err);
       }
@@ -3660,7 +3711,7 @@ export default function MesasPanel({ showToast }) {
     const unsub = onSnapshot(docRef, snap => {
       if (snap.exists()) {
         const data = snap.data();
-        if (data && Array.isArray(data.mesas) && data.mesas.length > 0) {
+        if (data && isValidMesasSchema(data.mesas)) {
           hasLoadedFromFirestoreRef.current = true;
           const isDifferent = !areMesasEqual(data.mesas, mesasRef.current);
           if (isDifferent) {
@@ -3734,12 +3785,19 @@ export default function MesasPanel({ showToast }) {
           mesas: mesas,
           updatedAt: serverTimestamp()
         }).then(() => {
-          // Cloud Backup: Guardar copia de respaldo en un documento alterno en Firestore
-          setDocWithRetry(doc(db, 'config', 'mesas_estado_backup'), {
-            mesas: mesas,
-            updatedAt: serverTimestamp(),
-            esBackup: true
-          }).catch(backupErr => console.error("Error al guardar backup de mesas en Firestore:", backupErr));
+          // Cloud Backup con Debounce de 5 segundos para optimizar costes y rendimiento
+          if (backupTimeoutRef.current) {
+            clearTimeout(backupTimeoutRef.current);
+          }
+          backupTimeoutRef.current = setTimeout(() => {
+            setDocWithRetry(doc(db, 'config', 'mesas_estado_backup'), {
+              mesas: mesas,
+              updatedAt: serverTimestamp(),
+              esBackup: true
+            })
+            .then(() => console.log("[Backup] Copia de respaldo Cloud guardada con éxito."))
+            .catch(backupErr => console.error("Error al guardar backup de mesas en Firestore:", backupErr));
+          }, 5000);
         }).catch(err => console.error("Error definitivo al sincronizar mesas con Firestore:", err));
 
         // Registrar historial de ocupación en Firestore para futuros reportes
