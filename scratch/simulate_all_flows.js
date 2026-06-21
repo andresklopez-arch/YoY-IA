@@ -3,6 +3,32 @@ const fs = require('fs');
 
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
+// Función robusta para descartar cualquier alerta de servicio activa en la pantalla
+async function dismissAlerts(page) {
+  let dismissedCount = 0;
+  let dismissed = false;
+  do {
+    dismissed = false;
+    const buttons = await page.$$('button');
+    for (const btn of buttons) {
+      try {
+        const text = await page.evaluate(el => el.textContent, btn);
+        if (text.includes('Atendido') || (text.includes('✓') && text.toLowerCase().includes('atend'))) {
+          console.log(`  [ALERTA DETECTADA] Descartando alerta activa: "${text.trim()}"`);
+          await btn.click();
+          await delay(2000);
+          dismissed = true;
+          dismissedCount++;
+          break; // Salir y volver a buscar botones (por si la lista cambió)
+        }
+      } catch (e) {}
+    }
+  } while (dismissed);
+  if (dismissedCount > 0) {
+    console.log(`  ✓ Se descartaron ${dismissedCount} alertas de servicio.`);
+  }
+}
+
 async function run() {
   console.log("=== INICIANDO SIMULACIÓN DE FLUJO REAL Y EXHAUSTIVA ===");
   const browser = await puppeteer.launch({
@@ -40,19 +66,11 @@ async function run() {
     ]);
     await page.waitForSelector('.page-header, .panel-header, button', { timeout: 15000 });
     console.log("✓ Login exitoso.");
+    await page.screenshot({ path: 'scratch/0_login_success.png' });
 
     // 2. DISMISS ALERTS
-    console.log("\n--- PASO 2: Descartar Alertas Activas ---");
-    await delay(3000);
-    const alertButtons = await page.$$('button');
-    for (const btn of alertButtons) {
-      const text = await page.evaluate(el => el.textContent, btn);
-      if (text.includes('Atendido') && text.includes('✓')) {
-        console.log("  Descartando alerta activa haciendo clic en '✓ Atendido'...");
-        await btn.click();
-        await delay(1000);
-      }
-    }
+    console.log("\n--- PASO 2: Descartar Alertas Activas Iniciales ---");
+    await dismissAlerts(page);
 
     // 3. PASE DE LISTA
     console.log("\n--- PASO 3: Pase de Lista de Empleado ---");
@@ -73,14 +91,29 @@ async function run() {
       await paseListaBtn.click();
       await delay(2000);
 
-      // Buscar el primer empleado de la lista y simular asistencia
+      // Esperar a que se carguen los empleados en el modal (icono de usuario)
+      await page.waitForSelector('.ri-user-line', { timeout: 10000 }).catch(err => {
+        console.log("  Tiempo de espera excedido para .ri-user-line, buscando elementos cargados...");
+      });
+      await page.screenshot({ path: 'scratch/1_pase_lista_modal.png' });
+
+      // Buscar el primer empleado de la lista (ej: mesero, staff, cajero, etc.) de forma insensible a mayúsculas
       const employeeCards = await page.$$('div');
       let firstEmployee = null;
       for (const card of employeeCards) {
         try {
           const text = await page.evaluate(el => el.textContent, card);
-          if (text.includes('MESERO') || text.includes('STAFF') || text.includes('CAJERO')) {
+          const upperText = text.toUpperCase();
+          if (
+            upperText.includes('MESERO') || 
+            upperText.includes('STAFF') || 
+            upperText.includes('CAJERO') ||
+            upperText.includes('BARTENDER') ||
+            upperText.includes('GUARDIA') ||
+            upperText.includes('LIMPIEZA')
+          ) {
             firstEmployee = card;
+            console.log(`  Empleado encontrado en UI: "${text.trim().replace(/\n/g, ' ')}"`);
             break;
           }
         } catch (e) {}
@@ -89,29 +122,40 @@ async function run() {
       if (firstEmployee) {
         console.log("  Haciendo clic en el primer empleado para fichar...");
         await firstEmployee.click();
-        await delay(2000);
+        await delay(2500);
 
         // Si es mesero, abre el modal de asignación de mesas
         const subButtons = await page.$$('button');
         let omitirBtn = null;
         for (const btn of subButtons) {
           const text = await page.evaluate(el => el.textContent, btn);
-          if (text.includes('Omitir y Fichar Entrada')) {
+          if (text.includes('Omitir y Fichar Entrada') || text.includes('Asignar y Fichar Entrada')) {
             omitirBtn = btn;
             break;
           }
         }
 
         if (omitirBtn) {
-          console.log("  Confirmando asistencia con 'Omitir y Fichar Entrada'...");
+          console.log(`  Confirmando asistencia con '${await page.evaluate(el => el.textContent, omitirBtn)}'...`);
           await omitirBtn.click();
-          await delay(2000);
+          await delay(3000);
           console.log("✓ Asistencia fichada exitosamente.");
+          await page.screenshot({ path: 'scratch/2_pase_lista_success.png' });
         } else {
-          console.log("  No se requirió asignación de mesas o se fichó directamente.");
+          console.log("  Fichado directo de entrada procesado.");
         }
       } else {
         console.log("  No se encontraron empleados activos en la lista.");
+      }
+      
+      // Asegurarnos de que el modal de pase de lista se cierre si se quedó abierto
+      const closeButtons = await page.$$('button');
+      for (const btn of closeButtons) {
+        const text = await page.evaluate(el => el.textContent, btn);
+        if (text.includes('Volver') || text.includes('Cancelar') || text.includes('Cerrar') || text.includes('✖')) {
+          await btn.click().catch(() => {});
+          await delay(1000);
+        }
       }
     } else {
       console.log("  No se encontró el botón de 'Pase de Lista'.");
@@ -119,6 +163,7 @@ async function run() {
 
     // 4. ABRIR MESA
     console.log("\n--- PASO 4: Abrir Mesa Física ---");
+    await dismissAlerts(page);
     const cards = await page.$$('.mesa-card');
     let libreCard = null;
     let mesaIdSeleccionada = null;
@@ -141,7 +186,7 @@ async function run() {
       await delay(2000);
 
       // Llenar el nombre en el modal
-      await page.waitForSelector('input[placeholder="Ej: Carlos Rodríguez"]');
+      await page.waitForSelector('input[placeholder="Ej: Carlos Rodríguez"]', { timeout: 10000 });
       await page.type('input[placeholder="Ej: Carlos Rodríguez"]', 'Cliente Simulado Puppeteer');
       
       // Rentar equipamiento premium
@@ -164,8 +209,9 @@ async function run() {
 
       if (iniciarMesaBtn) {
         await iniciarMesaBtn.click();
-        await delay(3000);
+        await delay(4000);
         console.log(`✓ Mesa ${mesaIdSeleccionada} abierta exitosamente.`);
+        await page.screenshot({ path: 'scratch/3_mesa_abierta.png' });
       } else {
         throw new Error("No se encontró el botón 'Iniciar Mesa' en el modal.");
       }
@@ -175,6 +221,7 @@ async function run() {
 
     // 5. REGISTRAR COMANDA
     console.log("\n--- PASO 5: Registrar Comanda de Consumo ---");
+    await dismissAlerts(page);
     const topBarButtons = await page.$$('button');
     let comandaBtn = null;
     for (const btn of topBarButtons) {
@@ -202,7 +249,7 @@ async function run() {
       await delay(1000);
 
       // Seleccionar la mesa destino en el select
-      await page.waitForSelector('select.form-select');
+      await page.waitForSelector('select.form-select', { timeout: 10000 });
       await page.select('select.form-select', String(mesaIdSeleccionada));
       await delay(1000);
 
@@ -239,8 +286,9 @@ async function run() {
 
         if (sendBtn) {
           await sendBtn.click();
-          await delay(3000);
+          await delay(4000);
           console.log("✓ Comanda registrada y enviada a preparación.");
+          await page.screenshot({ path: 'scratch/4_comanda_enviada.png' });
         } else {
           console.log("  No se encontró el botón 'Confirmar y Enviar'.");
         }
@@ -254,7 +302,7 @@ async function run() {
     // 6. PROCESAR EN COCINA
     console.log("\n--- PASO 6: Preparar Comanda en Cocina ---");
     await page.goto('https://yoy-ia-billar.vercel.app/cocina', { waitUntil: 'networkidle2' });
-    await delay(3000);
+    await delay(4000);
 
     const kitchenButtons = await page.$$('button');
     let listosCocina = 0;
@@ -270,11 +318,12 @@ async function run() {
       } catch (e) {}
     }
     console.log(`✓ Se procesaron ${listosCocina} comandas listas en cocina.`);
+    await page.screenshot({ path: 'scratch/5_cocina_lista.png' });
 
     // 7. ENTREGAR COMO MESERO
     console.log("\n--- PASO 7: Entregar Comanda como Mesero ---");
     await page.goto('https://yoy-ia-billar.vercel.app/mesero', { waitUntil: 'networkidle2' });
-    await delay(3000);
+    await delay(4000);
 
     const meseroButtons = await page.$$('button');
     let entregasMesero = 0;
@@ -284,17 +333,19 @@ async function run() {
         if (text.includes('Atendido') && text.includes('✓')) {
           console.log("  Mesero descarta alerta y entrega pedido al cliente...");
           await mBtn.click();
-          await delay(1500);
+          await delay(2000);
           entregasMesero++;
         }
       } catch (e) {}
     }
     console.log(`✓ Se entregaron ${entregasMesero} comandas en el panel de mesero.`);
+    await page.screenshot({ path: 'scratch/6_mesero_entregado.png' });
 
     // 8. CERRAR MESA Y COBRAR
     console.log("\n--- PASO 8: Cerrar Mesa y Cobrar en Caja ---");
     await page.goto('https://yoy-ia-billar.vercel.app/', { waitUntil: 'networkidle2' });
-    await delay(3000);
+    await delay(4000);
+    await dismissAlerts(page);
 
     if (mesaIdSeleccionada) {
       const activeCards = await page.$$('.mesa-card');
@@ -317,7 +368,7 @@ async function run() {
           await closeBtn.click();
           await delay(3000);
 
-          await page.waitForSelector('input[placeholder="0.00"]');
+          await page.waitForSelector('input[placeholder="0.00"]', { timeout: 10000 });
           await page.type('input[placeholder="0.00"]', '1000');
           await delay(1000);
 
@@ -334,8 +385,9 @@ async function run() {
           if (confirmPayBtn) {
             console.log("  Confirmando cobro y liberando la mesa...");
             await confirmPayBtn.click();
-            await delay(4000);
+            await delay(5000);
             console.log(`✓ Mesa ${mesaIdSeleccionada} cerrada y liquidada.`);
+            await page.screenshot({ path: 'scratch/7_mesa_cerrada.png' });
           } else {
             console.log("  No se encontró el botón de cobrar.");
           }
@@ -345,6 +397,7 @@ async function run() {
 
     // 9. CORTE DE CAJA
     console.log("\n--- PASO 9: Realizar Corte de Caja ---");
+    await dismissAlerts(page);
     const headerButtons = await page.$$('button, span');
     let cajaTabBtn = null;
     for (const b of headerButtons) {
@@ -360,7 +413,7 @@ async function run() {
     if (cajaTabBtn) {
       console.log("  Navegando a Caja/Inteligencia...");
       await cajaTabBtn.click();
-      await delay(3000);
+      await delay(4000);
 
       const panelButtons = await page.$$('button');
       let corteBtn = null;
@@ -400,8 +453,9 @@ async function run() {
         if (saveCorteBtn) {
           console.log("  Guardando corte de caja...");
           await saveCorteBtn.click();
-          await delay(3000);
+          await delay(4000);
           console.log("✓ Corte de caja guardado con éxito.");
+          await page.screenshot({ path: 'scratch/8_corte_caja_success.png' });
         } else {
           console.log("  No se encontró el botón 'Guardar y Cerrar Corte'.");
         }
