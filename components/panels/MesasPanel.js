@@ -2707,7 +2707,7 @@ export default function MesasPanel({ showToast }) {
   useEffect(() => {
     const q = query(
       collection(db, 'mesa_pedidos'),
-      where('estado', 'in', ['pendiente', 'listo', 'en_camino', 'entregado'])
+      where('estado', 'in', ['pendiente', 'listo', 'en_camino', 'entregado', 'atendido'])
     );
     const unsub = onSnapshot(q, snap => {
       const alertsMap = {};
