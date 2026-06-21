@@ -577,6 +577,7 @@ function MeseroContent() {
           { id: 6, nombre: 'Café Americano', categoria: 'Bebida', precioVenta: 35, stock: 0 },
         ]);
       }
+    }, err => {
       console.warn('Error al cargar inventario de bar en vista mesero:', err);
     });
     return unsub;
