@@ -2108,9 +2108,9 @@ export default function MesasPanel({ showToast }) {
   const [lastCheckedTime, setLastCheckedTime] = useState(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('yoy_last_checked_solicitudes');
-      return saved ? Number(saved) : Date.now();
+      return saved ? Number(saved) : 0;
     }
-    return Date.now();
+    return 0;
   });
   const [clientesRegistrados, setClientesRegistrados] = useState([]);
   const [modalCambiarMesa, setModalCambiarMesa] = useState(null);
