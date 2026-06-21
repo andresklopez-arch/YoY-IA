@@ -896,16 +896,17 @@ function AppContent() {
         console.warn("No se pudieron leer recetas para aprendizaje IA:", e);
       }
 
-      // 2. Consultar las últimas 150 comandas completadas
+      // 2. Consultar las últimas comandas completadas filtrando en memoria
       const q = query(
         collection(db, 'mesa_pedidos'),
-        where('tipo', '==', 'pedido'),
-        where('estado', '==', 'entregado'),
         orderBy('createdAt', 'desc'),
-        limit(150)
+        limit(300)
       );
       const snap = await getDocs(q);
-      const pedidosCompletados = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const allPedidos = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const pedidosCompletados = allPedidos
+        .filter(p => p.tipo === 'pedido' && p.estado === 'entregado')
+        .slice(0, 150);
 
       if (pedidosCompletados.length === 0) {
         console.log("No hay comandas completadas suficientes para entrenar la IA.");
