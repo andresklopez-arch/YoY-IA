@@ -2103,6 +2103,7 @@ export default function MesasPanel({ showToast }) {
   const [modalFila, setModalFila] = useState(false);
   const [modalCuentas, setModalCuentas] = useState(false);
   const [modalAbrirCuenta, setModalAbrirCuenta] = useState(false);
+  const [modalCuentasSolicitadas, setModalCuentasSolicitadas] = useState(false);
   const [clientesRegistrados, setClientesRegistrados] = useState([]);
   const [modalCambiarMesa, setModalCambiarMesa] = useState(null);
   const [modalVincular, setModalVincular] = useState(null);
@@ -5407,6 +5408,21 @@ export default function MesasPanel({ showToast }) {
         <div style={{ width: 1, height: 18, background: 'var(--border-bronze)', opacity: 0.3, margin: '0 4px' }} />
 
         {/* Botones de Acción */}
+        <button
+          className="btn btn-secondary btn-sm"
+          onClick={() => setModalCuentasSolicitadas(true)}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            color: 'var(--bronze-light)',
+            borderColor: 'var(--border-bronze)'
+          }}
+          title="Ver Cuentas Solicitadas"
+        >
+          <i className="ri-wallet-3-line" /> Cuentas Solicitadas
+        </button>
+
         <button className="btn btn-secondary btn-sm" onClick={toggleFullscreen} title="Activar Modo Kiosco">
           <i className={isFullscreen ? 'ri-fullscreen-exit-fill' : 'ri-fullscreen-fill'} style={{ marginRight: 4 }} />
           {isFullscreen ? 'Salir' : 'Kiosco'}
@@ -6156,6 +6172,14 @@ export default function MesasPanel({ showToast }) {
             showToast={showToast}
             imprimirComprobanteEspera={imprimirComprobanteEspera}
             imprimirQRRegistroVirtual={imprimirQRRegistroVirtual}
+          />
+        </ModalErrorBoundary>
+      )}
+      {modalCuentasSolicitadas && (
+        <ModalErrorBoundary name="Cuentas Solicitadas" onClose={() => setModalCuentasSolicitadas(false)}>
+          <ModalCuentasSolicitadas
+            onClose={() => setModalCuentasSolicitadas(false)}
+            showToast={showToast}
           />
         </ModalErrorBoundary>
       )}
@@ -9644,6 +9668,232 @@ function ModalGasto({ onClose, onConfirm, CATEGORIAS_GASTO }) {
             <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>Registrar Gasto</button>
           </div>
         </form>
+      </div>
+    </div>
+  );
+}
+
+function ModalCuentasSolicitadas({ onClose, showToast }) {
+  const [loading, setLoading] = useState(true);
+  const [solicitudes, setSolicitudes] = useState([]);
+  const [filtroTab, setFiltroTab] = useState('todas'); // 'todas', 'pendientes', 'atendidas'
+  const [busqueda, setBusqueda] = useState('');
+
+  const cargarSolicitudes = async () => {
+    setLoading(true);
+    try {
+      const q = query(
+        collection(db, 'mesa_pedidos'),
+        where('tipo', '==', 'cuenta'),
+        limit(40)
+      );
+      const snap = await getDocs(q);
+      const items = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      
+      items.sort((a, b) => {
+        const timeA = a.createdAt?.seconds || 0;
+        const timeB = b.createdAt?.seconds || 0;
+        return timeB - timeA;
+      });
+
+      setSolicitudes(items);
+    } catch (err) {
+      console.error("Error al cargar solicitudes de cuenta:", err);
+      showToast("Error al cargar el historial de solicitudes", "danger");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    cargarSolicitudes();
+  }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
+  const marcarComoAtendida = async (id) => {
+    try {
+      await updateDoc(doc(db, 'mesa_pedidos', id), {
+        atendidoAdmin: true,
+        atendidoMesero: true,
+        estado: 'entregado'
+      });
+      showToast("Solicitud marcada como atendida ✓", "success");
+      setSolicitudes(prev => prev.map(s => s.id === id ? { ...s, atendidoAdmin: true, atendidoMesero: true } : s));
+    } catch (err) {
+      console.error("Error al atender solicitud:", err);
+      showToast("No se pudo actualizar la solicitud", "danger");
+    }
+  };
+
+  const determinarSolicitante = (alerta) => {
+    const etiqueta = (alerta.etiqueta || '').toLowerCase();
+    if (etiqueta.includes('caja') || etiqueta.includes('mesero') || alerta.atendidoMesero) {
+      return { tipo: 'Mesero', icon: '👤', badgeClass: 'badge-bronze', color: 'var(--bronze-light)' };
+    }
+    if (etiqueta.includes('solicitud') || alerta.icono === '💳') {
+      return { tipo: 'Cliente (QR)', icon: '📱', badgeClass: 'badge-success', color: 'var(--success)' };
+    }
+    return { tipo: 'Cliente (QR)', icon: '📱', badgeClass: 'badge-success', color: 'var(--success)' };
+  };
+
+  const filtradas = solicitudes.filter(s => {
+    if (filtroTab === 'pendientes' && s.atendidoAdmin) return false;
+    if (filtroTab === 'atendidas' && !s.atendidoAdmin) return false;
+
+    if (busqueda.trim() !== '') {
+      const term = busqueda.toLowerCase();
+      const matchCliente = (s.cliente || '').toLowerCase().includes(term);
+      const matchMesa = String(s.mesaId || '').includes(term);
+      const matchEtiqueta = (s.etiqueta || '').toLowerCase().includes(term);
+      return matchCliente || matchMesa || matchEtiqueta;
+    }
+
+    return true;
+  });
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" style={{ maxWidth: 750, width: '90%' }} onClick={e => e.stopPropagation()}>
+        <div className="modal-header" style={{ borderBottom: '1px solid var(--border-bronze)' }}>
+          <span className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <i className="ri-wallet-3-line" style={{ color: 'var(--bronze-light)', fontSize: 18 }} />
+            Cuentas Solicitadas
+          </span>
+          <button onClick={onClose} className="btn-icon btn btn-secondary" style={{ background: 'none', border: 'none' }}>
+            <i className="ri-close-line" style={{ fontSize: 20 }} />
+          </button>
+        </div>
+
+        <div className="modal-body" style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button
+                className={`btn btn-xs ${filtroTab === 'todas' ? 'btn-primary' : 'btn-secondary'}`}
+                onClick={() => setFiltroTab('todas')}
+              >
+                Todas ({solicitudes.length})
+              </button>
+              <button
+                className={`btn btn-xs ${filtroTab === 'pendientes' ? 'btn-primary' : 'btn-secondary'}`}
+                onClick={() => setFiltroTab('pendientes')}
+                style={{
+                  borderColor: filtroTab !== 'pendientes' ? 'rgba(239, 68, 68, 0.3)' : '',
+                  color: filtroTab !== 'pendientes' ? '#ef4444' : ''
+                }}
+              >
+                Pendientes ({solicitudes.filter(s => !s.atendidoAdmin).length})
+              </button>
+              <button
+                className={`btn btn-xs ${filtroTab === 'atendidas' ? 'btn-primary' : 'btn-secondary'}`}
+                onClick={() => setFiltroTab('atendidas')}
+              >
+                Atendidas ({solicitudes.filter(s => s.atendidoAdmin).length})
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, maxWidth: 300 }}>
+              <input
+                type="text"
+                placeholder="Buscar por cliente o mesa..."
+                value={busqueda}
+                onChange={e => setBusqueda(e.target.value)}
+                className="form-control"
+                style={{ height: 26, fontSize: 11, padding: '4px 8px' }}
+              />
+              {busqueda && (
+                <button className="btn btn-secondary btn-xs" onClick={() => setBusqueda('')} style={{ height: 26 }}>
+                  Limpiar
+                </button>
+              )}
+            </div>
+          </div>
+
+          {loading ? (
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '40px 0', color: 'var(--text-muted)' }}>
+              <i className="ri-loader-4-line ri-spin" style={{ fontSize: 24, marginRight: 8 }} />
+              Cargando historial de solicitudes...
+            </div>
+          ) : filtradas.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '30px 10px', border: '1px dashed var(--border)', borderRadius: 8, color: 'var(--text-muted)' }}>
+              <i className="ri-inbox-line" style={{ fontSize: 28, marginBottom: 8, display: 'block' }} />
+              <span>No se encontraron solicitudes de cuenta.</span>
+            </div>
+          ) : (
+            <div style={{ maxHeight: 350, overflowY: 'auto', border: '1px solid var(--border-bronze)', borderRadius: 8 }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, textAlign: 'left' }}>
+                <thead>
+                  <tr style={{ background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid var(--border-bronze)' }}>
+                    <th style={{ padding: '10px 12px', color: 'var(--text-muted)', fontWeight: 600 }}>Mesa</th>
+                    <th style={{ padding: '10px 12px', color: 'var(--text-muted)', fontWeight: 600 }}>Cliente</th>
+                    <th style={{ padding: '10px 12px', color: 'var(--text-muted)', fontWeight: 600 }}>Solicitado Por</th>
+                    <th style={{ padding: '10px 12px', color: 'var(--text-muted)', fontWeight: 600 }}>Hora</th>
+                    <th style={{ padding: '10px 12px', color: 'var(--text-muted)', fontWeight: 600, textAlign: 'right' }}>Total Estimado</th>
+                    <th style={{ padding: '10px 12px', color: 'var(--text-muted)', fontWeight: 600, textAlign: 'center' }}>Estado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtradas.map(s => {
+                    const solicitante = determinarSolicitante(s);
+                    let horaStr = 'N/A';
+                    if (s.createdAt) {
+                      const t = s.createdAt.toDate ? s.createdAt.toDate() : new Date(s.createdAt.seconds * 1000);
+                      horaStr = t.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                    }
+                    
+                    return (
+                      <tr key={s.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)', transition: 'background 0.15s' }}>
+                        <td style={{ padding: '8px 12px', fontWeight: 'bold' }}>
+                          <span style={{ color: 'var(--bronze-light)' }}>Mesa {s.mesaId}</span>
+                        </td>
+                        <td style={{ padding: '8px 12px' }}>{s.cliente || 'Mesa ' + s.mesaId}</td>
+                        <td style={{ padding: '8px 12px' }}>
+                          <span className={`badge ${solicitante.badgeClass}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 6px', fontSize: 9 }}>
+                            {solicitante.icon} {solicitante.tipo}
+                          </span>
+                        </td>
+                        <td style={{ padding: '8px 12px', color: 'var(--text-muted)' }}>{horaStr}</td>
+                        <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 600 }}>
+                          ${(s.totalAcumulado || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                        <td style={{ padding: '8px 12px', textAlign: 'center' }}>
+                          {s.atendidoAdmin ? (
+                            <span style={{ color: 'var(--success)', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3 }}>
+                              <i className="ri-checkbox-circle-fill" /> Atendida
+                            </span>
+                          ) : (
+                            <button
+                              onClick={() => marcarComoAtendida(s.id)}
+                              className="btn btn-danger btn-xs"
+                              style={{ padding: '2px 6px', fontSize: 9 }}
+                            >
+                              <i className="ri-check-line" /> Atender
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+        
+        <div className="modal-footer" style={{ borderTop: '1px solid var(--border-bronze)', display: 'flex', justifyContent: 'space-between', padding: '12px 20px' }}>
+          <span style={{ fontSize: 10, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
+            <i className="ri-information-line" /> Muestra las solicitudes de hoy para control de caja.
+          </span>
+          <button className="btn btn-secondary btn-sm" onClick={cargarSolicitudes}>
+            <i className="ri-refresh-line" /> Actualizar
+          </button>
+        </div>
       </div>
     </div>
   );
