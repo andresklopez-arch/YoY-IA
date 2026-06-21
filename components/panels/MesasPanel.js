@@ -3585,13 +3585,27 @@ export default function MesasPanel({ showToast }) {
     const unsub = onSnapshot(docRef, snap => {
       if (snap.exists()) {
         const data = snap.data();
-        if (data && Array.isArray(data.mesas)) {
+        if (data && Array.isArray(data.mesas) && data.mesas.length > 0) {
           hasLoadedFromFirestoreRef.current = true;
           const isDifferent = !areMesasEqual(data.mesas, mesasRef.current);
           if (isDifferent) {
             isIncomingUpdateRef.current = true;
             setMesas(data.mesas);
           }
+        } else {
+          // Si el documento existe pero el catálogo de mesas está vacío (corrupto/borrado)
+          hasLoadedFromFirestoreRef.current = true;
+          const savedMesas = localStorage.getItem('yoy_billar_mesas');
+          const initialMesas = savedMesas ? (deobfuscate(savedMesas) || INIT_MESAS) : INIT_MESAS;
+          
+          console.warn("config/mesas_estado existe pero su catálogo está vacío. Restaurando catálogo inicial.");
+          setMesas(initialMesas);
+          
+          // Escribir de vuelta a Firestore para curar la base de datos de producción
+          setDoc(docRef, {
+            mesas: initialMesas,
+            updatedAt: serverTimestamp()
+          }).catch(err => console.error("Error al auto-restaurar mesas en Firestore:", err));
         }
       } else {
         hasLoadedFromFirestoreRef.current = true;
@@ -3599,6 +3613,12 @@ export default function MesasPanel({ showToast }) {
         const initialMesas = savedMesas ? (deobfuscate(savedMesas) || INIT_MESAS) : INIT_MESAS;
         console.warn("config/mesas_estado no existe en Firestore. Usando mesas locales/iniciales.");
         setMesas(initialMesas);
+        
+        // Inicializar documento en Firestore
+        setDoc(docRef, {
+          mesas: initialMesas,
+          updatedAt: serverTimestamp()
+        }).catch(err => console.error("Error al inicializar mesas en Firestore:", err));
       }
     }, err => {
       console.error("Error al escuchar mesas en tiempo real:", err);
