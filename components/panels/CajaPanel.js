@@ -109,6 +109,7 @@ export default function CajaPanel({ showToast }) {
   const [fechaReporteFin, setFechaReporteFin] = useState('');
   const [reporteCargando, setReporteCargando] = useState(false);
   const [datosReporte, setDatosReporte] = useState(null);
+  const [reporteError, setReporteError] = useState(false);
 
   const chartData = useMemo(() => {
     if (!datosReporte || !datosReporte.rawEventos) return [];
@@ -1299,6 +1300,7 @@ export default function CajaPanel({ showToast }) {
     }
 
     setReporteCargando(true);
+    setReporteError(false);
     try {
       let start = '';
       let end = new Date().toISOString();
@@ -1775,6 +1777,7 @@ export default function CajaPanel({ showToast }) {
 
     } catch (err) {
       console.error("Error al generar reporte de período:", err);
+      setReporteError(true);
       showToast("Error de conexión al cargar datos", "danger");
     } finally {
       setReporteCargando(false);
@@ -6538,6 +6541,27 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 180, gap: 10 }}>
               <i className="ri-loader-4-line ri-spin" style={{ color: 'var(--bronze-light)', fontSize: 24 }} />
               <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Calculando métricas en base a transacciones...</span>
+            </div>
+          ) : reporteError ? (
+            <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: 180, gap: 12, border: '1px dashed var(--border)', borderRadius: 8, background: 'rgba(239, 68, 68, 0.02)' }}>
+              <i className="ri-error-warning-line" style={{ color: '#ef4444', fontSize: 28 }} />
+              <span style={{ fontSize: 12, color: 'var(--text-secondary)', textAlign: 'center' }}>Error al calcular métricas. Verifica tu conexión de red.</span>
+              <button 
+                onClick={() => {
+                  if (periodoReporte === 'Personalizado') {
+                    cargarDatosReporte('Personalizado', fechaReporteInicio, fechaReporteFin);
+                  } else {
+                    cargarDatosReporte(periodoReporte);
+                  }
+                }}
+                className="btn btn-xs"
+                style={{
+                  background: 'linear-gradient(135deg, var(--bronze), var(--bronze-light))',
+                  color: '#fff', border: 'none', borderRadius: 6, padding: '4px 12px', fontSize: 10, cursor: 'pointer', fontWeight: 600
+                }}
+              >
+                🔄 Reintentar Carga
+              </button>
             </div>
           ) : datosReporte ? (
             <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>

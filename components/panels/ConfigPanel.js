@@ -154,6 +154,11 @@ export default function ConfigPanel({ showToast }) {
   const [confirmWipeText, setConfirmWipeText] = useState('');
   const [isResetting, setIsResetting] = useState(false);
 
+  // Mantenimiento - Archivado
+  const [archivingDays, setArchivingDays] = useState(30);
+  const [archivingPin, setArchivingPin] = useState('');
+  const [isArchiving, setIsArchiving] = useState(false);
+
   // --- Límite de cortesías por turno (Sugerencia 3) ---
   const [maxCortesiasPorTurno, setMaxCortesiasPorTurno] = useState(3);
   const [savingLimiteCortesias, setSavingLimiteCortesias] = useState(false);
@@ -299,6 +304,66 @@ export default function ConfigPanel({ showToast }) {
       setIsResetting(false);
       setResetPin('');
       setConfirmWipeText('');
+    }
+  };
+
+  const handleArchivarPedidos = async (e) => {
+    if (e) e.preventDefault();
+    if (!archivingPin) {
+      showToast("Ingresa el PIN de Admin", "warning");
+      return;
+    }
+    setIsArchiving(true);
+    showToast("Iniciando archivado de comandas antiguas...", "info");
+    try {
+      let continuado = true;
+      let totalArchivados = 0;
+      let iteraciones = 0;
+
+      while (continuado && iteraciones < 10) {
+        const res = await fetch('/api/mantenimiento/archivar', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pin: archivingPin, dias: archivingDays })
+        });
+        
+        const data = await res.json();
+        if (!data.success) {
+          showToast(data.error || "Error al archivar", "danger");
+          continuado = false;
+          break;
+        }
+
+        totalArchivados += data.archivedCount;
+        continuado = data.hasMore;
+        iteraciones++;
+      }
+
+      if (totalArchivados > 0) {
+        showToast(`Se archivaron ${totalArchivados} comandas con éxito.`, "success");
+        // Registrar en bitácora general
+        try {
+          const { addDoc, collection, serverTimestamp } = await import('firebase/firestore');
+          await addDoc(collection(db, 'bitacora'), {
+            fecha: new Date().toISOString(),
+            accion: 'Mantenimiento - Archivado de Pedidos',
+            detalle: `Archivado manual: se movieron ${totalArchivados} comandas de más de ${archivingDays} días al histórico.`,
+            monto: 0,
+            operador: 'Administrador (Configuración)',
+            rolOperador: 'admin'
+          });
+        } catch (e) {
+          console.warn("No se pudo registrar log en bitacora:", e);
+        }
+      } else {
+        showToast("No hay pedidos antiguos para archivar.", "info");
+      }
+      setArchivingPin('');
+    } catch (err) {
+      console.error("Error al archivar pedidos:", err);
+      showToast("Error de conexión al archivar", "danger");
+    } finally {
+      setIsArchiving(false);
     }
   };
 
@@ -2694,6 +2759,58 @@ export default function ConfigPanel({ showToast }) {
                   style={{ alignSelf: 'flex-end', height: 32, padding: '4px 8px', fontSize: '11px' }}
                 >
                   <i className="ri-delete-bin-line" /> {isResetting ? 'Restableciendo...' : 'Restablecer Base de Datos'}
+                </button>
+              </form>
+
+              <hr style={{ border: 'none', borderTop: '1px dashed var(--border)', margin: '16px 0' }} />
+              
+              <div style={{ marginBottom: 10 }}>
+                <h4 style={{ fontSize: 12, fontWeight: 700, color: 'var(--bronze-light)', margin: '0 0 4px 0', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <i className="ri-archive-line" /> Archivado de Comandas Antiguas
+                </h4>
+                <p style={{ fontSize: 10.5, color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>
+                  Mueve comandas finalizadas del historial activo a una colección histórica secundaria. Acelera los reportes de Caja y reduce el consumo de base de datos.
+                </p>
+              </div>
+              
+              <form onSubmit={handleArchivarPedidos} style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <div className="form-group" style={{ margin: 0, gap: 4 }}>
+                  <label className="form-label">PIN Admin</label>
+                  <input
+                    type="password"
+                    className="form-input"
+                    placeholder="••••"
+                    value={archivingPin}
+                    onChange={e => setArchivingPin(e.target.value)}
+                    maxLength={8}
+                    style={{ width: 90, letterSpacing: '0.2em', textAlign: 'center', padding: '6px 10px', fontSize: '13px' }}
+                    required
+                  />
+                </div>
+                <div className="form-group" style={{ flex: 1, minWidth: 150, margin: 0, gap: 4 }}>
+                  <label className="form-label">Antigüedad mínima</label>
+                  <select
+                    className="form-input"
+                    value={archivingDays}
+                    onChange={e => setArchivingDays(Number(e.target.value))}
+                    style={{ padding: '6px 10px', fontSize: '13px', background: 'var(--bg-elevated)', color: '#fff', border: '1px solid var(--border)', borderRadius: 6, height: 32 }}
+                  >
+                    <option value={15}>Más de 15 días de antigüedad</option>
+                    <option value={30}>Más de 30 días (Recomendado)</option>
+                    <option value={60}>Más de 60 días de antigüedad</option>
+                    <option value={90}>Más de 90 días de antigüedad</option>
+                  </select>
+                </div>
+                <button 
+                  type="submit" 
+                  className="btn" 
+                  disabled={isArchiving || !archivingPin} 
+                  style={{ 
+                    alignSelf: 'flex-end', height: 32, padding: '4px 14px', fontSize: '11px', fontWeight: 700,
+                    background: 'linear-gradient(135deg, var(--bronze), var(--bronze-light))', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer'
+                  }}
+                >
+                  <i className="ri-archive-line" /> {isArchiving ? 'Archivando...' : 'Archivar Pedidos'}
                 </button>
               </form>
             </div>
