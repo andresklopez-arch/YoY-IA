@@ -3590,65 +3590,106 @@ export default function MesasPanel({ showToast }) {
   // Escuchar mesas de Firestore en tiempo real como fuente única de verdad
   useEffect(() => {
     const docRef = doc(db, 'config', 'mesas_estado');
-    const backupRef = doc(db, 'config', 'mesas_estado_backup');
+    const backupsDocRef = doc(db, 'config', 'mesas_estado_backups');
 
     const enviarAlertaTelegramCritica = async (mensaje) => {
-      try {
-        const tgSnap = await getDoc(doc(db, 'config', 'telegram'));
-        if (tgSnap.exists()) {
-          const tgData = tgSnap.data();
-          const isSimplified = tgData.mode === 'simplified' || (!tgData.botToken && tgData.chatId);
-          const hasCustom = tgData.mode === 'custom' && tgData.botToken && tgData.chatId;
+      const alertaItem = {
+        id: Date.now(),
+        mensaje,
+        intentos: 0
+      };
 
-          if (tgData.enabled && (isSimplified || hasCustom)) {
-            const sucSnap = await getDoc(doc(db, 'config', 'sucursal'));
-            const sucursalName = sucSnap.exists() ? (sucSnap.data().nombre || 'Sucursal') : 'Sucursal';
-
-            await fetch('/api/telegram/send-alert', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                mode: tgData.mode || 'simplified',
-                token: tgData.botToken,
-                chatId: tgData.chatId,
-                phone: tgData.phone || '',
-                sucursalName: sucursalName,
-                text: `⚠️ *ALERTA DE SISTEMA - AUTO-RECUPERACIÓN*\n\n${mensaje}`
-              })
-            });
+      const encolarAlertaOffline = (item) => {
+        try {
+          const guardadas = localStorage.getItem('yoy_alertas_offline');
+          const cola = guardadas ? JSON.parse(guardadas) : [];
+          if (!cola.some(c => c.mensaje === item.mensaje)) {
+            cola.push(item);
+            localStorage.setItem('yoy_alertas_offline', JSON.stringify(cola));
+            console.log("[Telegram] Alerta encolada localmente por falta de red/offline.");
           }
+        } catch (err) {
+          console.error("Error al encolar alerta offline:", err);
         }
-      } catch (err) {
-        console.error("Error al enviar notificación crítica a Telegram:", err);
+      };
+
+      const intentarEnvio = async (item) => {
+        try {
+          const tgSnap = await getDoc(doc(db, 'config', 'telegram'));
+          if (tgSnap.exists()) {
+            const tgData = tgSnap.data();
+            const isSimplified = tgData.mode === 'simplified' || (!tgData.botToken && tgData.chatId);
+            const hasCustom = tgData.mode === 'custom' && tgData.botToken && tgData.chatId;
+
+            if (tgData.enabled && (isSimplified || hasCustom)) {
+              const sucSnap = await getDoc(doc(db, 'config', 'sucursal'));
+              const sucursalName = sucSnap.exists() ? (sucSnap.data().nombre || 'Sucursal') : 'Sucursal';
+
+              const res = await fetch('/api/telegram/send-alert', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  mode: tgData.mode || 'simplified',
+                  token: tgData.botToken,
+                  chatId: tgData.chatId,
+                  phone: tgData.phone || '',
+                  sucursalName: sucursalName,
+                  text: `⚠️ *ALERTA DE SISTEMA - AUTO-RECUPERACIÓN*\n\n${item.mensaje}`
+                })
+              });
+              if (!res.ok) throw new Error("Respuesta no satisfactoria de la API");
+              console.log("[Telegram] Alerta de sistema despachada con éxito.");
+              return true;
+            }
+          }
+          return true;
+        } catch (err) {
+          console.warn("[Telegram] Error al intentar enviar alerta. Reintentando offline.", err);
+          return false;
+        }
+      };
+
+      if (typeof window !== 'undefined' && !navigator.onLine) {
+        encolarAlertaOffline(alertaItem);
+        return;
+      }
+
+      const enviado = await intentarEnvio(alertaItem);
+      if (!enviado) {
+        encolarAlertaOffline(alertaItem);
       }
     };
 
     const restaurarConCascada = async (razon) => {
       console.warn(`[Restauración] Iniciando recuperación de mesas. Razón: ${razon}`);
       try {
-        // 1. Intentar restaurar desde Cloud Backup (Firestore) con validación de esquema
-        const backupSnap = await getDoc(backupRef);
-        if (backupSnap.exists()) {
-          const backupData = backupSnap.data();
-          if (backupData && isValidMesasSchema(backupData.mesas)) {
-            console.log("[Restauración] Recuperación exitosa desde Cloud Backup.");
-            setMesas(backupData.mesas);
-            
-            // Curar el documento principal en Firestore
-            await setDoc(docRef, {
-              mesas: backupData.mesas,
-              updatedAt: serverTimestamp()
-            });
+        // 1. Intentar restaurar desde el histórico redundante Cloud Backups (Firestore)
+        const backupsSnap = await getDoc(backupsDocRef);
+        if (backupsSnap.exists()) {
+          const backupsData = backupsSnap.data();
+          const listaBackups = backupsData.backups || [];
+          for (let i = 0; i < listaBackups.length; i++) {
+            const b = listaBackups[i];
+            if (b && isValidMesasSchema(b.mesas)) {
+              console.log(`[Restauración] Recuperación exitosa desde Cloud Backup (Posición #${i + 1}).`);
+              setMesas(b.mesas);
+              
+              // Curar el documento principal en Firestore
+              await setDoc(docRef, {
+                mesas: b.mesas,
+                updatedAt: serverTimestamp()
+              });
 
-            registrarEvento(
-              'Auto-Recuperación',
-              `Catálogo de mesas restaurado exitosamente desde Cloud Backup en Firestore (Motivo: ${razon}).`
-            );
+              registrarEvento(
+                'Auto-Recuperación',
+                `Catálogo de mesas restaurado automáticamente desde Cloud Backup redundante (Copia #${i + 1}) (Motivo: ${razon}).`
+              );
 
-            enviarAlertaTelegramCritica(
-              `El catálogo de mesas de juego ha sido auto-restaurado desde la copia de seguridad redundante en la nube (Cloud Backup).\n\n*Razón de la alerta:* ${razon}`
-            );
-            return;
+              enviarAlertaTelegramCritica(
+                `El catálogo de mesas de juego ha sido auto-restaurado desde la copia de seguridad redundante Cloud (Backup #${i + 1}).\n\n*Razón:* ${razon}`
+              );
+              return;
+            }
           }
         }
       } catch (backupErr) {
@@ -3734,6 +3775,92 @@ export default function MesasPanel({ showToast }) {
     return unsub;
   }, []);
 
+  // Procesador y despachador de alertas de Telegram encoladas offline
+  useEffect(() => {
+    const procesarAlertasOffline = async () => {
+      if (typeof window === 'undefined' || !navigator.onLine) return;
+      try {
+        const guardadas = localStorage.getItem('yoy_alertas_offline');
+        if (!guardadas) return;
+
+        let cola = JSON.parse(guardadas);
+        if (cola.length === 0) return;
+
+        console.log(`[Telegram] Procesando ${cola.length} alertas offline encoladas...`);
+        const nuevasAlertas = [];
+
+        for (const item of cola) {
+          let exito = false;
+          try {
+            const tgSnap = await getDoc(doc(db, 'config', 'telegram'));
+            if (tgSnap.exists()) {
+              const tgData = tgSnap.data();
+              const isSimplified = tgData.mode === 'simplified' || (!tgData.botToken && tgData.chatId);
+              const hasCustom = tgData.mode === 'custom' && tgData.botToken && tgData.chatId;
+
+              if (tgData.enabled && (isSimplified || hasCustom)) {
+                const sucSnap = await getDoc(doc(db, 'config', 'sucursal'));
+                const sucursalName = sucSnap.exists() ? (sucSnap.data().nombre || 'Sucursal') : 'Sucursal';
+
+                const res = await fetch('/api/telegram/send-alert', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    mode: tgData.mode || 'simplified',
+                    token: tgData.botToken,
+                    chatId: tgData.chatId,
+                    phone: tgData.phone || '',
+                    sucursalName: sucursalName,
+                    text: `⚠️ *ALERTA DE SISTEMA - AUTO-RECUPERACIÓN* (Reenvío Offline)\n\n${item.mensaje}`
+                  })
+                });
+                if (res.ok) exito = true;
+              } else {
+                exito = true;
+              }
+            }
+          } catch (e) {
+            console.error(e);
+          }
+
+          if (!exito) {
+            item.intentos += 1;
+            if (item.intentos < 5) {
+              nuevasAlertas.push(item);
+            }
+          }
+        }
+
+        if (nuevasAlertas.length > 0) {
+          localStorage.setItem('yoy_alertas_offline', JSON.stringify(nuevasAlertas));
+        } else {
+          localStorage.removeItem('yoy_alertas_offline');
+        }
+      } catch (err) {
+        console.error("Error al procesar alertas offline:", err);
+      }
+    };
+
+    if (typeof window !== 'undefined') {
+      const handleOnline = () => {
+        console.log("[Red] Dispositivo online. Despachando cola de alertas offline...");
+        procesarAlertasOffline();
+      };
+
+      window.addEventListener('online', handleOnline);
+      procesarAlertasOffline();
+
+      const interval = setInterval(() => {
+        procesarAlertasOffline();
+      }, 60000);
+
+      return () => {
+        window.removeEventListener('online', handleOnline);
+        clearInterval(interval);
+      };
+    }
+  }, []);
+
   // Escuchar bitácora de Firestore en tiempo real para mantener sincronizado a todo el staff
   useEffect(() => {
     const q = query(collection(db, 'bitacora'), orderBy('fecha', 'desc'), limit(limiteBitacora));
@@ -3785,18 +3912,36 @@ export default function MesasPanel({ showToast }) {
           mesas: mesas,
           updatedAt: serverTimestamp()
         }).then(() => {
-          // Cloud Backup con Debounce de 5 segundos para optimizar costes y rendimiento
+          // Cloud Backup con Debounce de 5 segundos y rotación de 3 backups en Firestore
           if (backupTimeoutRef.current) {
             clearTimeout(backupTimeoutRef.current);
           }
-          backupTimeoutRef.current = setTimeout(() => {
-            setDocWithRetry(doc(db, 'config', 'mesas_estado_backup'), {
-              mesas: mesas,
-              updatedAt: serverTimestamp(),
-              esBackup: true
-            })
-            .then(() => console.log("[Backup] Copia de respaldo Cloud guardada con éxito."))
-            .catch(backupErr => console.error("Error al guardar backup de mesas en Firestore:", backupErr));
+          backupTimeoutRef.current = setTimeout(async () => {
+            try {
+              const backupsDocRef = doc(db, 'config', 'mesas_estado_backups');
+              const backupsSnap = await getDoc(backupsDocRef);
+              let listaBackups = [];
+              if (backupsSnap.exists()) {
+                listaBackups = backupsSnap.data().backups || [];
+              }
+
+              const nuevoBackup = {
+                mesas: mesas,
+                updatedAt: Date.now(),
+                operador: user ? (user.name || user.alias || user.email) : 'Cajero Principal'
+              };
+
+              // Mantener los últimos 3 backups en rotación circular
+              listaBackups = [nuevoBackup, ...listaBackups].slice(0, 3);
+
+              await setDoc(backupsDocRef, {
+                backups: listaBackups,
+                updatedAt: serverTimestamp()
+              });
+              console.log("[Backup] Copias de seguridad rotativas actualizadas con éxito en Firestore.");
+            } catch (backupErr) {
+              console.error("Error al guardar backup rotativo en Firestore:", backupErr);
+            }
           }, 5000);
         }).catch(err => console.error("Error definitivo al sincronizar mesas con Firestore:", err));
 
