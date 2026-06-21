@@ -35,6 +35,39 @@ const normalizeText = (str) => {
   return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
 };
 
+const VOCABULARIO_FRASES = {
+  cuenta: [
+    '¡Oye, cuenta!',
+    '¡Cobro de mesa!',
+    '¡Una cuenta por aquí!',
+    '¡Listo para cuenta!'
+  ],
+  barra: [
+    '¡Cobro en barra!',
+    '¡Ten, cobro!',
+    '¡Barra lista!',
+    '¡Cuenta directa!'
+  ],
+  pedido: [
+    '¡Un pedido!',
+    '¡Pedido entrante!',
+    '¡Mira, pedido!',
+    '¡Pedido listo!'
+  ],
+  asistencia: [
+    '¡Oye, ayuda!',
+    '¡Te llaman!',
+    '¡Oye, mira!',
+    '¡Mira por aquí!'
+  ],
+  recordatorio: [
+    '¡Oye!',
+    '¡Atención!',
+    '¡Caja!',
+    '¡Pendientes!'
+  ]
+};
+
 const getCuentaAsociadaSafe = (mesa, cuentasActivas) => {
   const defaultObject = {
     id: null,
@@ -3039,40 +3072,7 @@ export default function MesasPanel({ showToast }) {
   };
 
   const decirFraseAleatoria = (categoria) => {
-    const frases = {
-      cuenta: [
-        '¡Oye, cuenta!',
-        '¡Cobro de mesa!',
-        '¡Una cuenta por aquí!',
-        '¡Listo para cuenta!'
-      ],
-      barra: [
-        '¡Cobro en barra!',
-        '¡Ten, cobro!',
-        '¡Barra lista!',
-        '¡Cuenta directa!'
-      ],
-      pedido: [
-        '¡Un pedido!',
-        '¡Pedido entrante!',
-        '¡Mira, pedido!',
-        '¡Pedido listo!'
-      ],
-      asistencia: [
-        '¡Oye, ayuda!',
-        '¡Te llaman!',
-        '¡Oye, mira!',
-        '¡Mira por aquí!'
-      ],
-      recordatorio: [
-        '¡Oye!',
-        '¡Atención!',
-        '¡Caja!',
-        '¡Pendientes!'
-      ]
-    };
-
-    const lista = frases[categoria] || [categoria];
+    const lista = VOCABULARIO_FRASES[categoria] || [categoria];
     const indice = Math.floor(Math.random() * lista.length);
     decirPalabra(lista[indice]);
   };
