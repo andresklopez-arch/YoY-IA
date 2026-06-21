@@ -1149,7 +1149,11 @@ function AppContent() {
       await new Promise((resolve) => setTimeout(resolve, 1000));
 
       // Sugerencia 1: Limpieza explícita inmediata de la sesión previa en localStorage, Firebase y Contexto
-      await logout();
+      if (user) {
+        await logout();
+      } else {
+        localStorage.removeItem('yoy_ia_session');
+      }
 
       let geoData = { lat: null, lng: null, precision: null, status: 'No requerido' };
 

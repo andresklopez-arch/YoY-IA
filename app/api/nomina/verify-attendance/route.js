@@ -178,7 +178,7 @@ export async function POST(request) {
                   const vincSnap = await getDoc(vincRef);
                   if (vincSnap.exists()) {
                     const resolvedChatId = vincSnap.data().chatId;
-                    await fetch(`https://api.telegram.org/bot${officialBotToken}/sendMessage`, {
+                    fetch(`https://api.telegram.org/bot${officialBotToken}/sendMessage`, {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({
@@ -186,12 +186,12 @@ export async function POST(request) {
                         text: messageText,
                         parse_mode: 'Markdown'
                       })
-                    });
+                    }).catch(err => console.error("Telegram official sendMessage failed:", err));
                   }
                 }
               } else {
                 // Instancia clonada: reenviar a servidor central para resolución remota
-                await fetch('https://yoy-ia-billar.vercel.app/api/telegram/send-alert', {
+                fetch('https://yoy-ia-billar.vercel.app/api/telegram/send-alert', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
@@ -199,11 +199,11 @@ export async function POST(request) {
                     phone: tgData.phone,
                     text: messageText
                   })
-                });
+                }).catch(err => console.error("Telegram send-alert fetch failed:", err));
               }
             } else if (hasCustom) {
               // Bot personalizado
-              await fetch(`https://api.telegram.org/bot${tgData.botToken}/sendMessage`, {
+              fetch(`https://api.telegram.org/bot${tgData.botToken}/sendMessage`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -211,7 +211,7 @@ export async function POST(request) {
                   text: messageText,
                   parse_mode: 'Markdown'
                 })
-              });
+              }).catch(err => console.error("Telegram custom sendMessage failed:", err));
             }
           }
         }
@@ -238,7 +238,7 @@ export async function POST(request) {
       const host = request.headers.get('host') || 'localhost:3000';
       const alertUrl = `${protocol}://${host}/api/telegram/attendance-alert`;
       
-      await fetch(alertUrl, {
+      fetch(alertUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -248,6 +248,8 @@ export async function POST(request) {
           rol: emp.rol || 'Mesero',
           dispositivo: dispositivo || 'Móvil'
         })
+      }).catch(alertErr => {
+        console.error("Error al disparar alerta de asistencia:", alertErr);
       });
     } catch (alertErr) {
       console.error("Error al disparar alerta de asistencia:", alertErr);
