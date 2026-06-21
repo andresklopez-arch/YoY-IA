@@ -2996,8 +2996,8 @@ export default function MesasPanel({ showToast }) {
         window.speechSynthesis.cancel();
         const utterance = new SpeechSynthesisUtterance(texto);
         utterance.lang = 'es-MX';
-        utterance.rate = 1.15;
-        utterance.pitch = 1.05;
+        utterance.rate = 1.1; // Velocidad enérgica y natural
+        utterance.pitch = 1.28; // Tono más alto que emula entusiasmo y felicidad
         window.speechSynthesis.speak(utterance);
       }
     } catch (e) {
