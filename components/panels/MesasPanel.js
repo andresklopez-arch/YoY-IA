@@ -2699,14 +2699,14 @@ export default function MesasPanel({ showToast }) {
         try {
           if (newAlertType === 'cuenta') {
             if (newAlertIsDirect) {
-              decirPalabra('Barra');
+              decirFraseAleatoria('barra');
             } else {
-              decirPalabra('Cuenta');
+              decirFraseAleatoria('cuenta');
             }
           } else if (newAlertType === 'pedido') {
-            decirPalabra('Pedido');
+            decirFraseAleatoria('pedido');
           } else {
-            decirPalabra('Mira');
+            decirFraseAleatoria('asistencia');
           }
  
           if (typeof navigator !== 'undefined' && navigator.vibrate) {
@@ -3005,8 +3005,47 @@ export default function MesasPanel({ showToast }) {
     }
   };
 
+  const decirFraseAleatoria = (categoria) => {
+    const frases = {
+      cuenta: [
+        '¡Oye, cuenta!',
+        '¡Cobro de mesa!',
+        '¡Una cuenta por aquí!',
+        '¡Listo para cuenta!'
+      ],
+      barra: [
+        '¡Cobro en barra!',
+        '¡Ten, cobro!',
+        '¡Barra lista!',
+        '¡Cuenta directa!'
+      ],
+      pedido: [
+        '¡Un pedido!',
+        '¡Pedido entrante!',
+        '¡Mira, pedido!',
+        '¡Pedido listo!'
+      ],
+      asistencia: [
+        '¡Oye, ayuda!',
+        '¡Te llaman!',
+        '¡Oye, mira!',
+        '¡Mira por aquí!'
+      ],
+      recordatorio: [
+        '¡Oye!',
+        '¡Atención!',
+        '¡Caja!',
+        '¡Pendientes!'
+      ]
+    };
+
+    const lista = frases[categoria] || [categoria];
+    const indice = Math.floor(Math.random() * lista.length);
+    decirPalabra(lista[indice]);
+  };
+
   const playCashierNotificationSound = () => {
-    decirPalabra('Oye');
+    decirFraseAleatoria('recordatorio');
   };
 
   const [assignedFila, setAssignedFila] = useState([]);
