@@ -2662,7 +2662,7 @@ export default function MesasPanel({ showToast }) {
         }
 
         // Calcular consumos de pedidos no cargados a la cuenta para mostrarlos en tiempo real
-        if (mesaId && data.tipo === 'pedido' && !data.cargadoACuenta) {
+        if ((mesaId || mesaId === 0 || mesaId === '0') && data.tipo === 'pedido' && !data.cargadoACuenta) {
           const mIdNum = parseInt(mesaId);
           if (!unloadedMap[mIdNum]) {
             unloadedMap[mIdNum] = 0;
@@ -2671,7 +2671,7 @@ export default function MesasPanel({ showToast }) {
         }
 
         // Solo incluir alertas que no hayan sido atendidas por el admin
-        if (mesaId && !data.atendidoAdmin) {
+        if ((mesaId || mesaId === 0 || mesaId === '0') && !data.atendidoAdmin) {
           if (!alertsMap[mesaId]) {
             alertsMap[mesaId] = [];
           }
@@ -9886,7 +9886,11 @@ function ModalCuentasSolicitadas({ onClose, showToast }) {
                     return (
                       <tr key={s.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)', transition: 'background 0.15s' }}>
                         <td style={{ padding: '8px 12px', fontWeight: 'bold' }}>
-                          <span style={{ color: 'var(--bronze-light)' }}>Mesa {s.mesaId}</span>
+                          {s.mesaId && s.mesaId !== 0 && s.mesaId !== '0' ? (
+                            <span style={{ color: 'var(--bronze-light)' }}>Mesa {s.mesaId}</span>
+                          ) : (
+                            <span style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontWeight: '500' }}>Sin Mesa</span>
+                          )}
                         </td>
                         <td style={{ padding: '8px 12px' }}>{s.cliente || 'Mesa ' + s.mesaId}</td>
                         <td style={{ padding: '8px 12px' }}>
