@@ -2105,6 +2105,13 @@ export default function MesasPanel({ showToast }) {
   const [modalAbrirCuenta, setModalAbrirCuenta] = useState(false);
   const [modalCuentasSolicitadas, setModalCuentasSolicitadas] = useState(false);
   const [alertaCobroAsociadaId, setAlertaCobroAsociadaId] = useState(null);
+  const [lastCheckedTime, setLastCheckedTime] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('yoy_last_checked_solicitudes');
+      return saved ? Number(saved) : Date.now();
+    }
+    return Date.now();
+  });
   const [clientesRegistrados, setClientesRegistrados] = useState([]);
   const [modalCambiarMesa, setModalCambiarMesa] = useState(null);
   const [modalVincular, setModalVincular] = useState(null);
@@ -2152,6 +2159,13 @@ export default function MesasPanel({ showToast }) {
   const knownAlertsRef = useRef(new Set());
   const isInitialLoadRef = useRef(true);
   const prevMesasStateRef = useRef([]);
+  useEffect(() => {
+    if (modalCuentasSolicitadas) {
+      const ahora = Date.now();
+      setLastCheckedTime(ahora);
+      localStorage.setItem('yoy_last_checked_solicitudes', String(ahora));
+    }
+  }, [modalCuentasSolicitadas]);
 
   // Cambiar el estado de la mesa rápidamente
   const cambiarEstadoRapido = (mesa, nuevoEstado) => {
@@ -3363,6 +3377,23 @@ export default function MesasPanel({ showToast }) {
     const tieneDirectas = list.some(a => !a.mesaId || a.mesaId === 0 || a.mesaId === '0');
     return { total: list.length, tieneDirectas };
   }, [alertasMesas]);
+
+  // ── Memorización de Cuentas Nuevas desde la Última Consulta ──
+  const totalNuevasCuentas = useMemo(() => {
+    if (modalCuentasSolicitadas) return 0;
+    if (!alertasMesas) return 0;
+    const alertas = Object.values(alertasMesas)
+      .flat()
+      .filter(a => a && a.tipo === 'cuenta' && !a.atendidoAdmin);
+    
+    const nuevas = alertas.filter(a => {
+      const creationTime = a.createdAt 
+        ? (a.createdAt.toDate ? a.createdAt.toDate().getTime() : a.createdAt.seconds * 1000)
+        : Date.now();
+      return creationTime > lastCheckedTime;
+    });
+    return nuevas.length;
+  }, [alertasMesas, lastCheckedTime, modalCuentasSolicitadas]);
 
   // ── Helper para setDoc con reintentos y exponencial backoff ──
   const setDocWithRetry = async (docRef, data, retries = 5, delay = 500) => {
@@ -5451,9 +5482,9 @@ export default function MesasPanel({ showToast }) {
           }}
           title="Ver Cuentas Solicitadas"
         >
-          <i className="ri-wallet-3-line" style={{ animation: infoCuentasSolicitadas.total > 0 ? 'pulse 1.2s infinite' : 'none' }} />
+          <i className="ri-wallet-3-line" style={{ animation: totalNuevasCuentas > 0 ? 'pulse 1.2s infinite' : 'none' }} />
           <span>Cuentas Solicitadas</span>
-          {infoCuentasSolicitadas.total > 0 && (
+          {totalNuevasCuentas > 0 && (
             <span className="badge" style={{
               background: infoCuentasSolicitadas.tieneDirectas ? '#f59e0b' : '#ef4444',
               color: '#fff',
@@ -5462,7 +5493,7 @@ export default function MesasPanel({ showToast }) {
               fontSize: 9,
               borderRadius: '50%'
             }}>
-              {infoCuentasSolicitadas.total}
+              {totalNuevasCuentas}
             </span>
           )}
         </button>
