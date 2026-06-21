@@ -30,10 +30,36 @@ function areMesasEqual(arr1, arr2) {
   return true;
 }
 
-const isValidMesasSchema = (arr) => {
-  if (!Array.isArray(arr) || arr.length === 0) return false;
-  const m = arr[0];
-  return m && typeof m === 'object' && m.hasOwnProperty('id') && m.hasOwnProperty('estado') && m.hasOwnProperty('tarifa');
+const sanitizarYValidarMesas = (arr) => {
+  if (!Array.isArray(arr) || arr.length === 0) return null;
+  const ids = new Set();
+  const estadosValidos = ['libre', 'ocupada', 'reservada', 'manten', 'fuera'];
+  const cleanArr = [];
+
+  for (const m of arr) {
+    if (!m || typeof m !== 'object') return null;
+    if (typeof m.id !== 'number' || m.id <= 0 || !Number.isInteger(m.id)) return null;
+    if (typeof m.tarifa !== 'number' || m.tarifa < 0) return null;
+    if (typeof m.estado !== 'string' || !estadosValidos.includes(m.estado)) return null;
+    if (m.nombre !== undefined && typeof m.nombre !== 'string') return null;
+
+    if (ids.has(m.id)) return null;
+    ids.add(m.id);
+
+    const mesaClonada = { ...m };
+
+    // Sanitización semántica y lógica para mesas libres
+    if (mesaClonada.estado === 'libre') {
+      if (mesaClonada.cliente !== null || mesaClonada.inicio !== null || mesaClonada.clienteUid !== '') {
+        mesaClonada.cliente = null;
+        mesaClonada.inicio = null;
+        mesaClonada.clienteUid = '';
+        mesaClonada.socios = false;
+      }
+    }
+    cleanArr.push(mesaClonada);
+  }
+  return cleanArr;
 };
 
 
@@ -2188,6 +2214,9 @@ export default function MesasPanel({ showToast }) {
   const [modalAvisar, setModalAvisar] = useState(null); // mesa
   const [modalGasto, setModalGasto] = useState(false);
 
+  const [isOnline, setIsOnline] = useState(true);
+  const [cantAlertasOffline, setCantAlertasOffline] = useState(0);
+
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [mostrarCobroManual, setMostrarCobroManual] = useState(false);
   const [nuevoMonto, setNuevoMonto] = useState('');
@@ -3663,20 +3692,32 @@ export default function MesasPanel({ showToast }) {
     const restaurarConCascada = async (razon) => {
       console.warn(`[Restauración] Iniciando recuperación de mesas. Razón: ${razon}`);
       try {
-        // 1. Intentar restaurar desde el histórico redundante Cloud Backups (Firestore)
+        // 1. Intentar restaurar desde el histórico redundante Cloud Backups (Firestore) con validación y sanitización semántica
         const backupsSnap = await getDoc(backupsDocRef);
         if (backupsSnap.exists()) {
           const backupsData = backupsSnap.data();
           const listaBackups = backupsData.backups || [];
           for (let i = 0; i < listaBackups.length; i++) {
             const b = listaBackups[i];
-            if (b && isValidMesasSchema(b.mesas)) {
+            
+            // Decodificar catálogo de mesas del backup redundante (soporta legacy sin ofuscar y ofuscado)
+            let mesasDecoded = [];
+            if (b) {
+              if (b.mesasObfuscated) {
+                mesasDecoded = deobfuscate(b.mesasObfuscated);
+              } else {
+                mesasDecoded = b.mesas;
+              }
+            }
+
+            const mesasSanitizadas = sanitizarYValidarMesas(mesasDecoded);
+            if (mesasSanitizadas) {
               console.log(`[Restauración] Recuperación exitosa desde Cloud Backup (Posición #${i + 1}).`);
-              setMesas(b.mesas);
+              setMesas(mesasSanitizadas);
               
               // Curar el documento principal en Firestore
               await setDoc(docRef, {
-                mesas: b.mesas,
+                mesas: mesasSanitizadas,
                 updatedAt: serverTimestamp()
               });
 
@@ -3697,23 +3738,24 @@ export default function MesasPanel({ showToast }) {
       }
 
       try {
-        // 2. Intentar restaurar desde LocalStorage con validación de esquema
+        // 2. Intentar restaurar desde LocalStorage con validación y sanitización semántica
         const savedMesas = localStorage.getItem('yoy_billar_mesas');
         if (savedMesas) {
           const localData = deobfuscate(savedMesas);
-          if (isValidMesasSchema(localData)) {
+          const mesasSanitizadas = sanitizarYValidarMesas(localData);
+          if (mesasSanitizadas) {
             console.log("[Restauración] Recuperación exitosa desde LocalStorage.");
-            setMesas(localData);
+            setMesas(mesasSanitizadas);
 
             // Curar el documento principal en Firestore
             await setDoc(docRef, {
-              mesas: localData,
+              mesas: mesasSanitizadas,
               updatedAt: serverTimestamp()
             });
 
             registrarEvento(
               'Auto-Recuperación',
-              `Catálogo de mesas restaurado desde caché de almacenamiento local (Motivo: ${razon}).`
+              `Catálogo de mesas restaurado desde caché de almacenamiento local (LocalStorage) (Motivo: ${razon}).`
             );
 
             enviarAlertaTelegramCritica(
@@ -3726,13 +3768,14 @@ export default function MesasPanel({ showToast }) {
         console.error("Error al intentar recuperar desde LocalStorage:", localErr);
       }
 
-      // 3. Fallback final: INIT_MESAS (Catálogo por defecto)
+      // 3. Fallback final: INIT_MESAS (Catálogo por defecto sanitizado)
       console.log("[Restauración] Recuperación final usando catálogo inicial INIT_MESAS.");
-      setMesas(INIT_MESAS);
+      const defaultMesasSanitizadas = sanitizarYValidarMesas(INIT_MESAS) || INIT_MESAS;
+      setMesas(defaultMesasSanitizadas);
 
       try {
         await setDoc(docRef, {
-          mesas: INIT_MESAS,
+          mesas: defaultMesasSanitizadas,
           updatedAt: serverTimestamp()
         });
 
@@ -3752,17 +3795,18 @@ export default function MesasPanel({ showToast }) {
     const unsub = onSnapshot(docRef, snap => {
       if (snap.exists()) {
         const data = snap.data();
-        if (data && isValidMesasSchema(data.mesas)) {
+        const mesasSanitizadas = data ? sanitizarYValidarMesas(data.mesas) : null;
+        if (mesasSanitizadas) {
           hasLoadedFromFirestoreRef.current = true;
-          const isDifferent = !areMesasEqual(data.mesas, mesasRef.current);
+          const isDifferent = !areMesasEqual(mesasSanitizadas, mesasRef.current);
           if (isDifferent) {
             isIncomingUpdateRef.current = true;
-            setMesas(data.mesas);
+            setMesas(mesasSanitizadas);
           }
         } else {
           // Si el documento existe pero el catálogo de mesas está vacío o corrupto
           hasLoadedFromFirestoreRef.current = true;
-          restaurarConCascada("El documento config/mesas_estado existe pero su array de mesas está vacío o corrupto.");
+          restaurarConCascada("El documento config/mesas_estado existe pero su array de mesas está vacío o no supera la validación del esquema.");
         }
       } else {
         // Si el documento principal no existe en Firestore
@@ -3776,86 +3820,105 @@ export default function MesasPanel({ showToast }) {
   }, []);
 
   // Procesador y despachador de alertas de Telegram encoladas offline
-  useEffect(() => {
-    const procesarAlertasOffline = async () => {
-      if (typeof window === 'undefined' || !navigator.onLine) return;
-      try {
-        const guardadas = localStorage.getItem('yoy_alertas_offline');
-        if (!guardadas) return;
+  const procesarAlertasOffline = async () => {
+    if (typeof window === 'undefined' || !navigator.onLine) return;
+    try {
+      const guardadas = localStorage.getItem('yoy_alertas_offline');
+      if (!guardadas) return;
 
-        let cola = JSON.parse(guardadas);
-        if (cola.length === 0) return;
+      let cola = JSON.parse(guardadas);
+      if (cola.length === 0) return;
 
-        console.log(`[Telegram] Procesando ${cola.length} alertas offline encoladas...`);
-        const nuevasAlertas = [];
+      console.log(`[Telegram] Procesando ${cola.length} alertas offline encoladas...`);
+      const nuevasAlertas = [];
 
-        for (const item of cola) {
-          let exito = false;
-          try {
-            const tgSnap = await getDoc(doc(db, 'config', 'telegram'));
-            if (tgSnap.exists()) {
-              const tgData = tgSnap.data();
-              const isSimplified = tgData.mode === 'simplified' || (!tgData.botToken && tgData.chatId);
-              const hasCustom = tgData.mode === 'custom' && tgData.botToken && tgData.chatId;
+      for (const item of cola) {
+        let exito = false;
+        try {
+          const tgSnap = await getDoc(doc(db, 'config', 'telegram'));
+          if (tgSnap.exists()) {
+            const tgData = tgSnap.data();
+            const isSimplified = tgData.mode === 'simplified' || (!tgData.botToken && tgData.chatId);
+            const hasCustom = tgData.mode === 'custom' && tgData.botToken && tgData.chatId;
 
-              if (tgData.enabled && (isSimplified || hasCustom)) {
-                const sucSnap = await getDoc(doc(db, 'config', 'sucursal'));
-                const sucursalName = sucSnap.exists() ? (sucSnap.data().nombre || 'Sucursal') : 'Sucursal';
+            if (tgData.enabled && (isSimplified || hasCustom)) {
+              const sucSnap = await getDoc(doc(db, 'config', 'sucursal'));
+              const sucursalName = sucSnap.exists() ? (sucSnap.data().nombre || 'Sucursal') : 'Sucursal';
 
-                const res = await fetch('/api/telegram/send-alert', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    mode: tgData.mode || 'simplified',
-                    token: tgData.botToken,
-                    chatId: tgData.chatId,
-                    phone: tgData.phone || '',
-                    sucursalName: sucursalName,
-                    text: `⚠️ *ALERTA DE SISTEMA - AUTO-RECUPERACIÓN* (Reenvío Offline)\n\n${item.mensaje}`
-                  })
-                });
-                if (res.ok) exito = true;
-              } else {
-                exito = true;
-              }
-            }
-          } catch (e) {
-            console.error(e);
-          }
-
-          if (!exito) {
-            item.intentos += 1;
-            if (item.intentos < 5) {
-              nuevasAlertas.push(item);
+              const res = await fetch('/api/telegram/send-alert', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  mode: tgData.mode || 'simplified',
+                  token: tgData.botToken,
+                  chatId: tgData.chatId,
+                  phone: tgData.phone || '',
+                  sucursalName: sucursalName,
+                  text: `⚠️ *ALERTA DE SISTEMA - AUTO-RECUPERACIÓN* (Reenvío Offline)\n\n${item.mensaje}`
+                })
+              });
+              if (res.ok) exito = true;
+            } else {
+              exito = true;
             }
           }
+        } catch (e) {
+          console.error(e);
         }
 
-        if (nuevasAlertas.length > 0) {
-          localStorage.setItem('yoy_alertas_offline', JSON.stringify(nuevasAlertas));
-        } else {
-          localStorage.removeItem('yoy_alertas_offline');
+        if (!exito) {
+          item.intentos += 1;
+          if (item.intentos < 5) {
+            nuevasAlertas.push(item);
+          }
         }
-      } catch (err) {
-        console.error("Error al procesar alertas offline:", err);
       }
-    };
 
+      if (nuevasAlertas.length > 0) {
+        localStorage.setItem('yoy_alertas_offline', JSON.stringify(nuevasAlertas));
+      } else {
+        localStorage.removeItem('yoy_alertas_offline');
+      }
+    } catch (err) {
+      console.error("Error al procesar alertas offline:", err);
+    }
+  };
+
+  useEffect(() => {
     if (typeof window !== 'undefined') {
+      setIsOnline(navigator.onLine);
+      
+      const actualizarColaOffline = () => {
+        try {
+          const guardadas = localStorage.getItem('yoy_alertas_offline');
+          const cola = guardadas ? JSON.parse(guardadas) : [];
+          setCantAlertasOffline(cola.length);
+        } catch (e) {
+          console.error(e);
+        }
+      };
+
+      actualizarColaOffline();
+
       const handleOnline = () => {
-        console.log("[Red] Dispositivo online. Despachando cola de alertas offline...");
-        procesarAlertasOffline();
+        setIsOnline(true);
+        procesarAlertasOffline().then(actualizarColaOffline);
+      };
+
+      const handleOffline = () => {
+        setIsOnline(false);
       };
 
       window.addEventListener('online', handleOnline);
-      procesarAlertasOffline();
+      window.addEventListener('offline', handleOffline);
 
       const interval = setInterval(() => {
-        procesarAlertasOffline();
+        procesarAlertasOffline().then(actualizarColaOffline);
       }, 60000);
 
       return () => {
         window.removeEventListener('online', handleOnline);
+        window.removeEventListener('offline', handleOffline);
         clearInterval(interval);
       };
     }
@@ -3925,8 +3988,9 @@ export default function MesasPanel({ showToast }) {
                 listaBackups = backupsSnap.data().backups || [];
               }
 
+              // Ofuscar y comprimir el catálogo de mesas en la copia redundante (Sugerencia 1)
               const nuevoBackup = {
-                mesas: mesas,
+                mesasObfuscated: obfuscate(mesas),
                 updatedAt: Date.now(),
                 operador: user ? (user.name || user.alias || user.email) : 'Cajero Principal'
               };
@@ -3938,7 +4002,7 @@ export default function MesasPanel({ showToast }) {
                 backups: listaBackups,
                 updatedAt: serverTimestamp()
               });
-              console.log("[Backup] Copias de seguridad rotativas actualizadas con éxito en Firestore.");
+              console.log("[Backup] Copias de seguridad rotativas (ofuscadas) actualizadas en Firestore.");
             } catch (backupErr) {
               console.error("Error al guardar backup rotativo en Firestore:", backupErr);
             }
@@ -5953,6 +6017,46 @@ export default function MesasPanel({ showToast }) {
         >
           <i className="ri-qr-code-line" /> Imprimir todos los QRs
         </button>
+
+        {/* Indicador de Conectividad y Cola Offline */}
+        <div style={{
+          marginLeft: 'auto',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          fontSize: 10,
+          fontWeight: 700,
+          padding: '4px 10px',
+          borderRadius: 20,
+          background: isOnline ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+          border: `1px solid ${isOnline ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
+          color: isOnline ? '#22c55e' : '#ef4444',
+          transition: 'all 0.3s ease',
+          height: 28,
+          boxShadow: 'var(--shadow-sm)'
+        }}>
+          <span style={{
+            width: 6,
+            height: 6,
+            borderRadius: '50%',
+            background: isOnline ? '#22c55e' : '#ef4444',
+            boxShadow: `0 0 8px ${isOnline ? '#22c55e' : '#ef4444'}`
+          }}></span>
+          <span>{isOnline ? 'ONLINE' : 'OFFLINE'}</span>
+          {cantAlertasOffline > 0 && (
+            <span style={{
+              background: '#ef4444',
+              color: '#fff',
+              borderRadius: 8,
+              padding: '1px 5px',
+              fontSize: 8,
+              marginLeft: 4,
+              boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+            }}>
+              {cantAlertasOffline} PEND.
+            </span>
+          )}
+        </div>
       </div>
 
 
