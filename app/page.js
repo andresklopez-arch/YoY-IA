@@ -12,7 +12,7 @@ import ConfigPanel from '@/components/panels/ConfigPanel';
 import NominaPanel from '@/components/panels/NominaPanel';
 import LoginScreen from '@/components/LoginScreen';
 import { AuthProvider, useAuth } from '@/lib/auth-context';
-import { collection, query, where, orderBy, limit, onSnapshot, doc, updateDoc, serverTimestamp, getDoc, addDoc, getDocs } from 'firebase/firestore';
+import { collection, query, where, orderBy, limit, onSnapshot, doc, updateDoc, serverTimestamp, getDoc, addDoc, getDocs, setDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { obfuscateWithKey } from '@/lib/crypto';
 import { getBusinessDate } from '@/lib/date-utils';
