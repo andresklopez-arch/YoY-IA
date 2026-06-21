@@ -352,7 +352,7 @@ async function run() {
     for (const mBtn of meseroButtons) {
       try {
         const text = await page.evaluate(el => el.textContent, mBtn);
-        if (text.includes('Atendido') && text.includes('✓')) {
+        if (text.includes('Atendido')) {
           console.log("  Mesero descarta alerta y entrega pedido al cliente...");
           await page.evaluate(el => el.click(), mBtn);
           await delay(2500);
@@ -366,7 +366,8 @@ async function run() {
     // 8. CERRAR MESA Y COBRAR
     console.log("\n--- PASO 8: Cerrar Mesa y Cobrar en Caja ---");
     await page.goto('https://yoy-ia-billar.vercel.app/', { waitUntil: 'networkidle2' });
-    await delay(4000);
+    await page.waitForSelector('.mesa-card', { timeout: 15000 });
+    await delay(2000);
     await dismissAlerts(page);
 
     if (mesaIdSeleccionada) {
@@ -425,7 +426,8 @@ async function run() {
     for (const b of headerButtons) {
       try {
         const text = await page.evaluate(el => el.textContent, b);
-        if (text.trim() === 'Caja' || text.trim() === 'Inteligencia') {
+        const upperText = text.trim().toUpperCase();
+        if (upperText === 'CAJA' || upperText === 'INTELIGENCIA') {
           cajaTabBtn = b;
           break;
         }
