@@ -380,7 +380,15 @@ async function run() {
       }
 
       if (targetMesaCard) {
-        const closeBtn = await targetMesaCard.$('button');
+        const cardButtons = await targetMesaCard.$$('button');
+        let closeBtn = null;
+        for (const btn of cardButtons) {
+          const text = await page.evaluate(el => el.textContent, btn);
+          if (text.includes('Cerrar')) {
+            closeBtn = btn;
+            break;
+          }
+        }
         if (closeBtn) {
           console.log(`  Abriendo modal de cobro para la Mesa ${mesaIdSeleccionada}...`);
           await page.evaluate(el => el.click(), closeBtn);
