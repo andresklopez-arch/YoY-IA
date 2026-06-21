@@ -181,9 +181,24 @@ async function run() {
     }
 
     if (libreCard && mesaIdSeleccionada) {
-      console.log(`  Mesa libre encontrada: Mesa ${mesaIdSeleccionada}. Haciendo clic en abrir...`);
-      await libreCard.click();
-      await delay(2000);
+      // Encontrar el botón 'Abrir' dentro de la mesa-card
+      const cardButtons = await libreCard.$$('button');
+      let abrirMesaBtnInCard = null;
+      for (const btn of cardButtons) {
+        const text = await page.evaluate(el => el.textContent, btn);
+        if (text.includes('Abrir')) {
+          abrirMesaBtnInCard = btn;
+          break;
+        }
+      }
+      if (abrirMesaBtnInCard) {
+        console.log(`  Haciendo clic en el botón 'Abrir' de la Mesa ${mesaIdSeleccionada}...`);
+        await abrirMesaBtnInCard.click();
+      } else {
+        console.log("  No se encontró el botón 'Abrir', intentando clic general en la tarjeta...");
+        await libreCard.click();
+      }
+      await delay(2500);
 
       // Llenar el nombre en el modal
       await page.waitForSelector('input[placeholder="Ej: Carlos Rodríguez"]', { timeout: 10000 });
