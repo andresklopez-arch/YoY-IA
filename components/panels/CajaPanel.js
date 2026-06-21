@@ -232,7 +232,6 @@ export default function CajaPanel({ showToast }) {
   const [nominaPagosList, setNominaPagosList] = useState([]);
   const [empleadosList, setEmpleadosList] = useState([]);
   const [encuestasList, setEncuestasList] = useState([]);
-  const [pedidosList, setPedidosList] = useState([]);
   const [fichajesLogs, setFichajesLogs] = useState([]);
   const [descartadas, setDescartadas] = useState({});
   const [productos, setProductos] = useState([]);
@@ -1359,10 +1358,16 @@ export default function CajaPanel({ showToast }) {
         where('fecha', '<=', end)
       );
 
+      const qPed = query(
+        collection(db, 'mesa_pedidos'),
+        where('createdAt', '>=', new Date(start)),
+        where('createdAt', '<=', new Date(end))
+      );
+
       // Paralelizar todas las llamadas a Firebase utilizando getDocsWithRetry
       const [snapBit, snapPed, snapCortes, snapEmp, snapAsistencia] = await Promise.all([
         getDocsWithRetry(qBit),
-        getDocsWithRetry(collection(db, 'mesa_pedidos')),
+        getDocsWithRetry(qPed),
         getDocsWithRetry(collection(db, 'cortes_caja')),
         getDocsWithRetry(collection(db, 'nomina_empleados')),
         getDocsWithRetry(collection(db, 'nomina_asistencia_log'))
@@ -2042,9 +2047,6 @@ export default function CajaPanel({ showToast }) {
       }),
       onSnapshot(query(collection(db, 'encuestas_satisfaccion')), snap => {
         setEncuestasList(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-      }),
-      onSnapshot(query(collection(db, 'mesa_pedidos')), snap => {
-        setPedidosList(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       }),
       onSnapshot(query(collection(db, 'nomina_asistencia_log'), orderBy('createdAt', 'desc'), limit(500)), snap => {
         setFichajesLogs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
