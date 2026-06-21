@@ -3336,12 +3336,14 @@ export default function MesasPanel({ showToast }) {
   }, [mesas, cuentasActivas, unloadedConsumos]);
 
   // ── Memorización de Cuentas Pendientes Solicitadas ──
-  const totalCuentasPendientes = useMemo(() => {
-    if (!alertasMesas) return 0;
-    return Object.values(alertasMesas)
+  const infoCuentasSolicitadas = useMemo(() => {
+    if (!alertasMesas) return { total: 0, tieneDirectas: false };
+    const list = Object.values(alertasMesas)
       .flat()
-      .filter(a => a && a.tipo === 'cuenta' && !a.atendidoAdmin)
-      .length;
+      .filter(a => a && a.tipo === 'cuenta' && !a.atendidoAdmin);
+    
+    const tieneDirectas = list.some(a => !a.mesaId || a.mesaId === 0 || a.mesaId === '0');
+    return { total: list.length, tieneDirectas };
   }, [alertasMesas]);
 
   // ── Helper para setDoc con reintentos y exponencial backoff ──
@@ -5424,25 +5426,25 @@ export default function MesasPanel({ showToast }) {
             display: 'flex',
             alignItems: 'center',
             gap: 6,
-            color: totalCuentasPendientes > 0 ? '#ef4444' : 'var(--bronze-light)',
-            borderColor: totalCuentasPendientes > 0 ? 'rgba(239, 68, 68, 0.5)' : 'var(--border-bronze)',
-            boxShadow: totalCuentasPendientes > 0 ? '0 0 8px rgba(239, 68, 68, 0.2)' : 'none',
+            color: infoCuentasSolicitadas.total > 0 ? (infoCuentasSolicitadas.tieneDirectas ? '#f59e0b' : '#ef4444') : 'var(--bronze-light)',
+            borderColor: infoCuentasSolicitadas.total > 0 ? (infoCuentasSolicitadas.tieneDirectas ? 'rgba(245, 158, 11, 0.5)' : 'rgba(239, 68, 68, 0.5)') : 'var(--border-bronze)',
+            boxShadow: infoCuentasSolicitadas.total > 0 ? (infoCuentasSolicitadas.tieneDirectas ? '0 0 10px rgba(245, 158, 11, 0.25)' : '0 0 8px rgba(239, 68, 68, 0.2)') : 'none',
             transition: 'all 0.2s ease'
           }}
           title="Ver Cuentas Solicitadas"
         >
-          <i className="ri-wallet-3-line" style={{ animation: totalCuentasPendientes > 0 ? 'pulse 1.2s infinite' : 'none' }} />
+          <i className="ri-wallet-3-line" style={{ animation: infoCuentasSolicitadas.total > 0 ? 'pulse 1.2s infinite' : 'none' }} />
           <span>Cuentas Solicitadas</span>
-          {totalCuentasPendientes > 0 && (
+          {infoCuentasSolicitadas.total > 0 && (
             <span className="badge" style={{
-              background: '#ef4444',
+              background: infoCuentasSolicitadas.tieneDirectas ? '#f59e0b' : '#ef4444',
               color: '#fff',
               marginLeft: 4,
               padding: '2px 6px',
               fontSize: 9,
               borderRadius: '50%'
             }}>
-              {totalCuentasPendientes}
+              {infoCuentasSolicitadas.total}
             </span>
           )}
         </button>
@@ -6204,6 +6206,9 @@ export default function MesasPanel({ showToast }) {
           <ModalCuentasSolicitadas
             onClose={() => setModalCuentasSolicitadas(false)}
             showToast={showToast}
+            setMostrarCobroManual={setMostrarCobroManual}
+            setNuevoMonto={setNuevoMonto}
+            setNuevaDesc={setNuevaDesc}
           />
         </ModalErrorBoundary>
       )}
@@ -9697,10 +9702,11 @@ function ModalGasto({ onClose, onConfirm, CATEGORIAS_GASTO }) {
   );
 }
 
-function ModalCuentasSolicitadas({ onClose, showToast }) {
+function ModalCuentasSolicitadas({ onClose, showToast, setMostrarCobroManual, setNuevoMonto, setNuevaDesc }) {
   const [loading, setLoading] = useState(true);
   const [solicitudes, setSolicitudes] = useState([]);
   const [filtroTab, setFiltroTab] = useState('todas'); // 'todas', 'pendientes', 'atendidas'
+  const [subFiltroMesa, setSubFiltroMesa] = useState('todos'); // 'todos', 'con_mesa', 'sin_mesa'
   const [busqueda, setBusqueda] = useState('');
 
   const cargarSolicitudes = async () => {
@@ -9768,6 +9774,14 @@ function ModalCuentasSolicitadas({ onClose, showToast }) {
     }
   };
 
+  const iniciarCobroRapido = (solicitud) => {
+    if (setNuevoMonto) setNuevoMonto(String(solicitud.totalAcumulado || 0));
+    if (setNuevaDesc) setNuevaDesc(`Cobro Cuenta Directa - ${solicitud.cliente || `Mesa ${solicitud.mesaId}`}`);
+    onClose();
+    if (setMostrarCobroManual) setMostrarCobroManual(true);
+    showToast("Cobro manual directo cargado ✓", "info");
+  };
+
   const determinarSolicitante = (alerta) => {
     const etiqueta = (alerta.etiqueta || '').toLowerCase();
     if (etiqueta.includes('caja') || etiqueta.includes('mesero') || alerta.atendidoMesero) {
@@ -9780,9 +9794,16 @@ function ModalCuentasSolicitadas({ onClose, showToast }) {
   };
 
   const filtradas = solicitudes.filter(s => {
+    // Filtro por tab
     if (filtroTab === 'pendientes' && s.atendidoAdmin) return false;
     if (filtroTab === 'atendidas' && !s.atendidoAdmin) return false;
 
+    // Filtro por sub-clasificación (Con Mesa / Sin Mesa)
+    const tieneMesaFisica = s.mesaId && s.mesaId !== 0 && s.mesaId !== '0';
+    if (subFiltroMesa === 'con_mesa' && !tieneMesaFisica) return false;
+    if (subFiltroMesa === 'sin_mesa' && tieneMesaFisica) return false;
+
+    // Filtro por búsqueda
     if (busqueda.trim() !== '') {
       const term = busqueda.toLowerCase();
       const matchCliente = (s.cliente || '').toLowerCase().includes(term);
@@ -9808,6 +9829,7 @@ function ModalCuentasSolicitadas({ onClose, showToast }) {
         </div>
 
         <div className="modal-body" style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {/* Fila superior: Filtros de estado y buscador */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
             <div style={{ display: 'flex', gap: 6 }}>
               <button
@@ -9851,6 +9873,41 @@ function ModalCuentasSolicitadas({ onClose, showToast }) {
             </div>
           </div>
 
+          {/* Sub-filtros para clasificar Con Mesa vs Sin Mesa */}
+          <div style={{
+            display: 'flex',
+            gap: 6,
+            background: 'rgba(255, 255, 255, 0.02)',
+            border: '1px solid rgba(255, 255, 255, 0.05)',
+            borderRadius: 6,
+            padding: '4px 8px',
+            alignSelf: 'flex-start',
+            alignItems: 'center'
+          }}>
+            <span style={{ fontSize: 10, color: 'var(--text-muted)', marginRight: 4, fontWeight: 600 }}>Filtro de mesa:</span>
+            <button
+              className={`btn btn-xs ${subFiltroMesa === 'todos' ? 'btn-primary' : 'btn-secondary'}`}
+              onClick={() => setSubFiltroMesa('todos')}
+              style={{ fontSize: 9, padding: '2px 8px', height: 20 }}
+            >
+              Todas las Cuentas
+            </button>
+            <button
+              className={`btn btn-xs ${subFiltroMesa === 'con_mesa' ? 'btn-primary' : 'btn-secondary'}`}
+              onClick={() => setSubFiltroMesa('con_mesa')}
+              style={{ fontSize: 9, padding: '2px 8px', height: 20 }}
+            >
+              🎱 Con Mesa Física
+            </button>
+            <button
+              className={`btn btn-xs ${subFiltroMesa === 'sin_mesa' ? 'btn-primary' : 'btn-secondary'}`}
+              onClick={() => setSubFiltroMesa('sin_mesa')}
+              style={{ fontSize: 9, padding: '2px 8px', height: 20 }}
+            >
+              👤 Sin Mesa (Directa/Barra)
+            </button>
+          </div>
+
           {loading ? (
             <div style={{ display: 'flex', justifyContent: 'center', padding: '40px 0', color: 'var(--text-muted)' }}>
               <i className="ri-loader-4-line ri-spin" style={{ fontSize: 24, marginRight: 8 }} />
@@ -9859,7 +9916,7 @@ function ModalCuentasSolicitadas({ onClose, showToast }) {
           ) : filtradas.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '30px 10px', border: '1px dashed var(--border)', borderRadius: 8, color: 'var(--text-muted)' }}>
               <i className="ri-inbox-line" style={{ fontSize: 28, marginBottom: 8, display: 'block' }} />
-              <span>No se encontraron solicitudes de cuenta.</span>
+              <span>No se encontraron solicitudes de cuenta con el filtro aplicado.</span>
             </div>
           ) : (
             <div style={{ maxHeight: 350, overflowY: 'auto', border: '1px solid var(--border-bronze)', borderRadius: 8 }}>
@@ -9871,7 +9928,7 @@ function ModalCuentasSolicitadas({ onClose, showToast }) {
                     <th style={{ padding: '10px 12px', color: 'var(--text-muted)', fontWeight: 600 }}>Solicitado Por</th>
                     <th style={{ padding: '10px 12px', color: 'var(--text-muted)', fontWeight: 600 }}>Hora</th>
                     <th style={{ padding: '10px 12px', color: 'var(--text-muted)', fontWeight: 600, textAlign: 'right' }}>Total Estimado</th>
-                    <th style={{ padding: '10px 12px', color: 'var(--text-muted)', fontWeight: 600, textAlign: 'center' }}>Estado</th>
+                    <th style={{ padding: '10px 12px', color: 'var(--text-muted)', fontWeight: 600, textAlign: 'center' }}>Estado / Acción</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -9908,13 +9965,35 @@ function ModalCuentasSolicitadas({ onClose, showToast }) {
                               <i className="ri-checkbox-circle-fill" /> Atendida
                             </span>
                           ) : (
-                            <button
-                              onClick={() => marcarComoAtendida(s.id)}
-                              className="btn btn-danger btn-xs"
-                              style={{ padding: '2px 6px', fontSize: 9 }}
-                            >
-                              <i className="ri-check-line" /> Atender
-                            </button>
+                            <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
+                              {(!s.mesaId || s.mesaId === 0 || s.mesaId === '0') && (
+                                <button
+                                  onClick={() => iniciarCobroRapido(s)}
+                                  className="btn btn-primary btn-xs"
+                                  style={{
+                                    padding: '2px 6px',
+                                    fontSize: 9,
+                                    background: '#22c55e',
+                                    borderColor: '#22c55e',
+                                    color: '#000',
+                                    fontWeight: 'bold',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 3
+                                  }}
+                                  title="Cobrar cuenta directa en caja"
+                                >
+                                  <i className="ri-money-dollar-circle-line" /> Cobrar
+                                </button>
+                              )}
+                              <button
+                                onClick={() => marcarComoAtendida(s.id)}
+                                className="btn btn-danger btn-xs"
+                                style={{ padding: '2px 6px', fontSize: 9 }}
+                              >
+                                <i className="ri-check-line" /> Atender
+                              </button>
+                            </div>
                           )}
                         </td>
                       </tr>
