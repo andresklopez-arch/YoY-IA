@@ -2104,6 +2104,7 @@ export default function MesasPanel({ showToast }) {
   const [modalCuentas, setModalCuentas] = useState(false);
   const [modalAbrirCuenta, setModalAbrirCuenta] = useState(false);
   const [modalCuentasSolicitadas, setModalCuentasSolicitadas] = useState(false);
+  const [alertaCobroAsociadaId, setAlertaCobroAsociadaId] = useState(null);
   const [clientesRegistrados, setClientesRegistrados] = useState([]);
   const [modalCambiarMesa, setModalCambiarMesa] = useState(null);
   const [modalVincular, setModalVincular] = useState(null);
@@ -2647,20 +2648,21 @@ export default function MesasPanel({ showToast }) {
       const unloadedMap = {};
       let hasNewAlert = false;
       let newAlertType = null;
+      let newAlertIsDirect = false;
       const currentAlerts = new Set();
-
+ 
       snap.docs.forEach(doc => {
         const data = doc.data();
         const mesaId = data.mesaId;
         const id = doc.id;
         currentAlerts.add(id);
-
+ 
         // Auto-cargar pedidos a la cuenta de forma reactiva si es un pedido o si fue atendido por mesero o admin o si ya está listo/en camino/entregados
         const debCargar = data.tipo === 'pedido' || data.atendidoMesero || data.atendidoAdmin || ['listo', 'en_camino', 'entregado'].includes(data.estado);
         if (data.tipo === 'pedido' && !data.cargadoACuenta && debCargar) {
           cargarPedidoACuenta(mesaId || 0, { id, ...data }, true);
         }
-
+ 
         // Calcular consumos de pedidos no cargados a la cuenta para mostrarlos en tiempo real
         if ((mesaId || mesaId === 0 || mesaId === '0') && data.tipo === 'pedido' && !data.cargadoACuenta) {
           const mIdNum = parseInt(mesaId);
@@ -2669,7 +2671,7 @@ export default function MesasPanel({ showToast }) {
           }
           unloadedMap[mIdNum] += data.total || 0;
         }
-
+ 
         // Solo incluir alertas que no hayan sido atendidas por el admin
         if ((mesaId || mesaId === 0 || mesaId === '0') && !data.atendidoAdmin) {
           if (!alertsMap[mesaId]) {
@@ -2677,58 +2679,41 @@ export default function MesasPanel({ showToast }) {
           }
           alertsMap[mesaId].push({ id, ...data });
         }
-
+ 
         // Si no es la carga inicial y detectamos un id que no estaba en knownAlerts
         if (!isInitialLoadRef.current && !knownAlertsRef.current.has(id)) {
           hasNewAlert = true;
           if (!newAlertType || data.tipo === 'cuenta' || (data.tipo === 'pedido' && newAlertType !== 'cuenta')) {
             newAlertType = data.tipo || 'asistencia';
+            newAlertIsDirect = data.tipo === 'cuenta' && (!mesaId || mesaId === 0 || mesaId === '0');
           }
         }
       });
-
+ 
       setUnloadedConsumos(unloadedMap);
       knownAlertsRef.current = currentAlerts;
       isInitialLoadRef.current = false;
       setAlertasMesas(alertsMap);
-
+ 
       if (hasNewAlert && newAlertType) {
-        // Reproducir sonido de campana selectivo y vibración
         try {
-          const ctx = new (window.AudioContext || window.webkitAudioContext)();
-          
-          const playTone = (freq, startOffset, duration, volume = 0.06) => {
-            const osc = ctx.createOscillator();
-            const gain = ctx.createGain();
-            osc.connect(gain);
-            gain.connect(ctx.destination);
-            osc.frequency.value = freq;
-            gain.gain.setValueAtTime(volume, ctx.currentTime + startOffset);
-            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + startOffset + duration);
-            osc.start(ctx.currentTime + startOffset);
-            osc.stop(ctx.currentTime + startOffset + duration);
-          };
-
           if (newAlertType === 'cuenta') {
-            // Sonido "Caja/Cobro" (E5 -> G5 -> C6) - Notas ascendentes brillantes
-            playTone(659.25, 0, 0.25);
-            playTone(783.99, 0.08, 0.25);
-            playTone(1046.50, 0.16, 0.4);
+            if (newAlertIsDirect) {
+              decirPalabra('Barra');
+            } else {
+              decirPalabra('Cuenta');
+            }
           } else if (newAlertType === 'pedido') {
-            // Sonido "Pedido" (F5 -> A5) - Doble nota alegre
-            playTone(698.46, 0, 0.2);
-            playTone(880.00, 0.08, 0.3);
+            decirPalabra('Pedido');
           } else {
-            // Sonido "Asistencia" (A4 -> A4) - Doble tono de aviso
-            playTone(440.00, 0, 0.25, 0.08);
-            playTone(440.00, 0.15, 0.25, 0.08);
+            decirPalabra('Mira');
           }
-
+ 
           if (typeof navigator !== 'undefined' && navigator.vibrate) {
             navigator.vibrate([100, 50, 100]); // Vibración doble
           }
         } catch (e) {
-          console.warn("Chime playback failed", e);
+          console.warn("Speech synthesis alert failed", e);
         }
       }
     }, err => {
@@ -2924,6 +2909,11 @@ export default function MesasPanel({ showToast }) {
     registrarEvento('Cobro Manual', `Cobro manual de $${monto} registrado (${nuevaDesc}) por ${nuevoMetodo}`, monto);
     showToast(`Cobro manual de $${monto} registrado`, 'success');
 
+    if (alertaCobroAsociadaId) {
+      marcarAlertaAtendida(alertaCobroAsociadaId);
+      setAlertaCobroAsociadaId(null);
+    }
+
     setMostrarCobroManual(false);
     setNuevoMonto('');
     setNuevaDesc('');
@@ -3000,34 +2990,23 @@ export default function MesasPanel({ showToast }) {
     return unsub;
   }, []);
 
-  const playCashierNotificationSound = () => {
+  const decirPalabra = (texto) => {
     try {
-      const AudioContext = window.AudioContext || window.webkitAudioContext;
-      if (AudioContext) {
-        const ctx = new AudioContext();
-        const playTone = (freq, time, duration, vol) => {
-          const osc = ctx.createOscillator();
-          const gain = ctx.createGain();
-          osc.type = 'sine';
-          osc.frequency.setValueAtTime(freq, time);
-          gain.gain.setValueAtTime(0, time);
-          gain.gain.linearRampToValueAtTime(vol, time + 0.05);
-          gain.gain.exponentialRampToValueAtTime(0.001, time + duration);
-          osc.connect(gain);
-          gain.connect(ctx.destination);
-          osc.start(time);
-          osc.stop(time + duration);
-        };
-        // Nota 1 (Arpeggio)
-        playTone(523.25, ctx.currentTime, 0.4, 0.25); // C5
-        playTone(659.25, ctx.currentTime + 0.12, 0.5, 0.2); // E5
-        playTone(783.99, ctx.currentTime + 0.24, 0.8, 0.15); // G5
-        
-        setTimeout(() => ctx.close(), 1500);
+      if (typeof window !== 'undefined' && window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(texto);
+        utterance.lang = 'es-MX';
+        utterance.rate = 1.15;
+        utterance.pitch = 1.05;
+        window.speechSynthesis.speak(utterance);
       }
     } catch (e) {
-      console.warn("Error al reproducir sonido de caja:", e);
+      console.warn("Speech synthesis failed", e);
     }
+  };
+
+  const playCashierNotificationSound = () => {
+    decirPalabra('Oye');
   };
 
   const [assignedFila, setAssignedFila] = useState([]);
@@ -6209,6 +6188,7 @@ export default function MesasPanel({ showToast }) {
             setMostrarCobroManual={setMostrarCobroManual}
             setNuevoMonto={setNuevoMonto}
             setNuevaDesc={setNuevaDesc}
+            setAlertaCobroAsociadaId={setAlertaCobroAsociadaId}
           />
         </ModalErrorBoundary>
       )}
@@ -9702,7 +9682,7 @@ function ModalGasto({ onClose, onConfirm, CATEGORIAS_GASTO }) {
   );
 }
 
-function ModalCuentasSolicitadas({ onClose, showToast, setMostrarCobroManual, setNuevoMonto, setNuevaDesc }) {
+function ModalCuentasSolicitadas({ onClose, showToast, setMostrarCobroManual, setNuevoMonto, setNuevaDesc, setAlertaCobroAsociadaId }) {
   const [loading, setLoading] = useState(true);
   const [solicitudes, setSolicitudes] = useState([]);
   const [filtroTab, setFiltroTab] = useState('todas'); // 'todas', 'pendientes', 'atendidas'
@@ -9777,6 +9757,7 @@ function ModalCuentasSolicitadas({ onClose, showToast, setMostrarCobroManual, se
   const iniciarCobroRapido = (solicitud) => {
     if (setNuevoMonto) setNuevoMonto(String(solicitud.totalAcumulado || 0));
     if (setNuevaDesc) setNuevaDesc(`Cobro Cuenta Directa - ${solicitud.cliente || `Mesa ${solicitud.mesaId}`}`);
+    if (setAlertaCobroAsociadaId) setAlertaCobroAsociadaId(solicitud.id);
     onClose();
     if (setMostrarCobroManual) setMostrarCobroManual(true);
     showToast("Cobro manual directo cargado ✓", "info");
