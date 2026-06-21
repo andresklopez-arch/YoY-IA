@@ -717,7 +717,7 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
   }, [metodo]);
 
   const consumosTotal = (cuentaAsociada 
-    ? cuentaAsociada.consumos.reduce((sum, item) => sum + item.precio * item.cantidad, 0)
+    ? (cuentaAsociada.consumos || []).reduce((sum, item) => sum + item.precio * item.cantidad, 0)
     : 0) + (unloadedConsumos ? (unloadedConsumos[mesa.id] || 0) : 0);
 
   const costoTiempo = calcCosto({ ...mesa, inicio: mesa.inicio });
@@ -771,7 +771,7 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
                 <div style={{ fontWeight: 'bold', color: 'var(--bronze-light)', marginBottom: 4 }}>Detalle de Consumos:</div>
                 <ul style={{ margin: 0, paddingLeft: 14, color: 'var(--text-muted)' }}>
                   {!mesa.socios && <li>Tiempo de juego: ${costoTiempo}</li>}
-                  {cuentaAsociada.consumos.map((item, idx) => (
+                  {(cuentaAsociada?.consumos || []).map((item, idx) => (
                     <li key={idx}>{item.cantidad}x {item.producto} (${item.precio * item.cantidad})</li>
                   ))}
                 </ul>
@@ -3205,7 +3205,7 @@ export default function MesasPanel({ showToast }) {
         ))
       );
       const loaded = cuentaAsociada 
-        ? cuentaAsociada.consumos.reduce((s, item) => s + item.precio * item.cantidad, 0)
+        ? (cuentaAsociada.consumos || []).reduce((s, item) => s + item.precio * item.cantidad, 0)
         : 0;
       const unloaded = unloadedConsumos[m.id] || 0;
       map[m.id] = loaded + unloaded;
