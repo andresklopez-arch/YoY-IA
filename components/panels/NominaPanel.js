@@ -798,6 +798,12 @@ export default function NominaPanel({ showToast }) {
   // 4. Acciones CRUD
   const guardarEmpleado = async () => {
     if (!formEmpleado.nombre.trim()) return showToast('El nombre es requerido', 'error');
+    if (formEmpleado.fechaIngreso) {
+      const hoyStr = today();
+      if (formEmpleado.fechaIngreso > hoyStr) {
+        return showToast('La fecha de ingreso no puede ser futura', 'error');
+      }
+    }
     try {
       let finalNip = formEmpleado.nip || '';
       if (finalNip && /^\d{4,6}$/.test(finalNip)) {
@@ -1226,8 +1232,42 @@ export default function NominaPanel({ showToast }) {
                       return dateStr;
                     };
 
+                    const calcularAntiguedad = (dateStr) => {
+                      if (!dateStr) return '';
+                      const parts = dateStr.split('-');
+                      if (parts.length !== 3) return '';
+                      const year = parseInt(parts[0], 10);
+                      const month = parseInt(parts[1], 10) - 1;
+                      const day = parseInt(parts[2], 10);
+                      const ingreso = new Date(year, month, day);
+                      const hoy = new Date();
+                      
+                      let anos = hoy.getFullYear() - ingreso.getFullYear();
+                      let meses = hoy.getMonth() - ingreso.getMonth();
+                      let dias = hoy.getDate() - ingreso.getDate();
+                      
+                      if (dias < 0) {
+                        meses -= 1;
+                      }
+                      if (meses < 0) {
+                        anos -= 1;
+                        meses += 12;
+                      }
+                      
+                      const result = [];
+                      if (anos > 0) result.push(`${anos} ${anos === 1 ? 'año' : 'años'}`);
+                      if (meses > 0) result.push(`${meses} ${meses === 1 ? 'mes' : 'meses'}`);
+                      if (result.length === 0) {
+                        const diffTime = Math.abs(hoy - ingreso);
+                        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                        return `${diffDays} ${diffDays === 1 ? 'día' : 'días'}`;
+                      }
+                      return result.join(', ');
+                    };
+
                     const fIngresoRaw = getFechaIngreso(emp);
                     const fIngresoDisplay = formatFechaIngreso(fIngresoRaw);
+                    const antiguedadStr = calcularAntiguedad(fIngresoRaw);
 
                     return (
                       <div 
@@ -1256,8 +1296,13 @@ export default function NominaPanel({ showToast }) {
                               {emp.nombre} {emp.apellido || ''}
                             </span>
                             {fIngresoDisplay && (
-                              <span style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 3 }}>
-                                📅 <span style={{ fontSize: 8 }}>Ingreso: {fIngresoDisplay}</span>
+                              <span style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                <span>📅 Ingreso: {fIngresoDisplay}</span>
+                                {antiguedadStr && (
+                                  <span style={{ fontSize: 8, color: 'var(--bronze-light)', fontWeight: 600 }}>
+                                    ⏳ Antigüedad: {antiguedadStr}
+                                  </span>
+                                )}
                               </span>
                             )}
                           </div>
