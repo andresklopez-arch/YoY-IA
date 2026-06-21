@@ -6027,46 +6027,6 @@ export default function MesasPanel({ showToast }) {
         >
           <i className="ri-qr-code-line" /> Imprimir todos los QRs
         </button>
-
-        {/* Indicador de Conectividad y Cola Offline */}
-        <div style={{
-          marginLeft: 'auto',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          fontSize: 10,
-          fontWeight: 700,
-          padding: '4px 10px',
-          borderRadius: 20,
-          background: isOnline ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-          border: `1px solid ${isOnline ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
-          color: isOnline ? '#22c55e' : '#ef4444',
-          transition: 'all 0.3s ease',
-          height: 28,
-          boxShadow: 'var(--shadow-sm)'
-        }}>
-          <span style={{
-            width: 6,
-            height: 6,
-            borderRadius: '50%',
-            background: isOnline ? '#22c55e' : '#ef4444',
-            boxShadow: `0 0 8px ${isOnline ? '#22c55e' : '#ef4444'}`
-          }}></span>
-          <span>{isOnline ? 'ONLINE' : 'OFFLINE'}</span>
-          {cantAlertasOffline > 0 && (
-            <span style={{
-              background: '#ef4444',
-              color: '#fff',
-              borderRadius: 8,
-              padding: '1px 5px',
-              fontSize: 8,
-              marginLeft: 4,
-              boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
-            }}>
-              {cantAlertasOffline} PEND.
-            </span>
-          )}
-        </div>
       </div>
 
 

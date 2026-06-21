@@ -67,6 +67,37 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
   const [recentFichajes, setRecentFichajes] = useState([]);
   const [showMeseroDropdown, setShowMeseroDropdown] = useState(false);
   const [workingMeseros, setWorkingMeseros] = useState([]);
+  const [isOnline, setIsOnline] = useState(true);
+  const [cantAlertasOffline, setCantAlertasOffline] = useState(0);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setIsOnline(navigator.onLine);
+      
+      const actualizarCola = () => {
+        try {
+          const guardadas = localStorage.getItem('yoy_alertas_offline');
+          const cola = guardadas ? JSON.parse(guardadas) : [];
+          setCantAlertasOffline(cola.length);
+        } catch (e) {
+          setCantAlertasOffline(0);
+        }
+      };
+
+      actualizarCola();
+      const handleOnline = () => setIsOnline(true);
+      const handleOffline = () => setIsOnline(false);
+      window.addEventListener('online', handleOnline);
+      window.addEventListener('offline', handleOffline);
+      
+      const interval = setInterval(actualizarCola, 5000);
+      return () => {
+        window.removeEventListener('online', handleOnline);
+        window.removeEventListener('offline', handleOffline);
+        clearInterval(interval);
+      };
+    }
+  }, []);
 
   useEffect(() => {
     // 1. Escuchar empleados activos
@@ -739,10 +770,46 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
 
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'center', gap: 4 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--success)', boxShadow: '0 0 6px var(--success)', animation: 'pulse 1.4s infinite' }} />
+            <div style={{ 
+              width: 6, 
+              height: 6, 
+              borderRadius: '50%', 
+              background: isOnline ? '#22c55e' : '#ef4444', 
+              boxShadow: `0 0 6px ${isOnline ? '#22c55e' : '#ef4444'}`, 
+              animation: isOnline ? 'pulse 1.4s infinite' : 'none' 
+            }} />
             <span style={{ fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--bronze-light)', lineHeight: 1 }}>
               {PANEL_LABELS[activePanel] || activePanel}
             </span>
+            <div style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              fontSize: '8px',
+              fontWeight: 800,
+              padding: '2px 5px',
+              borderRadius: 6,
+              background: isOnline ? 'rgba(34, 197, 94, 0.08)' : 'rgba(239, 68, 68, 0.08)',
+              border: `1px solid ${isOnline ? 'rgba(34, 197, 94, 0.25)' : 'rgba(239, 68, 68, 0.25)'}`,
+              color: isOnline ? '#22c55e' : '#ef4444',
+              textTransform: 'uppercase',
+              marginLeft: 4,
+              lineHeight: 1,
+              gap: 4
+            }}>
+              <span>{isOnline ? 'ONLINE' : 'OFFLINE'}</span>
+              {cantAlertasOffline > 0 && (
+                <span style={{
+                  background: '#ef4444',
+                  color: '#fff',
+                  borderRadius: 4,
+                  padding: '1px 3.5px',
+                  fontSize: '7px',
+                  fontWeight: 900
+                }}>
+                  {cantAlertasOffline} PEND.
+                </span>
+              )}
+            </div>
           </div>
           {activePanel === 'mesas' && (user?.permisos?.nomina === true || user?.role === 'admin') && (
             <button
