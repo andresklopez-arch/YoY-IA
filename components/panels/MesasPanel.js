@@ -3582,6 +3582,81 @@ export default function MesasPanel({ showToast }) {
   // Escuchar mesas de Firestore en tiempo real como fuente única de verdad
   useEffect(() => {
     const docRef = doc(db, 'config', 'mesas_estado');
+    const backupRef = doc(db, 'config', 'mesas_estado_backup');
+
+    const restaurarConCascada = async (razon) => {
+      console.warn(`[Restauración] Iniciando recuperación de mesas. Razón: ${razon}`);
+      try {
+        // 1. Intentar restaurar desde Cloud Backup (Firestore)
+        const backupSnap = await getDoc(backupRef);
+        if (backupSnap.exists()) {
+          const backupData = backupSnap.data();
+          if (backupData && Array.isArray(backupData.mesas) && backupData.mesas.length > 0) {
+            console.log("[Restauración] Recuperación exitosa desde Cloud Backup.");
+            setMesas(backupData.mesas);
+            
+            // Curar el documento principal en Firestore
+            await setDoc(docRef, {
+              mesas: backupData.mesas,
+              updatedAt: serverTimestamp()
+            });
+
+            registrarEvento(
+              'Auto-Recuperación',
+              `Catálogo de mesas restaurado exitosamente desde Cloud Backup en Firestore (Motivo: ${razon}).`
+            );
+            return;
+          }
+        }
+      } catch (backupErr) {
+        console.error("Error al intentar recuperar desde Cloud Backup:", backupErr);
+      }
+
+      try {
+        // 2. Intentar restaurar desde LocalStorage
+        const savedMesas = localStorage.getItem('yoy_billar_mesas');
+        if (savedMesas) {
+          const localData = deobfuscate(savedMesas);
+          if (localData && Array.isArray(localData) && localData.length > 0) {
+            console.log("[Restauración] Recuperación exitosa desde LocalStorage.");
+            setMesas(localData);
+
+            // Curar el documento principal en Firestore
+            await setDoc(docRef, {
+              mesas: localData,
+              updatedAt: serverTimestamp()
+            });
+
+            registrarEvento(
+              'Auto-Recuperación',
+              `Catálogo de mesas restaurado desde caché de almacenamiento local (Motivo: ${razon}).`
+            );
+            return;
+          }
+        }
+      } catch (localErr) {
+        console.error("Error al intentar recuperar desde LocalStorage:", localErr);
+      }
+
+      // 3. Fallback final: INIT_MESAS (Catálogo por defecto)
+      console.log("[Restauración] Recuperación final usando catálogo inicial INIT_MESAS.");
+      setMesas(INIT_MESAS);
+
+      try {
+        await setDoc(docRef, {
+          mesas: INIT_MESAS,
+          updatedAt: serverTimestamp()
+        });
+
+        registrarEvento(
+          'Auto-Recuperación',
+          `Catálogo de mesas restaurado usando los valores por defecto del sistema (Motivo: ${razon}).`
+        );
+      } catch (err) {
+        console.error("Error al curar Firestore con catálogo inicial:", err);
+      }
+    };
+
     const unsub = onSnapshot(docRef, snap => {
       if (snap.exists()) {
         const data = snap.data();
@@ -3593,32 +3668,14 @@ export default function MesasPanel({ showToast }) {
             setMesas(data.mesas);
           }
         } else {
-          // Si el documento existe pero el catálogo de mesas está vacío (corrupto/borrado)
+          // Si el documento existe pero el catálogo de mesas está vacío o corrupto
           hasLoadedFromFirestoreRef.current = true;
-          const savedMesas = localStorage.getItem('yoy_billar_mesas');
-          const initialMesas = savedMesas ? (deobfuscate(savedMesas) || INIT_MESAS) : INIT_MESAS;
-          
-          console.warn("config/mesas_estado existe pero su catálogo está vacío. Restaurando catálogo inicial.");
-          setMesas(initialMesas);
-          
-          // Escribir de vuelta a Firestore para curar la base de datos de producción
-          setDoc(docRef, {
-            mesas: initialMesas,
-            updatedAt: serverTimestamp()
-          }).catch(err => console.error("Error al auto-restaurar mesas en Firestore:", err));
+          restaurarConCascada("El documento config/mesas_estado existe pero su array de mesas está vacío o corrupto.");
         }
       } else {
+        // Si el documento principal no existe en Firestore
         hasLoadedFromFirestoreRef.current = true;
-        const savedMesas = localStorage.getItem('yoy_billar_mesas');
-        const initialMesas = savedMesas ? (deobfuscate(savedMesas) || INIT_MESAS) : INIT_MESAS;
-        console.warn("config/mesas_estado no existe en Firestore. Usando mesas locales/iniciales.");
-        setMesas(initialMesas);
-        
-        // Inicializar documento en Firestore
-        setDoc(docRef, {
-          mesas: initialMesas,
-          updatedAt: serverTimestamp()
-        }).catch(err => console.error("Error al inicializar mesas en Firestore:", err));
+        restaurarConCascada("El documento config/mesas_estado no existe en Firestore.");
       }
     }, err => {
       console.error("Error al escuchar mesas en tiempo real:", err);
@@ -3653,6 +3710,13 @@ export default function MesasPanel({ showToast }) {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       try {
+        // Anti-Vanish Firewall Check: Evitar sobrescribir Firestore o el localStorage si el array local "mesas" está vacío.
+        // Esto previene que una inicialización tardía, un error de react o un render vacío destruya el catálogo en producción.
+        if (!mesas || mesas.length === 0) {
+          console.warn("[Firewall] Se bloqueó intento de guardado local/remoto de un catálogo de mesas vacío.");
+          return;
+        }
+
         localStorage.setItem('yoy_billar_mesas', obfuscate(mesas));
         
         // Evitar sobrescribir Firestore con el estado inicial local en el montaje
@@ -3669,6 +3733,13 @@ export default function MesasPanel({ showToast }) {
         setDocWithRetry(doc(db, 'config', 'mesas_estado'), {
           mesas: mesas,
           updatedAt: serverTimestamp()
+        }).then(() => {
+          // Cloud Backup: Guardar copia de respaldo en un documento alterno en Firestore
+          setDocWithRetry(doc(db, 'config', 'mesas_estado_backup'), {
+            mesas: mesas,
+            updatedAt: serverTimestamp(),
+            esBackup: true
+          }).catch(backupErr => console.error("Error al guardar backup de mesas en Firestore:", backupErr));
         }).catch(err => console.error("Error definitivo al sincronizar mesas con Firestore:", err));
 
         // Registrar historial de ocupación en Firestore para futuros reportes
