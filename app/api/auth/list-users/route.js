@@ -1,19 +1,20 @@
 import { NextResponse } from 'next/server';
-import admin from 'firebase-admin';
+import { getApps, initializeApp, cert } from 'firebase-admin/app';
+import { getFirestore } from 'firebase-admin/firestore';
 
 // Inicializar el SDK de administración de forma segura
 let isAdminConfigured = false;
 try {
-  if (!admin.apps || !admin.apps.length) {
+  if (!getApps().length) {
     const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT;
     if (serviceAccountJson) {
       const serviceAccount = JSON.parse(serviceAccountJson);
-      admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount)
+      initializeApp({
+        credential: cert(serviceAccount)
       });
       isAdminConfigured = true;
     } else {
-      admin.initializeApp();
+      initializeApp();
       isAdminConfigured = true;
     }
   } else {
@@ -35,14 +36,16 @@ export async function POST(request) {
       return NextResponse.json({ success: true, users: [] });
     }
 
+    const db = getFirestore();
+
     // Query users for this salon
-    const usersSnap = await admin.firestore()
+    const usersSnap = await db
       .collection('users')
       .where('salonId', '==', salonId)
       .get();
 
     // Query global users (like masteradmin with sucursal: 'all')
-    const globalSnap = await admin.firestore()
+    const globalSnap = await db
       .collection('users')
       .where('sucursal', '==', 'all')
       .get();

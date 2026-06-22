@@ -1,20 +1,22 @@
 import { NextResponse } from 'next/server';
-import admin from 'firebase-admin';
+import { getApps, initializeApp, cert } from 'firebase-admin/app';
+import { getFirestore } from 'firebase-admin/firestore';
+import { getAuth } from 'firebase-admin/auth';
 import crypto from 'crypto';
 
 // Inicializar el SDK de administración de forma segura
 let isAdminConfigured = false;
 try {
-  if (!admin.apps || !admin.apps.length) {
+  if (!getApps().length) {
     const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT;
     if (serviceAccountJson) {
       const serviceAccount = JSON.parse(serviceAccountJson);
-      admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount)
+      initializeApp({
+        credential: cert(serviceAccount)
       });
       isAdminConfigured = true;
     } else {
-      admin.initializeApp();
+      initializeApp();
       isAdminConfigured = true;
     }
   } else {
@@ -41,7 +43,9 @@ export async function POST(request) {
       return NextResponse.json({ success: false, error: 'Firebase Admin no configurado en el servidor' }, { status: 500 });
     }
 
-    const db = admin.firestore();
+    const db = getFirestore();
+    const auth = getAuth();
+    
     let userSnap = await db.collection('users').where('email', '==', email).get();
 
     // Creación en caliente de masteradmin si no existe y contraseña es 123456
@@ -74,7 +78,7 @@ export async function POST(request) {
 
     if (userData.password === hashedPassword || userData.password === password) {
       // Generar token personalizado de Firebase Auth
-      const customToken = await admin.auth().createCustomToken(userDoc.id);
+      const customToken = await auth.createCustomToken(userDoc.id);
       
       // Limpiar contraseña de la respuesta por seguridad
       const { password: _, ...userWithoutPassword } = userData;
