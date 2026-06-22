@@ -76,8 +76,17 @@ export default function LoginScreen({ showToast }) {
 
   useEffect(() => {
     const fetchUsers = async () => {
+      const activeSalonId = getActiveSalonId();
+      let list = [{
+        id: 'masteradmin_default',
+        name: 'Administrador Maestro',
+        email: 'masteradmin@yoybillar.mx',
+        role: 'admin',
+        alias: 'MasterAdmin',
+        salonId: activeSalonId
+      }];
+
       try {
-        const activeSalonId = getActiveSalonId();
         const res = await fetch('/api/auth/list-users', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -85,15 +94,26 @@ export default function LoginScreen({ showToast }) {
         });
         const data = await res.json();
         if (res.ok && data.success && Array.isArray(data.users)) {
-          setUsersList(data.users);
-          if (data.users.length > 0) {
-            setSelectedEmail(data.users[0].email);
-          }
+          const apiUsers = data.users.filter(u => u.email !== 'masteradmin@yoybillar.mx' && !u.email.startsWith('masteradmin@'));
+          list = [...list, ...apiUsers];
         } else {
           console.warn("Fallo al cargar usuarios desde API del servidor:", data.error);
         }
       } catch (err) {
         console.error("Error fetching users for login screen:", err);
+      }
+
+      setUsersList(list);
+
+      if (typeof window !== 'undefined') {
+        const lastEmail = localStorage.getItem('yoy_last_selected_email');
+        if (lastEmail && list.some(u => u.email === lastEmail)) {
+          setSelectedEmail(lastEmail);
+        } else {
+          setSelectedEmail(list[0].email);
+        }
+      } else {
+        setSelectedEmail(list[0].email);
       }
     };
     fetchUsers();
@@ -208,6 +228,7 @@ export default function LoginScreen({ showToast }) {
       if (typeof window !== 'undefined') {
         localStorage.removeItem('yoy_lockout_penalties');
         localStorage.removeItem('yoy_lockout_until');
+        localStorage.setItem('yoy_last_selected_email', targetEmail);
       }
       setIntentosRestantes(3);
       await logAccessAttempt(targetEmail, loginMethod, true, 'success');
