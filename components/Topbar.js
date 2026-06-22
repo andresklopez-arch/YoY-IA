@@ -1378,11 +1378,11 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
               position: 'fixed',
               top: '50%',
               left: '50%',
-              transform: 'translate(-50%, calc(-50% + 35px))',
+              transform: 'translate(-50%, -50%)',
               zIndex: 99999,
-              width: '90vw',
-              maxWidth: 700,
-              maxHeight: 'calc(100vh - 120px)',
+              width: '95vw',
+              maxWidth: 820,
+              maxHeight: '85vh',
               background: 'var(--bg-card)',
               border: '1px solid var(--border-bronze)',
               borderRadius: 20,
@@ -1576,7 +1576,7 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
                     Cargando empleados activos...
                   </div>
                 ) : (
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 14 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(115px, 1fr))', gap: 10 }}>
                     {empleadosPaseLista
                       .filter(emp =>
                         emp.nombre.toLowerCase().includes(busquedaPaseLista.toLowerCase()) ||
@@ -1591,10 +1591,10 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
                                                    (emp.rol || emp.role || '').toLowerCase().includes('mesera') || 
                                                    !(emp.rol || emp.role);
                             if (isMeseroOStaff) {
-                              setAsignacionPaseEmpleado(emp);
-                              setMesasAsignadasPase([]);
+                               setAsignacionPaseEmpleado(emp);
+                               setMesasAsignadasPase([]);
                             } else {
-                              handlePaseListaClick(emp);
+                               handlePaseListaClick(emp);
                             }
                           }}
                           onMouseEnter={e => {
@@ -1610,30 +1610,30 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
                           style={{
                             background: 'var(--bg-elevated)',
                             border: '1px solid var(--border)',
-                            borderRadius: 14,
-                            padding: 12,
+                            borderRadius: 12,
+                            padding: '10px 8px',
                             textAlign: 'center',
                             display: 'flex',
                             flexDirection: 'column',
                             alignItems: 'center',
-                            gap: 10,
+                            gap: 6,
                             cursor: 'pointer',
                             transition: 'all 0.18s ease',
                           }}
                         >
                           <div style={{
-                            width: 48, height: 48, borderRadius: '50%',
+                            width: 36, height: 36, borderRadius: '50%',
                             background: 'var(--bg-card)', border: '1px solid var(--border)',
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            fontSize: 20, color: 'var(--bronze-light)'
+                            fontSize: 16, color: 'var(--bronze-light)'
                           }}>
                             <i className="ri-user-line" />
                           </div>
                           <div style={{ width: '100%' }}>
-                            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                               {emp.nombre}
                             </div>
-                            <div style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', marginTop: 2 }}>
+                            <div style={{ fontSize: 8.5, color: 'var(--text-muted)', textTransform: 'uppercase', marginTop: 2 }}>
                               {emp.rol || 'Mesero'}
                             </div>
                           </div>
@@ -1662,20 +1662,20 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
                               }
                             }}
                             style={{
-                              marginTop: 4,
+                              marginTop: 2,
                               width: '100%',
-                              background: 'rgba(205,127,50,0.1)',
-                              border: '1px solid rgba(205,127,50,0.2)',
-                              borderRadius: 8,
+                              background: 'rgba(205,127,50,0.08)',
+                              border: '1px solid rgba(205,127,50,0.15)',
+                              borderRadius: 6,
                               color: 'var(--bronze-light)',
-                              padding: '6px 8px',
-                              fontSize: 10,
+                              padding: '4px 6px',
+                              fontSize: 9.5,
                               fontWeight: 700,
                               cursor: 'pointer',
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center',
-                              gap: 4,
+                              gap: 3,
                               transition: 'all 0.2s'
                             }}
                           >
@@ -1741,136 +1741,175 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
                   transform: 'translate(-50%, -50%)',
                   zIndex: 999999,
                   width: '90vw',
-                  maxWidth: 360,
+                  maxWidth: 600,
                   background: 'var(--bg-card)',
                   border: '1px solid var(--border-bronze)',
                   borderRadius: 24,
                   boxShadow: '0 25px 60px rgba(0,0,0,0.9), 0 0 40px rgba(205,127,50,0.3)',
-                  padding: 24,
-                  textAlign: 'center',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: 16,
-                  animation: 'modalPopIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards'
+                  padding: 20,
+                  animation: 'modalPopIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+                  maxHeight: '90vh',
+                  overflowY: 'auto'
                 }}
               >
-                <div>
-                  <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--bronze-light)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                    Acceso Móvil
-                  </div>
-                  <div style={{ fontSize: 13, color: '#fff', fontWeight: 700, marginTop: 4 }}>
-                    {focusedEmpleadoQR.nombre} {focusedEmpleadoQR.apellido || ''}
-                  </div>
-                  <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', marginTop: 2, letterSpacing: '0.04em' }}>
-                    {focusedEmpleadoQR.rol || 'Mesero'}
-                  </div>
-                </div>
+                {/* CSS Embebido para Layout de Dos Columnas */}
+                <style dangerouslySetInnerHTML={{ __html: `
+                  .qr-modal-flex-layout {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 16px;
+                  }
+                  @media (min-width: 580px) {
+                    .qr-modal-flex-layout {
+                      flex-direction: row !important;
+                      gap: 20px !important;
+                      align-items: flex-start !important;
+                    }
+                    .qr-modal-left-col {
+                      width: 196px !important;
+                      flex-shrink: 0 !important;
+                      display: flex !important;
+                      flex-direction: column !important;
+                      align-items: center !important;
+                      gap: 12px !important;
+                    }
+                    .qr-modal-right-col {
+                      flex: 1 !important;
+                      display: flex !important;
+                      flex-direction: column !important;
+                      gap: 12px !important;
+                      border-left: 1px solid var(--border) !important;
+                      padding-left: 20px !important;
+                      text-align: left !important;
+                    }
+                  }
+                `}} />
 
-                <div style={{ background: '#fff', padding: 16, borderRadius: 16, boxShadow: '0 8px 24px rgba(0,0,0,0.2)' }}>
-                  <QRCodeSVG 
-                    value={typeof window !== 'undefined' ? 
-                      `${window.location.origin}/?scanId=${focusedEmpleadoQR.id}${focusedEmpleadoQR.qrToken ? `&token=${focusedEmpleadoQR.qrToken}&expires=${focusedEmpleadoQR.qrTokenExpires}` : ''}` : 
-                      `https://yoy-ia-billar.vercel.app/?scanId=${focusedEmpleadoQR.id}${focusedEmpleadoQR.qrToken ? `&token=${focusedEmpleadoQR.qrToken}&expires=${focusedEmpleadoQR.qrTokenExpires}` : ''}`} 
-                    size={180} 
-                    bgColor="#fff" 
-                    fgColor="#000" 
-                  />
-                </div>
-
-                {/* Sugerencia 1: Countdown Timer UI */}
-                {qrCountdown > 0 ? (
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 6,
-                    fontSize: 12,
-                    color: qrCountdown <= 60 ? 'var(--danger)' : 'var(--bronze-light)',
-                    fontWeight: 700,
-                    background: qrCountdown <= 60 ? 'rgba(239,68,68,0.1)' : 'rgba(205,127,50,0.08)',
-                    padding: '4px 12px',
-                    borderRadius: 8,
-                    border: `1px solid ${qrCountdown <= 60 ? 'rgba(239,68,68,0.2)' : 'rgba(205,127,50,0.2)'}`
-                  }}>
-                    <i className="ri-time-line" style={{ animation: qrCountdown <= 60 ? 'pulse 1s infinite' : 'none' }} />
-                    <span>Expira en: {Math.floor(qrCountdown / 60)}:{(qrCountdown % 60).toString().padStart(2, '0')}</span>
-                  </div>
-                ) : (
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 12, color: 'var(--danger)', fontWeight: 700 }}>
-                    <i className="ri-error-warning-line" />
-                    <span>Token expirado. Regenerando...</span>
-                  </div>
-                )}
-
-                <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.5, padding: '0 10px' }}>
-                  Escanea este código con tu celular para registrar asistencia e ingresar a tu área de trabajo.
-                </div>
-
-                {typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') && (
-                  <div style={{
-                    padding: '8px 12px',
-                    background: 'rgba(245, 158, 11, 0.1)',
-                    border: '1px solid rgba(245, 158, 11, 0.2)',
-                    borderRadius: 10,
-                    fontSize: 9,
-                    color: 'var(--warning)',
-                    lineHeight: 1.4,
-                    textAlign: 'center'
-                  }}>
-                    <strong>Aviso de Red Local:</strong> Estás ejecutando en localhost. Para que el celular se conecte, usa la URL de producción o tu dirección IP local (ej. http://192.168.X.X:3000).
-                  </div>
-                )}
-
-                {/* Sugerencia 3: Panel de Fichajes Recientes */}
-                <div style={{ width: '100%', borderTop: '1px solid var(--border)', paddingTop: 16, textAlign: 'left' }}>
-                  <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 800, letterSpacing: '0.08em', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <i className="ri-history-line" /> Últimos 3 Fichajes
-                  </div>
-                  {recentFichajes.length === 0 ? (
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic', padding: '4px 0' }}>
-                      Sin registros para el día de hoy
+                <div className="qr-modal-flex-layout">
+                  {/* Columna Izquierda: QR y Temporizador */}
+                  <div className="qr-modal-left-col" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+                    <div style={{ background: '#fff', padding: 12, borderRadius: 14, boxShadow: '0 6px 18px rgba(0,0,0,0.15)', display: 'inline-block' }}>
+                      <QRCodeSVG 
+                        value={typeof window !== 'undefined' ? 
+                          `${window.location.origin}/?scanId=${focusedEmpleadoQR.id}${focusedEmpleadoQR.qrToken ? `&token=${focusedEmpleadoQR.qrToken}&expires=${focusedEmpleadoQR.qrTokenExpires}` : ''}` : 
+                          `https://yoy-ia-billar.vercel.app/?scanId=${focusedEmpleadoQR.id}${focusedEmpleadoQR.qrToken ? `&token=${focusedEmpleadoQR.qrToken}&expires=${focusedEmpleadoQR.qrTokenExpires}` : ''}`} 
+                        size={170} 
+                        bgColor="#fff" 
+                        fgColor="#000" 
+                      />
                     </div>
-                  ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      {recentFichajes.map(log => {
-                        const dateObj = log.createdAt?.toDate ? log.createdAt.toDate() : new Date(log.createdAt);
-                        const timeStr = isNaN(dateObj.getTime()) ? '-' : dateObj.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
-                        const dateStr = isNaN(dateObj.getTime()) ? '-' : dateObj.toLocaleDateString('es-MX', { day: '2-digit', month: 'short' });
-                        const isEntrada = log.tipo === 'entrada';
-                        return (
-                          <div key={log.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '6px 10px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.03)' }}>
-                            <span style={{ fontSize: 11, fontWeight: 700, color: isEntrada ? 'var(--success)' : 'var(--bronze-light)', display: 'flex', alignItems: 'center', gap: 4 }}>
-                              <i className={isEntrada ? 'ri-login-box-line' : 'ri-logout-box-line'} />
-                              {isEntrada ? 'Entrada' : 'Salida'}
-                            </span>
-                            <span style={{ fontSize: 10, color: 'var(--text-secondary)' }}>
-                              {dateStr} - {timeStr}
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
 
-                <button
-                  onClick={() => setFocusedEmpleadoQR(null)}
-                  style={{
-                    width: '100%',
-                    background: 'var(--bg-elevated)',
-                    border: '1px solid var(--border)',
-                    borderRadius: 12,
-                    color: 'var(--text-primary)',
-                    padding: '10px 0',
-                    fontSize: 13,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    transition: 'all 0.2s'
-                  }}
-                >
-                  Cerrar
-                </button>
+                    {/* Countdown Timer */}
+                    {qrCountdown > 0 ? (
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 6,
+                        fontSize: 11,
+                        color: qrCountdown <= 60 ? 'var(--danger)' : 'var(--bronze-light)',
+                        fontWeight: 700,
+                        background: qrCountdown <= 60 ? 'rgba(239,68,68,0.1)' : 'rgba(205,127,50,0.08)',
+                        padding: '4px 10px',
+                        borderRadius: 8,
+                        border: `1px solid ${qrCountdown <= 60 ? 'rgba(239,68,68,0.2)' : 'rgba(205,127,50,0.2)'}`,
+                        width: '100%',
+                        boxSizing: 'border-box'
+                      }}>
+                        <i className="ri-time-line" style={{ animation: qrCountdown <= 60 ? 'pulse 1s infinite' : 'none' }} />
+                        <span>Expira en: {Math.floor(qrCountdown / 60)}:{(qrCountdown % 60).toString().padStart(2, '0')}</span>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 11, color: 'var(--danger)', fontWeight: 700, width: '100%' }}>
+                        <i className="ri-error-warning-line" />
+                        <span>Token expirado. Regenerando...</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Columna Derecha: Datos, Fichajes y Cerrar */}
+                  <div className="qr-modal-right-col" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    <div>
+                      <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+                        Acceso Móvil
+                      </div>
+                      <div style={{ fontSize: 14.5, color: '#fff', fontWeight: 800, marginTop: 2 }}>
+                        {focusedEmpleadoQR.nombre} {focusedEmpleadoQR.apellido || ''}
+                      </div>
+                      <div style={{ fontSize: 9.5, color: 'var(--bronze-light)', textTransform: 'uppercase', fontWeight: 700, marginTop: 1, letterSpacing: '0.04em' }}>
+                        {focusedEmpleadoQR.rol || 'Mesero'}
+                      </div>
+                    </div>
+
+                    <div style={{ fontSize: 10.5, color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                      Escanea este código con tu celular para registrar asistencia (entrada/salida) o reconectar tu sesión activa en este dispositivo.
+                    </div>
+
+                    {typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') && (
+                      <div style={{
+                        padding: '6px 10px',
+                        background: 'rgba(245, 158, 11, 0.08)',
+                        border: '1px solid rgba(245, 158, 11, 0.15)',
+                        borderRadius: 8,
+                        fontSize: 8.5,
+                        color: 'var(--warning)',
+                        lineHeight: 1.3
+                      }}>
+                        <strong>Aviso Local:</strong> Usa la IP de red local (ej. http://192.168.X.X:3000) en el celular.
+                      </div>
+                    )}
+
+                    {/* Fichajes Recientes */}
+                    <div style={{ width: '100%', borderTop: '1px solid var(--border)', paddingTop: 10 }}>
+                      <div style={{ fontSize: 9.5, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 800, letterSpacing: '0.08em', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <i className="ri-history-line" /> Últimos Fichajes (Hoy)
+                      </div>
+                      {recentFichajes.length === 0 ? (
+                        <div style={{ fontSize: 10.5, color: 'var(--text-muted)', fontStyle: 'italic', padding: '2px 0' }}>
+                          Sin registros hoy
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          {recentFichajes.map(log => {
+                            const dateObj = log.createdAt?.toDate ? log.createdAt.toDate() : new Date(log.createdAt);
+                            const timeStr = isNaN(dateObj.getTime()) ? '-' : dateObj.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+                            const isEntrada = log.tipo === 'entrada';
+                            return (
+                              <div key={log.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.01)', padding: '4px 8px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.02)' }}>
+                                <span style={{ fontSize: 10, fontWeight: 700, color: isEntrada ? '#22c55e' : 'var(--bronze-light)', display: 'flex', alignItems: 'center', gap: 3 }}>
+                                  <i className={isEntrada ? 'ri-login-box-line' : 'ri-logout-box-line'} />
+                                  {isEntrada ? 'Entrada' : 'Salida'}
+                                </span>
+                                <span style={{ fontSize: 9.5, color: 'var(--text-secondary)' }}>
+                                  {timeStr}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    <button
+                      onClick={() => setFocusedEmpleadoQR(null)}
+                      style={{
+                        width: '100%',
+                        background: 'var(--bg-elevated)',
+                        border: '1px solid var(--border)',
+                        borderRadius: 10,
+                        color: 'var(--text-primary)',
+                        padding: '8px 0',
+                        fontSize: 12,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        transition: 'all 0.15s',
+                        marginTop: 'auto'
+                      }}
+                    >
+                      Cerrar
+                    </button>
+                  </div>
+                </div>
               </div>
             </>
           )}
