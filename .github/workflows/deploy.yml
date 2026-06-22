@@ -25,7 +25,19 @@ jobs:
       run: npm ci
 
     - name: Run ESLint Checks
-      run: run: npm run lint --if-present
+      run: npm run lint --if-present
+
+    - name: Setup Java JRE (for Firebase Emulator)
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+
+    - name: Install Firebase CLI
+      run: npm install -g firebase-tools
+
+    - name: Validate Firestore Rules
+      run: firebase emulators:exec --only firestore "echo 'Rules validation successful'"
 
     - name: Validate Local Build
       run: npm run build

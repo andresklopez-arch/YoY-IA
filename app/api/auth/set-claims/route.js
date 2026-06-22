@@ -31,20 +31,33 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Faltan parametros: uid y salonId' }, { status: 400 });
     }
     
+    let isSuspended = false;
+
     if (!isAdminConfigured) {
       console.warn(`[Custom Claims] Simulacion activa. salonId=${salonId} para uid=${uid} no se guardo en custom claims porque no esta configurado FIREBASE_SERVICE_ACCOUNT.`);
       return NextResponse.json({ 
         success: true, 
         simulated: true, 
+        isSuspended: false,
         message: 'Claims simuladas con éxito (FIREBASE_SERVICE_ACCOUNT no configurado)' 
       });
     }
 
+    // Consultar el estatus del salon
+    try {
+      const salonDoc = await admin.firestore().collection('salones').doc(salonId).get();
+      if (salonDoc.exists && salonDoc.data().status === 'suspendido') {
+        isSuspended = true;
+      }
+    } catch (e) {
+      console.error("Error al consultar estatus del salon en Firestore Admin:", e);
+    }
+
     // Guardar custom user claims
-    await admin.auth().setCustomUserClaims(uid, { salonId });
-    console.log(`[Custom Claims] salonId=${salonId} guardado con exito para uid=${uid}`);
+    await admin.auth().setCustomUserClaims(uid, { salonId, isSuspended });
+    console.log(`[Custom Claims] salonId=${salonId} isSuspended=${isSuspended} guardado con exito para uid=${uid}`);
     
-    return NextResponse.json({ success: true, message: 'Custom claims asociadas correctamente' });
+    return NextResponse.json({ success: true, isSuspended, message: 'Custom claims asociadas correctamente' });
   } catch (error) {
     console.error("Error al asignar custom claims:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
