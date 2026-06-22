@@ -965,6 +965,15 @@ export default function ConfigPanel({ showToast }) {
     }
   };
 
+  const handleEstablecerTerminal = () => {
+    if (typeof window !== 'undefined' && user?.salonId) {
+      localStorage.setItem('yoy_terminal_salon_id', user.salonId);
+      showToast('Navegador asociado con éxito como terminal de esta sucursal ✓', 'success');
+    } else {
+      showToast('No se pudo identificar el salón activo', 'error');
+    }
+  };
+
   const handleAgregarAlerta = async (id) => {
     const updatedActive = [...iaAlerts.activeIds];
     if (!updatedActive.includes(id)) {
@@ -2062,6 +2071,9 @@ export default function ConfigPanel({ showToast }) {
 
                 <button className="btn btn-primary" onClick={handleSaveSucursal} style={{ marginTop: 6, padding: '8px 14px', fontSize: '12px' }}>
                   <i className="ri-save-line" /> Guardar Sucursal
+                </button>
+                <button className="btn btn-secondary" onClick={handleEstablecerTerminal} style={{ marginTop: 6, padding: '8px 14px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'center', width: '100%' }}>
+                  <i className="ri-computer-line" /> Establecer como Terminal de esta Sucursal
                 </button>
               </div>
             </div>
