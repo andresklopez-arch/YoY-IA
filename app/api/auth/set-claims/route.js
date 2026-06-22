@@ -1,12 +1,14 @@
 import { NextResponse } from 'next/server';
-import admin from 'firebase-admin';
+import { getApps, initializeApp, cert } from 'firebase-admin/app';
+import { getAuth } from 'firebase-admin/auth';
+import { getFirestore } from 'firebase-admin/firestore';
 import fs from 'fs';
 import path from 'path';
 
 // Inicializar el SDK de administración de forma segura
 let isAdminConfigured = false;
 try {
-  if (!admin.apps || !admin.apps.length) {
+  if (!getApps().length) {
     let serviceAccount = null;
     const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT;
     
@@ -21,12 +23,12 @@ try {
     }
     
     if (serviceAccount) {
-      admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount)
+      initializeApp({
+        credential: cert(serviceAccount)
       });
       isAdminConfigured = true;
     } else {
-      admin.initializeApp();
+      initializeApp();
       isAdminConfigured = true;
     }
   } else {
@@ -51,7 +53,7 @@ export async function POST(request) {
       }
       const token = authHeader.split('Bearer ')[1];
       try {
-        const decodedToken = await admin.auth().verifyIdToken(token);
+        const decodedToken = await getAuth().verifyIdToken(token);
         // El usuario solo puede actualizar sus propias claims, a menos que sea el admin principal
         if (decodedToken.uid !== uid && decodedToken.email !== 'admin@yoybillar.mx') {
           return NextResponse.json({ error: 'No tienes permisos para modificar las claims de este usuario.' }, { status: 403 });
@@ -76,7 +78,7 @@ export async function POST(request) {
 
     // Consultar el estatus del salon
     try {
-      const salonDoc = await admin.firestore().collection('salones').doc(salonId).get();
+      const salonDoc = await getFirestore().collection('salones').doc(salonId).get();
       if (salonDoc.exists && salonDoc.data().status === 'suspendido') {
         isSuspended = true;
       }
@@ -85,7 +87,7 @@ export async function POST(request) {
     }
 
     // Guardar custom user claims
-    await admin.auth().setCustomUserClaims(uid, { salonId, isSuspended });
+    await getAuth().setCustomUserClaims(uid, { salonId, isSuspended });
     console.log(`[Custom Claims] salonId=${salonId} isSuspended=${isSuspended} guardado con exito para uid=${uid}`);
     
     return NextResponse.json({ success: true, isSuspended, message: 'Custom claims asociadas correctamente' });

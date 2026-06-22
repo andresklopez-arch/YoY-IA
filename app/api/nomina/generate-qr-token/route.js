@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
-import admin from 'firebase-admin';
+import { getApps, initializeApp, cert } from 'firebase-admin/app';
+import { getAuth } from 'firebase-admin/auth';
+import { getFirestore } from 'firebase-admin/firestore';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
@@ -11,7 +13,7 @@ const SECRET = process.env.QR_SECRET || 'yoy_billar_secret_key_2026_io';
 // Inicializar el SDK de administración de forma segura
 let isAdminConfigured = false;
 try {
-  if (!admin.apps || !admin.apps.length) {
+  if (!getApps().length) {
     let serviceAccount = null;
     const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT;
     
@@ -26,12 +28,12 @@ try {
     }
 
     if (serviceAccount) {
-      admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount)
+      initializeApp({
+        credential: cert(serviceAccount)
       });
       isAdminConfigured = true;
     } else {
-      admin.initializeApp();
+      initializeApp();
       isAdminConfigured = true;
     }
   } else {
@@ -59,7 +61,7 @@ export async function POST(request) {
       const tokenJWT = authHeader.split('Bearer ')[1];
       let decodedToken;
       try {
-        decodedToken = await admin.auth().verifyIdToken(tokenJWT);
+        decodedToken = await getAuth().verifyIdToken(tokenJWT);
       } catch (err) {
         console.error("Error al verificar ID token en generate-qr-token:", err);
         return NextResponse.json({ success: false, error: 'Token JWT inválido o expirado.' }, { status: 401 });
@@ -71,7 +73,7 @@ export async function POST(request) {
       }
 
       // Consultar el empleado para verificar su sucursal
-      const empSnap = await admin.firestore().collection('nomina_empleados').doc(empleadoId).get();
+      const empSnap = await getFirestore().collection('nomina_empleados').doc(empleadoId).get();
       if (!empSnap.exists) {
         return NextResponse.json({ success: false, error: 'Empleado no encontrado.' }, { status: 404 });
       }
