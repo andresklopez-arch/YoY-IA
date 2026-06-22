@@ -334,12 +334,20 @@ export default function ConfigPanel({ showToast }) {
   const fetchUsuarios = async () => {
     setLoadingUsuarios(true);
     try {
-      const q = query(collection(db, 'users'), orderBy('createdAt', 'desc'));
+      const activeSalonId = user?.salonId || (typeof window !== 'undefined' ? localStorage.getItem('yoy_terminal_salon_id') : null) || 'default_salon';
+      let q;
+      if (user?.sucursal === 'all') {
+        q = query(collection(db, 'users'));
+      } else {
+        q = query(collection(db, 'users'), where('salonId', '==', activeSalonId));
+      }
       const snap = await getDocs(q);
       const list = [];
       snap.forEach(doc => {
         list.push({ id: doc.id, ...doc.data() });
       });
+      // Ordenar en memoria por fecha de creación desc para evitar requerir índices compuestos en Firestore
+      list.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
       setUsuarios(list);
     } catch (err) {
       console.error("Error cargando usuarios de Firestore:", err);
@@ -796,7 +804,12 @@ export default function ConfigPanel({ showToast }) {
 
     setSavingUser(true);
     try {
-      const dupQuery = query(collection(db, 'users'), where('email', '==', formattedEmail));
+      const activeSalonId = user?.salonId || (typeof window !== 'undefined' ? localStorage.getItem('yoy_terminal_salon_id') : null) || 'default_salon';
+      const dupQuery = query(
+        collection(db, 'users'),
+        where('salonId', '==', activeSalonId),
+        where('email', '==', formattedEmail)
+      );
       const dupSnap = await getDocs(dupQuery);
 
       if (!dupSnap.empty) {
@@ -811,6 +824,7 @@ export default function ConfigPanel({ showToast }) {
         email: formattedEmail,
         password: hashedPassword,
         role: newUser.role,
+        salonId: activeSalonId,
         permisos: newUser.permisos || getDefaultPermisos(newUser.role),
         createdAt: new Date().toISOString()
       });

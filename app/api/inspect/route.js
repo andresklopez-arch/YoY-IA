@@ -32,7 +32,14 @@ export async function GET() {
     snap.forEach(doc => {
       list.push({ id: doc.id, ...doc.data() });
     });
-    return NextResponse.json({ count: list.length, users: list });
+
+    const salonesSnap = await db.collection('salones').get();
+    const salonesList = [];
+    salonesSnap.forEach(doc => {
+      salonesList.push({ id: doc.id, ...doc.data() });
+    });
+
+    return NextResponse.json({ count: list.length, users: list, salones: salonesList });
   } catch (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
