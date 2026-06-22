@@ -1,16 +1,28 @@
 import { NextResponse } from 'next/server';
 import { getApps, initializeApp, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
+import fs from 'fs';
+import path from 'path';
 
 // Inicializar el SDK de administración de forma segura
 let isAdminConfigured = false;
 try {
   if (!getApps().length) {
+    let serviceAccount = null;
     const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT;
     const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'yoy-ia-billar';
     
     if (serviceAccountJson) {
-      const serviceAccount = JSON.parse(serviceAccountJson);
+      serviceAccount = JSON.parse(serviceAccountJson);
+    } else {
+      // Intentar cargar localmente desde la raíz del proyecto para desarrollo
+      const localKeyPath = path.join(process.cwd(), 'serviceAccountKey.json');
+      if (fs.existsSync(localKeyPath)) {
+        serviceAccount = JSON.parse(fs.readFileSync(localKeyPath, 'utf8'));
+      }
+    }
+    
+    if (serviceAccount) {
       initializeApp({
         credential: cert(serviceAccount),
         projectId
