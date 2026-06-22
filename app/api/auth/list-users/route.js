@@ -13,7 +13,14 @@ try {
     const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'yoy-ia-billar';
     
     if (serviceAccountJson) {
-      serviceAccount = JSON.parse(serviceAccountJson.replace(/\r?\n/g, ''));
+      let cleanJson = serviceAccountJson.replace(/\r?\n/g, '').trim();
+      if (!cleanJson.startsWith('{')) {
+        cleanJson = '{' + cleanJson;
+      }
+      if (!cleanJson.endsWith('}')) {
+        cleanJson = cleanJson + '}';
+      }
+      serviceAccount = JSON.parse(cleanJson);
     } else {
       // Intentar cargar localmente desde la raíz del proyecto para desarrollo
       const localKeyPath = path.join(process.cwd(), 'serviceAccountKey.json');
