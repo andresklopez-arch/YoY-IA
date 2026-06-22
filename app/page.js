@@ -2447,51 +2447,81 @@ function AppContent() {
             left: 0,
             width: '100vw',
             height: '100vh',
-            background: 'rgba(13, 13, 15, 0.96)',
-            backdropFilter: 'blur(8px)',
+            background: 'rgba(13, 13, 15, 0.94)',
+            backdropFilter: 'blur(6px)',
             zIndex: 99999,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            padding: 24
+            padding: 16
           }}
         >
           <div
             style={{
+              position: 'relative',
               background: 'var(--bg-card)',
               border: '2px solid #ef4444',
-              borderRadius: 16,
-              padding: 28,
-              maxWidth: 420,
+              borderRadius: 12,
+              padding: '20px 22px',
+              maxWidth: 320,
               width: '100%',
               textAlign: 'center',
-              boxShadow: '0 20px 40px rgba(239, 68, 68, 0.15)',
-              animation: 'scaleUpAlert 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)'
+              boxShadow: '0 15px 35px rgba(239, 68, 68, 0.15)',
+              animation: 'scaleUpAlert 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)'
             }}
           >
-            <i className="ri-shield-keyhole-line" style={{ fontSize: 54, color: '#ef4444', display: 'block', marginBottom: 16, animation: 'pulseRedAlert 1.5s infinite' }} />
-            <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 900, textTransform: 'uppercase', color: 'var(--text)', marginBottom: 12, letterSpacing: '0.05em' }}>
+            {/* Botón de Cerrar (X) */}
+            <button
+              onClick={() => {
+                setShowCredentialsModal(false);
+                sessionStorage.setItem('yoy_dismissed_credentials_reminder', 'true');
+              }}
+              style={{
+                position: 'absolute',
+                top: 10,
+                right: 10,
+                background: 'transparent',
+                border: 'none',
+                color: 'var(--text-muted)',
+                fontSize: 18,
+                cursor: 'pointer',
+                outline: 'none',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: 4,
+                transition: 'color 0.15s'
+              }}
+              onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
+              onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
+              title="Cerrar y recordar en la próxima sesión"
+            >
+              <i className="ri-close-line" />
+            </button>
+
+            <i className="ri-shield-keyhole-line" style={{ fontSize: 36, color: '#ef4444', display: 'block', marginBottom: 10, animation: 'pulseRedAlert 1.5s infinite' }} />
+            <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 900, textTransform: 'uppercase', color: 'var(--text)', marginBottom: 8, letterSpacing: '0.05em' }}>
               ⚠️ Seguridad Crítica
             </h2>
-            <p style={{ fontSize: 13.5, color: 'var(--text)', marginBottom: 16, lineHeight: 1.6, textAlign: 'left' }}>
-              Estimado <strong>Administrador Maestro</strong>, estás ingresando a la aplicación utilizando credenciales predeterminadas de fábrica.
+            <p style={{ fontSize: 12, color: 'var(--text)', marginBottom: 12, lineHeight: 1.5, textAlign: 'left' }}>
+              Estimado <strong>Administrador Maestro</strong>, estás ingresando con credenciales predeterminadas de fábrica:
             </p>
-            <div style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid var(--border)', borderRadius: 10, padding: 12, marginBottom: 20, textAlign: 'left', display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div style={{ background: 'rgba(0,0,0,0.25)', border: '1px solid var(--border)', borderRadius: 8, padding: 10, marginBottom: 14, textAlign: 'left', display: 'flex', flexDirection: 'column', gap: 5 }}>
               {isDefaultPassword && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: 'var(--text-secondary)' }}>
-                  <span style={{ color: '#ef4444' }}>❌</span> Contraseña actual: <code style={{ background: 'var(--bg-elevated)', padding: '2px 6px', borderRadius: 4, color: '#ef4444', fontWeight: 'bold' }}>123456</code> (Predeterminada)
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: 'var(--text-secondary)' }}>
+                  <span style={{ color: '#ef4444' }}>❌</span> Contraseña: <code style={{ background: 'var(--bg-elevated)', padding: '1px 5px', borderRadius: 3, color: '#ef4444', fontWeight: 'bold' }}>123456</code>
                 </div>
               )}
               {isDefaultPin && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: 'var(--text-secondary)' }}>
-                  <span style={{ color: '#ef4444' }}>❌</span> PIN de Administrador actual: <code style={{ background: 'var(--bg-elevated)', padding: '2px 6px', borderRadius: 4, color: '#ef4444', fontWeight: 'bold' }}>1111</code> (Predeterminado)
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: 'var(--text-secondary)' }}>
+                  <span style={{ color: '#ef4444' }}>❌</span> PIN Admin: <code style={{ background: 'var(--bg-elevated)', padding: '1px 5px', borderRadius: 3, color: '#ef4444', fontWeight: 'bold' }}>1111</code>
                 </div>
               )}
             </div>
-            <p style={{ fontSize: 12.5, color: 'var(--text-muted)', marginBottom: 24, lineHeight: 1.5 }}>
-              Por favor, actualiza tu contraseña y/o PIN en el panel de configuración para proteger tu negocio y evitar accesos no autorizados.
+            <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 16, lineHeight: 1.4 }}>
+              Actualiza estas credenciales en Configuración para proteger tu negocio.
             </p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <button
                 onClick={() => {
                   setShowCredentialsModal(false);
@@ -2500,38 +2530,19 @@ function AppContent() {
                 className="btn btn-primary"
                 style={{
                   width: '100%',
-                  padding: '12px 24px',
+                  padding: '9px 16px',
                   fontWeight: 800,
-                  fontSize: 13,
+                  fontSize: 11,
                   textTransform: 'uppercase',
                   background: 'linear-gradient(135deg, #ef4444, #b91c1c)',
                   border: 'none',
                   color: '#fff',
-                  borderRadius: 10,
+                  borderRadius: 8,
                   cursor: 'pointer',
-                  boxShadow: '0 4px 12px rgba(239,68,68,0.2)'
+                  boxShadow: '0 3px 8px rgba(239,68,68,0.2)'
                 }}
               >
                 🔐 Ir a Configuración Ahora
-              </button>
-              <button
-                onClick={() => {
-                  setShowCredentialsModal(false);
-                  sessionStorage.setItem('yoy_dismissed_credentials_reminder', 'true');
-                }}
-                style={{
-                  background: 'transparent',
-                  color: 'var(--text-muted)',
-                  border: 'none',
-                  fontSize: 12,
-                  marginTop: 8,
-                  cursor: 'pointer',
-                  fontWeight: 600
-                }}
-                onMouseEnter={e => e.currentTarget.style.color = 'var(--text)'}
-                onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
-              >
-                Recordar más tarde (en la próxima sesión)
               </button>
             </div>
           </div>
