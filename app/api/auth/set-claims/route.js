@@ -30,6 +30,24 @@ export async function POST(request) {
     if (!uid || !salonId) {
       return NextResponse.json({ error: 'Faltan parametros: uid y salonId' }, { status: 400 });
     }
+
+    if (isAdminConfigured) {
+      const authHeader = request.headers.get('Authorization');
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return NextResponse.json({ error: 'No autorizado. Se requiere token JWT.' }, { status: 401 });
+      }
+      const token = authHeader.split('Bearer ')[1];
+      try {
+        const decodedToken = await admin.auth().verifyIdToken(token);
+        // El usuario solo puede actualizar sus propias claims, a menos que sea el admin principal
+        if (decodedToken.uid !== uid && decodedToken.email !== 'admin@yoybillar.mx') {
+          return NextResponse.json({ error: 'No tienes permisos para modificar las claims de este usuario.' }, { status: 403 });
+        }
+      } catch (err) {
+        console.error("Error al verificar ID token:", err);
+        return NextResponse.json({ error: 'Token JWT inválido o expirado.' }, { status: 401 });
+      }
+    }
     
     let isSuspended = false;
 
