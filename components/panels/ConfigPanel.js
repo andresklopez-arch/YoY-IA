@@ -655,8 +655,8 @@ export default function ConfigPanel({ showToast }) {
         return;
       }
     } else {
-      if (!/^[a-zA-Z0-9]{3,8}$/.test(newUser.password) || !/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(newUser.password)) {
-        showToast('La contraseña debe tener entre 3 y 8 caracteres, ser alfanumérica y contener al menos una mayúscula, una minúscula y un número.', 'error');
+      if (newUser.password.length < 3 || newUser.password.length > 8) {
+        showToast('La contraseña debe tener entre 3 y 8 caracteres', 'error');
         return;
       }
     }
@@ -718,8 +718,8 @@ export default function ConfigPanel({ showToast }) {
         return;
       }
     } else {
-      if (!/^[a-zA-Z0-9]{3,8}$/.test(newPassword) || !/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(newPassword)) {
-        showToast('La contraseña debe tener entre 3 y 8 caracteres, ser alfanumérica y contener al menos una mayúscula, una minúscula y un número.', 'error');
+      if (newPassword.length < 3 || newPassword.length > 8) {
+        showToast('La contraseña debe tener entre 3 y 8 caracteres', 'error');
         return;
       }
     }
@@ -970,8 +970,8 @@ export default function ConfigPanel({ showToast }) {
       showToast('El PIN actual de administrador es incorrecto', 'danger');
       return;
     }
-    if (!/^[a-zA-Z0-9]{3,8}$/.test(nuevoPin) || !/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(nuevoPin)) {
-      showToast('El PIN nuevo debe tener entre 3 y 8 caracteres, ser alfanumérico y contener al menos una mayúscula, una minúscula y un número.', 'danger');
+    if (nuevoPin.length < 3 || nuevoPin.length > 8) {
+      showToast('El PIN nuevo debe tener entre 3 y 8 caracteres.', 'danger');
       return;
     }
     if (nuevoPin !== confirmarPin) {
@@ -3595,7 +3595,7 @@ export default function ConfigPanel({ showToast }) {
               <div className="form-group">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <label className="form-label">
-                    {newUser.role === 'cajero' ? 'PIN de Ingreso (máx. 8 dígitos)' : 'Contraseña (Alfanumérica, máx. 8 caracteres)'}
+                    {newUser.role === 'cajero' ? 'PIN de Ingreso (máx. 8 dígitos)' : 'Contraseña (máx. 8 caracteres)'}
                   </label>
                   <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
                     {newUser.password?.length || 0}/8
@@ -3689,7 +3689,7 @@ export default function ConfigPanel({ showToast }) {
               <div className="form-group">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <label className="form-label">
-                    {selectedUserForPassword.role === 'cajero' ? 'Nuevo PIN (máx. 8 dígitos)' : 'Nueva Contraseña (Alfanumérica, máx. 8 caracteres)'}
+                    {selectedUserForPassword.role === 'cajero' ? 'Nuevo PIN (máx. 8 dígitos)' : 'Nueva Contraseña (máx. 8 caracteres)'}
                   </label>
                   <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
                     {newPassword?.length || 0}/8
