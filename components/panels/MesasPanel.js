@@ -6,7 +6,7 @@ import { obfuscate, deobfuscate, hashNip } from '@/lib/crypto';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth-context';
 import { getBusinessDate } from '@/lib/date-utils';
-import { doc, onSnapshot, setDoc, getDoc, serverTimestamp, collection, query, where, getDocs, writeBatch, updateDoc, runTransaction, addDoc, orderBy, limit } from 'firebase/firestore';
+import { doc, onSnapshot, setDoc, getDoc, serverTimestamp, collection, query, where, getDocs, writeBatch, updateDoc, runTransaction, addDoc, orderBy, limit } from '@/lib/firestore-tenant';
 
 function areMesasEqual(arr1, arr2) {
   if (!arr1 || !arr2) return arr1 === arr2;

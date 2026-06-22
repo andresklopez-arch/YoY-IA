@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import {
   collection, doc, setDoc, updateDoc, addDoc, getDocs, getDoc,
   deleteDoc, query, where, onSnapshot, serverTimestamp
-} from 'firebase/firestore';
+} from '@/lib/firestore-tenant';
 import { db } from '@/lib/firebase';
 
 export default function SimulatorPage() {

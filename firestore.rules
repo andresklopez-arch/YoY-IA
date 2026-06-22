@@ -2,22 +2,29 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
+    // Función auxiliar para validar pertenencia al salón de forma segura y retrocompatible
+    function perteneceAlSalon(resourceData) {
+      return request.auth != null && (
+        resourceData == null ||
+        !('salonId' in resourceData) || 
+        resourceData.salonId == 'default_salon' ||
+        request.auth.token.salonId == resourceData.salonId
+      );
+    }
+
     // 1. Colección config (inventario, mesas_estado, seguridad)
     match /config/{document} {
       allow read: if true;
-      // Se permite la escritura general excepto para mesas_estado y mesas_estado_backup
-      allow write: if document != "mesas_estado" && document != "mesas_estado_backup";
+      allow write: if request.auth != null && (document != "mesas_estado" && document != "mesas_estado_backup") && perteneceAlSalon(resource.data);
     }
 
     match /config/mesas_estado {
       allow read: if true;
-      allow create, delete: if true;
-      // Permitir la actualización si el catálogo es una lista y no supera las 100 mesas
-      allow update: if request.resource.data.mesas is list &&
+      allow create, delete: if request.auth != null;
+      allow update: if request.auth != null && request.resource.data.mesas is list &&
                       request.resource.data.mesas.size() <= 100;
     }
 
-    // Permitir lectura pero bloquear escrituras en el historial de respaldos obsoletos
     match /config/mesas_estado_backups/historial/{document} {
       allow read: if true;
       allow write: if false;
@@ -26,7 +33,7 @@ service cloud.firestore {
     // 2. Tipos de asistencia personalizada
     match /tipos_asistencia/{document} {
       allow read: if true;
-      allow write: if true;
+      allow write: if request.auth != null;
     }
 
     // 3. Comandas, pedidos y llamadas de asistencia
@@ -41,27 +48,27 @@ service cloud.firestore {
 
     // 5. Historiales, logs y auditorías
     match /historial_stock/{document} {
-      allow read, write: if true;
+      allow read, write: if request.auth != null && perteneceAlSalon(resource.data);
     }
     match /bitacora/{document} {
-      allow read: if true;
-      allow write: if !('metodoPago' in request.resource.data) || request.resource.data.metodoPago in ['efectivo', 'tarjeta', 'transferencia', 'spei', 'qr'];
+      allow read: if request.auth != null && perteneceAlSalon(resource.data);
+      allow write: if request.auth != null && (!('metodoPago' in request.resource.data) || request.resource.data.metodoPago in ['efectivo', 'tarjeta', 'transferencia', 'spei', 'qr']);
     }
     match /intentos_fallidos_qr/{document} {
       allow create: if true;
-      allow read, update, delete: if true;
+      allow read, update, delete: if request.auth != null;
     }
     match /intentos_fallidos_conexion/{document} {
       allow create: if true;
-      allow read, update, delete: if true;
+      allow read, update, delete: if request.auth != null;
     }
     
     // 6. Colecciones de administración de usuarios y nómina
     match /users/{document} {
-      allow read, write: if true;
+      allow read, write: if request.auth != null && perteneceAlSalon(resource.data);
     }
     match /nomina_empleados/{document} {
-      allow read, write: if true;
+      allow read, write: if request.auth != null && perteneceAlSalon(resource.data);
     }
 
     // 7. Fila Virtual de Espera y Log de Alertas
@@ -69,83 +76,83 @@ service cloud.firestore {
       allow read, write: if true;
     }
     match /alertas_digitales_log/{document} {
-      allow read, write: if true;
+      allow read, write: if request.auth != null;
     }
 
     // 8. Catálogos y Operación general del Billar
     match /gastos/{document} {
-      allow read: if true;
-      allow write: if !('metodoPago' in request.resource.data) || request.resource.data.metodoPago in ['efectivo', 'tarjeta', 'transferencia', 'spei', 'qr'];
+      allow read: if request.auth != null && perteneceAlSalon(resource.data);
+      allow write: if request.auth != null && (!('metodoPago' in request.resource.data) || request.resource.data.metodoPago in ['efectivo', 'tarjeta', 'transferencia', 'spei', 'qr']);
     }
     match /historial_ocupacion/{document} {
-      allow read, write: if true;
+      allow read, write: if request.auth != null && perteneceAlSalon(resource.data);
     }
     match /cocina_insumos/{document} {
-      allow read, write: if true;
+      allow read, write: if request.auth != null && perteneceAlSalon(resource.data);
     }
     match /mesas/{document} {
-      allow read, write: if true;
+      allow read, write: if request.auth != null && perteneceAlSalon(resource.data);
     }
     match /productos/{document} {
-      allow read, write: if true;
+      allow read, write: if request.auth != null && perteneceAlSalon(resource.data);
     }
     match /torneos/{document} {
-      allow read, write: if true;
+      allow read, write: if request.auth != null && perteneceAlSalon(resource.data);
     }
     match /tickets/{document} {
-      allow read, write: if true;
+      allow read, write: if request.auth != null && perteneceAlSalon(resource.data);
     }
     match /nomina_asistencia/{document} {
-      allow read, write: if true;
+      allow read, write: if request.auth != null && perteneceAlSalon(resource.data);
     }
     match /nomina_asistencia_log/{document} {
-      allow read, write: if true;
+      allow read, write: if request.auth != null && perteneceAlSalon(resource.data);
     }
     match /used_qr_tokens/{document} {
-      allow read, write: if true;
+      allow read, write: if request.auth != null;
     }
     match /presupuestos/{document} {
-      allow read, write: if true;
+      allow read, write: if request.auth != null && perteneceAlSalon(resource.data);
     }
     match /nomina_pagos/{document} {
-      allow read, write: if true;
+      allow read, write: if request.auth != null && perteneceAlSalon(resource.data);
     }
     match /encuestas_satisfaccion/{document} {
       allow read, write: if true;
     }
     match /auditoria_accesos/{document} {
-      allow read, write: if true;
+      allow read, write: if request.auth != null && perteneceAlSalon(resource.data);
     }
     match /cortes_caja/{document} {
-      allow read, write: if true;
+      allow read, write: if request.auth != null && perteneceAlSalon(resource.data);
     }
     match /mermas_auditoria/{document} {
-      allow read, write: if true;
+      allow read, write: if request.auth != null && perteneceAlSalon(resource.data);
     }
     match /auditorias_cortes/{document} {
-      allow read, create: if true;
+      allow read, create: if request.auth != null && perteneceAlSalon(resource.data);
       allow update, delete: if false;
     }
     match /conciliaciones_bancarias/{document} {
-      allow read, write: if true;
+      allow read, write: if request.auth != null && perteneceAlSalon(resource.data);
     }
     match /auditoria_sistema/{document} {
-      allow read, write: if true;
+      allow read, write: if request.auth != null && perteneceAlSalon(resource.data);
     }
     match /cupones_retencion/{document} {
-      allow read, write: if true;
+      allow read, write: if request.auth != null && perteneceAlSalon(resource.data);
     }
     match /clientes_vip/{document} {
-      allow read, write: if true;
+      allow read, write: if request.auth != null && perteneceAlSalon(resource.data);
     }
     match /mantenimientos_historicos/{document} {
-      allow read, write: if true;
+      allow read, write: if request.auth != null && perteneceAlSalon(resource.data);
     }
     match /tarifas_cambios_log/{document} {
-      allow read, write: if true;
+      allow read, write: if request.auth != null && perteneceAlSalon(resource.data);
     }
     match /resumenes_diarios/{document} {
-      allow read, write: if true;
+      allow read, write: if request.auth != null && perteneceAlSalon(resource.data);
     }
   }
 }

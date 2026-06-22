@@ -231,7 +231,7 @@ class PanelErrorBoundary extends Component {
 }
 
 function AppContent() {
-  const { user, loading, loginWithEmpleadoId, logout } = useAuth();
+  const { user, loading, loginWithEmpleadoId, logout, isSuspended } = useAuth();
   const [minLoadingDone, setMinLoadingDone] = useState(false);
   const [imageError, setImageError] = useState(false);
   const [activePanel, setActivePanel] = useState('mesas');
@@ -1873,6 +1873,107 @@ function AppContent() {
       </PanelErrorBoundary>
     ),
   };
+
+  if (isSuspended) {
+    return (
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: '100vh',
+        background: 'var(--bg-base)',
+        color: 'var(--text-primary)',
+        fontFamily: 'var(--font-main)',
+        padding: '20px',
+        textAlign: 'center',
+        zIndex: 999999
+      }}>
+        <div style={{
+          maxWidth: 480,
+          background: 'var(--bg-card)',
+          border: '1px solid var(--border-bronze)',
+          borderRadius: 24,
+          boxShadow: '0 25px 60px rgba(0,0,0,0.8), 0 0 30px rgba(205,127,50,0.15)',
+          padding: 40,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: 20
+        }}>
+          <div style={{
+            width: 64, height: 64, borderRadius: '50%',
+            background: 'rgba(239,68,68,0.1)',
+            border: '1px solid rgba(239,68,68,0.2)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 32, color: 'var(--danger)',
+            flexShrink: 0
+          }}>
+            <i className="ri-error-warning-fill" />
+          </div>
+
+          <h2 style={{ fontSize: 22, fontWeight: 800, fontFamily: 'var(--font-display)', letterSpacing: '0.02em', margin: 0 }}>
+            Servicio Suspendido
+          </h2>
+
+          <p style={{ fontSize: 13.5, color: 'var(--text-secondary)', lineHeight: 1.5, margin: 0 }}>
+            La suscripción mensual/anual de esta sala de billar se encuentra vencida o no hemos podido procesar el pago. 
+            Por favor, ponte en contacto con administración o realiza el pago correspondiente para reactivar el servicio.
+          </p>
+
+          <div style={{ width: '100%', borderTop: '1px solid var(--border)', paddingTop: 20, display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <button
+              onClick={() => {
+                showToast('Redirigiendo a pasarela de pagos segura...', 'info');
+                window.open('https://stripe.com', '_blank');
+              }}
+              style={{
+                width: '100%',
+                background: 'linear-gradient(135deg, var(--bronze), var(--bronze-light))',
+                border: 'none',
+                borderRadius: 12,
+                color: '#fff',
+                padding: '12px 0',
+                fontSize: 13.5,
+                fontWeight: 700,
+                cursor: 'pointer',
+                boxShadow: '0 4px 12px rgba(205,127,50,0.3)',
+                transition: 'all 0.2s',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 6
+              }}
+            >
+              <i className="ri-secure-payment-line" /> Pagar Suscripción
+            </button>
+
+            <button
+              onClick={logout}
+              style={{
+                width: '100%',
+                background: 'var(--bg-elevated)',
+                border: '1px solid var(--border)',
+                borderRadius: 12,
+                color: 'var(--text-primary)',
+                padding: '10px 0',
+                fontSize: 12.5,
+                fontWeight: 600,
+                cursor: 'pointer',
+                transition: 'all 0.2s'
+              }}
+            >
+              Cerrar Sesión / Salir
+            </button>
+          </div>
+
+          <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+            ID del Salón: <code style={{ color: 'var(--bronze-light)' }}>{user?.salonId || 'default_salon'}</code>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="app-wrapper">

@@ -2,7 +2,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { db } from '@/lib/firebase';
-import { doc, onSnapshot, setDoc, serverTimestamp, collection, query, orderBy, limit, addDoc } from 'firebase/firestore';
+import { doc, onSnapshot, setDoc, serverTimestamp, collection, query, orderBy, limit, addDoc } from '@/lib/firestore-tenant';
 import { obfuscate, deobfuscate } from '@/lib/crypto';
 import { useAuth } from '@/lib/auth-context';
 

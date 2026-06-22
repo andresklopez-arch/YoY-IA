@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   collection, addDoc, updateDoc, deleteDoc, doc,
   onSnapshot, query, orderBy, where, getDocs, serverTimestamp, limit
-} from 'firebase/firestore';
+} from '@/lib/firestore-tenant';
 import { db } from '@/lib/firebase';
 import { hashNip } from '@/lib/crypto';
 import { getBusinessDate } from '@/lib/date-utils';
