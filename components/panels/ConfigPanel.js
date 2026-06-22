@@ -99,6 +99,10 @@ export default function ConfigPanel({ showToast }) {
   const [showAddUserModal, setShowAddUserModal] = useState(false);
   const [newUser, setNewUser] = useState({ name: '', email: '', password: '', role: 'mesero' });
   const [savingUser, setSavingUser] = useState(false);
+  const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
+  const [selectedUserForPassword, setSelectedUserForPassword] = useState(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [savingUserPassword, setSavingUserPassword] = useState(false);
 
   // --- Estados de Mesas Config ---
   const [mesas, setMesas] = useState([]);
@@ -647,6 +651,11 @@ export default function ConfigPanel({ showToast }) {
         showToast('El PIN/Contraseña de Cajero debe ser de exactamente 6 dígitos numéricos', 'error');
         return;
       }
+    } else {
+      if (!/^[a-zA-Z0-9]{1,15}$/.test(newUser.password)) {
+        showToast('La contraseña debe ser alfanumérica (letras y números) y tener como máximo 15 caracteres.', 'error');
+        return;
+      }
     }
 
     setSavingUser(true);
@@ -693,6 +702,41 @@ export default function ConfigPanel({ showToast }) {
     } catch (err) {
       console.error("Error al eliminar usuario:", err);
       showToast('Error al eliminar el usuario de Firestore', 'error');
+    }
+  };
+
+  const handleUpdatePassword = async (e) => {
+    e.preventDefault();
+    if (!selectedUserForPassword || !newPassword) return;
+
+    if (selectedUserForPassword.role === 'cajero') {
+      if (!/^\d{6}$/.test(newPassword)) {
+        showToast('El PIN/Contraseña de Cajero debe ser de exactamente 6 dígitos numéricos', 'error');
+        return;
+      }
+    } else {
+      if (!/^[a-zA-Z0-9]{1,15}$/.test(newPassword)) {
+        showToast('La contraseña debe ser alfanumérica (letras y números) y tener como máximo 15 caracteres.', 'error');
+        return;
+      }
+    }
+
+    setSavingUserPassword(true);
+    try {
+      const hashedPassword = await hashPasswordSecure(newPassword);
+      await setDoc(doc(db, 'users', selectedUserForPassword.id), {
+        password: hashedPassword
+      }, { merge: true });
+      showToast(`Contraseña de "${selectedUserForPassword.name}" actualizada con éxito ✓`, 'success');
+      setShowChangePasswordModal(false);
+      setNewPassword('');
+      setSelectedUserForPassword(null);
+      fetchUsuarios();
+    } catch (err) {
+      console.error("Error al actualizar contraseña:", err);
+      showToast('Error al actualizar contraseña en Firestore', 'error');
+    } finally {
+      setSavingUserPassword(false);
     }
   };
 
@@ -2589,6 +2633,22 @@ export default function ConfigPanel({ showToast }) {
                           {u.role}
                         </span>
                         <button
+                          onClick={() => {
+                            setSelectedUserForPassword(u);
+                            setShowChangePasswordModal(true);
+                          }}
+                          title="Cambiar Contraseña"
+                          style={{
+                            background: 'none', border: 'none', color: 'var(--text-muted)',
+                            cursor: 'pointer', fontSize: 14, padding: '2px 6px',
+                            transition: 'color 0.15s', marginRight: 4
+                          }}
+                          onMouseEnter={e => e.currentTarget.style.color = 'var(--bronze-light)'}
+                          onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
+                        >
+                          <i className="ri-key-line" />
+                        </button>
+                        <button
                           onClick={() => handleDeleteUser(u.id, u.name)}
                           title="Eliminar usuario"
                           style={{
@@ -3462,6 +3522,83 @@ export default function ConfigPanel({ showToast }) {
                   disabled={savingUser}
                 >
                   {savingUser ? 'Guardando...' : 'Crear Usuario'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showChangePasswordModal && selectedUserForPassword && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
+          backdropFilter: 'blur(5px)'
+        }}>
+          <div className="card" style={{ width: '100%', maxWidth: 450, padding: 32, border: '1px solid var(--border-bronze)', boxShadow: 'var(--shadow-bronze)', animation: 'fadeIn 0.25s ease' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+              <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0, textTransform: 'uppercase', letterSpacing: '0.1em' }} className="gradient-bronze">
+                <i className="ri-key-line" style={{ marginRight: 8 }} />Cambiar Contraseña
+              </h3>
+              <button 
+                onClick={() => {
+                  setShowChangePasswordModal(false);
+                  setSelectedUserForPassword(null);
+                  setNewPassword('');
+                }}
+                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 20 }}
+              >
+                <i className="ri-close-line" />
+              </button>
+            </div>
+            
+            <form onSubmit={handleUpdatePassword} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div className="form-group">
+                <label className="form-label">Usuario</label>
+                <input 
+                  className="form-input" 
+                  value={selectedUserForPassword.name}
+                  disabled
+                  style={{ background: 'rgba(0,0,0,0.2)', color: 'rgba(255,255,255,0.4)' }}
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">
+                  {selectedUserForPassword.role === 'cajero' ? 'Nuevo PIN (exactamente 6 dígitos)' : 'Nueva Contraseña (Alfanumérica, máx. 15 caracteres)'}
+                </label>
+                <input 
+                  className="form-input" 
+                  type={selectedUserForPassword.role === 'cajero' ? 'text' : 'password'}
+                  placeholder={selectedUserForPassword.role === 'cajero' ? 'Ej. 123456' : '••••••••'} 
+                  value={newPassword}
+                  onChange={e => setNewPassword(selectedUserForPassword.role === 'cajero' ? e.target.value.replace(/\D/g, '') : e.target.value)}
+                  maxLength={selectedUserForPassword.role === 'cajero' ? 6 : 15}
+                  required
+                  autoFocus
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: 12, marginTop: 12 }}>
+                <button 
+                  type="button" 
+                  className="btn btn-secondary" 
+                  style={{ flex: 1, background: 'var(--bg-elevated)', color: 'var(--text-secondary)' }}
+                  onClick={() => {
+                    setShowChangePasswordModal(false);
+                    setSelectedUserForPassword(null);
+                    setNewPassword('');
+                  }}
+                >
+                  Cancelar
+                </button>
+                <button 
+                  type="submit" 
+                  className="btn btn-primary" 
+                  style={{ flex: 1 }}
+                  disabled={savingUserPassword}
+                >
+                  {savingUserPassword ? 'Guardando...' : 'Actualizar'}
                 </button>
               </div>
             </form>

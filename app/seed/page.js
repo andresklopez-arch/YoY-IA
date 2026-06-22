@@ -4,10 +4,11 @@ import { auth, db } from '../../lib/firebase';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc, collection, getDocs } from 'firebase/firestore';
 import { getClientDomain } from '../../lib/tenant';
+import { hashPasswordSecure } from '../../lib/crypto';
 
 export default function SeedPage() {
   const [status, setStatus] = useState('Esperando para verificar estado...');
-  const [customPassword, setCustomPassword] = useState('admin1111');
+  const [customPassword, setCustomPassword] = useState('123456');
   const [isAlreadySeeded, setIsAlreadySeeded] = useState(false);
   const [checking, setChecking] = useState(true);
 
@@ -44,23 +45,25 @@ export default function SeedPage() {
     setStatus('Iniciando proceso...');
     try {
       const clientDomain = getClientDomain();
-      // 1. Crear el usuario admin1111
-      setStatus(`Creando usuario admin1111@${clientDomain}...`);
-      const email = `admin1111@${clientDomain}`;
+      // 1. Crear el usuario masteradmin
+      setStatus(`Creando usuario masteradmin@${clientDomain}...`);
+      const email = `masteradmin@${clientDomain}`;
       
       const userCredential = await createUserWithEmailAndPassword(auth, email, customPassword);
       const user = userCredential.user;
 
       // 2. Crear su documento en la colección 'users'
       setStatus('Creando documento de usuario en Firestore...');
+      const hashedPassword = await hashPasswordSecure(customPassword);
       await setDoc(doc(db, 'users', user.uid), {
         uid: user.uid,
         email: email,
+        password: hashedPassword,
         name: 'Administrador Maestro',
-        alias: 'Admin',
+        alias: 'MasterAdmin',
         role: 'admin',
         sucursal: 'all',
-        avatar: 'A',
+        avatar: 'M',
         createdAt: new Date().toISOString()
       });
 
@@ -143,7 +146,7 @@ export default function SeedPage() {
             </label>
             <input 
               type="text"
-              value={`admin1111@${getClientDomain()}`}
+              value={`masteradmin@${getClientDomain()}`}
               disabled
               style={{
                 width: '100%',
@@ -164,7 +167,7 @@ export default function SeedPage() {
             </label>
             <input 
               type="password"
-              placeholder="Ingresa la contraseña para admin1111"
+              placeholder="Ingresa la contraseña para masteradmin"
               value={customPassword}
               onChange={e => setCustomPassword(e.target.value)}
               disabled={isAlreadySeeded || checking}
