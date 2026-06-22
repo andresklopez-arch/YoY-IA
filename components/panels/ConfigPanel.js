@@ -5,6 +5,7 @@ import { collection, getDocs, getDoc, addDoc, query, orderBy, deleteDoc, doc, wh
 import { obfuscate, deobfuscate, hashPasswordSecure } from '@/lib/crypto';
 import { QRCodeCanvas } from 'qrcode.react';
 import JSZip from 'jszip';
+import { useAuth } from '@/lib/auth-context';
 
 const ALERTAS_DEFINITIONS = [
   { id: 'stockBajo', label: 'Alerta de Stock Bajo', sub: 'Notifica cuando un insumo o producto esté por debajo del stock óptimo' },
@@ -56,6 +57,7 @@ const hashPassword = (pwd) => {
 };
 
 export default function ConfigPanel({ showToast }) {
+  const { user, updateUserSession } = useAuth();
   // subTab recetario removed
   const [previewQr, setPreviewQr] = useState(null);
 
@@ -727,6 +729,14 @@ export default function ConfigPanel({ showToast }) {
       await setDoc(doc(db, 'users', selectedUserForPassword.id), {
         password: hashedPassword
       }, { merge: true });
+
+      // Si el usuario seleccionado es el usuario actual, actualizar la sesión activa
+      if (user && (user.uid === selectedUserForPassword.id || user.email === selectedUserForPassword.email)) {
+        if (updateUserSession) {
+          updateUserSession({ password: hashedPassword });
+        }
+      }
+
       showToast(`Contraseña de "${selectedUserForPassword.name}" actualizada con éxito ✓`, 'success');
       setShowChangePasswordModal(false);
       setNewPassword('');

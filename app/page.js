@@ -14,7 +14,7 @@ import LoginScreen from '@/components/LoginScreen';
 import { AuthProvider, useAuth } from '@/lib/auth-context';
 import { collection, query, where, orderBy, limit, onSnapshot, doc, updateDoc, serverTimestamp, getDoc, addDoc, getDocs, setDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { obfuscateWithKey } from '@/lib/crypto';
+import { obfuscateWithKey, hashPasswordSecure } from '@/lib/crypto';
 import { getBusinessDate } from '@/lib/date-utils';
 
 // ── ERROR BOUNDARY: captura crashes en paneles sin matar la app ──
@@ -236,6 +236,28 @@ function AppContent() {
   const [imageError, setImageError] = useState(false);
   const [activePanel, setActivePanel] = useState('mesas');
   const [toasts, setToasts] = useState([]);
+  const [showPasswordChangeReminder, setShowPasswordChangeReminder] = useState(false);
+
+  useEffect(() => {
+    if (user && (user.email === 'masteradmin@yoybillar.mx' || user.email?.startsWith('masteradmin@'))) {
+      const checkTempPassword = async () => {
+        try {
+          const tempHash = await hashPasswordSecure('123456');
+          if (user.password === tempHash || user.password === '123456') {
+            setShowPasswordChangeReminder(true);
+          } else {
+            setShowPasswordChangeReminder(false);
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      };
+      checkTempPassword();
+    } else {
+      setShowPasswordChangeReminder(false);
+    }
+  }, [user]);
+
   const [isProcessingQR, setIsProcessingQR] = useState(() => {
     if (typeof window !== 'undefined') {
       return !!new URLSearchParams(window.location.search).get('scanId');
@@ -1986,6 +2008,58 @@ function AppContent() {
             setActivePanel(panel);
           }}
         />
+        {/* Banner de Contraseña Temporal (MasterAdmin) */}
+        {showPasswordChangeReminder && (
+          <div style={{
+            background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.95), rgba(185, 28, 28, 0.95))',
+            borderBottom: '1px solid rgba(220, 38, 38, 0.4)',
+            padding: '12px 24px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: 16,
+            animation: 'slideDownAlert 0.4s ease',
+            boxShadow: '0 4px 20px rgba(239, 68, 68, 0.2)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <span style={{ fontSize: 20, animation: 'pulseRedAlert 1.5s infinite' }}>⚠️</span>
+              <div style={{ textAlign: 'left' }}>
+                <span style={{ fontSize: 13, color: '#fff', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Contraseña Temporal Activa
+                </span>
+                <p style={{ margin: '2px 0 0 0', fontSize: 12, color: 'rgba(255, 255, 255, 0.9)', fontWeight: 500 }}>
+                  Estás utilizando la contraseña temporal predeterminada. Por motivos de seguridad, cámbiala lo antes posible.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setActivePanel('config')}
+              style={{
+                background: '#fff',
+                color: '#b91c1c',
+                border: 'none',
+                borderRadius: 8,
+                padding: '8px 16px',
+                fontWeight: 700,
+                fontSize: 12,
+                cursor: 'pointer',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                transition: 'all 0.2s',
+                whiteSpace: 'nowrap'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'scale(1.05)';
+                e.currentTarget.style.boxShadow = '0 6px 16px rgba(0,0,0,0.25)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'scale(1)';
+                e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+              }}
+            >
+              🔐 Cambiar Contraseña Ahora
+            </button>
+          </div>
+        )}
 
         {/* Banner de Insumos Críticos / Faltantes y Alertas IA */}
         {(cocinaSolicitudes.length > 0 || displayedAlerts.length > 0) && (

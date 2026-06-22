@@ -4,6 +4,7 @@ import { useAuth } from '@/lib/auth-context';
 import { db } from '@/lib/firebase';
 import { collection, getDocs, query, orderBy, addDoc } from 'firebase/firestore';
 import { getClientDomain } from '@/lib/tenant';
+import { obfuscateStatic, deobfuscateStatic } from '@/lib/crypto';
 
 const getActiveSalonId = () => {
   if (typeof window === 'undefined') return 'default_salon';
@@ -29,6 +30,7 @@ export default function LoginScreen({ showToast }) {
   const [nip, setNip] = useState('');
   const [usersList, setUsersList] = useState([]);
   const [selectedEmail, setSelectedEmail] = useState('');
+  const [manualEmail, setManualEmail] = useState(false);
 
   // Lockout States
   const [intentosRestantes, setIntentosRestantes] = useState(3);
@@ -106,7 +108,8 @@ export default function LoginScreen({ showToast }) {
       setUsersList(list);
 
       if (typeof window !== 'undefined') {
-        const lastEmail = localStorage.getItem('yoy_last_selected_email');
+        const lastEmailEnc = localStorage.getItem('yoy_last_selected_email');
+        const lastEmail = lastEmailEnc ? deobfuscateStatic(lastEmailEnc) : null;
         if (lastEmail && list.some(u => u.email === lastEmail)) {
           setSelectedEmail(lastEmail);
         } else {
@@ -207,7 +210,7 @@ export default function LoginScreen({ showToast }) {
       return;
     }
     setLoading(true);
-    const targetEmail = loginMethod === 'nip' ? `NIP-${nip}` : (usersList.length > 0 ? selectedEmail : email);
+    const targetEmail = loginMethod === 'nip' ? `NIP-${nip}` : (usersList.length > 0 && !manualEmail ? selectedEmail : email);
     
     try {
       if (loginMethod === 'nip') {
@@ -228,7 +231,7 @@ export default function LoginScreen({ showToast }) {
       if (typeof window !== 'undefined') {
         localStorage.removeItem('yoy_lockout_penalties');
         localStorage.removeItem('yoy_lockout_until');
-        localStorage.setItem('yoy_last_selected_email', targetEmail);
+        localStorage.setItem('yoy_last_selected_email', obfuscateStatic(targetEmail));
       }
       setIntentosRestantes(3);
       await logAccessAttempt(targetEmail, loginMethod, true, 'success');
@@ -322,7 +325,7 @@ export default function LoginScreen({ showToast }) {
           boxShadow: 'var(--shadow-lg), 0 0 40px rgba(205,127,50,0.08)',
         }}>
           <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {usersList.length > 0 ? (
+            {usersList.length > 0 && !manualEmail ? (
               <div className="form-group">
                 <label className="form-label">Selecciona tu Usuario</label>
                 <select
@@ -355,13 +358,34 @@ export default function LoginScreen({ showToast }) {
                 <label className="form-label">Correo Electrónico</label>
                 <input
                   className="form-input"
-                  type="email"
+                  type="text"
                   placeholder={`usuario@${getClientDomain()}`}
                   value={email}
                   onChange={e => setEmail(e.target.value)}
                   required
                 />
               </div>
+            )}
+
+            {usersList.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setManualEmail(p => !p)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--text-muted)',
+                  cursor: 'pointer',
+                  fontSize: 11,
+                  alignSelf: 'flex-start',
+                  padding: '0 4px',
+                  marginTop: -8,
+                  textDecoration: 'underline',
+                  outline: 'none'
+                }}
+              >
+                {manualEmail ? 'Seleccionar desde la lista' : 'Ingresar correo manualmente'}
+              </button>
             )}
 
             <div className="form-group">
