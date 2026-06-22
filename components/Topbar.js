@@ -1752,42 +1752,18 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
                   overflowY: 'auto'
                 }}
               >
-                {/* CSS Embebido para Layout de Dos Columnas */}
+                {/* CSS Embebido para Animación del Temporizador */}
                 <style dangerouslySetInnerHTML={{ __html: `
-                  .qr-modal-flex-layout {
-                    display: flex;
-                    flex-direction: column;
-                    gap: 16px;
-                  }
-                  @media (min-width: 580px) {
-                    .qr-modal-flex-layout {
-                      flex-direction: row !important;
-                      gap: 20px !important;
-                      align-items: flex-start !important;
-                    }
-                    .qr-modal-left-col {
-                      width: 196px !important;
-                      flex-shrink: 0 !important;
-                      display: flex !important;
-                      flex-direction: column !important;
-                      align-items: center !important;
-                      gap: 12px !important;
-                    }
-                    .qr-modal-right-col {
-                      flex: 1 !important;
-                      display: flex !important;
-                      flex-direction: column !important;
-                      gap: 12px !important;
-                      border-left: 1px solid var(--border) !important;
-                      padding-left: 20px !important;
-                      text-align: left !important;
-                    }
+                  @keyframes pulse {
+                    0% { transform: scale(1); opacity: 1; }
+                    50% { transform: scale(1.1); opacity: 0.7; }
+                    100% { transform: scale(1); opacity: 1; }
                   }
                 `}} />
 
-                <div className="qr-modal-flex-layout">
+                <div className="qr-modal-flex-layout" style={{ display: 'flex', flexDirection: 'row', flexWrap: 'wrap', gap: 20, width: '100%', alignItems: 'stretch' }}>
                   {/* Columna Izquierda: QR y Temporizador */}
-                  <div className="qr-modal-left-col" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+                  <div className="qr-modal-left-col" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, flex: '1 1 196px', maxWidth: '220px', margin: '0 auto' }}>
                     <div style={{ background: '#fff', padding: 12, borderRadius: 14, boxShadow: '0 6px 18px rgba(0,0,0,0.15)', display: 'inline-block' }}>
                       <QRCodeSVG 
                         value={typeof window !== 'undefined' ? 
@@ -1828,7 +1804,7 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
                   </div>
 
                   {/* Columna Derecha: Datos, Fichajes y Cerrar */}
-                  <div className="qr-modal-right-col" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <div className="qr-modal-right-col" style={{ display: 'flex', flexDirection: 'column', gap: 12, flex: '1 1 260px', minWidth: '260px' }}>
                     <div>
                       <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
                         Acceso Móvil

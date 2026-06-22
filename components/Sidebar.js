@@ -122,6 +122,10 @@ export default function Sidebar({ activePanel, onNavigate, open, onMouseEnter, o
           <i className="nav-icon ri-logout-box-r-line" />
           <span className="nav-label">Cerrar Sesión</span>
         </button>
+
+        <div style={{ fontSize: '8px', color: 'var(--text-muted)', textAlign: 'center', marginTop: 12, opacity: 0.6, letterSpacing: '0.05em' }}>
+          VERSIÓN 2.1.2 • 22/06/2026
+        </div>
       </div>
     </aside>
   );

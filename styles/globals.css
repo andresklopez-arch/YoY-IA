@@ -1495,4 +1495,59 @@ body.modal-open .topbar {
   }
 }
 
+/* ============================================================
+   LAYOUT PARA EL MODAL DEL CÓDIGO QR DE EMPLEADOS
+   ============================================================ */
+.qr-modal-flex-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+}
+
+.qr-modal-left-col {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.qr-modal-right-col {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  text-align: center;
+}
+
+/* En resoluciones mayores a 580px, fuerza dos columnas: QR a la izquierda, datos/botones a la derecha */
+@media (min-width: 580px) {
+  .qr-modal-flex-layout {
+    flex-direction: row !important;
+    gap: 24px !important;
+    align-items: flex-start !important;
+  }
+
+  .qr-modal-left-col {
+    width: 196px !important;
+    flex-shrink: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    gap: 12px !important;
+  }
+
+  .qr-modal-right-col {
+    flex: 1 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 12px !important;
+    border-left: 1px solid var(--border) !important;
+    padding-left: 24px !important;
+    text-align: left !important;
+  }
+}
+
+
 
