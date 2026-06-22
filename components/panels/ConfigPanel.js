@@ -776,7 +776,8 @@ export default function ConfigPanel({ showToast }) {
       return;
     }
 
-    let formattedEmail = newUser.email.trim().toLowerCase();
+    // Limpiar espacios en blanco para evitar problemas de formato en Firebase Auth y Firestore
+    let formattedEmail = newUser.email.trim().toLowerCase().replace(/\s+/g, '');
     if (!formattedEmail.includes('@')) {
       formattedEmail = `${formattedEmail}@${getClientDomain()}`;
     }
