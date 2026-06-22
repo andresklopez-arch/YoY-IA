@@ -240,6 +240,7 @@ function AppContent() {
   const [isDefaultPin, setIsDefaultPin] = useState(false);
   const [isDefaultPassword, setIsDefaultPassword] = useState(false);
   const [showCredentialsModal, setShowCredentialsModal] = useState(false);
+  const [dismissedSessionReminder, setDismissedSessionReminder] = useState(false);
 
   useEffect(() => {
     if (user && (user.email === 'masteradmin@yoybillar.mx' || user.email?.startsWith('masteradmin@'))) {
@@ -263,11 +264,15 @@ function AppContent() {
           
           if (needsChange) {
             const sessionDismissed = sessionStorage.getItem('yoy_dismissed_credentials_reminder');
-            if (!sessionDismissed) {
+            if (sessionDismissed) {
+              setDismissedSessionReminder(true);
+            } else {
+              setDismissedSessionReminder(false);
               setShowCredentialsModal(true);
             }
           } else {
             setShowCredentialsModal(false);
+            setDismissedSessionReminder(false);
           }
         } catch (e) {
           console.error(e);
@@ -279,6 +284,7 @@ function AppContent() {
       setIsDefaultPin(false);
       setIsDefaultPassword(false);
       setShowCredentialsModal(false);
+      setDismissedSessionReminder(false);
     }
   }, [user]);
 
@@ -2033,7 +2039,7 @@ function AppContent() {
           }}
         />
         {/* Banner de Contraseña Temporal (MasterAdmin) */}
-        {showPasswordChangeReminder && (
+        {showPasswordChangeReminder && !dismissedSessionReminder && (
           <div style={{
             background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.95), rgba(185, 28, 28, 0.95))',
             borderBottom: '1px solid rgba(220, 38, 38, 0.4)',
@@ -2056,32 +2062,58 @@ function AppContent() {
                 </p>
               </div>
             </div>
-            <button
-              onClick={() => setActivePanel('config')}
-              style={{
-                background: '#fff',
-                color: '#b91c1c',
-                border: 'none',
-                borderRadius: 8,
-                padding: '8px 16px',
-                fontWeight: 700,
-                fontSize: 12,
-                cursor: 'pointer',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                transition: 'all 0.2s',
-                whiteSpace: 'nowrap'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'scale(1.05)';
-                e.currentTarget.style.boxShadow = '0 6px 16px rgba(0,0,0,0.25)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'scale(1)';
-                e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
-              }}
-            >
-              🔐 Cambiar Contraseña Ahora
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <button
+                onClick={() => setActivePanel('config')}
+                style={{
+                  background: '#fff',
+                  color: '#b91c1c',
+                  border: 'none',
+                  borderRadius: 8,
+                  padding: '8px 16px',
+                  fontWeight: 700,
+                  fontSize: 12,
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                  transition: 'all 0.2s',
+                  whiteSpace: 'nowrap'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'scale(1.05)';
+                  e.currentTarget.style.boxShadow = '0 6px 16px rgba(0,0,0,0.25)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'scale(1)';
+                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+                }}
+              >
+                🔐 Cambiar Contraseña Ahora
+              </button>
+              <button
+                onClick={() => {
+                  sessionStorage.setItem('yoy_dismissed_credentials_reminder', 'true');
+                  setDismissedSessionReminder(true);
+                }}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'rgba(255, 255, 255, 0.8)',
+                  fontSize: 20,
+                  cursor: 'pointer',
+                  outline: 'none',
+                  padding: 6,
+                  transition: 'color 0.2s',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+                onMouseEnter={e => e.currentTarget.style.color = '#fff'}
+                onMouseLeave={e => e.currentTarget.style.color = 'rgba(255, 255, 255, 0.8)'}
+                title="Descartar alerta en esta sesión"
+              >
+                <i className="ri-close-line" />
+              </button>
+            </div>
           </div>
         )}
 
@@ -2475,6 +2507,7 @@ function AppContent() {
               onClick={() => {
                 setShowCredentialsModal(false);
                 sessionStorage.setItem('yoy_dismissed_credentials_reminder', 'true');
+                setDismissedSessionReminder(true);
               }}
               style={{
                 position: 'absolute',
