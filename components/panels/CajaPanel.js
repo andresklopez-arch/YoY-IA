@@ -206,6 +206,16 @@ export default function CajaPanel({ showToast }) {
   const [loadingMoreBitacora, setLoadingMoreBitacora] = useState(false);
   const [colaImpresion, setColaImpresion] = useState([]);
   const [tabActivo, setTabActivo] = useState('caja'); 
+
+  useEffect(() => {
+    const canTransacciones = user?.permisos ? user.permisos.caja_transacciones !== false : true;
+    const canInventario = user?.permisos ? user.permisos.caja_inventario !== false : true;
+    if (!canTransacciones && canInventario && tabActivo === 'caja') {
+      setTabActivo('inventario');
+    } else if (canTransacciones && !canInventario && tabActivo === 'inventario') {
+      setTabActivo('caja');
+    }
+  }, [user, tabActivo]);
   const [inventarioLogs, setInventarioLogs] = useState([]);
   const [inventarioDbLogs, setInventarioDbLogs] = useState([]);
   const [lastInventarioDoc, setLastInventarioDoc] = useState(null);
@@ -5415,32 +5425,39 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
 
 
   const renderPestanasMovimientos = (isReduced = false) => {
+    const canTransacciones = user?.permisos ? user.permisos.caja_transacciones !== false : true;
+    const canInventario = user?.permisos ? user.permisos.caja_inventario !== false : true;
+
     return (
       <div style={{ background: 'rgba(0,0,0,0.15)', border: '1px solid var(--border)', borderRadius: 12, padding: isReduced ? 10 : 12 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: 8, marginBottom: 12 }}>
           <div style={{ display: 'flex', gap: isReduced ? 8 : 12 }}>
-            <button
-              onClick={() => setTabActivo('caja')}
-              style={{
-                background: 'none', border: 'none', fontSize: isReduced ? 9.5 : 11, fontWeight: 800,
-                color: tabActivo === 'caja' ? 'var(--bronze-light)' : 'var(--text-muted)',
-                borderBottom: tabActivo === 'caja' ? '2px solid var(--bronze-light)' : 'none',
-                paddingBottom: 4, cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.05em'
-              }}
-            >
-              Transacciones
-            </button>
-            <button
-              onClick={() => setTabActivo('inventario')}
-              style={{
-                background: 'none', border: 'none', fontSize: isReduced ? 9.5 : 11, fontWeight: 800,
-                color: tabActivo === 'inventario' ? 'var(--bronze-light)' : 'var(--text-muted)',
-                borderBottom: tabActivo === 'inventario' ? '2px solid var(--bronze-light)' : 'none',
-                paddingBottom: 4, cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.05em'
-              }}
-            >
-              Inventario
-            </button>
+            {canTransacciones && (
+              <button
+                onClick={() => setTabActivo('caja')}
+                style={{
+                  background: 'none', border: 'none', fontSize: isReduced ? 9.5 : 11, fontWeight: 800,
+                  color: tabActivo === 'caja' ? 'var(--bronze-light)' : 'var(--text-muted)',
+                  borderBottom: tabActivo === 'caja' ? '2px solid var(--bronze-light)' : 'none',
+                  paddingBottom: 4, cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.05em'
+                }}
+              >
+                Transacciones
+              </button>
+            )}
+            {canInventario && (
+              <button
+                onClick={() => setTabActivo('inventario')}
+                style={{
+                  background: 'none', border: 'none', fontSize: isReduced ? 9.5 : 11, fontWeight: 800,
+                  color: tabActivo === 'inventario' ? 'var(--bronze-light)' : 'var(--text-muted)',
+                  borderBottom: tabActivo === 'inventario' ? '2px solid var(--bronze-light)' : 'none',
+                  paddingBottom: 4, cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.05em'
+                }}
+              >
+                Inventario
+              </button>
+            )}
           </div>
           <button
             className="btn btn-secondary btn-xs"
@@ -5451,7 +5468,7 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
           </button>
         </div>
 
-        {tabActivo === 'caja' ? (
+        {tabActivo === 'caja' && canTransacciones ? (
           <div className="table-wrapper" style={{ border: 'none', maxHeight: 220, overflowY: 'auto' }}>
             <table style={{ fontSize: isReduced ? 9 : 11 }}>
               <thead>
@@ -5485,7 +5502,7 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
               </tbody>
             </table>
           </div>
-        ) : (
+        ) : (canInventario && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 220, overflowY: 'auto', paddingRight: 4 }}>
             {todosLosInventarioLogs.length === 0 ? (
               <div style={{ fontSize: 9, color: 'var(--text-muted)', fontStyle: 'italic', textAlign: 'center', padding: '10px 0' }}>
@@ -5531,7 +5548,7 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
               </button>
             )}
           </div>
-        )}
+        ))}
       </div>
     );
   };
@@ -6025,7 +6042,7 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
       </div>
 
       {/* SECCIÓN PRINCIPAL: MÓDULOS Y KPIS A LA IZQUIERDA, CORTE Y HISTORIAL A LA DERECHA */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 240px', gap: 16, alignItems: 'flex-start' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: (user?.permisos ? user.permisos.caja_corte !== false : true) ? 'minmax(0, 1fr) 240px' : '1fr', gap: 16, alignItems: 'flex-start' }}>
         
         {/* COLUMNA IZQUIERDA: RESUMEN FINANCIERO Y MÉTRICAS */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -6326,131 +6343,133 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
         </div>
 
         {/* COLUMNA DERECHA: CORTE DE CAJA E HISTORIAL DE CORTES */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, padding: 12 }}>
-          <button className="btn btn-primary btn-sm" onClick={() => setMostrarCorte(true)} style={{ height: 36, fontSize: 12, width: '100%' }}>
-            <i className="ri-file-list-3-line" /> Corte de Caja
-          </button>
-          
-          {cortesFiltrados.length > 0 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <span style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', textAlign: 'center', borderBottom: '1px solid var(--border)', paddingBottom: 4, marginBottom: 2 }}>Historial Cortes</span>
-              
-              {/* Filtros rápidos del historial */}
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 4 }}>
-                <input
-                  type="text"
-                  placeholder="Filtrar por cajero..."
-                  value={filtroCorteOperador}
-                  onChange={e => setFiltroCorteOperador(e.target.value)}
-                  style={{
-                    flex: '1 1 100%',
-                    background: 'var(--bg-elevated)',
-                    border: '1px solid var(--border)',
-                    borderRadius: 4,
-                    color: '#fff',
-                    fontSize: 9.5,
-                    padding: '2px 6px',
-                    height: 20
-                  }}
-                />
-                <input
-                  type="date"
-                  value={filtroCorteInicio}
-                  onChange={e => setFiltroCorteInicio(e.target.value)}
-                  style={{
-                    flex: '1 1 calc(50% - 2px)',
-                    background: 'var(--bg-elevated)',
-                    border: '1px solid var(--border)',
-                    borderRadius: 4,
-                    color: '#fff',
-                    fontSize: 9.5,
-                    padding: '2px 4px',
-                    height: 20
-                  }}
-                  title="Fecha inicio"
-                />
-                <input
-                  type="date"
-                  value={filtroCorteFin}
-                  onChange={e => setFiltroCorteFin(e.target.value)}
-                  style={{
-                    flex: '1 1 calc(50% - 2px)',
-                    background: 'var(--bg-elevated)',
-                    border: '1px solid var(--border)',
-                    borderRadius: 4,
-                    color: '#fff',
-                    fontSize: 9.5,
-                    padding: '2px 4px',
-                    height: 20
-                  }}
-                  title="Fecha fin"
-                />
-              </div>
+        {(user?.permisos ? user.permisos.caja_corte !== false : true) && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, padding: 12 }}>
+            <button className="btn btn-primary btn-sm" onClick={() => setMostrarCorte(true)} style={{ height: 36, fontSize: 12, width: '100%' }}>
+              <i className="ri-file-list-3-line" /> Corte de Caja
+            </button>
+            
+            {cortesFiltrados.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <span style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', textAlign: 'center', borderBottom: '1px solid var(--border)', paddingBottom: 4, marginBottom: 2 }}>Historial Cortes</span>
+                
+                {/* Filtros rápidos del historial */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 4 }}>
+                  <input
+                    type="text"
+                    placeholder="Filtrar por cajero..."
+                    value={filtroCorteOperador}
+                    onChange={e => setFiltroCorteOperador(e.target.value)}
+                    style={{
+                      flex: '1 1 100%',
+                      background: 'var(--bg-elevated)',
+                      border: '1px solid var(--border)',
+                      borderRadius: 4,
+                      color: '#fff',
+                      fontSize: 9.5,
+                      padding: '2px 6px',
+                      height: 20
+                    }}
+                  />
+                  <input
+                    type="date"
+                    value={filtroCorteInicio}
+                    onChange={e => setFiltroCorteInicio(e.target.value)}
+                    style={{
+                      flex: '1 1 calc(50% - 2px)',
+                      background: 'var(--bg-elevated)',
+                      border: '1px solid var(--border)',
+                      borderRadius: 4,
+                      color: '#fff',
+                      fontSize: 9.5,
+                      padding: '2px 4px',
+                      height: 20
+                    }}
+                    title="Fecha inicio"
+                  />
+                  <input
+                    type="date"
+                    value={filtroCorteFin}
+                    onChange={e => setFiltroCorteFin(e.target.value)}
+                    style={{
+                      flex: '1 1 calc(50% - 2px)',
+                      background: 'var(--bg-elevated)',
+                      border: '1px solid var(--border)',
+                      borderRadius: 4,
+                      color: '#fff',
+                      fontSize: 9.5,
+                      padding: '2px 4px',
+                      height: 20
+                    }}
+                    title="Fecha fin"
+                  />
+                </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 180, overflowY: 'auto', paddingRight: 4 }}>
-                {cortesFiltrados.slice(0, 15).map(c => {
-                  const dateObj = new Date(c.fecha);
-                  const dateStr = dateObj.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: '2-digit' });
-                  const timeStr = dateObj.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
-                  
-                  const diffVal = Number(c.diferencia) || 0;
-                  const statusColor = diffVal === 0 ? 'var(--success)' : 'var(--danger)';
-                  const statusIcon = diffVal === 0 ? 'ri-checkbox-circle-fill' : 'ri-error-warning-fill';
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 180, overflowY: 'auto', paddingRight: 4 }}>
+                  {cortesFiltrados.slice(0, 15).map(c => {
+                    const dateObj = new Date(c.fecha);
+                    const dateStr = dateObj.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: '2-digit' });
+                    const timeStr = dateObj.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+                    
+                    const diffVal = Number(c.diferencia) || 0;
+                    const statusColor = diffVal === 0 ? 'var(--success)' : 'var(--danger)';
+                    const statusIcon = diffVal === 0 ? 'ri-checkbox-circle-fill' : 'ri-error-warning-fill';
 
-                  return (
-                    <button
-                      key={c.id}
-                      onClick={() => {
-                        setResumenCorteActivo({
-                          operador: c.operador,
-                          ultimoCorteFecha: c.ultimoCorteFecha,
-                          efectivoContado: c.efectivoContado,
-                          efectivoEsperado: c.efectivoEsperado,
-                          diferencia: c.diferencia,
-                          totalIngresos: c.totalIngresos,
-                          totalGastos: c.totalGastos,
-                          resumenIA: c.resumenIA,
-                          cantidadesDenom: c.cantidadesDenom || {},
-                          ingresosDetalle: c.ingresosDetalle || [],
-                          gastosDetalle: c.gastosDetalle || [],
-                          corteData: {
-                            ingresosEfectivo: c.efectivoEsperado + c.totalGastos,
-                            ingresosTarjeta: c.ingresosDetalle?.filter(i => i.metodo === 'tarjeta').reduce((s,i) => s+i.monto, 0) || 0,
-                            ingresosTransferencia: c.ingresosDetalle?.filter(i => i.metodo === 'transferencia').reduce((s,i) => s+i.monto, 0) || 0,
-                            ingresosDetalle: c.ingresosDetalle || [],
-                            gastosDetalle: c.gastosDetalle || [],
+                    return (
+                      <button
+                        key={c.id}
+                        onClick={() => {
+                          setResumenCorteActivo({
+                            operador: c.operador,
+                            ultimoCorteFecha: c.ultimoCorteFecha,
+                            efectivoContado: c.efectivoContado,
+                            efectivoEsperado: c.efectivoEsperado,
+                            diferencia: c.diferencia,
                             totalIngresos: c.totalIngresos,
                             totalGastos: c.totalGastos,
-                            efectivoEsperado: c.efectivoEsperado
-                          }
-                        });
-                        setMostrarResumenCorteModal(true);
-                      }}
+                            resumenIA: c.resumenIA,
+                            cantidadesDenom: c.cantidadesDenom || {},
+                            ingresosDetalle: c.ingresosDetalle || [],
+                            gastosDetalle: c.gastosDetalle || [],
+                            corteData: {
+                              ingresosEfectivo: c.efectivoEsperado + c.totalGastos,
+                              ingresosTarjeta: c.ingresosDetalle?.filter(i => i.metodo === 'tarjeta').reduce((s,i) => s+i.monto, 0) || 0,
+                              ingresosTransferencia: c.ingresosDetalle?.filter(i => i.metodo === 'transferencia').reduce((s,i) => s+i.monto, 0) || 0,
+                              ingresosDetalle: c.ingresosDetalle || [],
+                              gastosDetalle: c.gastosDetalle || [],
+                              totalIngresos: c.totalIngresos,
+                              totalGastos: c.totalGastos,
+                              efectivoEsperado: c.efectivoEsperado
+                            }
+                          });
+                          setMostrarResumenCorteModal(true);
+                        }}
+                        className="btn btn-secondary btn-xs"
+                        style={{ fontSize: 10, padding: '4px 6px', width: '100%', textAlign: 'left', display: 'flex', justifyContent: 'space-between', background: 'var(--bg-elevated)', border: '1px solid rgba(255,255,255,0.03)', borderRadius: 4 }}
+                        title={`Operador: ${c.operador || 'Cajero'}. Diferencia: $${diffVal.toLocaleString('es-MX')}`}
+                      >
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                          📅 {dateStr}
+                          <i className={statusIcon} style={{ color: statusColor, fontSize: 10 }} title={diffVal === 0 ? "Corte cuadrado" : `Diferencia: $${diffVal.toLocaleString('es-MX')}`} />
+                        </span>
+                        <span style={{ color: 'var(--text-muted)' }}>{timeStr}</span>
+                      </button>
+                    );
+                  })}
+                  {historialCortes.length === limiteCortesCaja && (
+                    <button
+                      onClick={() => setLimiteCortesCaja(prev => prev + 15)}
                       className="btn btn-secondary btn-xs"
-                      style={{ fontSize: 10, padding: '4px 6px', width: '100%', textAlign: 'left', display: 'flex', justifyContent: 'space-between', background: 'var(--bg-elevated)', border: '1px solid rgba(255,255,255,0.03)', borderRadius: 4 }}
-                      title={`Operador: ${c.operador || 'Cajero'}. Diferencia: $${diffVal.toLocaleString('es-MX')}`}
+                      style={{ fontSize: 9.5, padding: '3px 6px', width: '100%', marginTop: 2, background: 'transparent', border: '1px dashed var(--border)', color: 'var(--text-secondary)' }}
                     >
-                      <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                        📅 {dateStr}
-                        <i className={statusIcon} style={{ color: statusColor, fontSize: 10 }} title={diffVal === 0 ? "Corte cuadrado" : `Diferencia: $${diffVal.toLocaleString('es-MX')}`} />
-                      </span>
-                      <span style={{ color: 'var(--text-muted)' }}>{timeStr}</span>
+                      <i className="ri-arrow-down-double-line" /> Cargar más cortes...
                     </button>
-                  );
-                })}
-                {historialCortes.length === limiteCortesCaja && (
-                  <button
-                    onClick={() => setLimiteCortesCaja(prev => prev + 15)}
-                    className="btn btn-secondary btn-xs"
-                    style={{ fontSize: 9.5, padding: '3px 6px', width: '100%', marginTop: 2, background: 'transparent', border: '1px dashed var(--border)', color: 'var(--text-secondary)' }}
-                  >
-                    <i className="ri-arrow-down-double-line" /> Cargar más cortes...
-                  </button>
-                )}
+                  )}
               </div>
             </div>
           )}
       </div>
+    )}
     </div>
 
       {/* SELECTOR DE PERIODO - Exclusivo Admin/Gerente */}

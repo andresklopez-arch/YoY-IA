@@ -39,6 +39,16 @@ export default function BarPanel({ showToast }) {
   // Pestañas de inventario
   const [inventarioTab, setInventarioTab] = useState('productos'); // 'productos' | 'insumos'
 
+  useEffect(() => {
+    const canProductos = user?.permisos ? user.permisos.bar_productos !== false : true;
+    const canInsumos = user?.permisos ? user.permisos.bar_insumos !== false : true;
+    if (!canProductos && canInsumos && inventarioTab === 'productos') {
+      setInventarioTab('insumos');
+    } else if (canProductos && !canInsumos && inventarioTab === 'insumos') {
+      setInventarioTab('productos');
+    }
+  }, [user, inventarioTab]);
+
   // --- Estados de Recetario y Costeo ---
   const [recetas, setRecetas] = useState([]);
   const [recetaEditando, setRecetaEditando] = useState(null); // { productoId, nombre, precioVenta, ingredientes: [] }
@@ -1983,46 +1993,50 @@ export default function BarPanel({ showToast }) {
             </div>
             {/* PESTAÑAS DE PRODUCTOS / INSUMOS */}
             <div style={{ display: 'flex', gap: 16, borderBottom: '1px solid var(--border)', marginBottom: 12 }}>
-              <button
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: inventarioTab === 'productos' ? 'var(--bronze-light)' : 'var(--text-muted)',
-                  borderBottom: inventarioTab === 'productos' ? '2px solid var(--bronze-light)' : '2px solid transparent',
-                  padding: '6px 12px',
-                  cursor: 'pointer',
-                  fontWeight: 'bold',
-                  fontSize: 12,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  transition: 'all 0.2s ease',
-                  outline: 'none'
-                }}
-                onClick={() => setInventarioTab('productos')}
-              >
-                <i className="ri-archive-line" /> Productos
-              </button>
-              <button
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: inventarioTab === 'insumos' ? 'var(--bronze-light)' : 'var(--text-muted)',
-                  borderBottom: inventarioTab === 'insumos' ? '2px solid var(--bronze-light)' : '2px solid transparent',
-                  padding: '6px 12px',
-                  cursor: 'pointer',
-                  fontWeight: 'bold',
-                  fontSize: 12,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  transition: 'all 0.2s ease',
-                  outline: 'none'
-                }}
-                onClick={() => setInventarioTab('insumos')}
-              >
-                <i className="ri-restaurant-2-line" /> Insumos
-              </button>
+              {(user?.permisos ? user.permisos.bar_productos !== false : true) && (
+                <button
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: inventarioTab === 'productos' ? 'var(--bronze-light)' : 'var(--text-muted)',
+                    borderBottom: inventarioTab === 'productos' ? '2px solid var(--bronze-light)' : '2px solid transparent',
+                    padding: '6px 12px',
+                    cursor: 'pointer',
+                    fontWeight: 'bold',
+                    fontSize: 12,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    transition: 'all 0.2s ease',
+                    outline: 'none'
+                  }}
+                  onClick={() => setInventarioTab('productos')}
+                >
+                  <i className="ri-archive-line" /> Productos
+                </button>
+              )}
+              {(user?.permisos ? user.permisos.bar_insumos !== false : true) && (
+                <button
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: inventarioTab === 'insumos' ? 'var(--bronze-light)' : 'var(--text-muted)',
+                    borderBottom: inventarioTab === 'insumos' ? '2px solid var(--bronze-light)' : '2px solid transparent',
+                    padding: '6px 12px',
+                    cursor: 'pointer',
+                    fontWeight: 'bold',
+                    fontSize: 12,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    transition: 'all 0.2s ease',
+                    outline: 'none'
+                  }}
+                  onClick={() => setInventarioTab('insumos')}
+                >
+                  <i className="ri-restaurant-2-line" /> Insumos
+                </button>
+              )}
             </div>
 
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: densidadVista === 'compact' ? 12 : 13, textAlign: 'left' }}>

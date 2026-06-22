@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { obfuscate, deobfuscate } from '@/lib/crypto';
+import { useAuth } from '@/lib/auth-context';
 
 const INIT_CLIENTES = [];
 
@@ -12,11 +13,23 @@ const NIVEL_COLORS = {
 };
 
 export default function ClientesPanel({ showToast }) {
+  const { user } = useAuth();
   const [clientes, setClientes] = useState([]);
   const [busqueda, setBusqueda] = useState('');
   const [filtroTipo, setFiltroTipo] = useState('Todos');
   const [clienteDetalle, setClienteDetalle] = useState(null);
   const [tabActiva, setTabActiva] = useState('listado'); // 'listado' o 'analisis'
+
+  useEffect(() => {
+    const canListado = user?.permisos ? user.permisos.clientes_listado !== false : true;
+    const canAnalisis = user?.permisos ? user.permisos.clientes_analisis !== false : true;
+    if (!canListado && canAnalisis && tabActiva === 'listado') {
+      setTabActiva('analisis');
+    } else if (canListado && !canAnalisis && tabActiva === 'analisis') {
+      setTabActiva('listado');
+    }
+  }, [user, tabActiva]);
+
   const [showReporteCRM, setShowReporteCRM] = useState(false);
 
   // Modales
@@ -197,15 +210,19 @@ export default function ClientesPanel({ showToast }) {
 
       {/* Tabs de Secciones */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
-        <button className={`btn btn-sm ${tabActiva === 'listado' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTabActiva('listado')}>
-          <i className="ri-team-line" /> Listado de Clientes
-        </button>
-        <button className={`btn btn-sm ${tabActiva === 'analisis' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTabActiva('analisis')}>
-          <i className="ri-robot-line" /> Analizador de Clientes IA
-        </button>
+        {(user?.permisos ? user.permisos.clientes_listado !== false : true) && (
+          <button className={`btn btn-sm ${tabActiva === 'listado' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTabActiva('listado')}>
+            <i className="ri-team-line" /> Listado de Clientes
+          </button>
+        )}
+        {(user?.permisos ? user.permisos.clientes_analisis !== false : true) && (
+          <button className={`btn btn-sm ${tabActiva === 'analisis' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTabActiva('analisis')}>
+            <i className="ri-robot-line" /> Analizador de Clientes IA
+          </button>
+        )}
       </div>
 
-      {tabActiva === 'listado' ? (
+      {tabActiva === 'listado' && (user?.permisos ? user.permisos.clientes_listado !== false : true) ? (
         <>
           {/* Filtros */}
           <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap' }}>
@@ -303,160 +320,162 @@ export default function ClientesPanel({ showToast }) {
           </div>
         </>
       ) : (
-        /* Analizador de Clientes IA */
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-          {/* Tarjetas Analíticas de IA */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
-            <div className="card card-bronze" style={{ padding: 16 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Tasa de Retención</span>
-                <i className="ri-heart-line" style={{ color: 'var(--bronze-light)' }} />
+        canAnalisis && (
+          /* Analizador de Clientes IA */
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            {/* Tarjetas Analíticas de IA */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+              <div className="card card-bronze" style={{ padding: 16 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Tasa de Retención</span>
+                  <i className="ri-heart-line" style={{ color: 'var(--bronze-light)' }} />
+                </div>
+                <div style={{ fontSize: 26, fontWeight: 900, color: 'var(--bronze-light)' }}>
+                  {(() => {
+                    const vipEnRiesgo = clientes.filter(c => {
+                      const diffDays = Math.floor((new Date('2026-06-10') - new Date(c.ultima)) / 86400000);
+                      return (c.tipo === 'Socio' || c.gasto > 4000) && diffDays > 15;
+                    });
+                    return `${((clientes.length - vipEnRiesgo.length) / clientes.length * 100).toFixed(1)}%`;
+                  })()}
+                </div>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>Clientes habituales retenidos en los últimos 15 días</div>
               </div>
-              <div style={{ fontSize: 26, fontWeight: 900, color: 'var(--bronze-light)' }}>
-                {(() => {
-                  const vipEnRiesgo = clientes.filter(c => {
-                    const diffDays = Math.floor((new Date('2026-06-10') - new Date(c.ultima)) / 86400000);
-                    return (c.tipo === 'Socio' || c.gasto > 4000) && diffDays > 15;
-                  });
-                  return `${((clientes.length - vipEnRiesgo.length) / clientes.length * 100).toFixed(1)}%`;
-                })()}
+
+              <div className="card card-bronze" style={{ padding: 16 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>LTV Promedio</span>
+                  <i className="ri-money-dollar-box-line" style={{ color: 'var(--success)' }} />
+                </div>
+                <div style={{ fontSize: 26, fontWeight: 900, color: 'var(--success)' }}>
+                  ${(clientes.reduce((s,c) => s + c.gasto, 0) / clientes.length).toLocaleString('es-MX', { maximumFractionDigits: 0 })} MXN
+                </div>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>Valor total del ciclo de vida promedio por cliente</div>
               </div>
-              <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>Clientes habituales retenidos en los últimos 15 días</div>
+
+              <div className="card card-bronze" style={{ padding: 16 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Acciones Sugeridas</span>
+                  <i className="ri-flashlight-line" style={{ color: '#ffd700' }} />
+                </div>
+                <div style={{ fontSize: 26, fontWeight: 900, color: '#ffd700' }}>
+                  {(() => {
+                    const fidPend = clientes.filter(c => c.tipo === 'Público' && (c.gasto > 1500 || c.partidas > 15)).length;
+                    const vipRiesgo = clientes.filter(c => {
+                      const diffDays = Math.floor((new Date('2026-06-10') - new Date(c.ultima)) / 86400000);
+                      return (c.tipo === 'Socio' || c.gasto > 4000) && diffDays > 15;
+                    }).length;
+                    return vipRiesgo + fidPend;
+                  })()} Alertas
+                </div>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>Campañas de fidelización e incentivos de retorno recomendados</div>
+              </div>
             </div>
 
-            <div className="card card-bronze" style={{ padding: 16 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>LTV Promedio</span>
-                <i className="ri-money-dollar-box-line" style={{ color: 'var(--success)' }} />
+            {/* Secciones de Segmentación */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+              {/* VIP en Riesgo de Fuga */}
+              <div className="card" style={{ padding: 16, borderColor: 'rgba(239,68,68,0.2)' }}>
+                <h3 style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', color: 'var(--danger)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <i className="ri-error-warning-line" />
+                  VIP en Riesgo de Fuga
+                </h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {clientes
+                    .filter(c => {
+                      const diffDays = Math.floor((new Date('2026-06-10') - new Date(c.ultima)) / 86400000);
+                      return (c.tipo === 'Socio' || c.gasto > 4000) && diffDays > 15;
+                    })
+                    .map(c => {
+                      const diffDays = Math.floor((new Date('2026-06-10') - new Date(c.ultima)) / 86400000);
+                      return (
+                        <div key={c.id} style={{ background: 'var(--bg-elevated)', borderRadius: 10, padding: 12, border: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div>
+                            <div style={{ fontWeight: 700, fontSize: 12 }}>{c.nombre}</div>
+                            <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Última visita: hace {diffDays} días · Gasto: ${c.gasto}</div>
+                          </div>
+                          <button
+                            className="btn btn-secondary btn-sm"
+                            style={{ padding: '4px 8px', fontSize: 10, color: 'var(--danger)', borderColor: 'rgba(239,68,68,0.2)' }}
+                            onClick={() => {
+                              const msg = `¡Hola ${c.nombre}! Te extrañamos en YoY IA Billar. Como cliente VIP, queremos consentirte: en tu próxima visita tienes 1 hora de mesa gratis y 10% de descuento en el bar. ¡Muestra este mensaje para aplicar!`;
+                              window.open(`https://api.whatsapp.com/send?phone=${c.telefono.replace(/\D/g,'')}&text=${encodeURIComponent(msg)}`, '_blank');
+                            }}
+                          >
+                            <i className="ri-whatsapp-line" /> Reactivar
+                          </button>
+                        </div>
+                      );
+                    })}
+                </div>
               </div>
-              <div style={{ fontSize: 26, fontWeight: 900, color: 'var(--success)' }}>
-                ${(clientes.reduce((s,c) => s + c.gasto, 0) / clientes.length).toLocaleString('es-MX', { maximumFractionDigits: 0 })} MXN
-              </div>
-              <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>Valor total del ciclo de vida promedio por cliente</div>
-            </div>
 
-            <div className="card card-bronze" style={{ padding: 16 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Acciones Sugeridas</span>
-                <i className="ri-flashlight-line" style={{ color: '#ffd700' }} />
-              </div>
-              <div style={{ fontSize: 26, fontWeight: 900, color: '#ffd700' }}>
-                {(() => {
-                  const fidPend = clientes.filter(c => c.tipo === 'Público' && (c.gasto > 1500 || c.partidas > 15)).length;
-                  const vipRiesgo = clientes.filter(c => {
-                    const diffDays = Math.floor((new Date('2026-06-10') - new Date(c.ultima)) / 86400000);
-                    return (c.tipo === 'Socio' || c.gasto > 4000) && diffDays > 15;
-                  }).length;
-                  return vipRiesgo + fidPend;
-                })()} Alertas
-              </div>
-              <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>Campañas de fidelización e incentivos de retorno recomendados</div>
-            </div>
-          </div>
-
-          {/* Secciones de Segmentación */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
-            {/* VIP en Riesgo de Fuga */}
-            <div className="card" style={{ padding: 16, borderColor: 'rgba(239,68,68,0.2)' }}>
-              <h3 style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', color: 'var(--danger)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
-                <i className="ri-error-warning-line" />
-                VIP en Riesgo de Fuga
-              </h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {clientes
-                  .filter(c => {
-                    const diffDays = Math.floor((new Date('2026-06-10') - new Date(c.ultima)) / 86400000);
-                    return (c.tipo === 'Socio' || c.gasto > 4000) && diffDays > 15;
-                  })
-                  .map(c => {
-                    const diffDays = Math.floor((new Date('2026-06-10') - new Date(c.ultima)) / 86400000);
-                    return (
+              {/* Fidelización Pendiente */}
+              <div className="card" style={{ padding: 16, borderColor: 'rgba(205,127,50,0.2)' }}>
+                <h3 style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', color: 'var(--bronze-light)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <i className="ri-vip-crown-line" />
+                  Prospectos a Socios Mensuales
+                </h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {clientes
+                    .filter(c => c.tipo === 'Público' && (c.gasto > 1500 || c.partidas > 15))
+                    .map(c => (
                       <div key={c.id} style={{ background: 'var(--bg-elevated)', borderRadius: 10, padding: 12, border: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div>
                           <div style={{ fontWeight: 700, fontSize: 12 }}>{c.nombre}</div>
-                          <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Última visita: hace {diffDays} días · Gasto: ${c.gasto}</div>
+                          <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Partidas: {c.partidas} · Gasto: ${c.gasto}</div>
                         </div>
                         <button
                           className="btn btn-secondary btn-sm"
-                          style={{ padding: '4px 8px', fontSize: 10, color: 'var(--danger)', borderColor: 'rgba(239,68,68,0.2)' }}
+                          style={{ padding: '4px 8px', fontSize: 10, color: 'var(--bronze-light)', borderColor: 'var(--border-bronze)' }}
                           onClick={() => {
-                            const msg = `¡Hola ${c.nombre}! Te extrañamos en YoY IA Billar. Como cliente VIP, queremos consentirte: en tu próxima visita tienes 1 hora de mesa gratis y 10% de descuento en el bar. ¡Muestra este mensaje para aplicar!`;
+                            const msg = `¡Hola ${c.nombre}! Notamos que eres un jugador regular en YoY IA Billar 🎱. ¿Sabías que si te registras como Socio Mensual por solo $300, todas tus horas de mesa Carambola tienen un 50% de descuento y acumulas 5% de cashback en barra? ¡Pregúntanos en recepción!`;
                             window.open(`https://api.whatsapp.com/send?phone=${c.telefono.replace(/\D/g,'')}&text=${encodeURIComponent(msg)}`, '_blank');
                           }}
                         >
-                          <i className="ri-whatsapp-line" /> Reactivar
+                          <i className="ri-whatsapp-line" /> Ofrecer Socio
+                        </button>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Jugadores Estrella ELO */}
+            <div className="card" style={{ padding: 16 }}>
+              <h3 style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', color: 'var(--blue-light)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <i className="ri-sword-line" />
+                Jugadores Estrella & ELO Alto
+              </h3>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+                {clientes
+                  .filter(c => getEloOfCliente(c.nombre) > 1520 || c.partidas > 40)
+                  .map(c => {
+                    const clientElo = getEloOfCliente(c.nombre);
+                    return (
+                      <div key={c.id} style={{ background: 'var(--bg-elevated)', borderRadius: 10, padding: 12, border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        <div style={{ fontWeight: 700, fontSize: 12, display: 'flex', justifyContent: 'space-between' }}>
+                          <span>{c.nombre}</span>
+                          <span style={{ color: 'var(--blue-light)', fontWeight: 800 }}>{clientElo} ELO</span>
+                        </div>
+                        <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{c.partidas} partidas en torneos YoY</div>
+                        <button
+                          className="btn btn-secondary btn-sm"
+                          style={{ width: '100%', padding: '4px', fontSize: 9, marginTop: 4 }}
+                          onClick={() => {
+                            const msg = `¡Hola ${c.nombre}! Tienes un nivel de juego alto con {clientElo} puntos ELO. Te invitamos a inscribirte al Torneo Relámpago de este Sábado. ¡Cupos limitados!`;
+                            window.open(`https://api.whatsapp.com/send?phone=${c.telefono.replace(/\D/g,'')}&text=${encodeURIComponent(msg)}`, '_blank');
+                          }}
+                        >
+                          Invitar a Torneo
                         </button>
                       </div>
                     );
                   })}
               </div>
             </div>
-
-            {/* Fidelización Pendiente */}
-            <div className="card" style={{ padding: 16, borderColor: 'rgba(205,127,50,0.2)' }}>
-              <h3 style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', color: 'var(--bronze-light)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
-                <i className="ri-vip-crown-line" />
-                Prospectos a Socios Mensuales
-              </h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {clientes
-                  .filter(c => c.tipo === 'Público' && (c.gasto > 1500 || c.partidas > 15))
-                  .map(c => (
-                    <div key={c.id} style={{ background: 'var(--bg-elevated)', borderRadius: 10, padding: 12, border: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div>
-                        <div style={{ fontWeight: 700, fontSize: 12 }}>{c.nombre}</div>
-                        <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Partidas: {c.partidas} · Gasto: ${c.gasto}</div>
-                      </div>
-                      <button
-                        className="btn btn-secondary btn-sm"
-                        style={{ padding: '4px 8px', fontSize: 10, color: 'var(--bronze-light)', borderColor: 'var(--border-bronze)' }}
-                        onClick={() => {
-                          const msg = `¡Hola ${c.nombre}! Notamos que eres un jugador regular en YoY IA Billar 🎱. ¿Sabías que si te registras como Socio Mensual por solo $300, todas tus horas de mesa Carambola tienen un 50% de descuento y acumulas 5% de cashback en barra? ¡Pregúntanos en recepción!`;
-                          window.open(`https://api.whatsapp.com/send?phone=${c.telefono.replace(/\D/g,'')}&text=${encodeURIComponent(msg)}`, '_blank');
-                        }}
-                      >
-                        <i className="ri-whatsapp-line" /> Ofrecer Socio
-                      </button>
-                    </div>
-                  ))}
-              </div>
-            </div>
           </div>
-
-          {/* Jugadores Estrella ELO */}
-          <div className="card" style={{ padding: 16 }}>
-            <h3 style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', color: 'var(--blue-light)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
-              <i className="ri-sword-line" />
-              Jugadores Estrella & ELO Alto
-            </h3>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
-              {clientes
-                .filter(c => getEloOfCliente(c.nombre) > 1520 || c.partidas > 40)
-                .map(c => {
-                  const clientElo = getEloOfCliente(c.nombre);
-                  return (
-                    <div key={c.id} style={{ background: 'var(--bg-elevated)', borderRadius: 10, padding: 12, border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      <div style={{ fontWeight: 700, fontSize: 12, display: 'flex', justifyContent: 'space-between' }}>
-                        <span>{c.nombre}</span>
-                        <span style={{ color: 'var(--blue-light)', fontWeight: 800 }}>{clientElo} ELO</span>
-                      </div>
-                      <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{c.partidas} partidas en torneos YoY</div>
-                      <button
-                        className="btn btn-secondary btn-sm"
-                        style={{ width: '100%', padding: '4px', fontSize: 9, marginTop: 4 }}
-                        onClick={() => {
-                          const msg = `¡Hola ${c.nombre}! Tienes un nivel de juego alto con {clientElo} puntos ELO. Te invitamos a inscribirte al Torneo Relámpago de este Sábado. ¡Cupos limitados!`;
-                          window.open(`https://api.whatsapp.com/send?phone=${c.telefono.replace(/\D/g,'')}&text=${encodeURIComponent(msg)}`, '_blank');
-                        }}
-                      >
-                        Invitar a Torneo
-                      </button>
-                    </div>
-                  );
-                })}
-            </div>
-          </div>
-        </div>
+        )
       )}
 
       {/* Modal detalle cliente / Monedero */}

@@ -25,6 +25,133 @@ const ALERTAS_DEFINITIONS = [
   { id: 'tarifaDinamicaRecomendada', label: 'Recomendación de Tarifa', sub: 'Sugerir cambio de tarifa por alta demanda según día y hora' }
 ];
 
+const MENU_ESTRUCTURA = [
+  {
+    id: 'dashboard',
+    label: 'Dashboard',
+    submenus: []
+  },
+  {
+    id: 'mesas',
+    label: 'Mesas',
+    submenus: [
+      { id: 'mesas_ver', label: 'Ver Mesas' },
+      { id: 'mesas_fichaje', label: 'Pase de Lista / Fichaje' }
+    ]
+  },
+  {
+    id: 'caja',
+    label: 'INTELIGENCIA (Caja)',
+    submenus: [
+      { id: 'caja_transacciones', label: 'Transacciones' },
+      { id: 'caja_inventario', label: 'Inventario de Caja' },
+      { id: 'caja_corte', label: 'Corte de Caja / Auditoría' }
+    ]
+  },
+  {
+    id: 'bar',
+    label: 'Inventario IA (Bar)',
+    submenus: [
+      { id: 'bar_productos', label: 'Ver/Vender Productos' },
+      { id: 'bar_insumos', label: 'Ver/Editar Insumos' }
+    ]
+  },
+  {
+    id: 'clientes',
+    label: 'Clientes',
+    submenus: [
+      { id: 'clientes_listado', label: 'Listado / Directorio' },
+      { id: 'clientes_analisis', label: 'Análisis CRM' }
+    ]
+  },
+  {
+    id: 'torneos',
+    label: 'Torneos',
+    submenus: []
+  },
+  {
+    id: 'nomina',
+    label: 'Nómina & Gastos',
+    submenus: [
+      { id: 'nomina_empleados', label: 'Personal & Nóminas' },
+      { id: 'nomina_gastos', label: 'Gastos & Presupuestos' }
+    ]
+  },
+  {
+    id: 'config',
+    label: 'Configuración',
+    submenus: [
+      { id: 'config_mesas', label: 'Catálogo de Mesas' },
+      { id: 'config_usuarios', label: 'Catálogo de Usuarios / Seguridad' }
+    ]
+  }
+];
+
+const getDefaultPermisos = (role) => {
+  const perm = {
+    dashboard: false,
+    mesas: false,
+    mesas_ver: false,
+    mesas_fichaje: false,
+    caja: false,
+    caja_transacciones: false,
+    caja_inventario: false,
+    caja_corte: false,
+    bar: false,
+    bar_productos: false,
+    bar_insumos: false,
+    clientes: false,
+    clientes_listado: false,
+    clientes_analisis: false,
+    torneos: false,
+    nomina: false,
+    nomina_empleados: false,
+    nomina_gastos: false,
+    config: false,
+    config_mesas: false,
+    config_usuarios: false
+  };
+
+  if (role === 'admin') {
+    Object.keys(perm).forEach(k => perm[k] = true);
+  } else if (role === 'gerente') {
+    perm.dashboard = true;
+    perm.mesas = true;
+    perm.mesas_ver = true;
+    perm.mesas_fichaje = true;
+    perm.caja = true;
+    perm.caja_transacciones = true;
+    perm.caja_inventario = true;
+    perm.caja_corte = true;
+    perm.bar = true;
+    perm.bar_productos = true;
+    perm.bar_insumos = true;
+    perm.clientes = true;
+    perm.clientes_listado = true;
+    perm.clientes_analisis = true;
+    perm.torneos = true;
+    perm.nomina = true;
+    perm.nomina_empleados = true;
+    perm.nomina_gastos = true;
+  } else if (role === 'cajero') {
+    perm.dashboard = true;
+    perm.mesas = true;
+    perm.mesas_ver = true;
+    perm.caja = true;
+    perm.caja_transacciones = true;
+    perm.caja_inventario = true;
+    perm.caja_corte = true;
+    perm.clientes = true;
+    perm.clientes_listado = true;
+  } else if (role === 'mesero') {
+    perm.mesas = true;
+    perm.mesas_ver = true;
+    perm.bar = true;
+    perm.bar_productos = true;
+  }
+  return perm;
+};
+
 function areMesasEqual(arr1, arr2) {
   if (!arr1 || !arr2) return arr1 === arr2;
   if (arr1.length !== arr2.length) return false;
@@ -100,12 +227,17 @@ export default function ConfigPanel({ showToast }) {
   const [usuarios, setUsuarios] = useState([]);
   const [loadingUsuarios, setLoadingUsuarios] = useState(true);
   const [showAddUserModal, setShowAddUserModal] = useState(false);
-  const [newUser, setNewUser] = useState({ name: '', email: '', password: '', role: 'mesero' });
+  const [newUser, setNewUser] = useState({ name: '', email: '', password: '', role: 'mesero', permisos: getDefaultPermisos('mesero') });
   const [savingUser, setSavingUser] = useState(false);
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
   const [selectedUserForPassword, setSelectedUserForPassword] = useState(null);
   const [newPassword, setNewPassword] = useState('');
   const [savingUserPassword, setSavingUserPassword] = useState(false);
+
+  // Estados de Edición de Permisos
+  const [showEditPermissionsModal, setShowEditPermissionsModal] = useState(false);
+  const [selectedUserForPermissions, setSelectedUserForPermissions] = useState(null);
+  const [savingPermissions, setSavingPermissions] = useState(false);
 
   // --- Estados de Mesas Config ---
   const [mesas, setMesas] = useState([]);
@@ -678,11 +810,12 @@ export default function ConfigPanel({ showToast }) {
         email: formattedEmail,
         password: hashedPassword,
         role: newUser.role,
+        permisos: newUser.permisos || getDefaultPermisos(newUser.role),
         createdAt: new Date().toISOString()
       });
       showToast('¡Usuario creado! A partir de ahora el inicio de sesión es obligatorio.', 'success');
       setShowAddUserModal(false);
-      setNewUser({ name: '', email: '', password: '', role: 'mesero' });
+      setNewUser({ name: '', email: '', password: '', role: 'mesero', permisos: getDefaultPermisos('mesero') });
       clearUserDraft();
       fetchUsuarios();
     } catch (err) {
@@ -690,6 +823,25 @@ export default function ConfigPanel({ showToast }) {
       showToast('Error al guardar el usuario en Firestore', 'error');
     } finally {
       setSavingUser(false);
+    }
+  };
+
+  const handleUpdatePermissions = async () => {
+    if (!selectedUserForPermissions) return;
+    setSavingPermissions(true);
+    try {
+      const userRef = doc(db, 'users', selectedUserForPermissions.id);
+      await setDoc(userRef, {
+        permisos: selectedUserForPermissions.permisos
+      }, { merge: true });
+      showToast('Permisos actualizados con éxito ✓', 'success');
+      setShowEditPermissionsModal(false);
+      fetchUsuarios();
+    } catch (err) {
+      console.error("Error al actualizar permisos:", err);
+      showToast('Error al guardar los permisos en Firestore', 'error');
+    } finally {
+      setSavingPermissions(false);
     }
   };
 
@@ -1759,6 +1911,68 @@ export default function ConfigPanel({ showToast }) {
 
   // Recipe methods removed
 
+  const renderPermissionsSelector = (permisosObject, onChangeFn) => {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14, background: 'rgba(0,0,0,0.2)', padding: 14, borderRadius: 12, border: '1px solid var(--border)', maxHeight: 260, overflowY: 'auto' }}>
+        <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Configuración de Accesos</span>
+        {MENU_ESTRUCTURA.map(menu => {
+          const isMenuChecked = permisosObject[menu.id] === true;
+          return (
+            <div key={menu.id} style={{ display: 'flex', flexDirection: 'column', gap: 6, borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: 10 }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', color: 'var(--text-primary)' }}>
+                <input
+                  type="checkbox"
+                  checked={isMenuChecked}
+                  onChange={e => {
+                    const checked = e.target.checked;
+                    const updated = { ...permisosObject, [menu.id]: checked };
+                    // If disabling menu, also disable submenus
+                    if (!checked) {
+                      menu.submenus.forEach(sub => {
+                        updated[sub.id] = false;
+                      });
+                    } else {
+                      // If enabling menu, default enabling submenus
+                      menu.submenus.forEach(sub => {
+                        updated[sub.id] = true;
+                      });
+                    }
+                    onChangeFn(updated);
+                  }}
+                  style={{ accentColor: 'var(--bronze-light)', cursor: 'pointer' }}
+                />
+                {menu.label}
+              </label>
+              {menu.submenus.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingLeft: 22, opacity: isMenuChecked ? 1 : 0.5, pointerEvents: isMenuChecked ? 'auto' : 'none' }}>
+                  {menu.submenus.map(sub => (
+                    <label key={sub.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: 'var(--text-secondary)', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={permisosObject[sub.id] === true}
+                        onChange={e => {
+                          const checked = e.target.checked;
+                          const updated = { ...permisosObject, [sub.id]: checked };
+                          // If enabling a submenu, make sure its parent menu is also enabled
+                          if (checked) {
+                            updated[menu.id] = true;
+                          }
+                          onChangeFn(updated);
+                        }}
+                        style={{ accentColor: 'var(--bronze)', cursor: 'pointer' }}
+                      />
+                      {sub.label}
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
   return (
     <div>
       {/* Elementos QR Canvas ocultos para descarga local y empaquetado ZIP */}
@@ -2374,405 +2588,434 @@ export default function ConfigPanel({ showToast }) {
                 })}
               </div>
             </div>
-            <div className="card" style={{ padding: '12px 14px' }}>
-              <div className="card-header" style={{ marginBottom: 12 }}>
-                <h3 className="card-title"><i className="ri-qr-code-line" style={{ marginRight: 6 }} />Impresión de QRs por Mesa</h3>
-              </div>
-              <p style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 10, lineHeight: 1.4 }}>
-                Genera y descarga códigos QR para pegar en las mesas. Permite a los clientes pedir servicio o recargar tiempo en su celular.
-              </p>
-              <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-                <button
-                  className="btn btn-primary"
-                  onClick={() => imprimirQRs(null)}
-                  style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '8px 10px', fontSize: '11px' }}
-                >
-                  <i className="ri-printer-line" /> Imprimir Todos
-                </button>
-                <button
-                  className="btn btn-secondary"
-                  onClick={descargarTodosLosQRsZIP}
-                  style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '8px 10px', fontSize: '11px' }}
-                >
-                  <i className="ri-download-2-line" /> ZIP
-                </button>
-              </div>
-              
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 260, overflowY: 'auto' }}>
-                {/* QR de Fila Virtual - Autoservicio */}
-                <div style={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  justifyContent: 'space-between', 
-                  padding: '6px 10px', 
-                  background: 'rgba(197, 168, 128, 0.08)', 
-                  border: '1.5px solid rgba(197, 168, 128, 0.3)', 
-                  borderRadius: 10,
-                  marginBottom: 2
-                }}>
-                  <div 
-                    style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}
-                    onClick={() => setPreviewQr({
-                      title: 'Fila Virtual (Autoservicio)',
-                      value: typeof window !== 'undefined' ? `${window.location.origin}/fila/registro` : 'https://yoy-ia-billar.vercel.app/fila/registro',
-                      filename: 'fila_de_espera.png'
-                    })}
-                    title="Previsualizar QR"
-                  >
-                    <img 
-                      src={`https://api.qrserver.com/v1/create-qr-code/?size=60x60&data=${encodeURIComponent(typeof window !== 'undefined' ? `${window.location.origin}/fila/registro` : 'https://yoy-ia-billar.vercel.app/fila/registro')}`} 
-                      width="32" 
-                      height="32" 
-                      style={{ borderRadius: 6, background: '#fff', padding: 2, border: '1px solid var(--border)' }} 
-                      alt="QR Fila Virtual" 
-                    />
-                    <div>
-                      <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--bronze-light)' }}>Fila Virtual</span>
-                      <div style={{ fontSize: 10, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <span>Registro por QR</span>
-                        <i className="ri-eye-line" style={{ fontSize: 10 }} />
-                      </div>
-                    </div>
+            {(!user?.permisos || user.permisos.config_mesas !== false) && (
+              <>
+                <div className="card" style={{ padding: '12px 14px' }}>
+                  <div className="card-header" style={{ marginBottom: 12 }}>
+                    <h3 className="card-title"><i className="ri-qr-code-line" style={{ marginRight: 6 }} />Impresión de QRs por Mesa</h3>
                   </div>
-                  <div style={{ display: 'flex', gap: 4 }}>
+                  <p style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 10, lineHeight: 1.4 }}>
+                    Genera y descarga códigos QR para pegar en las mesas. Permite a los clientes pedir servicio o recargar tiempo en su celular.
+                  </p>
+                  <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
                     <button
-                      className="btn btn-secondary btn-sm"
-                      onClick={() => descargarQR('fila')}
-                      style={{ fontSize: 10, padding: '4px 6px', display: 'flex', alignItems: 'center', gap: 2 }}
+                      className="btn btn-primary"
+                      onClick={() => imprimirQRs(null)}
+                      style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '8px 10px', fontSize: '11px' }}
                     >
-                      <i className="ri-download-2-line" />
+                      <i className="ri-printer-line" /> Imprimir Todos
                     </button>
                     <button
-                      className="btn btn-secondary btn-sm"
-                      onClick={imprimirQRRegistroVirtual}
-                      style={{ fontSize: 10, padding: '4px 6px', display: 'flex', alignItems: 'center', gap: 2 }}
+                      className="btn btn-secondary"
+                      onClick={descargarTodosLosQRsZIP}
+                      style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '8px 10px', fontSize: '11px' }}
                     >
-                      <i className="ri-printer-line" />
+                      <i className="ri-download-2-line" /> ZIP
                     </button>
                   </div>
-                </div>
-
-                {/* QRs de Mesas */}
-                {mesas.map(m => (
-                  <div key={m.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 10 }}>
-                    <div 
-                      style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}
-                      onClick={() => setPreviewQr({
-                        title: m.nombre,
-                        value: typeof window !== 'undefined' ? `${window.location.origin}/mesa/${m.id}` : `https://yoy-ia-billar.vercel.app/mesa/${m.id}`,
-                        filename: getTableFilename(m),
-                        mesaId: m.id
-                      })}
-                      title="Previsualizar QR"
-                    >
-                      <img src={`https://api.qrserver.com/v1/create-qr-code/?size=60x60&data=${encodeURIComponent(typeof window !== 'undefined' ? `${window.location.origin}/mesa/${m.id}` : `https://yoy-ia-billar.vercel.app/mesa/${m.id}`)}`} width="32" height="32" style={{ borderRadius: 6, background: '#fff', padding: 2, border: '1px solid var(--border)' }} alt="QR Mesa" />
-                      <div>
-                        <span style={{ fontSize: 12, fontWeight: 700 }}>{m.nombre}</span>
-                        <div style={{ fontSize: 10, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
-                          <span>Mesa ID: {m.id}</span>
-                          <i className="ri-eye-line" style={{ fontSize: 10 }} />
+                  
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 260, overflowY: 'auto' }}>
+                    {/* QR de Fila Virtual - Autoservicio */}
+                    <div style={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      justifyContent: 'space-between', 
+                      padding: '6px 10px', 
+                      background: 'rgba(197, 168, 128, 0.08)', 
+                      border: '1.5px solid rgba(197, 168, 128, 0.3)', 
+                      borderRadius: 10,
+                      marginBottom: 2
+                    }}>
+                      <div 
+                        style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}
+                        onClick={() => setPreviewQr({
+                          title: 'Fila Virtual (Autoservicio)',
+                          value: typeof window !== 'undefined' ? `${window.location.origin}/fila/registro` : 'https://yoy-ia-billar.vercel.app/fila/registro',
+                          filename: 'fila_de_espera.png'
+                        })}
+                        title="Previsualizar QR"
+                      >
+                        <img 
+                          src={`https://api.qrserver.com/v1/create-qr-code/?size=60x60&data=${encodeURIComponent(typeof window !== 'undefined' ? `${window.location.origin}/fila/registro` : 'https://yoy-ia-billar.vercel.app/fila/registro')}`} 
+                          width="32" 
+                          height="32" 
+                          style={{ borderRadius: 6, background: '#fff', padding: 2, border: '1px solid var(--border)' }} 
+                          alt="QR Fila Virtual" 
+                        />
+                        <div>
+                          <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--bronze-light)' }}>Fila Virtual</span>
+                          <div style={{ fontSize: 10, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <span>Registro por QR</span>
+                            <i className="ri-eye-line" style={{ fontSize: 10 }} />
+                          </div>
                         </div>
                       </div>
+                      <div style={{ display: 'flex', gap: 4 }}>
+                        <button
+                          className="btn btn-secondary btn-sm"
+                          onClick={() => descargarQR('fila')}
+                          style={{ fontSize: 10, padding: '4px 6px', display: 'flex', alignItems: 'center', gap: 2 }}
+                        >
+                          <i className="ri-download-2-line" />
+                        </button>
+                        <button
+                          className="btn btn-secondary btn-sm"
+                          onClick={imprimirQRRegistroVirtual}
+                          style={{ fontSize: 10, padding: '4px 6px', display: 'flex', alignItems: 'center', gap: 2 }}
+                        >
+                          <i className="ri-printer-line" />
+                        </button>
+                      </div>
                     </div>
-                    <div style={{ display: 'flex', gap: 4 }}>
-                      <button
-                        className="btn btn-secondary btn-sm"
-                        onClick={() => descargarQR('mesa', m.id)}
-                        style={{ fontSize: 10, padding: '4px 6px', display: 'flex', alignItems: 'center', gap: 2 }}
-                      >
-                        <i className="ri-download-2-line" />
-                      </button>
-                      <button
-                        className="btn btn-secondary btn-sm"
-                        onClick={() => imprimirQRs(m.id)}
-                        style={{ fontSize: 10, padding: '4px 6px', display: 'flex', alignItems: 'center', gap: 2 }}
-                      >
-                        <i className="ri-printer-line" />
-                      </button>
+
+                    {/* QRs de Mesas */}
+                    {mesas.map(m => (
+                      <div key={m.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 10 }}>
+                        <div 
+                          style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}
+                          onClick={() => setPreviewQr({
+                            title: m.nombre,
+                            value: typeof window !== 'undefined' ? `${window.location.origin}/mesa/${m.id}` : `https://yoy-ia-billar.vercel.app/mesa/${m.id}`,
+                            filename: getTableFilename(m),
+                            mesaId: m.id
+                          })}
+                          title="Previsualizar QR"
+                        >
+                          <img src={`https://api.qrserver.com/v1/create-qr-code/?size=60x60&data=${encodeURIComponent(typeof window !== 'undefined' ? `${window.location.origin}/mesa/${m.id}` : `https://yoy-ia-billar.vercel.app/mesa/${m.id}`)}`} width="32" height="32" style={{ borderRadius: 6, background: '#fff', padding: 2, border: '1px solid var(--border)' }} alt="QR Mesa" />
+                          <div>
+                            <span style={{ fontSize: 12, fontWeight: 700 }}>{m.nombre}</span>
+                            <div style={{ fontSize: 10, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                              <span>Mesa ID: {m.id}</span>
+                              <i className="ri-eye-line" style={{ fontSize: 10 }} />
+                            </div>
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: 4 }}>
+                          <button
+                            className="btn btn-secondary btn-sm"
+                            onClick={() => descargarQR('mesa', m.id)}
+                            style={{ fontSize: 10, padding: '4px 6px', display: 'flex', alignItems: 'center', gap: 2 }}
+                          >
+                            <i className="ri-download-2-line" />
+                          </button>
+                          <button
+                            className="btn btn-secondary btn-sm"
+                            onClick={() => imprimirQRs(m.id)}
+                            style={{ fontSize: 10, padding: '4px 6px', display: 'flex', alignItems: 'center', gap: 2 }}
+                          >
+                            <i className="ri-printer-line" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="card" style={{ padding: '12px 14px' }}>
+                  <div className="card-header" style={{ marginBottom: 12 }}>
+                    <h3 className="card-title"><i className="ri-hand-coin-line" style={{ marginRight: 6 }} />Cortesías por Turno</h3>
+                    <span className="badge badge-secondary" style={{ fontSize: '9px', padding: '2px 6px' }}>Anti-Fraude</span>
+                  </div>
+                  <p style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 10, lineHeight: 1.4 }}>
+                    Cortesías ($0) que puede otorgar un mesero por turno sin PIN. Al superar este límite, se solicitará el PIN del admin.
+                  </p>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div className="form-group" style={{ flex: 1, margin: 0, gap: 4 }}>
+                      <input
+                        type="number"
+                        className="form-input"
+                        min={0}
+                        max={20}
+                        value={maxCortesiasPorTurno}
+                        onChange={e => setMaxCortesiasPorTurno(Number(e.target.value) || 0)}
+                        style={{ width: 80, textAlign: 'center', fontSize: 16, fontWeight: 700, padding: '6px 10px' }}
+                      />
+                      <p style={{ fontSize: 9, color: 'var(--text-muted)', margin: 0 }}>0 = siempre requiere PIN</p>
+                    </div>
+                    <button
+                      className="btn btn-primary"
+                      style={{ flexShrink: 0, padding: '8px 12px', fontSize: '11px' }}
+                      disabled={savingLimiteCortesias}
+                      onClick={async () => {
+                        setSavingLimiteCortesias(true);
+                        try {
+                          const { db } = await import('@/lib/firebase');
+                          const { doc, setDoc, serverTimestamp } = await import('firebase/firestore');
+                          await setDoc(doc(db, 'config', 'operacion'), {
+                            maxCortesiasPorTurno: maxCortesiasPorTurno,
+                            updatedAt: serverTimestamp()
+                          }, { merge: true });
+                          showToast(`Límite guardado: ${maxCortesiasPorTurno} por turno`, 'success');
+                        } catch (e) {
+                          console.error(e);
+                          showToast('Error al guardar el límite', 'danger');
+                        } finally {
+                          setSavingLimiteCortesias(false);
+                        }
+                      }}
+                    >
+                      <i className="ri-save-line" /> {savingLimiteCortesias ? '...' : 'Guardar'}
+                    </button>
+                  </div>
+                  <div style={{ marginTop: 10, background: 'rgba(249,115,22,0.08)', border: '1px solid rgba(249,115,22,0.2)', borderRadius: 10, padding: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#f97316', fontSize: 11, fontWeight: 700, lineHeight: 1.3 }}>
+                      <i className="ri-information-line" />
+                      <span>{maxCortesiasPorTurno === 0 ? 'Requiere PIN del admin siempre' : `Hasta ${maxCortesiasPorTurno} cortesías sin PIN`}</span>
                     </div>
                   </div>
-                ))}
-              </div>
-            </div>
-            <div className="card" style={{ padding: '12px 14px' }}>
-              <div className="card-header" style={{ marginBottom: 12 }}>
-                <h3 className="card-title"><i className="ri-hand-coin-line" style={{ marginRight: 6 }} />Cortesías por Turno</h3>
-                <span className="badge badge-secondary" style={{ fontSize: '9px', padding: '2px 6px' }}>Anti-Fraude</span>
-              </div>
-              <p style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 10, lineHeight: 1.4 }}>
-                Cortesías ($0) que puede otorgar un mesero por turno sin PIN. Al superar este límite, se solicitará el PIN del admin.
-              </p>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div className="form-group" style={{ flex: 1, margin: 0, gap: 4 }}>
-                  <input
-                    type="number"
-                    className="form-input"
-                    min={0}
-                    max={20}
-                    value={maxCortesiasPorTurno}
-                    onChange={e => setMaxCortesiasPorTurno(Number(e.target.value) || 0)}
-                    style={{ width: 80, textAlign: 'center', fontSize: 16, fontWeight: 700, padding: '6px 10px' }}
-                  />
-                  <p style={{ fontSize: 9, color: 'var(--text-muted)', margin: 0 }}>0 = siempre requiere PIN</p>
                 </div>
-                <button
-                  className="btn btn-primary"
-                  style={{ flexShrink: 0, padding: '8px 12px', fontSize: '11px' }}
-                  disabled={savingLimiteCortesias}
-                  onClick={async () => {
-                    setSavingLimiteCortesias(true);
-                    try {
-                      const { db } = await import('@/lib/firebase');
-                      const { doc, setDoc, serverTimestamp } = await import('firebase/firestore');
-                      await setDoc(doc(db, 'config', 'operacion'), {
-                        maxCortesiasPorTurno: maxCortesiasPorTurno,
-                        updatedAt: serverTimestamp()
-                      }, { merge: true });
-                      showToast(`Límite guardado: ${maxCortesiasPorTurno} por turno`, 'success');
-                    } catch (e) {
-                      console.error(e);
-                      showToast('Error al guardar el límite', 'danger');
-                    } finally {
-                      setSavingLimiteCortesias(false);
-                    }
-                  }}
-                >
-                  <i className="ri-save-line" /> {savingLimiteCortesias ? '...' : 'Guardar'}
-                </button>
-              </div>
-              <div style={{ marginTop: 10, background: 'rgba(249,115,22,0.08)', border: '1px solid rgba(249,115,22,0.2)', borderRadius: 10, padding: 8 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#f97316', fontSize: 11, fontWeight: 700, lineHeight: 1.3 }}>
-                  <i className="ri-information-line" />
-                  <span>{maxCortesiasPorTurno === 0 ? 'Requiere PIN del admin siempre' : `Hasta ${maxCortesiasPorTurno} cortesías sin PIN`}</span>
+              </>
+            )}
+            {(!user?.permisos || user.permisos.config_mesas !== false) && (
+              <div className="card" style={{ padding: '12px 14px' }}>
+                <div className="card-header" style={{ marginBottom: 12 }}>
+                  <h3 className="card-title"><i className="ri-grid-line" style={{ marginRight: 6 }} />Configuración de Mesas</h3>
+                </div>
+                <form onSubmit={handleSaveMesa} style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 12, background: 'var(--bg-elevated)', padding: '10px 12px', borderRadius: 12, border: '1px solid var(--border)' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '70px 1fr', gap: 10 }}>
+                    <div className="form-group" style={{ gap: 4 }}>
+                      <label className="form-label">Número</label>
+                      <input
+                        type="number"
+                        className="form-input"
+                        placeholder="Auto"
+                        value={nuevaMesa.id || ''}
+                        onChange={e => setNuevaMesa(p => ({ ...p, id: e.target.value }))}
+                        disabled={editingMesaId !== null}
+                        style={{ padding: '6px 10px', fontSize: '13px', height: 32 }}
+                      />
+                    </div>
+                    <div className="form-group" style={{ gap: 4 }}>
+                      <label className="form-label">Nombre (Opcional)</label>
+                      <input
+                        className="form-input"
+                        placeholder={editingMesaId !== null ? "Ej: Mesa 1" : "Opcional (Ej: Mesa VIP)"}
+                        value={nuevaMesa.nombre}
+                        onChange={e => setNuevaMesa(p => ({ ...p, nombre: e.target.value }))}
+                        style={{ padding: '6px 10px', fontSize: '13px', height: 32 }}
+                      />
+                    </div>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 10 }}>
+                    <div className="form-group" style={{ gap: 4 }}>
+                      <label className="form-label">Tarifa por Hora ($)</label>
+                      <input
+                        type="number"
+                        className="form-input"
+                        placeholder="Ej: 60"
+                        min={0}
+                        value={nuevaMesa.tarifa || ''}
+                        onChange={e => setNuevaMesa(p => ({ ...p, tarifa: e.target.value }))}
+                        required
+                        style={{ padding: '6px 10px', fontSize: '13px', height: 32 }}
+                      />
+                    </div>
+                    <div className="form-group" style={{ gap: 4 }}>
+                      <label className="form-label">Modalidad</label>
+                      <select
+                        className="form-select"
+                        value={nuevaMesa.tipo}
+                        onChange={e => setNuevaMesa(p => ({ ...p, tipo: e.target.value }))}
+                        style={{ padding: '6px 10px', fontSize: '13px', background: 'var(--bg-elevated)', color: '#fff', border: '1px solid var(--border)', borderRadius: 6, height: 32 }}
+                      >
+                        <option value="Pool">Pool</option>
+                        <option value="Carambola">Carambola</option>
+                        <option value="Snooker">Snooker</option>
+                        <option value="Dominó">Dominó</option>
+                        <option value="Consumo">Consumo Mín.</option>
+                        <option value="Otro">Otro Tipo</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {nuevaMesa.tipo === 'Otro' && (
+                    <div className="form-group animate-fadeIn" style={{ gap: 4 }}>
+                      <label className="form-label">Especificar Tipo</label>
+                      <input
+                        className="form-input"
+                        placeholder="Ej: Futbolito, Ping Pong"
+                        value={customMesaTipo}
+                        onChange={e => setCustomMesaTipo(e.target.value)}
+                        required
+                        style={{ padding: '6px 10px', fontSize: '13px', height: 32 }}
+                      />
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                    {editingMesaId !== null && (
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        style={{ flex: 1, padding: '4px 8px', fontSize: '11px' }}
+                        onClick={() => {
+                          setEditingMesaId(null);
+                          setNuevaMesa({ id: '', nombre: '', tarifa: '', tipo: 'Pool' });
+                          setCustomMesaTipo('');
+                          setShowCustomTipoInput(false);
+                          clearMesaDraft();
+                        }}
+                      >
+                        Cancelar
+                      </button>
+                    )}
+                    <button
+                      type="submit"
+                      className="btn btn-primary btn-sm"
+                      style={{ flex: 2, padding: '4px 8px', fontSize: '11px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}
+                    >
+                      <i className={editingMesaId !== null ? "ri-save-line" : "ri-add-line"} />
+                      {editingMesaId !== null ? 'Guardar Cambios' : 'Agregar Mesa'}
+                    </button>
+                  </div>
+                </form>
+
+                {/* Listado de Mesas */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 220, overflowY: 'auto' }}>
+                  {mesas.map(m => (
+                    <div key={m.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)', borderRadius: 10 }}>
+                      <div>
+                        <div style={{ fontSize: 12, fontWeight: 700 }}>{m.nombre} <span style={{ fontSize: 10, color: 'var(--bronze-light)' }}>({m.tipo})</span></div>
+                        <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Tarifa: ${m.tarifa}/hr</div>
+                      </div>
+                      <div style={{ display: 'flex', gap: 4 }}>
+                        <button className="btn btn-secondary btn-icon sm" style={{ width: 26, height: 26, minWidth: 26, padding: 0 }} onClick={() => handleEditMesa(m)}>
+                          <i className="ri-pencil-line" />
+                        </button>
+                        <button className="btn btn-secondary btn-icon sm" style={{ width: 26, height: 26, minWidth: 26, padding: 0, color: '#ef4444' }} onClick={() => handleDeleteMesa(m.id)}>
+                          <i className="ri-delete-bin-line" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
-            </div>
+            )}
             </div>
 
             {/* COLUMNA 3 */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div className="card" style={{ padding: '12px 14px' }}>
-              <div className="card-header" style={{ marginBottom: 12 }}>
-                <h3 className="card-title"><i className="ri-grid-line" style={{ marginRight: 6 }} />Configuración de Mesas</h3>
-              </div>
-              <form onSubmit={handleSaveMesa} style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 12, background: 'var(--bg-elevated)', padding: '10px 12px', borderRadius: 12, border: '1px solid var(--border)' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '70px 1fr', gap: 10 }}>
-                  <div className="form-group" style={{ gap: 4 }}>
-                    <label className="form-label">Número</label>
-                    <input
-                      type="number"
-                      className="form-input"
-                      placeholder="Auto"
-                      value={nuevaMesa.id || ''}
-                      onChange={e => setNuevaMesa(p => ({ ...p, id: e.target.value }))}
-                      disabled={editingMesaId !== null}
-                      style={{ padding: '6px 10px', fontSize: '13px', height: 32 }}
-                    />
-                  </div>
-                  <div className="form-group" style={{ gap: 4 }}>
-                    <label className="form-label">Nombre (Opcional)</label>
-                    <input
-                      className="form-input"
-                      placeholder={editingMesaId !== null ? "Ej: Mesa 1" : "Opcional (Ej: Mesa VIP)"}
-                      value={nuevaMesa.nombre}
-                      onChange={e => setNuevaMesa(p => ({ ...p, nombre: e.target.value }))}
-                      style={{ padding: '6px 10px', fontSize: '13px', height: 32 }}
-                    />
-                  </div>
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                  <div className="form-group" style={{ gap: 4 }}>
-                    <label className="form-label">Tarifa ($/hr)</label>
-                    <input
-                      type="number"
-                      className="form-input"
-                      placeholder="60"
-                      value={nuevaMesa.tarifa}
-                      onChange={e => setNuevaMesa(p => ({ ...p, tarifa: e.target.value }))}
-                      required
-                      style={{ padding: '6px 10px', fontSize: '13px', height: 32 }}
-                    />
-                  </div>
-                  <div className="form-group" style={{ gap: 4 }}>
-                    <label className="form-label">Tipo de Mesa</label>
-                    <select
-                      className="form-select"
-                      value={nuevaMesa.tipo}
-                      onChange={e => {
-                        const val = e.target.value;
-                        setNuevaMesa(p => ({ ...p, tipo: val }));
-                        if (val === 'Otro') {
-                          setShowCustomTipoInput(true);
-                        } else {
-                          setShowCustomTipoInput(false);
-                        }
-                      }}
-                      style={{ background: 'var(--bg-elevated)', color: 'var(--text-main)', border: '1px solid var(--border)', height: 32, padding: '4px 10px', fontSize: '13px' }}
-                    >
-                      <option value="Pool">Pool</option>
-                      <option value="Carambola">Carambola</option>
-                      <option value="Snooker">Snooker</option>
-                      <option value="Dominó">Dominó</option>
-                      <option value="Consumo">Consumo</option>
-                      <option value="Otro">Otro (Especifique)...</option>
-                    </select>
-                  </div>
-                </div>
-                {showCustomTipoInput && (
-                  <div className="form-group" style={{ gap: 4, marginTop: 4 }}>
-                    <label className="form-label">Especifique Tipo de Mesa</label>
-                    <input
-                      type="text"
-                      className="form-input"
-                      placeholder="Ej: Ping Pong, Futbolito..."
-                      value={customMesaTipo}
-                      onChange={e => setCustomMesaTipo(e.target.value)}
-                      style={{ padding: '6px 10px', fontSize: '13px', height: 32 }}
-                      required
-                    />
-                  </div>
-                )}
-                <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                  {editingMesaId !== null && (
-                    <button
-                      type="button"
-                      className="btn btn-secondary"
-                      style={{ flex: 1, height: 32, padding: '4px 8px', fontSize: '11px' }}
-                      onClick={() => {
-                        setEditingMesaId(null);
-                        setNuevaMesa({ id: '', nombre: '', tarifa: '', tipo: 'Pool' });
-                        setCustomMesaTipo('');
-                        setShowCustomTipoInput(false);
-                      }}
-                    >
-                      Cancelar
-                    </button>
-                  )}
-                  <button type="submit" className="btn btn-primary" style={{ flex: 2, height: 32, padding: '4px 8px', fontSize: '11px' }}>
-                    {editingMesaId !== null ? 'Guardar Cambios' : 'Agregar Mesa'}
+            {(!user?.permisos || user.permisos.config_usuarios !== false) && (
+              <div className="card" style={{ padding: '12px 14px' }}>
+                <div className="card-header" style={{ marginBottom: 12 }}>
+                  <h3 className="card-title"><i className="ri-shield-user-line" style={{ marginRight: 6 }} />Usuarios y Roles</h3>
+                  <button className="btn btn-primary btn-sm" title="Agregar nuevo usuario" onClick={() => setShowAddUserModal(true)} style={{ padding: '4px 8px' }}>
+                    <i className="ri-user-add-line" />
                   </button>
                 </div>
-              </form>
-
-              {/* Listado de Mesas */}
-              <div style={{ maxHeight: 180, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
-                {mesas.map(m => (
-                  <div key={m.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)', borderRadius: 10 }}>
-                    <div>
-                      <div style={{ fontSize: 12, fontWeight: 700 }}>{m.nombre} <span style={{ fontSize: 10, color: 'var(--bronze-light)' }}>({m.tipo})</span></div>
-                      <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Tarifa: ${m.tarifa}/hr</div>
-                    </div>
-                    <div style={{ display: 'flex', gap: 4 }}>
-                      <button className="btn btn-secondary btn-icon sm" style={{ width: 26, height: 26, minWidth: 26, padding: 0 }} onClick={() => handleEditMesa(m)}>
-                        <i className="ri-pencil-line" />
-                      </button>
-                      <button className="btn btn-secondary btn-icon sm" style={{ width: 26, height: 26, minWidth: 26, padding: 0, color: '#ef4444' }} onClick={() => handleDeleteMesa(m.id)}>
-                        <i className="ri-delete-bin-line" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="card" style={{ padding: '12px 14px' }}>
-              <div className="card-header" style={{ marginBottom: 12 }}>
-                <h3 className="card-title"><i className="ri-shield-user-line" style={{ marginRight: 6 }} />Usuarios y Roles</h3>
-                <button className="btn btn-primary btn-sm" title="Agregar nuevo usuario" onClick={() => setShowAddUserModal(true)} style={{ padding: '4px 8px' }}>
-                  <i className="ri-user-add-line" />
-                </button>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {usuarios.length === 0 ? (
-                  <>
-                    <div style={{ background: 'var(--bronze-subtle)', border: '1px solid var(--border-bronze)', borderRadius: 10, padding: 10, marginBottom: 4 }}>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--bronze-light)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                        ⚠️ Acceso Libre Activo
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {usuarios.length === 0 ? (
+                    <>
+                      <div style={{ background: 'var(--bronze-subtle)', border: '1px solid var(--border-bronze)', borderRadius: 10, padding: 10, marginBottom: 4 }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--bronze-light)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                          ⚠️ Acceso Libre Activo
+                        </div>
+                        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>
+                          El sistema entra directo sin login. Crea tu primer usuario haciendo clic en (+) para activar la seguridad.
+                        </div>
                       </div>
-                      <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>
-                        El sistema entra directo sin login. Crea tu primer usuario haciendo clic en (+) para activar la seguridad.
-                      </div>
-                    </div>
-                    {defaultDemos.map((u, i) => {
+                      {defaultDemos.map((u, i) => {
+                        const color = getRoleColor(u.role);
+                        return (
+                          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: i < 3 ? '1px solid var(--border)' : 'none', opacity: 0.65 }}>
+                            <div style={{ width: 26, height: 26, borderRadius: 6, background: `${color}22`, border: `1px solid ${color}44`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color }}>
+                              {u.name[0]}
+                            </div>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ fontSize: 12, fontWeight: 700 }}>{u.name} <span style={{ fontSize: 9, color: 'var(--bronze)', fontWeight: 600 }}>(Demo)</span></div>
+                              <div style={{ fontSize: 9.5, color: 'var(--text-muted)' }}>{u.email}</div>
+                            </div>
+                            <span style={{ fontSize: 8.5, fontWeight: 700, padding: '1px 6px', borderRadius: 20, background: `${color}22`, color, border: `1px solid ${color}44`, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                              {u.role}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </>
+                  ) : (
+                    usuarios.map((u, i) => {
                       const color = getRoleColor(u.role);
                       return (
-                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: i < 3 ? '1px solid var(--border)' : 'none', opacity: 0.65 }}>
+                        <div key={u.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: i < usuarios.length - 1 ? '1px solid var(--border)' : 'none' }}>
                           <div style={{ width: 26, height: 26, borderRadius: 6, background: `${color}22`, border: `1px solid ${color}44`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color }}>
                             {u.name[0]}
                           </div>
                           <div style={{ flex: 1 }}>
-                            <div style={{ fontSize: 12, fontWeight: 700 }}>{u.name} <span style={{ fontSize: 9, color: 'var(--bronze)', fontWeight: 600 }}>(Demo)</span></div>
+                            <div style={{ fontSize: 12, fontWeight: 700 }}>{u.name}</div>
                             <div style={{ fontSize: 9.5, color: 'var(--text-muted)' }}>{u.email}</div>
                           </div>
-                          <span style={{ fontSize: 8.5, fontWeight: 700, padding: '1px 6px', borderRadius: 20, background: `${color}22`, color, border: `1px solid ${color}44`, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                          <span style={{ fontSize: 8.5, fontWeight: 700, padding: '1px 6px', borderRadius: 20, background: `${color}22`, color, border: `1px solid ${color}44`, textTransform: 'uppercase', letterSpacing: '0.08em', marginRight: 6 }}>
                             {u.role}
                           </span>
+                          {!isMaster ? (
+                            <>
+                              {(u.role === 'admin' || u.role === 'gerente' || u.role === 'cajero') && (
+                                <button
+                                  onClick={() => {
+                                    setSelectedUserForPermissions({
+                                      ...u,
+                                      permisos: u.permisos || getDefaultPermisos(u.role)
+                                    });
+                                    setShowEditPermissionsModal(true);
+                                  }}
+                                  title="Editar Permisos"
+                                  style={{
+                                    background: 'none', border: 'none', color: 'var(--text-muted)',
+                                    cursor: 'pointer', fontSize: 14, padding: '2px 6px',
+                                    transition: 'color 0.15s', marginRight: 4
+                                  }}
+                                  onMouseEnter={e => e.currentTarget.style.color = 'var(--bronze-light)'}
+                                  onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
+                                >
+                                  <i className="ri-shield-keyhole-line" />
+                                </button>
+                              )}
+                              <button
+                                onClick={() => {
+                                  setSelectedUserForPassword(u);
+                                  setShowChangePasswordModal(true);
+                                }}
+                                title="Cambiar Contraseña"
+                                style={{
+                                  background: 'none', border: 'none', color: 'var(--text-muted)',
+                                  cursor: 'pointer', fontSize: 14, padding: '2px 6px',
+                                  transition: 'color 0.15s', marginRight: 4
+                                }}
+                                onMouseEnter={e => e.currentTarget.style.color = 'var(--bronze-light)'}
+                                onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
+                              >
+                                <i className="ri-key-line" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteUser(u.id, u.name)}
+                                title="Eliminar usuario"
+                                style={{
+                                  background: 'none', border: 'none', color: 'var(--text-muted)',
+                                  cursor: 'pointer', fontSize: 14, padding: '2px 6px',
+                                  transition: 'color 0.15s',
+                                }}
+                                onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
+                                onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
+                              >
+                                <i className="ri-delete-bin-line" />
+                              </button>
+                            </>
+                          ) : (
+                            <div style={{ display: 'flex', gap: 6, marginRight: 4, alignItems: 'center' }}>
+                              <span 
+                                title="Sincronizado con PIN de Administrador. Cambiar desde la tarjeta correspondiente." 
+                                style={{ color: 'var(--text-muted)', cursor: 'help', fontSize: 11, display: 'flex', alignItems: 'center' }}
+                              >
+                                <i className="ri-lock-line" style={{ marginRight: 2 }} /> Sincronizado
+                              </span>
+                            </div>
+                          )}
                         </div>
                       );
-                    })}
-                  </>
-                ) : (
-                  usuarios.map((u, i) => {
-                    const color = getRoleColor(u.role);
-                    return (
-                      <div key={u.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: i < usuarios.length - 1 ? '1px solid var(--border)' : 'none' }}>
-                        <div style={{ width: 26, height: 26, borderRadius: 6, background: `${color}22`, border: `1px solid ${color}44`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color }}>
-                          {u.name[0]}
-                        </div>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 12, fontWeight: 700 }}>{u.name}</div>
-                          <div style={{ fontSize: 9.5, color: 'var(--text-muted)' }}>{u.email}</div>
-                        </div>
-                        <span style={{ fontSize: 8.5, fontWeight: 700, padding: '1px 6px', borderRadius: 20, background: `${color}22`, color, border: `1px solid ${color}44`, textTransform: 'uppercase', letterSpacing: '0.08em', marginRight: 6 }}>
-                          {u.role}
-                        </span>
-                        {!isMaster ? (
-                          <>
-                            <button
-                              onClick={() => {
-                                setSelectedUserForPassword(u);
-                                setShowChangePasswordModal(true);
-                              }}
-                              title="Cambiar Contraseña"
-                              style={{
-                                background: 'none', border: 'none', color: 'var(--text-muted)',
-                                cursor: 'pointer', fontSize: 14, padding: '2px 6px',
-                                transition: 'color 0.15s', marginRight: 4
-                              }}
-                              onMouseEnter={e => e.currentTarget.style.color = 'var(--bronze-light)'}
-                              onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
-                            >
-                              <i className="ri-key-line" />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteUser(u.id, u.name)}
-                              title="Eliminar usuario"
-                              style={{
-                                background: 'none', border: 'none', color: 'var(--text-muted)',
-                                cursor: 'pointer', fontSize: 14, padding: '2px 6px',
-                                transition: 'color 0.15s',
-                              }}
-                              onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
-                              onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
-                            >
-                              <i className="ri-delete-bin-line" />
-                            </button>
-                          </>
-                        ) : (
-                          <div style={{ display: 'flex', gap: 6, marginRight: 4, alignItems: 'center' }}>
-                            <span 
-                              title="Sincronizado con PIN de Administrador. Cambiar desde la tarjeta correspondiente." 
-                              style={{ color: 'var(--text-muted)', cursor: 'help', fontSize: 11, display: 'flex', alignItems: 'center' }}
-                            >
-                              <i className="ri-lock-line" style={{ marginRight: 2 }} /> Sincronizado
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })
-                )}
+                    })
+                  )}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Extras de Renta (Equipamiento Premium) */}
             <div className="card" style={{ padding: '12px 14px' }}>
@@ -3556,7 +3799,7 @@ export default function ConfigPanel({ showToast }) {
           display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
           backdropFilter: 'blur(5px)'
         }}>
-          <div className="card" style={{ width: '100%', maxWidth: 450, padding: 32, border: '1px solid var(--border-bronze)', boxShadow: 'var(--shadow-bronze)', animation: 'fadeIn 0.25s ease' }}>
+          <div className="card" style={{ width: '100%', maxWidth: 500, maxHeight: '90vh', overflowY: 'auto', padding: 32, border: '1px solid var(--border-bronze)', boxShadow: 'var(--shadow-bronze)', animation: 'fadeIn 0.25s ease' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
               <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0, textTransform: 'uppercase', letterSpacing: '0.1em' }} className="gradient-bronze">
                 <i className="ri-user-add-line" style={{ marginRight: 8 }} />Nuevo Usuario
@@ -3620,7 +3863,14 @@ export default function ConfigPanel({ showToast }) {
                   className="form-input"
                   style={{ background: 'var(--bg-elevated)', color: 'var(--text-main)', border: '1px solid var(--border)' }}
                   value={newUser.role}
-                  onChange={e => setNewUser(p => ({ ...p, role: e.target.value }))}
+                  onChange={e => {
+                    const newRole = e.target.value;
+                    setNewUser(p => ({ 
+                      ...p, 
+                      role: newRole,
+                      permisos: getDefaultPermisos(newRole)
+                    }));
+                  }}
                 >
                   <option value="admin">Administrador (Control total)</option>
                   <option value="gerente">Gerente (Gestión operativa)</option>
@@ -3628,6 +3878,14 @@ export default function ConfigPanel({ showToast }) {
                   <option value="mesero">Mesero (Toma de pedidos)</option>
                 </select>
               </div>
+
+              {(newUser.role === 'admin' || newUser.role === 'gerente' || newUser.role === 'cajero') && (
+                <div className="form-group">
+                  {renderPermissionsSelector(newUser.permisos || getDefaultPermisos(newUser.role), (updatedPerms) => {
+                    setNewUser(p => ({ ...p, permisos: updatedPerms }));
+                  })}
+                </div>
+              )}
 
               <div style={{ display: 'flex', gap: 12, marginTop: 12 }}>
                 <button 
@@ -3732,6 +3990,60 @@ export default function ConfigPanel({ showToast }) {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {showEditPermissionsModal && selectedUserForPermissions && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
+          backdropFilter: 'blur(5px)'
+        }}>
+          <div className="card" style={{ width: '100%', maxWidth: 500, maxHeight: '90vh', overflowY: 'auto', padding: 32, border: '1px solid var(--border-bronze)', boxShadow: 'var(--shadow-bronze)', animation: 'fadeIn 0.25s ease' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+              <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0, textTransform: 'uppercase', letterSpacing: '0.1em' }} className="gradient-bronze">
+                <i className="ri-shield-keyhole-line" style={{ marginRight: 8 }} />Editar Permisos: {selectedUserForPermissions.name}
+              </h3>
+              <button 
+                onClick={() => {
+                  setShowEditPermissionsModal(false);
+                  setSelectedUserForPermissions(null);
+                }}
+                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 20 }}
+              >
+                <i className="ri-close-line" />
+              </button>
+            </div>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {renderPermissionsSelector(selectedUserForPermissions.permisos || getDefaultPermisos(selectedUserForPermissions.role), (updatedPerms) => {
+                setSelectedUserForPermissions(p => ({ ...p, permisos: updatedPerms }));
+              })}
+
+              <div style={{ display: 'flex', gap: 12, marginTop: 12 }}>
+                <button 
+                  type="button" 
+                  className="btn btn-secondary" 
+                  style={{ flex: 1, background: 'var(--bg-elevated)', color: 'var(--text-secondary)' }}
+                  onClick={() => {
+                    setShowEditPermissionsModal(false);
+                    setSelectedUserForPermissions(null);
+                  }}
+                >
+                  Cancelar
+                </button>
+                <button 
+                  type="button" 
+                  className="btn btn-primary" 
+                  style={{ flex: 1 }}
+                  disabled={savingPermissions}
+                  onClick={handleUpdatePermissions}
+                >
+                  {savingPermissions ? 'Guardando...' : 'Guardar Cambios'}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

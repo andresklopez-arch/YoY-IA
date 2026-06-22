@@ -8,6 +8,7 @@ import { db } from '@/lib/firebase';
 import { hashNip } from '@/lib/crypto';
 import { getBusinessDate } from '@/lib/date-utils';
 import { QRCodeSVG } from 'qrcode.react';
+import { useAuth } from '@/lib/auth-context';
 
 const F = ({ label, children, col }) => (
   <div className="form-group" style={col ? { gridColumn: col } : {}}>
@@ -324,6 +325,10 @@ function Badge({ children, color = '#cd7f32', bg }) {
 // PANEL PRINCIPAL UNIFICADO
 // ─────────────────────────────────────────────
 export default function NominaPanel({ showToast }) {
+  const { user } = useAuth();
+  const canEmpleados = user?.permisos ? user.permisos.nomina_empleados !== false : true;
+  const canGastos = user?.permisos ? user.permisos.nomina_gastos !== false : true;
+
   // 1. Estados de datos Firestore
   const [empleados, setEmpleados] = useState([]);
   const [asistencias, setAsistencias] = useState([]);
@@ -1084,7 +1089,8 @@ export default function NominaPanel({ showToast }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20, minWidth: 0 }}>
             
             {/* SECCION 1: PASE DE LISTA RÁPIDO */}
-            <div className="card">
+            {canEmpleados && (
+              <div className="card">
               <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 15, flexWrap: 'wrap', gap: 12 }}>
                 <div>
                   <h3 className="card-title"><i className="ri-calendar-check-line" style={{ marginRight: 6 }} />Pase de Lista del Día</h3>
@@ -1434,9 +1440,11 @@ export default function NominaPanel({ showToast }) {
                 })()}
               </div>
             </div>
+            )}
 
           {/* SECCION 3: HISTORIAL DE GASTOS Y EGRESOS */}
-          <div className="card">
+          {canGastos && (
+            <div className="card">
             <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 15, flexWrap: 'wrap', gap: 12 }}>
               <div>
                 <h3 className="card-title"><i className="ri-shopping-bag-3-line" style={{ marginRight: 6 }} />Gastos y Egresos Operativos</h3>
@@ -1541,6 +1549,7 @@ export default function NominaPanel({ showToast }) {
               </div>
             )}
           </div>
+          )}
 
         </div>
 
@@ -1548,7 +1557,8 @@ export default function NominaPanel({ showToast }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           
           {/* PANEL 1: RESUMEN DE ASISTENCIA */}
-          <div className="card">
+          {canEmpleados && (
+            <div className="card">
             <div className="card-header" style={{ marginBottom: 12 }}>
               <h3 className="card-title">Asistencia del Día</h3>
             </div>
@@ -1575,9 +1585,11 @@ export default function NominaPanel({ showToast }) {
               </div>
             </div>
           </div>
+          )}
 
           {/* PANEL 2: PRESUPUESTOS POR CATEGORÍA */}
-          <div className="card">
+          {canGastos && (
+            <div className="card">
             <div className="card-header" style={{ marginBottom: 12 }}>
               <h3 className="card-title">Presupuesto por Categoría</h3>
             </div>
@@ -1603,9 +1615,11 @@ export default function NominaPanel({ showToast }) {
               )}
             </div>
           </div>
+          )}
 
           {/* PANEL 3: ÚLTIMOS PAGOS REALIZADOS */}
-          <div className="card">
+          {canEmpleados && (
+            <div className="card">
             <div className="card-header" style={{ marginBottom: 12 }}>
               <h3 className="card-title">Últimos Pagos Realizados</h3>
             </div>
@@ -1630,6 +1644,7 @@ export default function NominaPanel({ showToast }) {
               )}
             </div>
           </div>
+          )}
 
         </div>
 
