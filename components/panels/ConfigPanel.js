@@ -2961,6 +2961,7 @@ export default function ConfigPanel({ showToast }) {
                   ) : (
                     usuarios.map((u, i) => {
                       const color = getRoleColor(u.role);
+                      const isMaster = u.email === 'masteradmin@yoybillar.mx' || u.email?.startsWith('masteradmin@');
                       return (
                         <div key={u.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: i < usuarios.length - 1 ? '1px solid var(--border)' : 'none' }}>
                           <div style={{ width: 26, height: 26, borderRadius: 6, background: `${color}22`, border: `1px solid ${color}44`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color }}>
