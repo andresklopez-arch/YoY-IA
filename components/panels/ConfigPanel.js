@@ -731,6 +731,20 @@ export default function ConfigPanel({ showToast }) {
         password: hashedPassword
       }, { merge: true });
 
+      // Sincronizar PIN de Administrador si es el Administrador Maestro
+      const isMaster = selectedUserForPassword.email === 'masteradmin@yoybillar.mx' || selectedUserForPassword.email?.startsWith('masteradmin@');
+      if (isMaster) {
+        const newPinHash = hashPassword(newPassword);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('yoy_admin_pin_hash', newPinHash);
+        }
+        await setDoc(doc(db, 'config', 'seguridad'), {
+          adminPinHash: newPinHash,
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+        showToast('PIN de Administrador sincronizado automáticamente con la nueva contraseña', 'info');
+      }
+
       // Si el usuario seleccionado es el usuario actual, actualizar la sesión activa
       if (user && (user.uid === selectedUserForPassword.id || user.email === selectedUserForPassword.email)) {
         if (auth.currentUser) {
