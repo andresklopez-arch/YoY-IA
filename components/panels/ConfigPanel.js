@@ -1,11 +1,12 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
-import { db } from '@/lib/firebase';
+import { db, auth } from '@/lib/firebase';
 import { collection, getDocs, getDoc, addDoc, query, orderBy, deleteDoc, doc, where, setDoc, serverTimestamp, onSnapshot, writeBatch, limit } from '@/lib/firestore-tenant';
 import { obfuscate, deobfuscate, hashPasswordSecure } from '@/lib/crypto';
 import { QRCodeCanvas } from 'qrcode.react';
 import JSZip from 'jszip';
 import { useAuth } from '@/lib/auth-context';
+import { updatePassword } from 'firebase/auth';
 
 const ALERTAS_DEFINITIONS = [
   { id: 'stockBajo', label: 'Alerta de Stock Bajo', sub: 'Notifica cuando un insumo o producto esté por debajo del stock óptimo' },
@@ -732,6 +733,16 @@ export default function ConfigPanel({ showToast }) {
 
       // Si el usuario seleccionado es el usuario actual, actualizar la sesión activa
       if (user && (user.uid === selectedUserForPassword.id || user.email === selectedUserForPassword.email)) {
+        if (auth.currentUser) {
+          try {
+            await updatePassword(auth.currentUser, newPassword);
+          } catch (authPwdErr) {
+            console.warn("No se pudo actualizar la contraseña en Firebase Auth:", authPwdErr);
+            if (authPwdErr.code === 'auth/requires-recent-login') {
+              showToast('Por seguridad, para cambiar tu contraseña debes cerrar sesión e iniciar de nuevo.', 'warning');
+            }
+          }
+        }
         if (updateUserSession) {
           updateUserSession({ password: hashedPassword });
         }

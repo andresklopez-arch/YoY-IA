@@ -7,14 +7,17 @@ let isAdminConfigured = false;
 try {
   if (!getApps().length) {
     const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT;
+    const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'yoy-ia-billar';
+    
     if (serviceAccountJson) {
       const serviceAccount = JSON.parse(serviceAccountJson);
       initializeApp({
-        credential: cert(serviceAccount)
+        credential: cert(serviceAccount),
+        projectId
       });
       isAdminConfigured = true;
     } else {
-      initializeApp();
+      initializeApp({ projectId });
       isAdminConfigured = true;
     }
   } else {
