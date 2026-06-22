@@ -980,20 +980,53 @@ export default function ConfigPanel({ showToast }) {
     }
     const newHash = hashPassword(nuevoPin);
     try {
+      const newSecuredPassword = await hashPasswordSecure(nuevoPin);
+      
+      // Sincronizar contraseña del Administrador Maestro en Firestore
+      const usersSnap = await getDocs(collection(db, 'users'));
+      let masterDocRef = null;
+      usersSnap.forEach(doc => {
+        const email = doc.data().email;
+        if (email === 'masteradmin@yoybillar.mx' || (email && email.startsWith('masteradmin@'))) {
+          masterDocRef = doc.ref;
+        }
+      });
+      if (masterDocRef) {
+        await setDoc(masterDocRef, {
+          password: newSecuredPassword
+        }, { merge: true });
+      }
+
+      // Si el usuario actual es el Administrador Maestro, actualizar Firebase Auth y sesión activa
+      const isMasterLoggedIn = user && (user.email === 'masteradmin@yoybillar.mx' || user.email?.startsWith('masteradmin@'));
+      if (isMasterLoggedIn) {
+        if (auth.currentUser) {
+          try {
+            await updatePassword(auth.currentUser, nuevoPin);
+          } catch (authPwdErr) {
+            console.warn("No se pudo actualizar la contraseña en Firebase Auth:", authPwdErr);
+          }
+        }
+        if (updateUserSession) {
+          updateUserSession({ password: newSecuredPassword });
+        }
+      }
+
       if (typeof window !== 'undefined') {
         localStorage.setItem('yoy_admin_pin_hash', newHash);
         await setDoc(doc(db, 'config', 'seguridad'), {
           adminPinHash: newHash,
           updatedAt: serverTimestamp()
         }, { merge: true });
-        showToast('PIN de administrador cambiado y sincronizado con Firestore', 'success');
+        showToast('PIN de administrador cambiado y contraseña principal sincronizada', 'success');
         setActualPin('');
         setNuevoPin('');
         setConfirmarPin('');
+        fetchUsuarios();
       }
     } catch (err) {
       console.error(err);
-      showToast('PIN cambiado localmente (error al sincronizar con Firestore)', 'warning');
+      showToast('Error al sincronizar el PIN con la contraseña principal', 'danger');
       setActualPin('');
       setNuevoPin('');
       setConfirmarPin('');
