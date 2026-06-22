@@ -5,6 +5,20 @@ import { db } from '@/lib/firebase';
 import { collection, getDocs, query, orderBy, addDoc } from 'firebase/firestore';
 import { getClientDomain } from '@/lib/tenant';
 
+const getActiveSalonId = () => {
+  if (typeof window === 'undefined') return 'default_salon';
+  try {
+    const session = localStorage.getItem('yoy_ia_session');
+    if (session) {
+      const parsed = JSON.parse(session);
+      if (parsed.salonId) return parsed.salonId;
+    }
+    const saved = localStorage.getItem('yoy_terminal_salon_id');
+    if (saved) return saved;
+  } catch (e) {}
+  return 'default_salon';
+};
+
 export default function LoginScreen({ showToast }) {
   const { login } = useAuth();
   const [email, setEmail] = useState('');
@@ -63,15 +77,20 @@ export default function LoginScreen({ showToast }) {
   useEffect(() => {
     const fetchUsers = async () => {
       try {
-        const q = query(collection(db, 'users'), orderBy('name', 'asc'));
-        const snap = await getDocs(q);
-        const list = [];
-        snap.forEach(doc => {
-          list.push({ id: doc.id, ...doc.data() });
+        const activeSalonId = getActiveSalonId();
+        const res = await fetch('/api/auth/list-users', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ salonId: activeSalonId })
         });
-        setUsersList(list);
-        if (list.length > 0) {
-          setSelectedEmail(list[0].email);
+        const data = await res.json();
+        if (res.ok && data.success && Array.isArray(data.users)) {
+          setUsersList(data.users);
+          if (data.users.length > 0) {
+            setSelectedEmail(data.users[0].email);
+          }
+        } else {
+          console.warn("Fallo al cargar usuarios desde API del servidor:", data.error);
         }
       } catch (err) {
         console.error("Error fetching users for login screen:", err);
