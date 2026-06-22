@@ -65,6 +65,7 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
   const [focusedEmpleadoQR, setFocusedEmpleadoQR] = useState(null);
   const [qrCountdown, setQrCountdown] = useState(0);
   const [recentFichajes, setRecentFichajes] = useState([]);
+  const [adminLogs, setAdminLogs] = useState([]);
   const [showMeseroDropdown, setShowMeseroDropdown] = useState(false);
   const [workingMeseros, setWorkingMeseros] = useState([]);
   const [isOnline, setIsOnline] = useState(true);
@@ -227,6 +228,46 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
     });
     return unsub;
   }, [focusedEmpleadoQR]);
+
+  // Escuchar pases de lista de administración (Cajeros, Gerentes, Administradores)
+  useEffect(() => {
+    if (!showModalPaseLista) {
+      setAdminLogs([]);
+      return;
+    }
+    const q = query(
+      collection(db, 'nomina_asistencia_log'),
+      orderBy('createdAt', 'desc'),
+      limit(40)
+    );
+    const unsub = onSnapshot(q, snap => {
+      const logs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const filtered = logs.filter(log => {
+        const r = (log.rol || log.role || '').toLowerCase();
+        return r.includes('cajero') || r.includes('gerente') || r.includes('admin') || r.includes('caja') || r.includes('administrador');
+      });
+      setAdminLogs(filtered.slice(0, 10));
+    }, err => {
+      console.warn("Error listening to admin logs:", err);
+    });
+    return unsub;
+  }, [showModalPaseLista]);
+
+  // Manejar tecla ESC para salir del Pase de Lista
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        if (focusedEmpleadoQR) {
+          setFocusedEmpleadoQR(null);
+        } else if (showModalPaseLista) {
+          setShowModalPaseLista(false);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showModalPaseLista, focusedEmpleadoQR]);
+
 
   useEffect(() => {
     if (!showModalPaseLista) return;
@@ -1685,6 +1726,98 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
                       ))}
                   </div>
                 )}
+
+                {/* Asistencia de Personal Administrativo (Cajeros, Gerentes, Administradores) */}
+                <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16, marginTop: 12 }}>
+                  <div style={{ fontSize: 10.5, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <i className="ri-user-settings-line" style={{ color: 'var(--bronze-light)', fontSize: 14 }} /> 
+                    Asistencia Administrativa (Cajeros, Gerentes y Admins — Fichan al iniciar sesión)
+                  </div>
+
+                  {adminLogs.length === 0 ? (
+                    <div style={{ fontSize: 11, color: 'var(--text-secondary)', fontStyle: 'italic', padding: '10px 14px', background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.02)', borderRadius: 10 }}>
+                      No hay registros recientes de sesión hoy.
+                    </div>
+                  ) : (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 8 }}>
+                      {adminLogs.map(log => {
+                        const dateObj = log.createdAt?.toDate ? log.createdAt.toDate() : new Date(log.createdAt);
+                        const timeStr = isNaN(dateObj.getTime()) ? '-' : dateObj.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+                        const dateStr = isNaN(dateObj.getTime()) ? '-' : dateObj.toLocaleDateString('es-MX', { day: '2-digit', month: 'short' });
+                        const isLogin = log.tipo === 'login';
+                        
+                        let roleColor = 'var(--text-muted)';
+                        let roleLabel = log.rol || log.role || 'Personal';
+                        const rLower = roleLabel.toLowerCase();
+                        if (rLower.includes('admin')) {
+                          roleColor = 'var(--bronze-light)';
+                          roleLabel = 'Admin';
+                        } else if (rLower.includes('gerente')) {
+                          roleColor = 'var(--silver)';
+                          roleLabel = 'Gerente';
+                        } else if (rLower.includes('cajer') || rLower.includes('caja')) {
+                          roleColor = 'var(--success)';
+                          roleLabel = 'Cajero';
+                        }
+
+                        return (
+                          <div 
+                            key={log.id} 
+                            style={{ 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              justifyContent: 'space-between', 
+                              background: 'var(--bg-card)', 
+                              border: '1px solid var(--border)', 
+                              padding: '8px 12px', 
+                              borderRadius: 10,
+                              boxShadow: '0 2px 6px rgba(0,0,0,0.15)'
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, overflow: 'hidden' }}>
+                              <div style={{
+                                width: 24, height: 24, borderRadius: '50%',
+                                background: isLogin ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)',
+                                border: `1px solid ${isLogin ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.2)'}`,
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                color: isLogin ? 'var(--success)' : 'var(--danger)',
+                                fontSize: 12,
+                                flexShrink: 0
+                              }}>
+                                <i className={isLogin ? 'ri-login-box-line' : 'ri-logout-box-line'} />
+                              </div>
+                              <div style={{ overflow: 'hidden' }}>
+                                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                  {log.nombre}
+                                </div>
+                                <span style={{ 
+                                  fontSize: 8, 
+                                  fontWeight: 800, 
+                                  color: roleColor, 
+                                  textTransform: 'uppercase', 
+                                  background: 'rgba(255,255,255,0.02)',
+                                  padding: '1px 4px',
+                                  borderRadius: 4,
+                                  border: '1px solid rgba(255,255,255,0.04)'
+                                }}>
+                                  {roleLabel}
+                                </span>
+                              </div>
+                            </div>
+                            <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                              <div style={{ fontSize: 10, fontWeight: 800, color: isLogin ? 'var(--success)' : 'var(--danger)' }}>
+                                {isLogin ? 'Sesión Iniciada' : 'Sesión Cerrada'}
+                              </div>
+                              <div style={{ fontSize: 8.5, color: 'var(--text-muted)' }}>
+                                {dateStr} • {timeStr}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
