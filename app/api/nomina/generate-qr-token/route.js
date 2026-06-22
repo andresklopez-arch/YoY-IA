@@ -3,6 +3,8 @@ import { db } from '@/lib/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 import admin from 'firebase-admin';
 import crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
 
 const SECRET = process.env.QR_SECRET || 'yoy_billar_secret_key_2026_io';
 
@@ -10,9 +12,20 @@ const SECRET = process.env.QR_SECRET || 'yoy_billar_secret_key_2026_io';
 let isAdminConfigured = false;
 try {
   if (!admin.apps || !admin.apps.length) {
+    let serviceAccount = null;
     const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT;
+    
     if (serviceAccountJson) {
-      const serviceAccount = JSON.parse(serviceAccountJson);
+      serviceAccount = JSON.parse(serviceAccountJson);
+    } else {
+      // Intentar cargar localmente desde la raíz del proyecto para desarrollo
+      const localKeyPath = path.join(process.cwd(), 'serviceAccountKey.json');
+      if (fs.existsSync(localKeyPath)) {
+        serviceAccount = JSON.parse(fs.readFileSync(localKeyPath, 'utf8'));
+      }
+    }
+
+    if (serviceAccount) {
       admin.initializeApp({
         credential: admin.credential.cert(serviceAccount)
       });
@@ -27,6 +40,7 @@ try {
 } catch (e) {
   console.warn("Firebase Admin SDK no se pudo inicializar en generate-qr-token API:", e.message);
 }
+
 
 export async function POST(request) {
   try {
