@@ -253,7 +253,7 @@ function AppContent() {
           let hasDefaultPin = false;
           const secDoc = await getDoc(doc(db, 'config', 'seguridad'));
           if (secDoc.exists() && secDoc.data().adminPinHash) {
-            hasDefaultPin = secDoc.data().adminPinHash === '170440';
+            hasDefaultPin = secDoc.data().adminPinHash === '56760663';
           } else {
             hasDefaultPin = true;
           }
@@ -2547,7 +2547,7 @@ function AppContent() {
               )}
               {isDefaultPin && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: 'var(--text-secondary)' }}>
-                  <span style={{ color: '#ef4444' }}>❌</span> PIN Admin: <code style={{ background: 'var(--bg-elevated)', padding: '1px 5px', borderRadius: 3, color: '#ef4444', fontWeight: 'bold' }}>1111</code>
+                  <span style={{ color: '#ef4444' }}>❌</span> PIN Admin: <code style={{ background: 'var(--bg-elevated)', padding: '1px 5px', borderRadius: 3, color: '#ef4444', fontWeight: 'bold' }}>123456</code>
                 </div>
               )}
             </div>

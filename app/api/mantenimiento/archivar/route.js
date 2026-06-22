@@ -12,7 +12,7 @@ const hashPassword = (pwd) => {
   return Math.abs(hash).toString(16);
 };
 
-const ADMIN_PIN_HASH = '170440'; // Hash del PIN '1111'
+const ADMIN_PIN_HASH = '56760663'; // Hash del PIN '123456'
 
 export async function POST(request) {
   try {

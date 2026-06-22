@@ -226,7 +226,7 @@ export default function ConfigPanel({ showToast }) {
       return;
     }
 
-    let savedHash = '170440'; // Default hash of '1111'
+    let savedHash = '56760663'; // Default hash of '123456'
     try {
       const secDoc = await getDoc(doc(db, 'config', 'seguridad'));
       if (secDoc.exists() && secDoc.data().adminPinHash) {
@@ -947,7 +947,7 @@ export default function ConfigPanel({ showToast }) {
       return;
     }
     const actualHash = hashPassword(actualPin);
-    let savedHash = '170440';
+    let savedHash = '56760663';
     if (typeof window !== 'undefined') {
       const localHash = localStorage.getItem('yoy_admin_pin_hash');
       if (localHash) savedHash = localHash;

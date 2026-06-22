@@ -2223,7 +2223,7 @@ export default function MesasPanel({ showToast }) {
   const [nuevaDesc, setNuevaDesc] = useState('');
   const [nuevoMetodo, setNuevoMetodo] = useState('efectivo');
   const [pinAutorizacion, setPinAutorizacion] = useState('');
-  const [adminPinHash, setAdminPinHash] = useState('170440'); // Hash of '1111'
+  const [adminPinHash, setAdminPinHash] = useState('56760663'); // Hash of '123456'
   const [alertasMesas, setAlertasMesas] = useState({});
   const [unloadedConsumos, setUnloadedConsumos] = useState({});
   const knownAlertsRef = useRef(new Set());
@@ -2854,14 +2854,14 @@ export default function MesasPanel({ showToast }) {
       } else {
         if (typeof window !== 'undefined') {
           const localHash = localStorage.getItem('yoy_admin_pin_hash');
-          if (localHash) setAdminPinHash(deobfuscate(localHash) || '170440');
+          if (localHash) setAdminPinHash(deobfuscate(localHash) || '56760663');
         }
       }
     }, err => {
       console.warn("Firestore seguridad sync error (offline fallback):", err);
       if (typeof window !== 'undefined') {
         const localHash = localStorage.getItem('yoy_admin_pin_hash');
-        if (localHash) setAdminPinHash(deobfuscate(localHash) || '170440');
+        if (localHash) setAdminPinHash(deobfuscate(localHash) || '56760663');
       }
     });
     return unsub;
