@@ -6,3 +6,10 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 # Reglas Personalizadas
 - Se autoriza al agente (Antigravity) a ejecutar el script `subir-cambios.bat` de manera autónoma e incondicional después de cualquier modificación de código, sin requerir confirmación explícita por parte del usuario.
+
+# Reglas Globales (1 a 5)
+1. Siempre tenemos que aplicar `subir-cambios.bat` después de cualquier modificación.
+2. Después de 10 modificaciones, haz una limpieza de código.
+3. Cada 20 modificaciones, solicítame hacer un backup o copia de seguridad o guardar como último punto de restauración.
+4. Siempre haz al menos 3 sugerencias acerca de la modificación acabada de realizar para hacerla más fuerte, más segura o más productiva.
+5. Cada 30 modificaciones, asegúrate de guardar el proyecto en GitHub para no perder información.
