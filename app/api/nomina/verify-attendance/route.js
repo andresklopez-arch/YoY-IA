@@ -222,6 +222,7 @@ export async function POST(request) {
 
     // 10. Registrar log de asistencia en Firestore
     await addDoc(collection(db, 'nomina_asistencia_log'), {
+      salonId: emp.salonId || null,
       empleadoId: emp.id,
       nombre: `${emp.nombre} ${emp.apellido || ''}`.trim(),
       rol: emp.rol || 'Mesero',
@@ -265,6 +266,7 @@ export async function POST(request) {
       const snapAsist = await getDocs(qAsist);
       if (snapAsist.empty) {
         await addDoc(collection(db, 'nomina_asistencia'), {
+          salonId: emp.salonId || null,
           empleadoId: emp.id,
           fecha: fechaHoy,
           estado: 'presente',
@@ -276,6 +278,7 @@ export async function POST(request) {
 
     // 12. Registrar bitácora general de actividades
     await addDoc(collection(db, 'bitacora'), {
+      salonId: emp.salonId || null,
       fecha: new Date().toISOString(),
       accion: `Fichaje QR ${tipoRegistro === 'entrada' ? 'Entrada' : 'Salida'}`,
       detalle: `Fichaje QR: ${emp.nombre} (${emp.rol || 'Mesero'}) marcó ${tipoRegistro === 'entrada' ? 'entrada' : 'salida'} desde ${dispositivo || 'Móvil'}. Ubicación: Obtenido (Servidor)`,

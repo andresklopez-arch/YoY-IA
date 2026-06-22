@@ -49,6 +49,74 @@ function usePedidosCocina(salonId) {
   return total;
 }
 
+// Helpers de IndexedDB para caché de empleados (Sugerencia 3)
+const openRoutesCacheDB = () => {
+  return new Promise((resolve, reject) => {
+    if (typeof window === 'undefined') {
+      reject(new Error("window is undefined"));
+      return;
+    }
+    const idb = window.indexedDB || window.mozIndexedDB || window.webkitIndexedDB || window.msIndexedDB;
+    if (!idb) {
+      reject(new Error("IndexedDB no soportado"));
+      return;
+    }
+    const request = idb.open('__next_static_routes_cache', 1);
+    request.onupgradeneeded = (e) => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains('route_manifest')) {
+        db.createObjectStore('route_manifest');
+      }
+    };
+    request.onsuccess = (e) => resolve(e.target.result);
+    request.onerror = (e) => reject(e.target.error);
+  });
+};
+
+const getCachedEmployees = async () => {
+  try {
+    const db = await openRoutesCacheDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('route_manifest', 'readonly');
+      const store = tx.objectStore('route_manifest');
+      const request = store.get('active_employees');
+      request.onsuccess = () => {
+        const encryptedData = request.result;
+        if (!encryptedData) {
+          resolve([]);
+          return;
+        }
+        try {
+          const decrypted = deobfuscate(encryptedData);
+          resolve(decrypted ? JSON.parse(decrypted) : []);
+        } catch (e) {
+          resolve([]);
+        }
+      };
+      request.onerror = () => reject(request.error);
+    });
+  } catch (err) {
+    console.warn("Error leyendo cache de empleados:", err);
+    return [];
+  }
+};
+
+const setCachedEmployees = async (employees) => {
+  try {
+    const db = await openRoutesCacheDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('route_manifest', 'readwrite');
+      const store = tx.objectStore('route_manifest');
+      const encryptedData = obfuscate(JSON.stringify(employees));
+      const request = store.put(encryptedData, 'active_employees');
+      request.onsuccess = () => resolve(true);
+      request.onerror = () => reject(request.error);
+    });
+  } catch (err) {
+    console.warn("Error escribiendo cache de empleados:", err);
+  }
+};
+
 const PANEL_LABELS = {
   dashboard: 'Dashboard',
   mesas:     'Control de Mesas',
@@ -109,6 +177,8 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
   const [showModalPaseLista, setShowModalPaseLista] = useState(false);
   const [empleadosPaseLista, setEmpleadosPaseLista] = useState([]);
   const [busquedaPaseLista, setBusquedaPaseLista] = useState('');
+  const [paseListaError, setPaseListaError] = useState(null);
+  const [isPaseListaOffline, setIsPaseListaOffline] = useState(false);
   const [focusedEmpleadoQR, setFocusedEmpleadoQR] = useState(null);
   const [qrCountdown, setQrCountdown] = useState(0);
   const [recentFichajes, setRecentFichajes] = useState([]);
@@ -327,17 +397,43 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
   useEffect(() => {
     if (!showModalPaseLista || !user?.salonId) {
       setEmpleadosPaseLista([]);
+      setPaseListaError(null);
+      setIsPaseListaOffline(false);
       return;
     }
+
+    setPaseListaError(null);
+
+    const cargarFallbackLocal = async () => {
+      const cached = await getCachedEmployees();
+      if (cached && cached.length > 0) {
+        setEmpleadosPaseLista(cached);
+        setIsPaseListaOffline(true);
+      } else {
+        setPaseListaError('No hay conexión y no existen empleados en la caché local.');
+      }
+    };
+
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      cargarFallbackLocal();
+      return;
+    }
+
     const q = query(
       collection(db, 'nomina_empleados'), 
       where('salonId', '==', user.salonId),
       where('estado', '==', 'activo')
     );
-    const unsub = onSnapshot(q, snap => {
-      setEmpleadosPaseLista(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    }, err => {
+    const unsub = onSnapshot(q, async (snap) => {
+      const empleados = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      setEmpleadosPaseLista(empleados);
+      setIsPaseListaOffline(false);
+      setPaseListaError(null);
+      await setCachedEmployees(empleados);
+    }, async (err) => {
       console.error("Error al cargar empleados para pase de lista:", err);
+      setPaseListaError("Error al sincronizar en tiempo real.");
+      await cargarFallbackLocal();
     });
     return unsub;
   }, [showModalPaseLista, user?.salonId]);
@@ -1848,8 +1944,35 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
                   <i className="ri-search-line" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontSize: 16 }} />
                 </div>
 
-                {/* Lista de empleados */}
-                {empleadosPaseLista.length === 0 ? (
+                {/* Indicador de Modo Offline */}
+                 {isPaseListaOffline && (
+                   <div style={{
+                     display: 'flex', alignItems: 'center', gap: 6,
+                     padding: '8px 12px', borderRadius: 8,
+                     background: 'rgba(205,127,50,0.1)', border: '1px solid rgba(205,127,50,0.3)',
+                     color: 'var(--bronze-light)', fontSize: 11, fontWeight: 500, alignSelf: 'flex-start'
+                   }}>
+                     <i className="ri-wifi-off-line" /> Modo Local (Offline) - Se está mostrando información de la caché local.
+                   </div>
+                 )}
+
+                 {/* Lista de empleados */}
+                 {paseListaError ? (
+                   <div style={{ textAlign: 'center', padding: '40px 10px', color: '#ff4d4f' }}>
+                     <i className="ri-error-warning-line" style={{ fontSize: 36, display: 'block', marginBottom: 10 }} />
+                     <span style={{ fontSize: 13, display: 'block', marginBottom: 12 }}>{paseListaError}</span>
+                     <button 
+                       className="btn btn-secondary" 
+                       style={{ padding: '6px 16px', fontSize: 12, cursor: 'pointer' }}
+                       onClick={() => {
+                         setShowModalPaseLista(false);
+                         setTimeout(() => setShowModalPaseLista(true), 50);
+                       }}
+                     >
+                       Reintentar conexión
+                     </button>
+                   </div>
+                 ) : empleadosPaseLista.length === 0 ? (
                   <div style={{ textAlign: 'center', padding: '60px 10px', color: 'var(--text-muted)' }}>
                     <i className="ri-loader-4-line" style={{ fontSize: 36, display: 'block', marginBottom: 10, animation: 'spin 1s linear infinite' }} />
                     Cargando empleados activos...
