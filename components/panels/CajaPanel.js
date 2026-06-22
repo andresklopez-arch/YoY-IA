@@ -7875,7 +7875,14 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
                       <option value="tarjeta">Tarjeta Bancaria</option>
                     </select>
                   </F>
-                  <F label="PIN de Autorización Administrador *">
+                  <F label={
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                      <span>PIN de Autorización Administrador *</span>
+                      <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
+                        {pinAutorizacion?.length || 0}/8
+                      </span>
+                    </div>
+                  }>
                     <input 
                       type="password" 
                       className="form-input" 
@@ -7883,6 +7890,7 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
                       placeholder="••••" 
                       value={pinAutorizacion} 
                       onChange={e => setPinAutorizacion(e.target.value)} 
+                      maxLength={8}
                     />
                   </F>
                 </div>

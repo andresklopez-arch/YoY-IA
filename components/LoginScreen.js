@@ -389,7 +389,12 @@ export default function LoginScreen({ showToast }) {
             )}
 
             <div className="form-group">
-              <label className="form-label">Contraseña</label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <label className="form-label">Contraseña</label>
+                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                  {password?.length || 0}/8
+                </span>
+              </div>
               <div style={{ position: 'relative' }}>
                 <input
                   ref={passwordRef}
@@ -398,6 +403,7 @@ export default function LoginScreen({ showToast }) {
                   placeholder="••••••••"
                   value={password}
                   onChange={e => setPassword(e.target.value)}
+                  maxLength={8}
                   style={{ paddingRight: 44 }}
                   required
                 />

@@ -658,7 +658,12 @@ function ModalAbrirMesa({ mesa, adminPinHash, hashPassword, onClose, onConfirm }
                     </button>
                   ) : (
                     <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6, borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 10 }}>
-                      <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', fontWeight: 600 }}>AUTORIZAR BYPASS (PIN)</span>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', fontWeight: 600 }}>AUTORIZAR BYPASS (PIN)</span>
+                        <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
+                          {pinInput?.length || 0}/8
+                        </span>
+                      </div>
                       <div style={{ display: 'flex', gap: 8 }}>
                         <input 
                           type="password" 
@@ -666,6 +671,7 @@ function ModalAbrirMesa({ mesa, adminPinHash, hashPassword, onClose, onConfirm }
                           placeholder="PIN de Admin" 
                           value={pinInput} 
                           onChange={e => setPinInput(e.target.value)}
+                          maxLength={8}
                           style={{ padding: '6px 10px', fontSize: 12, flex: 1 }}
                           onKeyDown={e => { if (e.key === 'Enter') handleVerifyBypass(); }}
                         />
@@ -7909,9 +7915,14 @@ function ModalCuentasActivas({
                       gap: 6,
                       animation: 'fadeIn 0.2s ease'
                     }}>
-                      <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--danger)' }}>
-                        <i className="ri-shield-keyhole-line" style={{ marginRight: 4 }} />
-                        SE REQUIERE AUTORIZACIÓN DE ADMINISTRADOR
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--danger)' }}>
+                          <i className="ri-shield-keyhole-line" style={{ marginRight: 4 }} />
+                          SE REQUIERE AUTORIZACIÓN DE ADMINISTRADOR
+                        </div>
+                        <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
+                          {pinEliminar?.length || 0}/8
+                        </span>
                       </div>
                       <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>
                         Confirmar eliminación de {itemAEliminar.cant}x {itemAEliminar.prodName}:
@@ -7924,6 +7935,7 @@ function ModalCuentasActivas({
                           style={{ padding: '4px 8px', fontSize: 12, flex: 1 }}
                           value={pinEliminar}
                           onChange={e => setPinEliminar(e.target.value)}
+                          maxLength={8}
                           onKeyDown={e => {
                             if (e.key === 'Enter') handleConfirmarEliminarConPin();
                           }}
@@ -9136,15 +9148,21 @@ function ModalCobroManual({ nuevoMonto, setNuevoMonto, nuevaDesc, setNuevaDesc, 
               </select>
             </div>
             <div className="form-group" style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 12 }}>
-              <label className="form-label" style={{ color: 'var(--bronze-light)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                <i className="ri-shield-user-line" /> Contraseña de Autorización Admin
-              </label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <label className="form-label" style={{ color: 'var(--bronze-light)', display: 'flex', alignItems: 'center', gap: 6, margin: 0 }}>
+                  <i className="ri-shield-user-line" /> Contraseña de Autorización Admin
+                </label>
+                <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
+                  {pinAutorizacion?.length || 0}/8
+                </span>
+              </div>
               <input
                 className="form-input"
                 type="password"
-                placeholder="Ingrese PIN (1111)"
+                placeholder="Ingrese PIN (123456)"
                 value={pinAutorizacion}
                 onChange={e => setPinAutorizacion(e.target.value)}
+                maxLength={8}
                 style={{ borderColor: 'var(--border-bronze)' }}
               />
             </div>
@@ -10192,16 +10210,23 @@ function ModalGasto({ onClose, onConfirm, CATEGORIAS_GASTO }) {
               gap: 8,
               boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
             }}>
-              <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 6, margin: 0, fontSize: 13, color: 'var(--text-main)', fontWeight: 600 }}>
-                <i className="ri-key-2-line" style={{ color: 'var(--bronze-light)' }} />
-                NIP de Autorización del Empleado
-              </label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 6, margin: 0, fontSize: 13, color: 'var(--text-main)', fontWeight: 600 }}>
+                  <i className="ri-key-2-line" style={{ color: 'var(--bronze-light)' }} />
+                  NIP de Autorización del Empleado
+                </label>
+                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                  {nip?.length || 0}/8
+                </span>
+              </div>
               <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
                 El trabajador debe ingresar su NIP personal para confirmar que recibe el dinero.
               </span>
               <input 
                 type="password" 
-                maxLength={6}
+                maxLength={8}
+                inputMode="numeric"
+                pattern="[0-9]*"
                 className="form-input" 
                 placeholder="••••" 
                 value={nip} 

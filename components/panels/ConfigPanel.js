@@ -655,8 +655,8 @@ export default function ConfigPanel({ showToast }) {
         return;
       }
     } else {
-      if (!/^[a-zA-Z0-9]{1,8}$/.test(newUser.password)) {
-        showToast('La contraseña debe ser alfanumérica (letras y números) y tener como máximo 8 caracteres.', 'error');
+      if (!/^[a-zA-Z0-9]{3,8}$/.test(newUser.password) || !/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(newUser.password)) {
+        showToast('La contraseña debe tener entre 3 y 8 caracteres, ser alfanumérica y contener al menos una mayúscula, una minúscula y un número.', 'error');
         return;
       }
     }
@@ -718,8 +718,8 @@ export default function ConfigPanel({ showToast }) {
         return;
       }
     } else {
-      if (!/^[a-zA-Z0-9]{1,8}$/.test(newPassword)) {
-        showToast('La contraseña debe ser alfanumérica (letras y números) y tener como máximo 8 caracteres.', 'error');
+      if (!/^[a-zA-Z0-9]{3,8}$/.test(newPassword) || !/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(newPassword)) {
+        showToast('La contraseña debe tener entre 3 y 8 caracteres, ser alfanumérica y contener al menos una mayúscula, una minúscula y un número.', 'error');
         return;
       }
     }
@@ -968,6 +968,10 @@ export default function ConfigPanel({ showToast }) {
     }
     if (actualHash !== savedHash) {
       showToast('El PIN actual de administrador es incorrecto', 'danger');
+      return;
+    }
+    if (!/^[a-zA-Z0-9]{3,8}$/.test(nuevoPin) || !/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(nuevoPin)) {
+      showToast('El PIN nuevo debe tener entre 3 y 8 caracteres, ser alfanumérico y contener al menos una mayúscula, una minúscula y un número.', 'danger');
       return;
     }
     if (nuevoPin !== confirmarPin) {
@@ -1817,7 +1821,12 @@ export default function ConfigPanel({ showToast }) {
               </div>
               <form onSubmit={handleChangePin} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 <div className="form-group" style={{ gap: 4 }}>
-                  <label className="form-label">PIN de Administrador Actual</label>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <label className="form-label">PIN de Administrador Actual</label>
+                    <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                      {actualPin?.length || 0}/8
+                    </span>
+                  </div>
                   <input
                     type="password"
                     className="form-input"
@@ -1831,7 +1840,12 @@ export default function ConfigPanel({ showToast }) {
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                   <div className="form-group" style={{ gap: 4 }}>
-                    <label className="form-label">Nuevo PIN</label>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <label className="form-label">Nuevo PIN</label>
+                      <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                        {nuevoPin?.length || 0}/8
+                      </span>
+                    </div>
                     <input
                       type="password"
                       className="form-input"
@@ -1844,7 +1858,12 @@ export default function ConfigPanel({ showToast }) {
                     />
                   </div>
                   <div className="form-group" style={{ gap: 4 }}>
-                    <label className="form-label">Confirmar PIN</label>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <label className="form-label">Confirmar PIN</label>
+                      <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                        {confirmarPin?.length || 0}/8
+                      </span>
+                    </div>
                     <input
                       type="password"
                       className="form-input"
@@ -2823,7 +2842,12 @@ export default function ConfigPanel({ showToast }) {
               </p>
               <form onSubmit={handleRestablecerTodo} style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                 <div className="form-group" style={{ margin: 0, gap: 4 }}>
-                  <label className="form-label">PIN Admin</label>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: 90 }}>
+                    <label className="form-label">PIN Admin</label>
+                    <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
+                      {resetPin?.length || 0}/8
+                    </span>
+                  </div>
                   <input
                     type="password"
                     className="form-input"
@@ -2870,7 +2894,12 @@ export default function ConfigPanel({ showToast }) {
               
               <form onSubmit={handleArchivarPedidos} style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                 <div className="form-group" style={{ margin: 0, gap: 4 }}>
-                  <label className="form-label">PIN Admin</label>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: 90 }}>
+                    <label className="form-label">PIN Admin</label>
+                    <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
+                      {archivingPin?.length || 0}/8
+                    </span>
+                  </div>
                   <input
                     type="password"
                     className="form-input"
@@ -3512,12 +3541,19 @@ export default function ConfigPanel({ showToast }) {
               </div>
 
               <div className="form-group">
-                <label className="form-label">
-                  {newUser.role === 'cajero' ? 'PIN de Ingreso (máx. 8 dígitos)' : 'Contraseña (Alfanumérica, máx. 8 caracteres)'}
-                </label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <label className="form-label">
+                    {newUser.role === 'cajero' ? 'PIN de Ingreso (máx. 8 dígitos)' : 'Contraseña (Alfanumérica, máx. 8 caracteres)'}
+                  </label>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                    {newUser.password?.length || 0}/8
+                  </span>
+                </div>
                 <input 
                   className="form-input" 
                   type={newUser.role === 'cajero' ? 'text' : 'password'}
+                  inputMode={newUser.role === 'cajero' ? 'numeric' : undefined}
+                  pattern={newUser.role === 'cajero' ? '[0-9]*' : undefined}
                   placeholder={newUser.role === 'cajero' ? 'Ej. 12345678' : '••••••••'} 
                   value={newUser.password}
                   onChange={e => setNewUser(p => ({ ...p, password: newUser.role === 'cajero' ? e.target.value.replace(/\D/g, '') : e.target.value }))}
@@ -3599,12 +3635,19 @@ export default function ConfigPanel({ showToast }) {
               </div>
 
               <div className="form-group">
-                <label className="form-label">
-                  {selectedUserForPassword.role === 'cajero' ? 'Nuevo PIN (máx. 8 dígitos)' : 'Nueva Contraseña (Alfanumérica, máx. 8 caracteres)'}
-                </label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <label className="form-label">
+                    {selectedUserForPassword.role === 'cajero' ? 'Nuevo PIN (máx. 8 dígitos)' : 'Nueva Contraseña (Alfanumérica, máx. 8 caracteres)'}
+                  </label>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                    {newPassword?.length || 0}/8
+                  </span>
+                </div>
                 <input 
                   className="form-input" 
                   type={selectedUserForPassword.role === 'cajero' ? 'text' : 'password'}
+                  inputMode={selectedUserForPassword.role === 'cajero' ? 'numeric' : undefined}
+                  pattern={selectedUserForPassword.role === 'cajero' ? '[0-9]*' : undefined}
                   placeholder={selectedUserForPassword.role === 'cajero' ? 'Ej. 12345678' : '••••••••'} 
                   value={newPassword}
                   onChange={e => setNewPassword(selectedUserForPassword.role === 'cajero' ? e.target.value.replace(/\D/g, '') : e.target.value)}
