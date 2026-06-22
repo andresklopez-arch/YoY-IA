@@ -1884,6 +1884,9 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
                     >
                       Cerrar
                     </button>
+                    <div style={{ fontSize: '8px', color: 'var(--text-muted)', textAlign: 'center', marginTop: 4, opacity: 0.5, letterSpacing: '0.04em' }}>
+                      v2.1.2 • YoY IA Billar
+                    </div>
                   </div>
                 </div>
               </div>
