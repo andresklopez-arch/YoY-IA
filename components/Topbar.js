@@ -11,24 +11,41 @@ import { getBusinessDate } from '@/lib/date-utils';
 
 
 // Hook: pedidos pendientes de clientes via QR
-function usePedidosPendientes() {
+function usePedidosPendientes(salonId) {
   const [total, setTotal] = useState(0);
   useEffect(() => {
-    const q = query(collection(db, 'mesa_pedidos'), where('estado', 'in', ['pendiente', 'en_camino']));
+    if (!salonId) {
+      setTotal(0);
+      return;
+    }
+    const q = query(
+      collection(db, 'mesa_pedidos'),
+      where('salonId', '==', salonId),
+      where('estado', 'in', ['pendiente', 'en_camino'])
+    );
     const unsub = onSnapshot(q, snap => setTotal(snap.size));
     return unsub;
-  }, []);
+  }, [salonId]);
   return total;
 }
 
 // Hook: pedidos pendientes en cocina
-function usePedidosCocina() {
+function usePedidosCocina(salonId) {
   const [total, setTotal] = useState(0);
   useEffect(() => {
-    const q = query(collection(db, 'mesa_pedidos'), where('tipo', '==', 'pedido'), where('estado', '==', 'pendiente'));
+    if (!salonId) {
+      setTotal(0);
+      return;
+    }
+    const q = query(
+      collection(db, 'mesa_pedidos'),
+      where('salonId', '==', salonId),
+      where('tipo', '==', 'pedido'),
+      where('estado', '==', 'pendiente')
+    );
     const unsub = onSnapshot(q, snap => setTotal(snap.size));
     return unsub;
-  }, []);
+  }, [salonId]);
   return total;
 }
 
@@ -131,9 +148,14 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
   }, []);
 
   useEffect(() => {
+    if (!user?.salonId) {
+      setWorkingMeseros([]);
+      return;
+    }
     // 1. Escuchar empleados activos
     const qEmp = query(
       collection(db, 'nomina_empleados'), 
+      where('salonId', '==', user.salonId),
       where('estado', '==', 'activo')
     );
     const unsubEmp = onSnapshot(qEmp, snapEmp => {
@@ -146,6 +168,7 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
       const fechaHoy = getBusinessDate();
       const qAsist = query(
         collection(db, 'nomina_asistencia'), 
+        where('salonId', '==', user.salonId),
         where('fecha', '==', fechaHoy)
       );
       
@@ -165,7 +188,7 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
     });
 
     return unsubEmp;
-  }, []);
+  }, [user?.salonId]);
 
   useEffect(() => {
     if (!showMeseroDropdown) return;
@@ -236,12 +259,13 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
 
   // Sugerencia 3: Mostrar los últimos 3 fichajes exitosos en tiempo real
   useEffect(() => {
-    if (!focusedEmpleadoQR) {
+    if (!focusedEmpleadoQR || !user?.salonId) {
       setRecentFichajes([]);
       return;
     }
     const q = query(
       collection(db, 'nomina_asistencia_log'),
+      where('salonId', '==', user.salonId),
       where('empleadoId', '==', focusedEmpleadoQR.id)
     );
     const unsub = onSnapshot(q, snap => {
@@ -257,16 +281,17 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
       console.warn("Error listening to recent logs:", err);
     });
     return unsub;
-  }, [focusedEmpleadoQR]);
+  }, [focusedEmpleadoQR, user?.salonId]);
 
   // Escuchar pases de lista de administración (Cajeros, Gerentes, Administradores)
   useEffect(() => {
-    if (!showModalPaseLista) {
+    if (!showModalPaseLista || !user?.salonId) {
       setAdminLogs([]);
       return;
     }
     const q = query(
       collection(db, 'nomina_asistencia_log'),
+      where('salonId', '==', user.salonId),
       orderBy('createdAt', 'desc'),
       limit(40)
     );
@@ -281,7 +306,7 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
       console.warn("Error listening to admin logs:", err);
     });
     return unsub;
-  }, [showModalPaseLista]);
+  }, [showModalPaseLista, user?.salonId]);
 
   // Manejar tecla ESC para salir del Pase de Lista
   useEffect(() => {
@@ -300,16 +325,28 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
 
 
   useEffect(() => {
-    if (!showModalPaseLista) return;
-    const q = query(collection(db, 'nomina_empleados'), where('estado', '==', 'activo'));
+    if (!showModalPaseLista || !user?.salonId) {
+      setEmpleadosPaseLista([]);
+      return;
+    }
+    const q = query(
+      collection(db, 'nomina_empleados'), 
+      where('salonId', '==', user.salonId),
+      where('estado', '==', 'activo')
+    );
     const unsub = onSnapshot(q, snap => {
       setEmpleadosPaseLista(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    }, err => {
+      console.error("Error al cargar empleados para pase de lista:", err);
     });
     return unsub;
-  }, [showModalPaseLista]);
+  }, [showModalPaseLista, user?.salonId]);
 
   const handlePaseListaClick = async (emp) => {
     try {
+      if (!user?.salonId) {
+        throw new Error('No se ha detectado el identificador del salón.');
+      }
       const fechaHoy = getBusinessDate();
       const hour = new Date().getHours();
       let turnoActual = 'noche';
@@ -318,6 +355,7 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
 
       const q = query(
         collection(db, 'nomina_asistencia'),
+        where('salonId', '==', user.salonId),
         where('empleadoId', '==', emp.id),
         where('fecha', '==', fechaHoy),
         where('turno', '==', turnoActual)
@@ -325,6 +363,7 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
       const snap = await getDocs(q);
       if (snap.empty) {
         await addDoc(collection(db, 'nomina_asistencia'), {
+          salonId: user.salonId,
           empleadoId: emp.id,
           fecha: fechaHoy,
           turno: turnoActual,
@@ -344,6 +383,7 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
 
       // Registrar de inmediato en la bitácora general para el panel de Reportes
       await addDoc(collection(db, 'bitacora'), {
+        salonId: user.salonId,
         fecha: new Date().toISOString(),
         accion: 'Asistencia Consola',
         detalle: `Pase de lista de ${emp.nombre} (${emp.rol || 'Mesero'}) registrado desde pantalla administrador por ${dispositivo}`,
@@ -420,8 +460,8 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
   };
 
   const alertasNomina = useAlertasNomina();
-  const pedidosPendientes = usePedidosPendientes();
-  const pedidosCocina = usePedidosCocina();
+  const pedidosPendientes = usePedidosPendientes(user?.salonId);
+  const pedidosCocina = usePedidosCocina(user?.salonId);
   const [locale, setLocale] = useState('es-MX');
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [isDismissing, setIsDismissing] = useState(false);
@@ -506,7 +546,15 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
 
   // Carga de Alertas de Pedidos en Tiempo Real (Firestore)
   useEffect(() => {
-    const q = query(collection(db, 'mesa_pedidos'), where('estado', '==', 'pendiente'));
+    if (!user?.salonId) {
+      setPedidosAlerts([]);
+      return;
+    }
+    const q = query(
+      collection(db, 'mesa_pedidos'), 
+      where('salonId', '==', user.salonId),
+      where('estado', '==', 'pendiente')
+    );
     const unsub = onSnapshot(q, snap => {
       const list = [];
       snap.forEach(doc => {
@@ -524,7 +572,7 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
       console.warn("Mesa pedidos alerts offline:", err);
     });
     return unsub;
-  }, []);
+  }, [user?.salonId]);
 
   // Carga de Alertas de Stock Bajo
   useEffect(() => {
@@ -568,7 +616,15 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
 
   // Escuchar alertas de surtido de cocina en tiempo real
   useEffect(() => {
-    const q = query(collection(db, 'cocina_insumos'), where('surtidoSolicitado', '==', true));
+    if (!user?.salonId) {
+      setCocinaSurtidoAlerts([]);
+      return;
+    }
+    const q = query(
+      collection(db, 'cocina_insumos'), 
+      where('salonId', '==', user.salonId),
+      where('surtidoSolicitado', '==', true)
+    );
     const unsub = onSnapshot(q, snap => {
       const list = [];
       snap.forEach(doc => {
@@ -587,7 +643,7 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
       console.warn("Cocina surtido alerts offline:", err);
     });
     return unsub;
-  }, []);
+  }, [user?.salonId]);
 
   // Auto-ocultar onboarding
   useEffect(() => {
@@ -732,6 +788,7 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
           updatedAt: serverTimestamp()
         });
         await addDoc(collection(db, 'bitacora'), {
+          salonId: user.salonId,
           fecha: new Date().toISOString(),
           tipo: 'inventario',
           operador: user?.nombre || user?.alias || 'Administración',
