@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { auth, db } from '../../lib/firebase';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc, collection, getDocs } from 'firebase/firestore';
 import { getClientDomain } from '../../lib/tenant';
 import { hashPasswordSecure } from '../../lib/crypto';
@@ -24,7 +24,12 @@ export default function SeedPage() {
         }
       } catch (e) {
         console.error("Error al comprobar sembrado:", e);
-        setStatus(`Error de conexión al verificar base de datos: ${e.message}`);
+        if (e.code === 'permission-denied' || e.message?.includes('permissions')) {
+          setIsAlreadySeeded(true);
+          setStatus('El sistema ya está inicializado (Acceso restringido).');
+        } else {
+          setStatus(`Error de conexión al verificar base de datos: ${e.message}`);
+        }
       } finally {
         setChecking(false);
       }
@@ -100,17 +105,29 @@ export default function SeedPage() {
         setStatus('¡Usuario creado en Firebase Auth con éxito!');
       } catch (authError) {
         if (authError.code === 'auth/email-already-in-use') {
-          setStatus('Nota: El correo ya existe en Firebase Auth. Intentaremos resincronizar el documento en Firestore.');
+          setStatus('El correo ya existe en Firebase Auth. Verificando contraseña...');
+          try {
+            // Intentar iniciar sesión para verificar si la contraseña ingresada es la correcta
+            const loginCredential = await signInWithEmailAndPassword(auth, email, customPassword);
+            user = loginCredential.user;
+            setStatus('¡Contraseña correcta! El usuario ya existe en Firebase Auth.');
+          } catch (loginError) {
+            console.error("Fallo de inicio de sesión en forzado:", loginError);
+            throw new Error('El usuario ya existe en Firebase Auth con otra contraseña. Para restablecerla, elimínalo desde tu Firebase Console y vuelve a intentar.');
+          }
         } else {
           throw authError;
         }
       }
 
+      if (!user || !user.uid) {
+        throw new Error('No se pudo determinar el UID del usuario.');
+      }
+
       const hashedPassword = await hashPasswordSecure(customPassword);
       setStatus('Sincronizando documento de usuario en Firestore...');
-      const uid = user ? user.uid : 'masteradmin_default';
-      await setDoc(doc(db, 'users', uid), {
-        uid: uid,
+      await setDoc(doc(db, 'users', user.uid), {
+        uid: user.uid,
         email: email,
         password: hashedPassword,
         name: 'Administrador Maestro',
@@ -121,7 +138,7 @@ export default function SeedPage() {
         createdAt: new Date().toISOString()
       }, { merge: true });
 
-      setStatus('¡MasterAdmin creado y sincronizado exitosamente! Ya puedes intentar iniciar sesión.');
+      setStatus('¡MasterAdmin sincronizado exitosamente en Firebase Auth y Firestore! Ya puedes iniciar sesión.');
     } catch (error) {
       console.error(error);
       setStatus(`Error: ${error.message}`);
