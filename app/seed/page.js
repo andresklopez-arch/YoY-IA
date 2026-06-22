@@ -82,6 +82,52 @@ export default function SeedPage() {
     }
   };
 
+  const handleForceSeedMasterAdmin = async () => {
+    if (customPassword.length < 6) {
+      setStatus('Error: La contraseña debe tener al menos 6 caracteres.');
+      return;
+    }
+    setStatus('Iniciando forzado de MasterAdmin...');
+    try {
+      const clientDomain = getClientDomain();
+      const email = `masteradmin@${clientDomain}`;
+      
+      setStatus(`Intentando crear en Firebase Auth: ${email}...`);
+      let user = null;
+      try {
+        const userCredential = await createUserWithEmailAndPassword(auth, email, customPassword);
+        user = userCredential.user;
+        setStatus('¡Usuario creado en Firebase Auth con éxito!');
+      } catch (authError) {
+        if (authError.code === 'auth/email-already-in-use') {
+          setStatus('Nota: El correo ya existe en Firebase Auth. Intentaremos resincronizar el documento en Firestore.');
+        } else {
+          throw authError;
+        }
+      }
+
+      const hashedPassword = await hashPasswordSecure(customPassword);
+      setStatus('Sincronizando documento de usuario en Firestore...');
+      const uid = user ? user.uid : 'masteradmin_default';
+      await setDoc(doc(db, 'users', uid), {
+        uid: uid,
+        email: email,
+        password: hashedPassword,
+        name: 'Administrador Maestro',
+        alias: 'MasterAdmin',
+        role: 'admin',
+        sucursal: 'all',
+        avatar: 'M',
+        createdAt: new Date().toISOString()
+      }, { merge: true });
+
+      setStatus('¡MasterAdmin creado y sincronizado exitosamente! Ya puedes intentar iniciar sesión.');
+    } catch (error) {
+      console.error(error);
+      setStatus(`Error: ${error.message}`);
+    }
+  };
+
   return (
     <div style={{
       minHeight: '100vh',
@@ -170,7 +216,7 @@ export default function SeedPage() {
               placeholder="Ingresa la contraseña para masteradmin"
               value={customPassword}
               onChange={e => setCustomPassword(e.target.value)}
-              disabled={isAlreadySeeded || checking}
+              disabled={checking}
               style={{
                 width: '100%',
                 padding: '12px 16px',
@@ -207,6 +253,31 @@ export default function SeedPage() {
           >
             {checking ? 'Verificando...' : 'Ejecutar Sembrado Inicial'}
           </button>
+
+          {isAlreadySeeded && !checking && (
+            <button 
+              onClick={handleForceSeedMasterAdmin}
+              disabled={customPassword.length < 6}
+              style={{
+                width: '100%',
+                padding: '14px',
+                background: 'linear-gradient(135deg, #ef4444 0%, #b91c1c 100%)',
+                border: 'none',
+                borderRadius: 12,
+                color: '#fff',
+                fontSize: 14,
+                fontWeight: 700,
+                cursor: 'pointer',
+                boxShadow: '0 4px 15px rgba(239,68,68,0.3)',
+                transition: 'all 0.2s',
+                marginTop: 4,
+                opacity: customPassword.length < 6 ? 0.4 : 1,
+                pointerEvents: customPassword.length < 6 ? 'none' : 'auto'
+              }}
+            >
+              Forzar Creación de MasterAdmin en Auth
+            </button>
+          )}
         </div>
 
         <div style={{
