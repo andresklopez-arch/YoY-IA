@@ -1163,10 +1163,39 @@ function AppContent() {
   // Redirigir si no tiene permisos para el panel activo
   useEffect(() => {
     if (isProcessingQR) return;
-    if (user && user.permisos) {
-      if (user.permisos[activePanel] !== true) {
-        const primerPermitido = ['dashboard', 'mesas', 'caja', 'bar', 'clientes', 'torneos', 'nomina', 'reportes', 'config']
-          .find(key => user.permisos[key] === true);
+    if (user) {
+      const panelRoles = {
+        dashboard: ['admin', 'gerente', 'cajero'],
+        mesas:     ['admin', 'gerente', 'cajero', 'mesero'],
+        caja:      ['admin', 'gerente', 'cajero'],
+        bar:       ['admin', 'gerente', 'mesero'],
+        clientes:  ['admin', 'gerente', 'cajero'],
+        torneos:   ['admin', 'gerente', 'arbitro'],
+        nomina:    ['admin', 'gerente'],
+        config:    ['admin']
+      };
+
+      const userRole = user.role || 'cajero';
+      let tienePermiso = true;
+
+      if (user.permisos) {
+        if (typeof user.permisos[activePanel] !== 'undefined') {
+          tienePermiso = user.permisos[activePanel] === true;
+        } else {
+          tienePermiso = panelRoles[activePanel]?.includes(userRole) || false;
+        }
+      } else {
+        tienePermiso = panelRoles[activePanel]?.includes(userRole) || false;
+      }
+
+      if (!tienePermiso) {
+        const primerPermitido = ['dashboard', 'mesas', 'caja', 'bar', 'clientes', 'torneos', 'nomina', 'config']
+          .find(key => {
+            if (user.permisos && typeof user.permisos[key] !== 'undefined') {
+              return user.permisos[key] === true;
+            }
+            return panelRoles[key]?.includes(userRole);
+          });
         if (primerPermitido) {
           setActivePanel(primerPermitido);
         }
