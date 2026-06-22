@@ -650,13 +650,13 @@ export default function ConfigPanel({ showToast }) {
     }
 
     if (newUser.role === 'cajero') {
-      if (!/^\d{6}$/.test(newUser.password)) {
-        showToast('El PIN/Contraseña de Cajero debe ser de exactamente 6 dígitos numéricos', 'error');
+      if (!/^\d{4,8}$/.test(newUser.password)) {
+        showToast('El PIN/Contraseña de Cajero debe ser de entre 4 y 8 dígitos numéricos', 'error');
         return;
       }
     } else {
-      if (!/^[a-zA-Z0-9]{1,15}$/.test(newUser.password)) {
-        showToast('La contraseña debe ser alfanumérica (letras y números) y tener como máximo 15 caracteres.', 'error');
+      if (!/^[a-zA-Z0-9]{1,8}$/.test(newUser.password)) {
+        showToast('La contraseña debe ser alfanumérica (letras y números) y tener como máximo 8 caracteres.', 'error');
         return;
       }
     }
@@ -713,13 +713,13 @@ export default function ConfigPanel({ showToast }) {
     if (!selectedUserForPassword || !newPassword) return;
 
     if (selectedUserForPassword.role === 'cajero') {
-      if (!/^\d{6}$/.test(newPassword)) {
-        showToast('El PIN/Contraseña de Cajero debe ser de exactamente 6 dígitos numéricos', 'error');
+      if (!/^\d{4,8}$/.test(newPassword)) {
+        showToast('El PIN/Contraseña de Cajero debe ser de entre 4 y 8 dígitos numéricos', 'error');
         return;
       }
     } else {
-      if (!/^[a-zA-Z0-9]{1,15}$/.test(newPassword)) {
-        showToast('La contraseña debe ser alfanumérica (letras y números) y tener como máximo 15 caracteres.', 'error');
+      if (!/^[a-zA-Z0-9]{1,8}$/.test(newPassword)) {
+        showToast('La contraseña debe ser alfanumérica (letras y números) y tener como máximo 8 caracteres.', 'error');
         return;
       }
     }
@@ -3513,15 +3513,15 @@ export default function ConfigPanel({ showToast }) {
 
               <div className="form-group">
                 <label className="form-label">
-                  {newUser.role === 'cajero' ? 'PIN de Ingreso (exactamente 6 dígitos)' : 'Contraseña (Alfanumérica)'}
+                  {newUser.role === 'cajero' ? 'PIN de Ingreso (máx. 8 dígitos)' : 'Contraseña (Alfanumérica, máx. 8 caracteres)'}
                 </label>
                 <input 
                   className="form-input" 
                   type={newUser.role === 'cajero' ? 'text' : 'password'}
-                  placeholder={newUser.role === 'cajero' ? 'Ej. 123456' : '••••••••'} 
+                  placeholder={newUser.role === 'cajero' ? 'Ej. 12345678' : '••••••••'} 
                   value={newUser.password}
                   onChange={e => setNewUser(p => ({ ...p, password: newUser.role === 'cajero' ? e.target.value.replace(/\D/g, '') : e.target.value }))}
-                  maxLength={newUser.role === 'cajero' ? 6 : undefined}
+                  maxLength={8}
                   required
                 />
               </div>
@@ -3600,15 +3600,15 @@ export default function ConfigPanel({ showToast }) {
 
               <div className="form-group">
                 <label className="form-label">
-                  {selectedUserForPassword.role === 'cajero' ? 'Nuevo PIN (exactamente 6 dígitos)' : 'Nueva Contraseña (Alfanumérica, máx. 15 caracteres)'}
+                  {selectedUserForPassword.role === 'cajero' ? 'Nuevo PIN (máx. 8 dígitos)' : 'Nueva Contraseña (Alfanumérica, máx. 8 caracteres)'}
                 </label>
                 <input 
                   className="form-input" 
                   type={selectedUserForPassword.role === 'cajero' ? 'text' : 'password'}
-                  placeholder={selectedUserForPassword.role === 'cajero' ? 'Ej. 123456' : '••••••••'} 
+                  placeholder={selectedUserForPassword.role === 'cajero' ? 'Ej. 12345678' : '••••••••'} 
                   value={newPassword}
                   onChange={e => setNewPassword(selectedUserForPassword.role === 'cajero' ? e.target.value.replace(/\D/g, '') : e.target.value)}
-                  maxLength={selectedUserForPassword.role === 'cajero' ? 6 : 15}
+                  maxLength={8}
                   required
                   autoFocus
                 />
