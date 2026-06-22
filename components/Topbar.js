@@ -56,7 +56,37 @@ const QUICK_NAV_TARGETS = [
 ];
 
 export default function Topbar({ user, activePanel, showToast, onNavigate }) {
-  const { logout, loginWithEmpleadoId } = useAuth();
+  const { logout, loginWithEmpleadoId, offlineLockout, unlockOffline } = useAuth();
+  const [nipInput, setNipInput] = useState('');
+  const [lockoutError, setLockoutError] = useState('');
+
+  const handleNipClick = (num) => {
+    setLockoutError('');
+    if (nipInput.length < 6) {
+      setNipInput(prev => prev + num);
+    }
+  };
+
+  const handleNipBackspace = () => {
+    setNipInput(prev => prev.slice(0, -1));
+  };
+
+  const handleNipSubmit = async () => {
+    if (nipInput.length < 4) {
+      setLockoutError('El NIP debe tener al menos 4 dígitos.');
+      return;
+    }
+    const res = await unlockOffline(nipInput);
+    if (res.success) {
+      if (showToast) showToast(`Sistema desbloqueado por ${res.name}`, 'success');
+      setNipInput('');
+      setLockoutError('');
+    } else {
+      setLockoutError(res.error || 'NIP incorrecto o sin privilegios.');
+      setNipInput('');
+    }
+  };
+
   const [time, setTime] = useState(new Date());
   const [showMenu, setShowMenu] = useState(false);
   const [showModalPaseLista, setShowModalPaseLista] = useState(false);
@@ -779,7 +809,158 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
   const allNotifications = rawNotifications.filter(n => Array.isArray(dismissedAlerts) && !dismissedAlerts.includes(n.id));
 
   return (
-    <header className="topbar">
+    <>
+      {offlineLockout && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100vw',
+          height: '100vh',
+          background: 'radial-gradient(circle at center, #1a1a1a 0%, #0a0a0a 100%)',
+          backdropFilter: 'blur(12px)',
+          zIndex: 999999,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: '#fff',
+          fontFamily: 'var(--font-outfit), sans-serif',
+          padding: 24,
+          boxSizing: 'border-box'
+        }}>
+          <div style={{
+            background: 'rgba(25, 25, 25, 0.65)',
+            border: '1px solid rgba(197, 160, 89, 0.15)',
+            boxShadow: '0 20px 50px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
+            borderRadius: 24,
+            padding: '40px 30px',
+            width: '100%',
+            maxWidth: 420,
+            textAlign: 'center',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 20
+          }}>
+            <div style={{
+              width: 80,
+              height: 80,
+              borderRadius: '50%',
+              background: 'rgba(197, 160, 89, 0.1)',
+              border: '1px solid rgba(197, 160, 89, 0.3)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: 10,
+              boxShadow: '0 0 20px rgba(197, 160, 89, 0.05)'
+            }}>
+              <i className="ri-shield-user-line" style={{ fontSize: 38, color: '#c5a059' }} />
+            </div>
+
+            <h2 style={{ fontFamily: 'var(--font-display)', margin: 0, fontSize: 22, fontWeight: 800, color: '#c5a059', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+              Bloqueo de Seguridad
+            </h2>
+            <p style={{ margin: 0, fontSize: 13, color: '#8e8e93', lineHeight: 1.5, padding: '0 10px' }}>
+              El sistema lleva más de 15 minutos sin sincronizar con la base de datos central. Se requiere NIP de Supervisor (Gerente o Administrador) para continuar en modo offline.
+            </p>
+
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'center', margin: '15px 0' }}>
+              {[1, 2, 3, 4, 5, 6].map((i) => (
+                <div key={i} style={{
+                  width: 14,
+                  height: 14,
+                  borderRadius: '50%',
+                  background: nipInput.length >= i ? '#c5a059' : 'rgba(255, 255, 255, 0.1)',
+                  border: nipInput.length >= i ? '1px solid #c5a059' : '1px solid rgba(255, 255, 255, 0.05)',
+                  boxShadow: nipInput.length >= i ? '0 0 10px rgba(197, 160, 89, 0.3)' : 'none',
+                  transition: 'all 0.15s ease'
+                }} />
+              ))}
+            </div>
+
+            {lockoutError && (
+              <p style={{ color: '#ff453a', fontSize: 13, margin: 0, fontWeight: 500 }}>
+                {lockoutError}
+              </p>
+            )}
+
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(3, 1fr)',
+              gap: 12,
+              width: '100%',
+              maxWidth: 300,
+              marginTop: 10
+            }}>
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
+                <button key={num} onClick={() => handleNipClick(num.toString())} style={{
+                  height: 54,
+                  borderRadius: 14,
+                  background: 'rgba(255, 255, 255, 0.03)',
+                  border: '1px solid rgba(255, 255, 255, 0.05)',
+                  color: '#fff',
+                  fontSize: 20,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  transition: 'all 0.1s ease',
+                  outline: 'none'
+                }}>
+                  {num}
+                </button>
+              ))}
+              <button onClick={handleNipBackspace} style={{
+                height: 54,
+                borderRadius: 14,
+                background: 'rgba(255, 255, 255, 0.03)',
+                border: '1px solid rgba(255, 255, 255, 0.05)',
+                color: '#fff',
+                fontSize: 18,
+                cursor: 'pointer',
+                transition: 'all 0.1s ease',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                outline: 'none'
+              }}>
+                <i className="ri-delete-back-2-line" />
+              </button>
+              <button onClick={() => handleNipClick('0')} style={{
+                height: 54,
+                borderRadius: 14,
+                background: 'rgba(255, 255, 255, 0.03)',
+                border: '1px solid rgba(255, 255, 255, 0.05)',
+                color: '#fff',
+                fontSize: 20,
+                fontWeight: 600,
+                cursor: 'pointer',
+                transition: 'all 0.1s ease',
+                outline: 'none'
+              }}>
+                0
+              </button>
+              <button onClick={handleNipSubmit} style={{
+                height: 54,
+                borderRadius: 14,
+                background: 'var(--primary, #c5a059)',
+                border: '1px solid var(--primary, #c5a059)',
+                color: '#fff',
+                fontSize: 16,
+                fontWeight: 700,
+                cursor: 'pointer',
+                transition: 'all 0.1s ease',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                outline: 'none'
+              }}>
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      <header className="topbar">
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         <button
           onClick={() => onNavigate('mesas')}
@@ -2030,7 +2211,6 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
       )}
 
     </header>
-
-
+    </>
   );
 }

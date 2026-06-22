@@ -1,4 +1,4 @@
-Jun 21, 2026 7:21:21 PM com.google.cloud.datastore.emulator.firestore.websocket.WebSocketServer start
+Jun 21, 2026 7:27:10 PM com.google.cloud.datastore.emulator.firestore.websocket.WebSocketServer start
 INFO: Started WebSocket server on ws://127.0.0.1:9150
 
 API endpoint: http://127.0.0.1:8080
@@ -16,19 +16,19 @@ If you are running a Firestore in Datastore Mode project, run:
 Note: Support for Datastore Mode is in preview. If you encounter any bugs please file at https://github.com/firebase/firebase-tools/issues.
 Dev App Server is now running.
 
-Jun 21, 2026 7:21:22 PM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+Jun 21, 2026 7:27:10 PM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
 INFO: Detected non-HTTP/2 connection.
-Jun 21, 2026 7:21:22 PM io.grpc.netty.TcpMetrics loadEpollInfo
+Jun 21, 2026 7:27:11 PM io.grpc.netty.TcpMetrics loadEpollInfo
 INFO: Epoll available during static init of TcpMetrics:false
-Jun 21, 2026 7:21:22 PM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+Jun 21, 2026 7:27:11 PM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
 INFO: Detected HTTP/2 connection.
 Multiple projectIds are not recommended in single project mode. Requested project ID yoy-ia-billar-test-rules, but the emulator is configured for yoy-ia-billar. To opt-out of single project mode add/set the '"singleProjectMode": false' property in the firebase.json emulators config.
 Multiple projectIds are not recommended in single project mode. Requested project ID yoy-ia-billar-test-rules, but the emulator is configured for yoy-ia-billar. To opt-out of single project mode add/set the '"singleProjectMode": false' property in the firebase.json emulators config.
-Jun 21, 2026 7:21:23 PM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+Jun 21, 2026 7:27:12 PM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
 INFO: Detected non-HTTP/2 connection.
 Multiple projectIds are not recommended in single project mode. Requested project ID yoy-ia-billar-test-rules, but the emulator is configured for yoy-ia-billar. To opt-out of single project mode add/set the '"singleProjectMode": false' property in the firebase.json emulators config.
 Multiple projectIds are not recommended in single project mode. Requested project ID yoy-ia-billar-test-rules, but the emulator is configured for yoy-ia-billar. To opt-out of single project mode add/set the '"singleProjectMode": false' property in the firebase.json emulators config.
-Jun 21, 2026 7:21:23 PM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+Jun 21, 2026 7:27:12 PM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
 INFO: Detected HTTP/2 connection.
 Multiple projectIds are not recommended in single project mode. Requested project ID yoy-ia-billar-test-rules, but the emulator is configured for yoy-ia-billar. To opt-out of single project mode add/set the '"singleProjectMode": false' property in the firebase.json emulators config.
 Multiple projectIds are not recommended in single project mode. Requested project ID yoy-ia-billar-test-rules, but the emulator is configured for yoy-ia-billar. To opt-out of single project mode add/set the '"singleProjectMode": false' property in the firebase.json emulators config.
@@ -36,7 +36,7 @@ Multiple projectIds are not recommended in single project mode. Requested projec
 Multiple projectIds are not recommended in single project mode. Requested project ID yoy-ia-billar-test-rules, but the emulator is configured for yoy-ia-billar. To opt-out of single project mode add/set the '"singleProjectMode": false' property in the firebase.json emulators config.
 Multiple projectIds are not recommended in single project mode. Requested project ID yoy-ia-billar-test-rules, but the emulator is configured for yoy-ia-billar. To opt-out of single project mode add/set the '"singleProjectMode": false' property in the firebase.json emulators config.
 Multiple projectIds are not recommended in single project mode. Requested project ID yoy-ia-billar-test-rules, but the emulator is configured for yoy-ia-billar. To opt-out of single project mode add/set the '"singleProjectMode": false' property in the firebase.json emulators config.
-Jun 21, 2026 7:21:24 PM com.google.cloud.datastore.emulator.impl.util.WrappedStreamObserver onError
+Jun 21, 2026 7:27:12 PM com.google.cloud.datastore.emulator.impl.util.WrappedStreamObserver onError
 WARNING: Operation failed: 
 false for 'create' @ L71, false for 'update' @ L71
 com.google.cloud.datastore.core.exception.DatastoreException: 
@@ -69,7 +69,7 @@ false for 'create' @ L71, false for 'update' @ L71
 
 Multiple projectIds are not recommended in single project mode. Requested project ID yoy-ia-billar-test-rules, but the emulator is configured for yoy-ia-billar. To opt-out of single project mode add/set the '"singleProjectMode": false' property in the firebase.json emulators config.
 Multiple projectIds are not recommended in single project mode. Requested project ID yoy-ia-billar-test-rules, but the emulator is configured for yoy-ia-billar. To opt-out of single project mode add/set the '"singleProjectMode": false' property in the firebase.json emulators config.
-Jun 21, 2026 7:21:24 PM com.google.cloud.datastore.emulator.impl.util.WrappedStreamObserver onError
+Jun 21, 2026 7:27:12 PM com.google.cloud.datastore.emulator.impl.util.WrappedStreamObserver onError
 WARNING: Operation failed: 
 false for 'create' @ L71, false for 'update' @ L71
 com.google.cloud.datastore.core.exception.DatastoreException: 
@@ -104,7 +104,7 @@ Multiple projectIds are not recommended in single project mode. Requested projec
 Multiple projectIds are not recommended in single project mode. Requested project ID yoy-ia-billar-test-rules, but the emulator is configured for yoy-ia-billar. To opt-out of single project mode add/set the '"singleProjectMode": false' property in the firebase.json emulators config.
 Multiple projectIds are not recommended in single project mode. Requested project ID yoy-ia-billar-test-rules, but the emulator is configured for yoy-ia-billar. To opt-out of single project mode add/set the '"singleProjectMode": false' property in the firebase.json emulators config.
 Multiple projectIds are not recommended in single project mode. Requested project ID yoy-ia-billar-test-rules, but the emulator is configured for yoy-ia-billar. To opt-out of single project mode add/set the '"singleProjectMode": false' property in the firebase.json emulators config.
-Jun 21, 2026 7:21:24 PM com.google.cloud.datastore.emulator.impl.util.WrappedStreamObserver onError
+Jun 21, 2026 7:27:12 PM com.google.cloud.datastore.emulator.impl.util.WrappedStreamObserver onError
 WARNING: Operation failed: 
 false for 'create' @ L71, false for 'update' @ L71
 com.google.cloud.datastore.core.exception.DatastoreException: 
@@ -137,7 +137,7 @@ false for 'create' @ L71, false for 'update' @ L71
 
 Multiple projectIds are not recommended in single project mode. Requested project ID yoy-ia-billar-test-rules, but the emulator is configured for yoy-ia-billar. To opt-out of single project mode add/set the '"singleProjectMode": false' property in the firebase.json emulators config.
 Multiple projectIds are not recommended in single project mode. Requested project ID yoy-ia-billar-test-rules, but the emulator is configured for yoy-ia-billar. To opt-out of single project mode add/set the '"singleProjectMode": false' property in the firebase.json emulators config.
-Jun 21, 2026 7:21:24 PM io.netty.channel.DefaultChannelPipeline onUnhandledInboundException
+Jun 21, 2026 7:27:12 PM io.netty.channel.DefaultChannelPipeline onUnhandledInboundException
 WARNING: An exceptionCaught() event was fired, and it reached at the tail of the pipeline. It usually means the last handler in the pipeline did not handle the exception.
 java.net.SocketException: Connection reset
 	at java.base/sun.nio.ch.SocketChannelImpl.throwConnectionReset(Unknown Source)
@@ -155,7 +155,7 @@ java.net.SocketException: Connection reset
 	at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
 	at java.base/java.lang.Thread.run(Unknown Source)
 
-Jun 21, 2026 7:21:24 PM io.netty.channel.DefaultChannelPipeline onUnhandledInboundException
+Jun 21, 2026 7:27:12 PM io.netty.channel.DefaultChannelPipeline onUnhandledInboundException
 WARNING: An exceptionCaught() event was fired, and it reached at the tail of the pipeline. It usually means the last handler in the pipeline did not handle the exception.
 java.net.SocketException: Connection reset
 	at java.base/sun.nio.ch.SocketChannelImpl.throwConnectionReset(Unknown Source)
@@ -173,7 +173,7 @@ java.net.SocketException: Connection reset
 	at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
 	at java.base/java.lang.Thread.run(Unknown Source)
 
-Jun 21, 2026 7:21:24 PM io.netty.channel.DefaultChannelPipeline onUnhandledInboundException
+Jun 21, 2026 7:27:12 PM io.netty.channel.DefaultChannelPipeline onUnhandledInboundException
 WARNING: An exceptionCaught() event was fired, and it reached at the tail of the pipeline. It usually means the last handler in the pipeline did not handle the exception.
 java.net.SocketException: Connection reset
 	at java.base/sun.nio.ch.SocketChannelImpl.throwConnectionReset(Unknown Source)
