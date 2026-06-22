@@ -35,24 +35,39 @@ export async function POST(request) {
       return NextResponse.json({ success: true, users: [] });
     }
 
+    // Query users for this salon
     const usersSnap = await admin.firestore()
       .collection('users')
       .where('salonId', '==', salonId)
       .get();
 
+    // Query global users (like masteradmin with sucursal: 'all')
+    const globalSnap = await admin.firestore()
+      .collection('users')
+      .where('sucursal', '==', 'all')
+      .get();
+
     const list = [];
-    usersSnap.forEach(doc => {
-      const data = doc.data();
-      // Omitir información altamente sensible como contraseñas en texto o hashes
-      list.push({
-        id: doc.id,
-        name: data.name || data.nombre || 'Usuario',
-        email: data.email,
-        role: data.role || data.rol || 'usuario',
-        alias: data.alias || data.email.split('@')[0],
-        salonId: data.salonId
+    const seenIds = new Set();
+
+    const addDocs = (snap) => {
+      snap.forEach(doc => {
+        if (seenIds.has(doc.id)) return;
+        seenIds.add(doc.id);
+        const data = doc.data();
+        list.push({
+          id: doc.id,
+          name: data.name || data.nombre || 'Usuario',
+          email: data.email,
+          role: data.role || data.rol || 'usuario',
+          alias: data.alias || data.email.split('@')[0],
+          salonId: data.salonId || 'default_salon'
+        });
       });
-    });
+    };
+
+    addDocs(usersSnap);
+    addDocs(globalSnap);
 
     // Ordenar alfabéticamente por nombre
     list.sort((a, b) => a.name.localeCompare(b.name));
