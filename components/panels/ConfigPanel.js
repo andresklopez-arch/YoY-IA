@@ -1005,6 +1005,9 @@ export default function ConfigPanel({ showToast }) {
             await updatePassword(auth.currentUser, nuevoPin);
           } catch (authPwdErr) {
             console.warn("No se pudo actualizar la contraseña en Firebase Auth:", authPwdErr);
+            if (authPwdErr.code === 'auth/requires-recent-login') {
+              showToast('Por seguridad, debes cerrar sesión e iniciar de nuevo para cambiar tu contraseña en la nube.', 'warning');
+            }
           }
         }
         if (updateUserSession) {
@@ -1849,9 +1852,12 @@ export default function ConfigPanel({ showToast }) {
             </div>
 
             <div className="card" style={{ padding: '12px 14px' }}>
-              <div className="card-header" style={{ marginBottom: 12 }}>
+              <div className="card-header" style={{ marginBottom: 4 }}>
                 <h3 className="card-title"><i className="ri-shield-keyhole-line" style={{ marginRight: 6 }} />PIN de Administrador</h3>
               </div>
+              <p style={{ fontSize: '10.5px', color: 'var(--text-secondary)', margin: '0 0 10px 0', lineHeight: '1.4' }}>
+                Nota: Por seguridad, el PIN y la contraseña de inicio de sesión del Administrador Maestro son idénticos. Cambiar uno actualizará automáticamente el otro.
+              </p>
               <form onSubmit={handleChangePin} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 <div className="form-group" style={{ gap: 4 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -2719,35 +2725,48 @@ export default function ConfigPanel({ showToast }) {
                         <span style={{ fontSize: 8.5, fontWeight: 700, padding: '1px 6px', borderRadius: 20, background: `${color}22`, color, border: `1px solid ${color}44`, textTransform: 'uppercase', letterSpacing: '0.08em', marginRight: 6 }}>
                           {u.role}
                         </span>
-                        <button
-                          onClick={() => {
-                            setSelectedUserForPassword(u);
-                            setShowChangePasswordModal(true);
-                          }}
-                          title="Cambiar Contraseña"
-                          style={{
-                            background: 'none', border: 'none', color: 'var(--text-muted)',
-                            cursor: 'pointer', fontSize: 14, padding: '2px 6px',
-                            transition: 'color 0.15s', marginRight: 4
-                          }}
-                          onMouseEnter={e => e.currentTarget.style.color = 'var(--bronze-light)'}
-                          onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
-                        >
-                          <i className="ri-key-line" />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteUser(u.id, u.name)}
-                          title="Eliminar usuario"
-                          style={{
-                            background: 'none', border: 'none', color: 'var(--text-muted)',
-                            cursor: 'pointer', fontSize: 14, padding: '2px 6px',
-                            transition: 'color 0.15s',
-                          }}
-                          onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
-                          onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
-                        >
-                          <i className="ri-delete-bin-line" />
-                        </button>
+                        {!isMaster ? (
+                          <>
+                            <button
+                              onClick={() => {
+                                setSelectedUserForPassword(u);
+                                setShowChangePasswordModal(true);
+                              }}
+                              title="Cambiar Contraseña"
+                              style={{
+                                background: 'none', border: 'none', color: 'var(--text-muted)',
+                                cursor: 'pointer', fontSize: 14, padding: '2px 6px',
+                                transition: 'color 0.15s', marginRight: 4
+                              }}
+                              onMouseEnter={e => e.currentTarget.style.color = 'var(--bronze-light)'}
+                              onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
+                            >
+                              <i className="ri-key-line" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteUser(u.id, u.name)}
+                              title="Eliminar usuario"
+                              style={{
+                                background: 'none', border: 'none', color: 'var(--text-muted)',
+                                cursor: 'pointer', fontSize: 14, padding: '2px 6px',
+                                transition: 'color 0.15s',
+                              }}
+                              onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
+                              onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
+                            >
+                              <i className="ri-delete-bin-line" />
+                            </button>
+                          </>
+                        ) : (
+                          <div style={{ display: 'flex', gap: 6, marginRight: 4, alignItems: 'center' }}>
+                            <span 
+                              title="Sincronizado con PIN de Administrador. Cambiar desde la tarjeta correspondiente." 
+                              style={{ color: 'var(--text-muted)', cursor: 'help', fontSize: 11, display: 'flex', alignItems: 'center' }}
+                            >
+                              <i className="ri-lock-line" style={{ marginRight: 2 }} /> Sincronizado
+                            </span>
+                          </div>
+                        )}
                       </div>
                     );
                   })
