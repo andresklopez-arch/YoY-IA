@@ -18,6 +18,17 @@ if %ERRORLEVEL% NEQ 0 (
 echo  Validacion sintactica exitosa.
 echo.
 
+echo  Ejecutando suite de pruebas de diagnostico (PRUEBAS)...
+call node scripts/pruebas.js
+if %ERRORLEVEL% NEQ 0 (
+  echo ====================================================
+  echo  ERROR: Las pruebas de diagnostico fallaron. Abortando despliegue.
+  echo ====================================================
+  goto end
+)
+echo  Pruebas completadas exitosamente.
+echo.
+
 echo  Validando compilacion local (npm run build)...
 call npm run build
 if %ERRORLEVEL% NEQ 0 (
