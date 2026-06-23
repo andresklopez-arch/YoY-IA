@@ -91,6 +91,6 @@ export async function GET(request) {
     return NextResponse.json({ success: true, users });
   } catch (error) {
     console.error("Error in debug API:", error);
-    return NextResponse.json({ error: error.message, stack: error.stack }, { status: 500 });
+    return NextResponse.json({ success: false, error: error.message, stack: error.stack }, { status: 200 });
   }
 }
