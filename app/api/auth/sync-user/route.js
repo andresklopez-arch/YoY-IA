@@ -106,7 +106,7 @@ export async function POST(request) {
       displayName: name || email.split('@')[0]
     };
     
-    if (password) {
+    if (password && password.length >= 6) {
       updateParams.password = password;
     }
 
@@ -115,12 +115,17 @@ export async function POST(request) {
       await auth.updateUser(authUser.uid, updateParams);
     } else {
       console.log(`[Sync User API] Creando nuevo usuario en Auth con UID: ${uid}`);
-      await auth.createUser({
+      const createParams = {
         uid: uid,
         email: email,
-        displayName: name || email.split('@')[0],
-        password: password || '123456'
-      });
+        displayName: name || email.split('@')[0]
+      };
+      if (password && password.length >= 6) {
+        createParams.password = password;
+      } else {
+        createParams.password = 'yoybillar_' + Math.random().toString(36).substring(2, 10);
+      }
+      await auth.createUser(createParams);
     }
 
     // Asignar custom claims

@@ -114,18 +114,26 @@ export async function POST(request) {
     }
 
     // 4. Sincronizar los datos en Firebase Auth (crear o actualizar)
+    const authParams = {
+      displayName: userData.name || userData.nombre || formattedEmail.split('@')[0]
+    };
+    
+    if (password && password.length >= 6) {
+      authParams.password = password;
+    }
+
     if (authUser) {
-      await auth.updateUser(authUser.uid, {
-        password: password,
-        displayName: userData.name || userData.nombre || formattedEmail.split('@')[0]
-      });
+      await auth.updateUser(authUser.uid, authParams);
     } else {
-      await auth.createUser({
+      const createParams = {
         uid: uid,
         email: formattedEmail,
-        password: password,
-        displayName: userData.name || userData.nombre || formattedEmail.split('@')[0]
-      });
+        ...authParams
+      };
+      if (!createParams.password) {
+        createParams.password = 'yoybillar_' + Math.random().toString(36).substring(2, 10);
+      }
+      await auth.createUser(createParams);
     }
 
     // 5. Configurar custom claims
