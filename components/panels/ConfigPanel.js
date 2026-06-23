@@ -820,7 +820,7 @@ export default function ConfigPanel({ showToast }) {
       }
 
       const hashedPassword = await hashPasswordSecure(newUser.password);
-      await addDoc(collection(db, 'users'), {
+      const docRef = await addDoc(collection(db, 'users'), {
         name: newUser.name,
         email: formattedEmail,
         password: hashedPassword,
@@ -829,6 +829,32 @@ export default function ConfigPanel({ showToast }) {
         permisos: newUser.permisos || getDefaultPermisos(newUser.role),
         createdAt: new Date().toISOString()
       });
+
+      // Sincronizar nuevo usuario con Firebase Auth
+      try {
+        let token = '';
+        if (auth.currentUser) {
+          token = await auth.currentUser.getIdToken();
+        }
+        await fetch('/api/auth/sync-user', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            uid: docRef.id,
+            email: formattedEmail,
+            password: newUser.password,
+            name: newUser.name,
+            role: newUser.role,
+            salonId: activeSalonId
+          })
+        });
+      } catch (syncErr) {
+        console.error("[Sync User] Error al sincronizar nuevo usuario con Firebase Auth:", syncErr);
+      }
+
       showToast('¡Usuario creado! A partir de ahora el inicio de sesión es obligatorio.', 'success');
       setShowAddUserModal(false);
       setNewUser({ name: '', email: '', password: '', role: 'mesero', permisos: getDefaultPermisos('mesero') });
@@ -898,6 +924,32 @@ export default function ConfigPanel({ showToast }) {
       await setDoc(doc(db, 'users', selectedUserForPassword.id), {
         password: hashedPassword
       }, { merge: true });
+
+      // Sincronizar nueva contraseña con Firebase Auth
+      try {
+        let token = '';
+        if (auth.currentUser) {
+          token = await auth.currentUser.getIdToken();
+        }
+        const activeSalonId = selectedUserForPassword.salonId || user?.salonId || 'default_salon';
+        await fetch('/api/auth/sync-user', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            uid: selectedUserForPassword.id,
+            email: selectedUserForPassword.email,
+            password: newPassword,
+            name: selectedUserForPassword.name,
+            role: selectedUserForPassword.role,
+            salonId: activeSalonId
+          })
+        });
+      } catch (syncErr) {
+        console.error("[Sync User] Error al sincronizar nueva contraseña del usuario con Firebase Auth:", syncErr);
+      }
 
       // Sincronizar PIN de Administrador si es el Administrador Maestro
       const isMaster = isMasterUser(selectedUserForPassword.email);
