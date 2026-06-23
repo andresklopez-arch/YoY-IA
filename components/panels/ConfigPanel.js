@@ -7,6 +7,7 @@ import { QRCodeCanvas } from 'qrcode.react';
 import JSZip from 'jszip';
 import { useAuth } from '@/lib/auth-context';
 import { updatePassword } from 'firebase/auth';
+import { isMasterUser } from '@/lib/auth-helpers';
 
 const ALERTAS_DEFINITIONS = [
   { id: 'stockBajo', label: 'Alerta de Stock Bajo', sub: 'Notifica cuando un insumo o producto esté por debajo del stock óptimo' },
@@ -899,7 +900,7 @@ export default function ConfigPanel({ showToast }) {
       }, { merge: true });
 
       // Sincronizar PIN de Administrador si es el Administrador Maestro
-      const isMaster = selectedUserForPassword.email === 'masteradmin@yoybillar.mx' || selectedUserForPassword.email?.startsWith('masteradmin@');
+      const isMaster = isMasterUser(selectedUserForPassword.email);
       if (isMaster) {
         const newPinHash = hashPassword(newPassword);
         if (typeof window !== 'undefined') {
@@ -1174,7 +1175,7 @@ export default function ConfigPanel({ showToast }) {
       }
 
       // Si el usuario actual es el Administrador Maestro, actualizar Firebase Auth y sesión activa
-      const isMasterLoggedIn = user && (user.email === 'masteradmin@yoybillar.mx' || user.email?.startsWith('masteradmin@'));
+      const isMasterLoggedIn = user && isMasterUser(user.email);
       if (isMasterLoggedIn) {
         if (auth.currentUser) {
           try {
@@ -2945,7 +2946,7 @@ export default function ConfigPanel({ showToast }) {
                         return (
                           <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: i < 3 ? '1px solid var(--border)' : 'none', opacity: 0.65 }}>
                             <div style={{ width: 26, height: 26, borderRadius: 6, background: `${color}22`, border: `1px solid ${color}44`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color }}>
-                              {u.name[0]}
+                              {u.name?.[0] || 'U'}
                             </div>
                             <div style={{ flex: 1 }}>
                               <div style={{ fontSize: 12, fontWeight: 700 }}>{u.name} <span style={{ fontSize: 9, color: 'var(--bronze)', fontWeight: 600 }}>(Demo)</span></div>
@@ -2961,15 +2962,15 @@ export default function ConfigPanel({ showToast }) {
                   ) : (
                     usuarios.map((u, i) => {
                       const color = getRoleColor(u.role);
-                      const isMaster = u.email === 'masteradmin@yoybillar.mx' || u.email?.startsWith('masteradmin@');
+                      const isMaster = isMasterUser(u.email);
                       return (
                         <div key={u.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: i < usuarios.length - 1 ? '1px solid var(--border)' : 'none' }}>
                           <div style={{ width: 26, height: 26, borderRadius: 6, background: `${color}22`, border: `1px solid ${color}44`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color }}>
-                            {u.name[0]}
+                            {u.name?.[0] || 'U'}
                           </div>
                           <div style={{ flex: 1 }}>
-                            <div style={{ fontSize: 12, fontWeight: 700 }}>{u.name}</div>
-                            <div style={{ fontSize: 9.5, color: 'var(--text-muted)' }}>{u.email}</div>
+                            <div style={{ fontSize: 12, fontWeight: 700 }}>{u.name || 'Usuario'}</div>
+                            <div style={{ fontSize: 9.5, color: 'var(--text-muted)' }}>{u.email || ''}</div>
                           </div>
                           <span style={{ fontSize: 8.5, fontWeight: 700, padding: '1px 6px', borderRadius: 20, background: `${color}22`, color, border: `1px solid ${color}44`, textTransform: 'uppercase', letterSpacing: '0.08em', marginRight: 6 }}>
                             {u.role}
