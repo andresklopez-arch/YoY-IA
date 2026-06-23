@@ -1,11 +1,15 @@
 import { NextResponse } from 'next/server';
-import admin from 'firebase-admin';
+import { getApps, initializeApp, cert } from 'firebase-admin/app';
+import { getFirestore } from 'firebase-admin/firestore';
+import { getAuth } from 'firebase-admin/auth';
 import crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
 
-// Inicializar el SDK de administración de forma segura usando el import clásico
+// Inicializar el SDK de administración de forma segura
 let isAdminConfigured = false;
 try {
-  if (!admin.apps.length) {
+  if (!getApps().length) {
     let serviceAccount = null;
     const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT;
     const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'yoy-ia-billar';
@@ -20,8 +24,6 @@ try {
       }
       serviceAccount = JSON.parse(cleanJson);
     } else {
-      const fs = require('fs');
-      const path = require('path');
       const localKeyPath = path.join(process.cwd(), 'serviceAccountKey.json');
       if (fs.existsSync(localKeyPath)) {
         serviceAccount = JSON.parse(fs.readFileSync(localKeyPath, 'utf8'));
@@ -29,13 +31,13 @@ try {
     }
     
     if (serviceAccount) {
-      admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount),
+      initializeApp({
+        credential: cert(serviceAccount),
         projectId
       });
       isAdminConfigured = true;
     } else {
-      admin.initializeApp({ projectId });
+      initializeApp({ projectId });
       isAdminConfigured = true;
     }
   } else {
@@ -64,7 +66,7 @@ export async function POST(request) {
     }
 
     const formattedEmail = email.trim().toLowerCase();
-    const db = admin.firestore();
+    const db = getFirestore();
     
     // 1. Buscar al usuario en la colección 'users' de Firestore
     const usersSnap = await db
@@ -89,11 +91,12 @@ export async function POST(request) {
 
     const uid = userDoc.id;
     const salonId = userData.salonId || 'default_salon';
+    const auth = getAuth();
 
     // 3. Verificar si el usuario ya existe en Firebase Auth
     let authUser = null;
     try {
-      authUser = await admin.auth().getUser(uid);
+      authUser = await auth.getUser(uid);
     } catch (err) {
       if (err.code !== 'auth/user-not-found') {
         throw err;
@@ -102,7 +105,7 @@ export async function POST(request) {
 
     if (!authUser) {
       try {
-        authUser = await admin.auth().getUserByEmail(formattedEmail);
+        authUser = await auth.getUserByEmail(formattedEmail);
       } catch (err) {
         if (err.code !== 'auth/user-not-found') {
           throw err;
@@ -112,12 +115,12 @@ export async function POST(request) {
 
     // 4. Sincronizar los datos en Firebase Auth (crear o actualizar)
     if (authUser) {
-      await admin.auth().updateUser(authUser.uid, {
+      await auth.updateUser(authUser.uid, {
         password: password,
         displayName: userData.name || userData.nombre || formattedEmail.split('@')[0]
       });
     } else {
-      await admin.auth().createUser({
+      await auth.createUser({
         uid: uid,
         email: formattedEmail,
         password: password,
@@ -126,10 +129,10 @@ export async function POST(request) {
     }
 
     // 5. Configurar custom claims
-    await admin.auth().setCustomUserClaims(uid, { salonId, isSuspended: false });
+    await auth.setCustomUserClaims(uid, { salonId, isSuspended: false });
 
     // 6. Generar Custom Token
-    const customToken = await admin.auth().createCustomToken(uid);
+    const customToken = await auth.createCustomToken(uid);
     
     return NextResponse.json({ success: true, customToken });
   } catch (error) {

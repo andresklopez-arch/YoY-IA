@@ -1,10 +1,13 @@
 import { NextResponse } from 'next/server';
-import admin from 'firebase-admin';
+import { getApps, initializeApp, cert } from 'firebase-admin/app';
+import { getAuth } from 'firebase-admin/auth';
+import fs from 'fs';
+import path from 'path';
 
-// Inicializar el SDK de administración de forma segura usando el import clásico
+// Inicializar el SDK de administración de forma segura
 let isAdminConfigured = false;
 try {
-  if (!admin.apps.length) {
+  if (!getApps().length) {
     let serviceAccount = null;
     const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT;
     const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'yoy-ia-billar';
@@ -19,8 +22,6 @@ try {
       }
       serviceAccount = JSON.parse(cleanJson);
     } else {
-      const fs = require('fs');
-      const path = require('path');
       const localKeyPath = path.join(process.cwd(), 'serviceAccountKey.json');
       if (fs.existsSync(localKeyPath)) {
         serviceAccount = JSON.parse(fs.readFileSync(localKeyPath, 'utf8'));
@@ -28,13 +29,13 @@ try {
     }
     
     if (serviceAccount) {
-      admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount),
+      initializeApp({
+        credential: cert(serviceAccount),
         projectId
       });
       isAdminConfigured = true;
     } else {
-      admin.initializeApp({ projectId });
+      initializeApp({ projectId });
       isAdminConfigured = true;
     }
   } else {
@@ -64,8 +65,9 @@ export async function POST(request) {
     }
     
     const token = authHeader.split('Bearer ')[1];
+    const auth = getAuth();
     try {
-      const decodedToken = await admin.auth().verifyIdToken(token);
+      const decodedToken = await auth.verifyIdToken(token);
       const isMaster = decodedToken.email === 'masteradmin@yoybillar.mx' || decodedToken.email?.startsWith('masteradmin@');
       const isClassicAdmin = decodedToken.email === 'admin@yoybillar.mx';
       
@@ -81,7 +83,7 @@ export async function POST(request) {
     
     // Intentar buscar por UID
     try {
-      authUser = await admin.auth().getUser(uid);
+      authUser = await auth.getUser(uid);
     } catch (err) {
       if (err.code !== 'auth/user-not-found') {
         throw err;
@@ -91,7 +93,7 @@ export async function POST(request) {
     // Si no se encontró por UID, intentar buscar por email para evitar duplicados de email
     if (!authUser) {
       try {
-        authUser = await admin.auth().getUserByEmail(email);
+        authUser = await auth.getUserByEmail(email);
       } catch (err) {
         if (err.code !== 'auth/user-not-found') {
           throw err;
@@ -110,10 +112,10 @@ export async function POST(request) {
 
     if (authUser) {
       console.log(`[Sync User API] Actualizando usuario existente en Auth: ${authUser.uid}`);
-      await admin.auth().updateUser(authUser.uid, updateParams);
+      await auth.updateUser(authUser.uid, updateParams);
     } else {
       console.log(`[Sync User API] Creando nuevo usuario en Auth con UID: ${uid}`);
-      await admin.auth().createUser({
+      await auth.createUser({
         uid: uid,
         email: email,
         displayName: name || email.split('@')[0],
@@ -122,7 +124,7 @@ export async function POST(request) {
     }
 
     // Asignar custom claims
-    await admin.auth().setCustomUserClaims(uid, { salonId, isSuspended: false });
+    await auth.setCustomUserClaims(uid, { salonId, isSuspended: false });
     console.log(`[Sync User API] Claims y datos sincronizados para UID: ${uid}`);
 
     return NextResponse.json({ success: true });
