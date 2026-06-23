@@ -10,6 +10,7 @@ try {
   if (!getApps().length) {
     let serviceAccount = null;
     const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT;
+    const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'yoy-ia-billar';
     
     if (serviceAccountJson) {
       let cleanJson = serviceAccountJson.replace(/\r?\n/g, '').trim();
@@ -29,11 +30,12 @@ try {
     
     if (serviceAccount) {
       initializeApp({
-        credential: cert(serviceAccount)
+        credential: cert(serviceAccount),
+        projectId
       });
       isAdminConfigured = true;
     } else {
-      initializeApp();
+      initializeApp({ projectId });
       isAdminConfigured = true;
     }
   } else {
