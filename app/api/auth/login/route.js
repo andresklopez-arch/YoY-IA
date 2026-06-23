@@ -1,15 +1,11 @@
 import { NextResponse } from 'next/server';
-import { getApps, initializeApp, cert } from 'firebase-admin/app';
-import { getAuth } from 'firebase-admin/auth';
-import { getFirestore } from 'firebase-admin/firestore';
-import fs from 'fs';
-import path from 'path';
+import admin from 'firebase-admin';
 import crypto from 'crypto';
 
-// Inicializar el SDK de administración de forma segura
+// Inicializar el SDK de administración de forma segura usando el import clásico
 let isAdminConfigured = false;
 try {
-  if (!getApps().length) {
+  if (!admin.apps.length) {
     let serviceAccount = null;
     const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT;
     const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'yoy-ia-billar';
@@ -24,6 +20,8 @@ try {
       }
       serviceAccount = JSON.parse(cleanJson);
     } else {
+      const fs = require('fs');
+      const path = require('path');
       const localKeyPath = path.join(process.cwd(), 'serviceAccountKey.json');
       if (fs.existsSync(localKeyPath)) {
         serviceAccount = JSON.parse(fs.readFileSync(localKeyPath, 'utf8'));
@@ -31,13 +29,13 @@ try {
     }
     
     if (serviceAccount) {
-      initializeApp({
-        credential: cert(serviceAccount),
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount),
         projectId
       });
       isAdminConfigured = true;
     } else {
-      initializeApp({ projectId });
+      admin.initializeApp({ projectId });
       isAdminConfigured = true;
     }
   } else {
@@ -47,7 +45,6 @@ try {
   console.warn("Firebase Admin SDK no se pudo inicializar en login API:", e.message);
 }
 
-// Algoritmo de hash idéntico al del cliente
 const hashPasswordSecureServer = (password) => {
   if (!password) return '';
   const saltedPwd = password + '-YoY-IA-Password-Salt-2026';
@@ -67,7 +64,7 @@ export async function POST(request) {
     }
 
     const formattedEmail = email.trim().toLowerCase();
-    const db = getFirestore();
+    const db = admin.firestore();
     
     // 1. Buscar al usuario en la colección 'users' de Firestore
     const usersSnap = await db
@@ -96,7 +93,7 @@ export async function POST(request) {
     // 3. Verificar si el usuario ya existe en Firebase Auth
     let authUser = null;
     try {
-      authUser = await getAuth().getUser(uid);
+      authUser = await admin.auth().getUser(uid);
     } catch (err) {
       if (err.code !== 'auth/user-not-found') {
         throw err;
@@ -105,7 +102,7 @@ export async function POST(request) {
 
     if (!authUser) {
       try {
-        authUser = await getAuth().getUserByEmail(formattedEmail);
+        authUser = await admin.auth().getUserByEmail(formattedEmail);
       } catch (err) {
         if (err.code !== 'auth/user-not-found') {
           throw err;
@@ -115,14 +112,12 @@ export async function POST(request) {
 
     // 4. Sincronizar los datos en Firebase Auth (crear o actualizar)
     if (authUser) {
-      // Existe, actualizamos su contraseña en Auth para futuras sincronizaciones directas
-      await getAuth().updateUser(authUser.uid, {
+      await admin.auth().updateUser(authUser.uid, {
         password: password,
         displayName: userData.name || userData.nombre || formattedEmail.split('@')[0]
       });
     } else {
-      // No existe en Auth, lo creamos
-      await getAuth().createUser({
+      await admin.auth().createUser({
         uid: uid,
         email: formattedEmail,
         password: password,
@@ -130,11 +125,11 @@ export async function POST(request) {
       });
     }
 
-    // 5. Configurar custom claims para mantener pertenencia al salón
-    await getAuth().setCustomUserClaims(uid, { salonId, isSuspended: false });
+    // 5. Configurar custom claims
+    await admin.auth().setCustomUserClaims(uid, { salonId, isSuspended: false });
 
-    // 6. Generar Custom Token para iniciar sesión de forma transparente
-    const customToken = await getAuth().createCustomToken(uid);
+    // 6. Generar Custom Token
+    const customToken = await admin.auth().createCustomToken(uid);
     
     return NextResponse.json({ success: true, customToken });
   } catch (error) {

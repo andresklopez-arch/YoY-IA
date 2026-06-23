@@ -1,13 +1,10 @@
 import { NextResponse } from 'next/server';
-import { getApps, initializeApp, cert } from 'firebase-admin/app';
-import { getAuth } from 'firebase-admin/auth';
-import { getFirestore } from 'firebase-admin/firestore';
-import fs from 'fs';
-import path from 'path';
+import admin from 'firebase-admin';
 
+// Inicializar el SDK de administración de forma segura usando el import clásico
 let isAdminConfigured = false;
 try {
-  if (!getApps().length) {
+  if (!admin.apps.length) {
     let serviceAccount = null;
     const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT;
     const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'yoy-ia-billar';
@@ -22,6 +19,8 @@ try {
       }
       serviceAccount = JSON.parse(cleanJson);
     } else {
+      const fs = require('fs');
+      const path = require('path');
       const localKeyPath = path.join(process.cwd(), 'serviceAccountKey.json');
       if (fs.existsSync(localKeyPath)) {
         serviceAccount = JSON.parse(fs.readFileSync(localKeyPath, 'utf8'));
@@ -29,13 +28,13 @@ try {
     }
     
     if (serviceAccount) {
-      initializeApp({
-        credential: cert(serviceAccount),
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount),
         projectId
       });
       isAdminConfigured = true;
     } else {
-      initializeApp({ projectId });
+      admin.initializeApp({ projectId });
       isAdminConfigured = true;
     }
   } else {
@@ -58,7 +57,7 @@ export async function GET(request) {
       return NextResponse.json({ error: 'Admin SDK not configured' });
     }
 
-    const db = getFirestore();
+    const db = admin.firestore();
     const usersSnap = await db.collection('users').get();
     const users = [];
 
@@ -68,10 +67,10 @@ export async function GET(request) {
       let authError = null;
 
       try {
-        authUser = await getAuth().getUser(doc.id);
+        authUser = await admin.auth().getUser(doc.id);
       } catch (err) {
         try {
-          authUser = await getAuth().getUserByEmail(data.email);
+          authUser = await admin.auth().getUserByEmail(data.email);
         } catch (e2) {
           authError = e2.message;
         }
