@@ -236,6 +236,12 @@ function AppContent() {
   const [imageError, setImageError] = useState(false);
   const [activePanel, setActivePanel] = useState('mesas');
   const [toasts, setToasts] = useState([]);
+
+  const showToast = (message, type = 'info') => {
+    const id = Date.now();
+    setToasts(prev => [...prev, { id, message, type }]);
+    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 4000);
+  };
   const [showPasswordChangeReminder, setShowPasswordChangeReminder] = useState(false);
   const [isDefaultPin, setIsDefaultPin] = useState(false);
   const [isDefaultPassword, setIsDefaultPassword] = useState(false);
@@ -1718,11 +1724,6 @@ function AppContent() {
     }
   }, [user]);
 
-  const showToast = (message, type = 'info') => {
-    const id = Date.now();
-    setToasts(prev => [...prev, { id, message, type }]);
-    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 4000);
-  };
 
   if (fichajeSoporteExitoso) {
     return (

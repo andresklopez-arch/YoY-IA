@@ -66,6 +66,11 @@ service cloud.firestore {
       allow create: if true;
       allow read, update, delete: if request.auth != null;
     }
+    match /app_crash_logs/{document} {
+      allow create: if true;
+      allow read, update, delete: if request.auth != null;
+    }
+    
     
     // 6. Colecciones de administración de usuarios y nómina
     match /users/{document} {
