@@ -6046,7 +6046,7 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
         
         {/* COLUMNA IZQUIERDA: RESUMEN FINANCIERO Y MÉTRICAS */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {esCajero ? (
+          {(esCajero || !(user?.permisos ? user.permisos.caja_reportes !== false : true)) ? (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div className="stat-card" style={{ padding: '10px 14px' }}>
                 <div className="stat-card-icon icon-success"><i className="ri-money-dollar-circle-line" /></div>
@@ -6505,7 +6505,7 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
       )}
 
       {/* SECCIÓN: REPORTES UNIFICADOS (EXCLUSIVO ADMIN/GERENTE) */}
-      {!esCajero && (
+      {(user?.permisos ? user.permisos.caja_reportes !== false : !esCajero) && (
         <div className="card" style={{ padding: 14, background: 'linear-gradient(135deg, rgba(205, 127, 50, 0.05), rgba(0,0,0,0.15))', border: '1px solid var(--border-bronze)', marginBottom: 12 }}>
           {/* Header */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, borderBottom: '1px solid var(--border)', paddingBottom: 10 }}>
@@ -7233,7 +7233,8 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
               <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
 
               {/* NUEVO SUBMENÚ: INTELIGENCIA DE CLIENTES Y CONSUMOS */}
-              <div style={{ background: 'rgba(0,0,0,0.15)', border: '1px solid var(--border-bronze)', borderRadius: 12, padding: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {(user?.permisos ? user.permisos.caja_clientes !== false : true) && (
+                <div style={{ background: 'rgba(0,0,0,0.15)', border: '1px solid var(--border-bronze)', borderRadius: 12, padding: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
                   <h4 style={{ margin: 0, fontSize: 11, fontWeight: 800, color: 'var(--bronze-light)', display: 'flex', alignItems: 'center', gap: 6, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                     <i className="ri-team-line" style={{ fontSize: 14 }} />
@@ -7375,8 +7376,11 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
 
                 </div>
               </div>
+              )}
 
-              <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
+              {(user?.permisos ? user.permisos.caja_clientes !== false : true) && (
+                <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
+              )}
 
               {/* INTELIGENCIA PREDICTIVA (REDISEÑADA A 4 CONSEJOS DINÁMICOS) */}
               <div>

@@ -43,7 +43,9 @@ const MENU_ESTRUCTURA = [
     submenus: [
       { id: 'caja_transacciones', label: 'Transacciones' },
       { id: 'caja_inventario', label: 'Inventario de Caja' },
-      { id: 'caja_corte', label: 'Corte de Caja / Auditoría' }
+      { id: 'caja_corte', label: 'Corte de Caja / Auditoría' },
+      { id: 'caja_reportes', label: 'Reportes y Estadísticas IA' },
+      { id: 'caja_clientes', label: 'Clientes y Lealtad VIP' }
     ]
   },
   {
@@ -52,14 +54,6 @@ const MENU_ESTRUCTURA = [
     submenus: [
       { id: 'bar_productos', label: 'Ver/Vender Productos' },
       { id: 'bar_insumos', label: 'Ver/Editar Insumos' }
-    ]
-  },
-  {
-    id: 'clientes',
-    label: 'Clientes',
-    submenus: [
-      { id: 'clientes_listado', label: 'Listado / Directorio' },
-      { id: 'clientes_analisis', label: 'Análisis CRM' }
     ]
   },
   {
@@ -93,12 +87,11 @@ const getDefaultPermisos = (role) => {
     caja_transacciones: false,
     caja_inventario: false,
     caja_corte: false,
+    caja_reportes: false,
+    caja_clientes: false,
     bar: false,
     bar_productos: false,
     bar_insumos: false,
-    clientes: false,
-    clientes_listado: false,
-    clientes_analisis: false,
     torneos: false,
     nomina: false,
     nomina_empleados: false,
@@ -117,12 +110,11 @@ const getDefaultPermisos = (role) => {
     perm.caja_transacciones = true;
     perm.caja_inventario = true;
     perm.caja_corte = true;
+    perm.caja_reportes = true;
+    perm.caja_clientes = true;
     perm.bar = true;
     perm.bar_productos = true;
     perm.bar_insumos = true;
-    perm.clientes = true;
-    perm.clientes_listado = true;
-    perm.clientes_analisis = true;
     perm.torneos = true;
     perm.nomina = true;
     perm.nomina_empleados = true;
@@ -134,8 +126,7 @@ const getDefaultPermisos = (role) => {
     perm.caja_transacciones = true;
     perm.caja_inventario = true;
     perm.caja_corte = true;
-    perm.clientes = true;
-    perm.clientes_listado = true;
+    perm.caja_clientes = true;
   } else if (role === 'mesero') {
     perm.mesas = true;
     perm.bar = true;
@@ -3018,9 +3009,9 @@ export default function ConfigPanel({ showToast }) {
                           <span style={{ fontSize: 8.5, fontWeight: 700, padding: '1px 6px', borderRadius: 20, background: `${color}22`, color, border: `1px solid ${color}44`, textTransform: 'uppercase', letterSpacing: '0.08em', marginRight: 6 }}>
                             {u.role}
                           </span>
-                          {!isMaster ? (
+                          {(!isMaster || (user && isMasterUser(user.email))) ? (
                             <>
-                              {(u.role === 'admin' || u.role === 'gerente' || u.role === 'cajero') && (
+                              {((user && isMasterUser(user.email)) || u.role === 'admin' || u.role === 'gerente' || u.role === 'cajero' || u.role === 'mesero' || u.role === 'arbitro') && (
                                 <button
                                   onClick={() => {
                                     setSelectedUserForPermissions({

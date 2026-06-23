@@ -6,7 +6,6 @@ const NAV_ITEMS = [
   { id: 'mesas',     label: 'Mesas',     icon: 'ri-billiards-line',      roles: ['admin','gerente','cajero','mesero'],  badge: null },
   { id: 'caja',      label: 'INTELIGENCIA', icon: 'ri-money-dollar-box-line', roles: ['admin','gerente','cajero'] },
   { id: 'bar',       label: 'Inventario IA', icon: 'ri-archive-line',    roles: ['admin','gerente','mesero'] },
-  { id: 'clientes',  label: 'Clientes',  icon: 'ri-group-line',          roles: ['admin','gerente','cajero'] },
   { id: 'torneos',   label: 'Torneos',   icon: 'ri-trophy-line',         roles: ['admin','gerente','arbitro'] },
   { id: 'nomina',    label: 'Nómina & Gastos', icon: 'ri-briefcase-4-line',   roles: ['admin','gerente'] },
   { id: 'config',    label: 'Configuración', icon: 'ri-settings-4-line', roles: ['admin'] },

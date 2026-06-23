@@ -1169,7 +1169,6 @@ function AppContent() {
         mesas:     ['admin', 'gerente', 'cajero', 'mesero'],
         caja:      ['admin', 'gerente', 'cajero'],
         bar:       ['admin', 'gerente', 'mesero'],
-        clientes:  ['admin', 'gerente', 'cajero'],
         torneos:   ['admin', 'gerente', 'arbitro'],
         nomina:    ['admin', 'gerente'],
         config:    ['admin']
@@ -1189,7 +1188,7 @@ function AppContent() {
       }
 
       if (!tienePermiso) {
-        const primerPermitido = ['dashboard', 'mesas', 'caja', 'bar', 'clientes', 'torneos', 'nomina', 'config']
+        const primerPermitido = ['dashboard', 'mesas', 'caja', 'bar', 'torneos', 'nomina', 'config']
           .find(key => {
             if (user.permisos && typeof user.permisos[key] !== 'undefined') {
               return user.permisos[key] === true;
