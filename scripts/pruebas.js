@@ -3,7 +3,7 @@ const path = require('path');
 const dns = require('dns');
 const { execSync } = require('child_process');
 const { initializeApp } = require('firebase/app');
-const { getFirestore, collection, getDocs, query, orderBy, limit } = require('firebase/firestore');
+const { getFirestore, collection, getDocs, query, orderBy, limit, doc, getDoc } = require('firebase/firestore');
 const { getAuth, signInWithEmailAndPassword } = require('firebase/auth');
 
 // Helper para logs
@@ -82,6 +82,8 @@ async function runTests() {
     logSkip("Prueba 4: Bitácora de Caídas Recientes (Crash Detection)", "Modo offline activo");
     logSkip("Prueba 5: Validación de Índices y Estructura de Consultas Compuestas", "Modo offline activo");
     logSkip("Prueba 6: Simulación de Integridad del Flujo de Negocio", "Modo offline activo");
+    logSkip("Prueba 7: Integración de Endpoints de API (Live Vercel Check)", "Modo offline activo");
+    logSkip("Prueba 8: Integridad y Consistencia de Datos de Operación", "Modo offline activo");
   } else {
     // Inicializar Firebase para pruebas de datos
     let app, db, auth;
@@ -153,6 +155,40 @@ async function runTests() {
       logPass("Prueba 6: Simulación de Integridad del Flujo de Negocio (Sucursales listas)");
     } catch (e) {
       logFail("Prueba 6: Simulación de Integridad del Flujo de Negocio", e.message);
+      failedTests++;
+    }
+
+    // --- PRUEBA 7: Integración de Endpoints de API (Live Vercel Check) ---
+    try {
+      const targetUrl = 'https://yoy-ia-billar.vercel.app/api/auth/login';
+      const res = await fetch(targetUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: 'test@invalid.com', password: 'wrong' })
+      });
+      // Esperamos 401 o 400 por credenciales inválidas, lo cual prueba que el endpoint responde.
+      if (res.status === 200) {
+        throw new Error("El endpoint de login respondió 200 con credenciales inválidas.");
+      }
+      logPass(`Prueba 7: Integración de Endpoints de API (${res.status} recibido - Endpoint Activo)`);
+    } catch (e) {
+      logFail("Prueba 7: Integración de Endpoints de API", e.message);
+      failedTests++;
+    }
+
+    // --- PRUEBA 8: Integridad y Consistencia de Datos de Operación ---
+    try {
+      const mesasEstadoDoc = await getDoc(doc(db, 'config', 'mesas_estado'));
+      if (!mesasEstadoDoc.exists()) {
+        throw new Error("No existe el documento esencial 'config/mesas_estado' en la base de datos.");
+      }
+      const data = mesasEstadoDoc.data();
+      if (!data || !Array.isArray(data.mesas)) {
+        throw new Error("El documento 'config/mesas_estado' no tiene una estructura de mesas válida.");
+      }
+      logPass(`Prueba 8: Integridad de Datos de Operación (${data.mesas.length} mesas activas consistentes)`);
+    } catch (e) {
+      logFail("Prueba 8: Integridad y Consistencia de Datos de Operación", e.message);
       failedTests++;
     }
   }

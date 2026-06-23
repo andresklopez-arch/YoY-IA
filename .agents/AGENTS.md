@@ -15,7 +15,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 5. Cada 30 modificaciones, asegúrate de guardar el proyecto en GitHub para no perder información.
 
 # Acciones por Atajos de Texto
-- **PRUEBAS**: Al recibir el atajo o la palabra clave `PRUEBAS`, debes ejecutar automáticamente la suite de pruebas mediante el comando `node scripts/pruebas.js` en el directorio raíz del proyecto y reportar los resultados de los 6 diagnósticos (Sintaxis ESLint, Integridad del entorno, Conectividad Firestore, Bitácora de errores/crashes, Validación de índices y Simulación de flujo de negocio).
+- **PRUEBAS**: Al recibir el atajo o la palabra clave `PRUEBAS`, debes ejecutar automáticamente la suite de pruebas mediante el comando `node scripts/pruebas.js` en el directorio raíz del proyecto y reportar los resultados de los 8 diagnósticos (Sintaxis ESLint, Integridad del entorno, Conectividad Firestore, Bitácora de errores/crashes, Validación de índices, Simulación de flujo de negocio, Integración de endpoints de API y Consistencia de datos de operación).
 - **12345**: Aplica las reglas globales 1, 2, 3, 4 y 5.
 - *****: Al teclear este atajo, mostrar una ventana emergente o lista desplegable con todos los proyectos en los que estamos trabajando para elegir a cuál dirigirnos.
 - **---**: Al teclear este atajo, mandar todas las opciones, sugerencias o preguntas acerca de la instrucción actual en una ventana emergente o lista de selección para mayor precisión.
