@@ -35,14 +35,11 @@ const MENU_ESTRUCTURA = [
   {
     id: 'mesas',
     label: 'Mesas',
-    submenus: [
-      { id: 'mesas_ver', label: 'Ver Mesas' },
-      { id: 'mesas_fichaje', label: 'Pase de Lista / Fichaje' }
-    ]
+    submenus: []
   },
   {
     id: 'caja',
-    label: 'INTELIGENCIA (Caja)',
+    label: 'INTELIGENCIA',
     submenus: [
       { id: 'caja_transacciones', label: 'Transacciones' },
       { id: 'caja_inventario', label: 'Inventario de Caja' },
@@ -51,7 +48,7 @@ const MENU_ESTRUCTURA = [
   },
   {
     id: 'bar',
-    label: 'Inventario IA (Bar)',
+    label: 'Inventario IA',
     submenus: [
       { id: 'bar_productos', label: 'Ver/Vender Productos' },
       { id: 'bar_insumos', label: 'Ver/Editar Insumos' }
@@ -92,8 +89,6 @@ const getDefaultPermisos = (role) => {
   const perm = {
     dashboard: false,
     mesas: false,
-    mesas_ver: false,
-    mesas_fichaje: false,
     caja: false,
     caja_transacciones: false,
     caja_inventario: false,
@@ -118,8 +113,6 @@ const getDefaultPermisos = (role) => {
   } else if (role === 'gerente') {
     perm.dashboard = true;
     perm.mesas = true;
-    perm.mesas_ver = true;
-    perm.mesas_fichaje = true;
     perm.caja = true;
     perm.caja_transacciones = true;
     perm.caja_inventario = true;
@@ -137,7 +130,6 @@ const getDefaultPermisos = (role) => {
   } else if (role === 'cajero') {
     perm.dashboard = true;
     perm.mesas = true;
-    perm.mesas_ver = true;
     perm.caja = true;
     perm.caja_transacciones = true;
     perm.caja_inventario = true;
@@ -146,7 +138,6 @@ const getDefaultPermisos = (role) => {
     perm.clientes_listado = true;
   } else if (role === 'mesero') {
     perm.mesas = true;
-    perm.mesas_ver = true;
     perm.bar = true;
     perm.bar_productos = true;
   }
@@ -1990,7 +1981,7 @@ export default function ConfigPanel({ showToast }) {
 
   const renderPermissionsSelector = (permisosObject, onChangeFn) => {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 14, background: 'rgba(0,0,0,0.2)', padding: 14, borderRadius: 12, border: '1px solid var(--border)', maxHeight: 260, overflowY: 'auto' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14, background: 'rgba(0,0,0,0.2)', padding: 16, borderRadius: 12, border: '1px solid var(--border)' }}>
         <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Configuración de Accesos</span>
         {MENU_ESTRUCTURA.map(menu => {
           const isMenuChecked = permisosObject[menu.id] === true;

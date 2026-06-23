@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '@/lib/auth-context';
 import { useAlertasNomina } from '@/components/panels/NominaPanel';
@@ -142,6 +142,28 @@ const QUICK_NAV_TARGETS = [
 
 export default function Topbar({ user, activePanel, showToast, onNavigate }) {
   const { logout, loginWithEmpleadoId, offlineLockout, unlockOffline } = useAuth();
+  const canAccessPanel = useCallback((panelId) => {
+    if (user && user.permisos) {
+      if (panelId === 'caja') {
+        return user.permisos.caja === true || user.permisos.reportes === true;
+      }
+      if (typeof user.permisos[panelId] !== 'undefined') {
+        return user.permisos[panelId] === true;
+      }
+    }
+    const role = user?.role || 'cajero';
+    const roleMap = {
+      dashboard: ['admin', 'gerente', 'cajero'],
+      mesas: ['admin', 'gerente', 'cajero', 'mesero'],
+      caja: ['admin', 'gerente', 'cajero'],
+      bar: ['admin', 'gerente', 'mesero'],
+      torneos: ['admin', 'gerente', 'arbitro'],
+      nomina: ['admin', 'gerente'],
+      config: ['admin']
+    };
+    return roleMap[panelId]?.includes(role) ?? true;
+  }, [user]);
+
   const [nipInput, setNipInput] = useState('');
   const [lockoutError, setLockoutError] = useState('');
 
@@ -793,6 +815,10 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
         if (target) {
           e.preventDefault();
           setShowMenu(false);
+          if (target.nav && !canAccessPanel(target.nav)) {
+            showToast('No tienes permisos para acceder a esta sección', 'error');
+            return;
+          }
           if (target.href) {
             window.open(target.href, '_blank');
           } else {
@@ -804,7 +830,7 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onNavigate, showOnboarding, isDismissing]);
+  }, [onNavigate, showOnboarding, isDismissing, canAccessPanel, showToast]);
 
   useEffect(() => {
     if (typeof window !== 'undefined' && navigator.language) {
@@ -1289,7 +1315,12 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
           { label: 'Ajustes', icon: 'ri-settings-4-line', color: 'var(--text-muted)', nav: 'config', shortcut: 'Alt + 6' },
           { label: 'Mesero', icon: 'ri-customer-service-2-line', color: 'var(--success)', isDropdown: true, badge: pedidosPendientes, shortcut: 'Alt + 7' },
           { label: 'Cocina', icon: 'ri-restaurant-line', color: 'var(--blue-light)', href: '/cocina', badge: pedidosCocina, shortcut: 'Alt + 8' },
-        ].map((a, i) => {
+        ].filter(a => {
+          if (a.nav) return canAccessPanel(a.nav);
+          if (a.label === 'Mesero') return canAccessPanel('mesas');
+          if (a.label === 'Cocina') return canAccessPanel('bar');
+          return true;
+        }).map((a, i) => {
           const isActive = activePanel === a.nav;
           const buttonElement = (
             <button

@@ -2106,7 +2106,7 @@ export default function NominaPanel({ showToast }) {
                     {[
                       { id: 'dashboard', label: 'Dashboard' },
                       { id: 'mesas', label: 'Mesas' },
-                      { id: 'caja', label: 'Caja / POS' },
+                      { id: 'caja', label: 'INTELIGENCIA' },
                       { id: 'bar', label: 'Inventario IA' },
                       { id: 'clientes', label: 'Clientes' },
                       { id: 'torneos', label: 'Torneos' },
