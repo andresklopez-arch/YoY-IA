@@ -905,25 +905,23 @@ function MeseroContent() {
     }
   };
 
-  const marcarAtendido = async (id) => {
+  const marcarAtendido = async (id, tipo) => {
     try {
       const docRef = doc(db, 'mesa_pedidos', id);
-      const snap = await getDoc(docRef);
-      if (snap.exists()) {
-        const data = snap.data();
-        const updateData = {
-          atendidoMesero: true,
-          updatedAt: serverTimestamp(),
-        };
-        // Solo archivar si no es un pedido (ya que el pedido debe seguir en cocina/entrega)
-        if (data.tipo !== 'pedido') {
-          updateData.estado = 'atendido';
-          updateData.atendidoAt = serverTimestamp();
-        }
-        await updateDoc(docRef, updateData);
+      const updateData = {
+        atendidoMesero: true,
+        updatedAt: serverTimestamp(),
+      };
+      // Solo archivar si no es un pedido (ya que el pedido debe seguir en cocina/entrega)
+      if (tipo !== 'pedido') {
+        updateData.estado = 'atendido';
+        updateData.atendidoAt = serverTimestamp();
       }
+      await updateDoc(docRef, updateData);
+      showToast('Solicitud atendida ✓', 'success');
     } catch (e) {
       console.error("Error al marcar atendido:", e);
+      showToast('Error al atender solicitud.', 'error');
     }
   };
 
@@ -1944,7 +1942,7 @@ function MeseroContent() {
                       </div>
                     </div>
                     <button
-                      onClick={() => marcarAtendido(alerta.id)}
+                      onClick={() => marcarAtendido(alerta.id, alerta.tipo)}
                       style={{
                         background: 'rgba(34,197,94,0.15)',
                         border: '1px solid rgba(34,197,94,0.4)',

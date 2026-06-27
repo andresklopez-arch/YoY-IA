@@ -2504,25 +2504,31 @@ export default function MesasPanel({ showToast }) {
   };
 
   // Marcar una solicitud de cliente como atendida en Firestore (Caja/Admin)
-  const marcarAlertaAtendida = async (alertaId, e) => {
-    if (e) e.stopPropagation(); // Evitar abrir el modal de la mesa
+  const marcarAlertaAtendida = async (alertaId, tipo, e) => {
+    // Si e es de tipo evento, detenemos propagación
+    if (e && e.stopPropagation) e.stopPropagation(); 
+    // Si e no se pasó pero tipo es el evento (caso anterior)
+    let finalTipo = tipo;
+    let finalEvent = e;
+    if (tipo && typeof tipo !== 'string' && tipo.stopPropagation) {
+      finalEvent = tipo;
+      finalTipo = 'asistencia'; // Valor seguro por defecto si no se conoce
+    }
+
+    if (finalEvent) finalEvent.stopPropagation(); // Evitar abrir el modal de la mesa
     try {
       const docRef = doc(db, 'mesa_pedidos', alertaId);
-      const snap = await getDoc(docRef);
-      if (snap.exists()) {
-        const data = snap.data();
-        const updateData = {
-          atendidoAdmin: true,
-          updatedAt: serverTimestamp()
-        };
-        // Solo archivar si no es un pedido (ya que el pedido debe seguir en cocina/entrega)
-        if (data.tipo !== 'pedido') {
-          updateData.estado = 'atendido';
-          updateData.atendidoAt = serverTimestamp();
-        }
-        await updateDoc(docRef, updateData);
-        showToast('Solicitud marcada como atendida ✓', 'success');
+      const updateData = {
+        atendidoAdmin: true,
+        updatedAt: serverTimestamp()
+      };
+      // Solo archivar si no es un pedido (ya que el pedido debe seguir en cocina/entrega)
+      if (finalTipo !== 'pedido') {
+        updateData.estado = 'atendido';
+        updateData.atendidoAt = serverTimestamp();
       }
+      await updateDoc(docRef, updateData);
+      showToast('Solicitud marcada como atendida ✓', 'success');
     } catch (err) {
       console.error("Error al marcar alerta como atendida:", err);
       showToast('Error al atender solicitud.', 'error');
@@ -3033,7 +3039,7 @@ export default function MesasPanel({ showToast }) {
     showToast(`Cobro manual de $${monto} registrado`, 'success');
 
     if (alertaCobroAsociadaId) {
-      marcarAlertaAtendida(alertaCobroAsociadaId);
+      marcarAlertaAtendida(alertaCobroAsociadaId, 'cuenta');
       setAlertaCobroAsociadaId(null);
     }
 
@@ -6316,7 +6322,7 @@ export default function MesasPanel({ showToast }) {
                             </button>
                           ) : (
                             <button
-                              onClick={(e) => marcarAlertaAtendida(alerta.id, e)}
+                              onClick={(e) => marcarAlertaAtendida(alerta.id, alerta.tipo, e)}
                               title="Marcar como atendido"
                               style={{
                                 background: 'rgba(34,197,94,0.12)',

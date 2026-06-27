@@ -1493,24 +1493,20 @@ function AppContent() {
     return () => clearInterval(t);
   }, [user, sonidoAdmin, alertasAsistencia.length]);
 
-  const marcarAtendidoAdmin = async (id) => {
+  const marcarAtendidoAdmin = async (id, tipo) => {
     try {
       const docRef = doc(db, 'mesa_pedidos', id);
-      const snap = await getDoc(docRef);
-      if (snap.exists()) {
-        const data = snap.data();
-        const updateData = {
-          atendidoAdmin: true,
-          updatedAt: serverTimestamp()
-        };
-        // Solo archivar si no es un pedido
-        if (data.tipo !== 'pedido') {
-          updateData.estado = 'atendido';
-          updateData.atendidoAt = serverTimestamp();
-        }
-        await updateDoc(docRef, updateData);
-        showToast('Solicitud marcada como atendida ✓', 'success');
+      const updateData = {
+        atendidoAdmin: true,
+        updatedAt: serverTimestamp()
+      };
+      // Solo archivar si no es un pedido
+      if (tipo !== 'pedido') {
+        updateData.estado = 'atendido';
+        updateData.atendidoAt = serverTimestamp();
       }
+      await updateDoc(docRef, updateData);
+      showToast('Solicitud marcada como atendida ✓', 'success');
     } catch (e) {
       console.error(e);
       showToast('Error al marcar solicitud como atendida', 'danger');
@@ -2330,7 +2326,7 @@ function AppContent() {
                       </div>
                     </div>
                     <button
-                      onClick={() => marcarAtendidoAdmin(alerta.id)}
+                      onClick={() => marcarAtendidoAdmin(alerta.id, alerta.tipo)}
                       style={{
                         background: 'rgba(34,197,94,0.12)',
                         border: '1px solid rgba(34,197,94,0.3)',
