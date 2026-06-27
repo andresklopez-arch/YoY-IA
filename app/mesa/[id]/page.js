@@ -393,7 +393,7 @@ export default function MesaClientePage({ params }) {
   }, [alertingReservada, alertFrequency]);
 
   // ── Helper de escritura con Timeout para redes inestables ──
-  const addDocWithTimeout = async (collRef, data, timeoutMs = 8000) => {
+  const addDocWithTimeout = async (collRef, data, timeoutMs = 25000) => {
     const writePromise = addDoc(collRef, data);
     const timeoutPromise = new Promise((_, reject) =>
       setTimeout(() => reject(new Error("Timeout de red: No se pudo conectar con el servidor de Firebase. Verifica tu conexión de red o los permisos.")), timeoutMs)
@@ -642,7 +642,9 @@ export default function MesaClientePage({ params }) {
     } catch (e) {}
 
     const unsub = onSnapshot(doc(db, 'config', 'inventario'), snap => {
-      setDbConnected(true);
+      if (!snap.metadata.fromCache) {
+        setDbConnected(true);
+      }
       if (snap.exists()) {
         const prods = snap.data().productos || [];
         const filtered = prods.filter(p => p.stock > 0);

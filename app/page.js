@@ -1638,8 +1638,9 @@ function AppContent() {
     if (!user) return;
 
     // Solo permitir auto-impresion a roles autorizados que operan la consola y ticketera termica
-    const rolesAutorizados = ['admin', 'cajero', 'gerente'];
-    if (!rolesAutorizados.includes(user.role)) return;
+    const userRole = (user.role || '').toLowerCase();
+    const rolesAutorizados = ['admin', 'cajero', 'gerente', 'masteradmin'];
+    if (!rolesAutorizados.includes(userRole)) return;
 
     const hoy = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD
     const lastAutoPrint = localStorage.getItem('yoy_last_auto_print_purchase_order');

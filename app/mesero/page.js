@@ -632,14 +632,14 @@ function MeseroContent() {
           const gain = ctx.createGain();
           osc.connect(gain); gain.connect(ctx.destination);
           osc.frequency.setValueAtTime(1200.00, ctx.currentTime); // D#6 - Tono alto de campana
-          gain.gain.setValueAtTime(0.25, ctx.currentTime);
+          gain.gain.setValueAtTime(0.9, ctx.currentTime);
           osc.start(); osc.stop(ctx.currentTime + 0.12);
           setTimeout(() => {
             const osc2 = ctx.createOscillator();
             const gain2 = ctx.createGain();
             osc2.connect(gain2); gain2.connect(ctx.destination);
             osc2.frequency.setValueAtTime(1500.00, ctx.currentTime); // G6 - Tono campanilla
-            gain2.gain.setValueAtTime(0.25, ctx.currentTime);
+            gain2.gain.setValueAtTime(0.9, ctx.currentTime);
             osc2.start(); osc2.stop(ctx.currentTime + 0.3);
           }, 120);
 
@@ -660,7 +660,7 @@ function MeseroContent() {
           const osc = ctx.createOscillator();
           const gain = ctx.createGain();
           osc.connect(gain); gain.connect(ctx.destination);
-          osc.frequency.value = 880; gain.gain.value = 0.3;
+          osc.frequency.value = 880; gain.gain.value = 0.9;
           osc.start(); osc.stop(ctx.currentTime + 0.2);
           setTimeout(() => { osc.frequency.value = 1100; osc.start(ctx.currentTime + 0.25); osc.stop(ctx.currentTime + 0.45); }, 250);
         } catch { /* sin audio */ }
@@ -723,7 +723,7 @@ function MeseroContent() {
         const osc1 = ctx.createOscillator();
         const gain1 = ctx.createGain();
         osc1.connect(gain1); gain1.connect(ctx.destination);
-        osc1.frequency.value = 660; gain1.gain.value = 0.25;
+        osc1.frequency.value = 660; gain1.gain.value = 0.9;
         osc1.start();
         osc1.stop(ctx.currentTime + 0.15);
         
@@ -731,7 +731,7 @@ function MeseroContent() {
           const osc2 = ctx.createOscillator();
           const gain2 = ctx.createGain();
           osc2.connect(gain2); gain2.connect(ctx.destination);
-          osc2.frequency.value = 880; gain2.gain.value = 0.25;
+          osc2.frequency.value = 880; gain2.gain.value = 0.9;
           osc2.start();
           osc2.stop(ctx.currentTime + 0.3);
         }, 180);
