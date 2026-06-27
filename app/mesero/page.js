@@ -2,7 +2,8 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import {
   collection, onSnapshot, query, where,
-  orderBy, updateDoc, doc, serverTimestamp, addDoc, getDoc
+  orderBy, updateDoc, doc, serverTimestamp, addDoc, getDoc,
+  writeBatch, getDocs
 } from '@/lib/firestore-tenant';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth-context';
@@ -745,6 +746,53 @@ function MeseroContent() {
     const t = setInterval(sonarAlerta, 4000);
     return () => clearInterval(t);
   }, [sonido, alertasAsistenciaParaMi.length]);
+
+  // ── Autolimpieza de Alertas Huérfanas (> 6 horas) ──
+  useEffect(() => {
+    const limpiarHuerfanas = async () => {
+      try {
+        const ahora = Date.now();
+        const limiteSeisHoras = ahora - (6 * 60 * 60 * 1000); // 6 horas
+        
+        const q = query(
+          collection(db, 'mesa_pedidos'),
+          where('estado', 'in', ['pendiente', 'listo', 'en_camino', 'entregado'])
+        );
+        const snap = await getDocs(q);
+        const batch = writeBatch(db);
+        let count = 0;
+        
+        snap.forEach(d => {
+          const data = d.data();
+          if (['asistencia', 'cuenta'].includes(data.tipo)) {
+            const createdAtMs = data.createdAt?.toDate ? data.createdAt.toDate().getTime() : (data.createdAt || 0);
+            if (createdAtMs > 0 && createdAtMs < limiteSeisHoras) {
+              const docRef = doc(db, 'mesa_pedidos', d.id);
+              batch.update(docRef, {
+                atendidoMesero: true,
+                estado: 'atendido',
+                atendidoAt: serverTimestamp(),
+                updatedAt: serverTimestamp(),
+                autoLimpiado: true
+              });
+              count++;
+            }
+          }
+        });
+        
+        if (count > 0) {
+          await batch.commit();
+          console.log(`[AutoLimpieza] Se archivaron automáticamente ${count} alertas huérfanas.`);
+        }
+      } catch (e) {
+        console.error("Error en autolimpieza de alertas:", e);
+      }
+    };
+
+    limpiarHuerfanas();
+    const interval = setInterval(limpiarHuerfanas, 15 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Escuchar tecla Escape para cerrar modal de captura de venta con control de cooldown, desenfoque y confirmación
   useEffect(() => {
