@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback, use, useRef } from 'react';
 import {
   collection, addDoc, onSnapshot, query,
   where, orderBy, serverTimestamp, doc, updateDoc, setDoc, getDoc
-} from 'firebase/firestore';
+} from '@/lib/firestore-tenant';
 import { db, auth } from '@/lib/firebase';
 import { signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import '@/styles/mesa-cliente.css';

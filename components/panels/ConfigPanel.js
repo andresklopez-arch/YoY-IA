@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import { db, auth } from '@/lib/firebase';
-import { collection, getDocs, getDoc, addDoc, query, orderBy, deleteDoc, doc, where, setDoc, serverTimestamp, onSnapshot, writeBatch, limit } from '@/lib/firestore-tenant';
+import { collection, getDocs, getDoc, addDoc, query, orderBy, deleteDoc, doc, where, setDoc, serverTimestamp, onSnapshot, writeBatch, limit, getActiveSalonId } from '@/lib/firestore-tenant';
 import { obfuscate, deobfuscate, hashPasswordSecure } from '@/lib/crypto';
 import { QRCodeCanvas } from 'qrcode.react';
 import JSZip from 'jszip';
@@ -1874,15 +1874,16 @@ export default function ConfigPanel({ showToast }) {
   const imprimirQRs = (mesaId) => {
     const host = typeof window !== 'undefined' ? window.location.origin : 'https://yoy-ia-billar.vercel.app';
     const items = [];
+    const salonId = getActiveSalonId();
     
     if (mesaId) {
       const m = mesas.find(x => x.id === mesaId);
-      if (m) items.push({ url: `${host}/mesa/${m.id}`, titulo: `MESA ${m.id} - ${m.nombre}` });
+      if (m) items.push({ url: `${host}/mesa/${m.id}?s=${salonId}`, titulo: `MESA ${m.id} - ${m.nombre}` });
     } else {
       // Todos: fila virtual primero, luego las mesas
-      items.push({ url: `${host}/fila/registro`, titulo: 'FILA VIRTUAL - REGISTRO' });
+      items.push({ url: `${host}/fila/registro?s=${salonId}`, titulo: 'FILA VIRTUAL - REGISTRO' });
       mesas.forEach(m => {
-        items.push({ url: `${host}/mesa/${m.id}`, titulo: `MESA ${m.id} - ${m.nombre}` });
+        items.push({ url: `${host}/mesa/${m.id}?s=${salonId}`, titulo: `MESA ${m.id} - ${m.nombre}` });
       });
     }
 
@@ -2038,7 +2039,7 @@ export default function ConfigPanel({ showToast }) {
       <div style={{ display: 'none' }} aria-hidden="true">
         <QRCodeCanvas
           id="qr-canvas-fila"
-          value={typeof window !== 'undefined' ? `${window.location.origin}/fila/registro` : 'https://yoy-ia-billar.vercel.app/fila/registro'}
+          value={typeof window !== 'undefined' ? `${window.location.origin}/fila/registro?s=${getActiveSalonId()}` : `https://yoy-ia-billar.vercel.app/fila/registro?s=${getActiveSalonId()}`}
           size={500}
           level="H"
         />
@@ -2046,7 +2047,7 @@ export default function ConfigPanel({ showToast }) {
           <QRCodeCanvas
             key={m.id}
             id={`qr-canvas-mesa-${m.id}`}
-            value={typeof window !== 'undefined' ? `${window.location.origin}/mesa/${m.id}` : `https://yoy-ia-billar.vercel.app/mesa/${m.id}`}
+            value={typeof window !== 'undefined' ? `${window.location.origin}/mesa/${m.id}?s=${getActiveSalonId()}` : `https://yoy-ia-billar.vercel.app/mesa/${m.id}?s=${getActiveSalonId()}`}
             size={500}
             level="H"
           />
@@ -2737,13 +2738,13 @@ export default function ConfigPanel({ showToast }) {
                           style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}
                           onClick={() => setPreviewQr({
                             title: m.nombre,
-                            value: typeof window !== 'undefined' ? `${window.location.origin}/mesa/${m.id}` : `https://yoy-ia-billar.vercel.app/mesa/${m.id}`,
+                            value: typeof window !== 'undefined' ? `${window.location.origin}/mesa/${m.id}?s=${getActiveSalonId()}` : `https://yoy-ia-billar.vercel.app/mesa/${m.id}?s=${getActiveSalonId()}`,
                             filename: getTableFilename(m),
                             mesaId: m.id
                           })}
                           title="Previsualizar QR"
                         >
-                          <img src={`https://api.qrserver.com/v1/create-qr-code/?size=60x60&data=${encodeURIComponent(typeof window !== 'undefined' ? `${window.location.origin}/mesa/${m.id}` : `https://yoy-ia-billar.vercel.app/mesa/${m.id}`)}`} width="32" height="32" style={{ borderRadius: 6, background: '#fff', padding: 2, border: '1px solid var(--border)' }} alt="QR Mesa" />
+                          <img src={`https://api.qrserver.com/v1/create-qr-code/?size=60x60&data=${encodeURIComponent(typeof window !== 'undefined' ? `${window.location.origin}/mesa/${m.id}?s=${getActiveSalonId()}` : `https://yoy-ia-billar.vercel.app/mesa/${m.id}?s=${getActiveSalonId()}`)}`} width="32" height="32" style={{ borderRadius: 6, background: '#fff', padding: 2, border: '1px solid var(--border)' }} alt="QR Mesa" />
                           <div>
                             <span style={{ fontSize: 12, fontWeight: 700 }}>{m.nombre}</span>
                             <div style={{ fontSize: 10, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>

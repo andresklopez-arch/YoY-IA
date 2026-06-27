@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp } from '@/lib/firestore-tenant';
 import { db } from '@/lib/firebase';
 
 const isRealName = (name) => {

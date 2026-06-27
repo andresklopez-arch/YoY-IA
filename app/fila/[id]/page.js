@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams } from 'next/navigation';
-import { doc, onSnapshot, collection, addDoc, serverTimestamp, query, where } from 'firebase/firestore';
+import { doc, onSnapshot, collection, addDoc, serverTimestamp, query, where } from '@/lib/firestore-tenant';
 import { db } from '@/lib/firebase';
 
 export default function FilaEsperaCliente() {
