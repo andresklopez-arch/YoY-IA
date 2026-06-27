@@ -125,7 +125,16 @@ function MeseroContent() {
           ((emp.rol || emp.role || '').toLowerCase().includes('mesero') || (emp.rol || emp.role || '').toLowerCase().includes('staff') || !(emp.rol || emp.role))
         );
         setTodosLosMeseros(presentWaiters);
-      }, err => console.warn("Error loading attendance in waiter view:", err));
+        try {
+          localStorage.setItem('yoy_cached_waiters_present', JSON.stringify(presentWaiters));
+        } catch (e) {}
+      }, err => {
+        console.warn("Error loading attendance in waiter view:", err);
+        try {
+          const cached = localStorage.getItem('yoy_cached_waiters_present');
+          if (cached) setTodosLosMeseros(JSON.parse(cached));
+        } catch (e) {}
+      });
     }, err => console.warn("Error loading employees in waiter view:", err));
 
     return () => {
@@ -1351,7 +1360,11 @@ function MeseroContent() {
             display: flex;
             flex-direction: column;
             gap: 8px;
-            padding-right: 4px;
+          }
+          @keyframes pulse-border {
+            0% { border-color: #ef4444; box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+            70% { border-color: rgba(239, 68, 68, 0.5); box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+            100% { border-color: #ef4444; box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
           }
         `}</style>
 
@@ -1499,8 +1512,10 @@ function MeseroContent() {
 
                   return (
                     <div key={c.id} style={{
-                      background: 'var(--bg-elevated)',
-                      border: '1px solid var(--border)',
+                      background: tieneAsistenciaPendiente ? 'rgba(239, 68, 68, 0.08)' : 'var(--bg-elevated)',
+                      border: tieneAsistenciaPendiente ? '1px solid #ef4444' : '1px solid var(--border)',
+                      boxShadow: tieneAsistenciaPendiente ? '0 0 10px rgba(239, 68, 68, 0.15)' : 'none',
+                      animation: tieneAsistenciaPendiente ? 'pulse-border 2s infinite' : 'none',
                       borderRadius: 10,
                       padding: '8px 12px',
                       display: 'flex',
