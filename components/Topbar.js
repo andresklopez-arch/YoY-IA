@@ -2114,6 +2114,40 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
                           >
                             <i className="ri-qr-code-line" /> Acceso Móvil
                           </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const isMeseroOStaff = (emp.rol || emp.role || '').toLowerCase().includes('mesero') || 
+                                                     (emp.rol || emp.role || '').toLowerCase().includes('staff') || 
+                                                     (emp.rol || emp.role || '').toLowerCase().includes('mesera') || 
+                                                     !(emp.rol || emp.role);
+                              if (isMeseroOStaff) {
+                                 setAsignacionPaseEmpleado(emp);
+                                 setMesasAsignadasPase([]);
+                              } else {
+                                 handlePaseListaClick(emp);
+                              }
+                            }}
+                            style={{
+                              marginTop: 4,
+                              width: '100%',
+                              background: 'rgba(34,197,94,0.08)',
+                              border: '1px solid rgba(34,197,94,0.15)',
+                              borderRadius: 6,
+                              color: 'var(--success)',
+                              padding: '4px 6px',
+                              fontSize: 9.5,
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: 3,
+                              transition: 'all 0.2s'
+                            }}
+                          >
+                            <i className="ri-key-line" /> Acceso Manual
+                          </button>
                         </div>
                       ))}
                   </div>
