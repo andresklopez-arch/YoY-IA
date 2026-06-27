@@ -1012,43 +1012,43 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
             background: 'rgba(25, 25, 25, 0.65)',
             border: '1px solid rgba(197, 160, 89, 0.15)',
             boxShadow: '0 20px 50px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
-            borderRadius: 24,
-            padding: '40px 30px',
+            borderRadius: 20,
+            padding: '24px 20px',
             width: '100%',
-            maxWidth: 420,
+            maxWidth: 360,
             textAlign: 'center',
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
-            gap: 20
+            gap: 12
           }}>
             <div style={{
-              width: 80,
-              height: 80,
+              width: 50,
+              height: 50,
               borderRadius: '50%',
               background: 'rgba(197, 160, 89, 0.1)',
               border: '1px solid rgba(197, 160, 89, 0.3)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              marginBottom: 10,
+              marginBottom: 4,
               boxShadow: '0 0 20px rgba(197, 160, 89, 0.05)'
             }}>
-              <i className="ri-shield-user-line" style={{ fontSize: 38, color: '#c5a059' }} />
+              <i className="ri-shield-user-line" style={{ fontSize: 24, color: '#c5a059' }} />
             </div>
 
-            <h2 style={{ fontFamily: 'var(--font-display)', margin: 0, fontSize: 22, fontWeight: 800, color: '#c5a059', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+            <h2 style={{ fontFamily: 'var(--font-display)', margin: 0, fontSize: 18, fontWeight: 800, color: '#c5a059', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
               Bloqueo de Seguridad
             </h2>
-            <p style={{ margin: 0, fontSize: 13, color: '#8e8e93', lineHeight: 1.5, padding: '0 10px' }}>
+            <p style={{ margin: 0, fontSize: 11, color: '#8e8e93', lineHeight: 1.4, padding: '0 10px' }}>
               El sistema lleva más de 15 minutos sin sincronizar con la base de datos central. Se requiere NIP de Supervisor (Gerente o Administrador) para continuar en modo offline.
             </p>
 
-            <div style={{ display: 'flex', gap: 12, justifyContent: 'center', margin: '15px 0' }}>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'center', margin: '8px 0' }}>
               {[1, 2, 3, 4, 5, 6].map((i) => (
                 <div key={i} style={{
-                  width: 14,
-                  height: 14,
+                  width: 10,
+                  height: 10,
                   borderRadius: '50%',
                   background: nipInput.length >= i ? '#c5a059' : 'rgba(255, 255, 255, 0.1)',
                   border: nipInput.length >= i ? '1px solid #c5a059' : '1px solid rgba(255, 255, 255, 0.05)',
@@ -1059,7 +1059,7 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
             </div>
 
             {lockoutError && (
-              <p style={{ color: '#ff453a', fontSize: 13, margin: 0, fontWeight: 500 }}>
+              <p style={{ color: '#ff453a', fontSize: 12, margin: 0, fontWeight: 500 }}>
                 {lockoutError}
               </p>
             )}
@@ -1067,19 +1067,19 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
             <div style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(3, 1fr)',
-              gap: 12,
+              gap: 8,
               width: '100%',
-              maxWidth: 300,
-              marginTop: 10
+              maxWidth: 240,
+              marginTop: 6
             }}>
               {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
                 <button key={num} onClick={() => handleNipClick(num.toString())} style={{
-                  height: 54,
-                  borderRadius: 14,
+                  height: 44,
+                  borderRadius: 10,
                   background: 'rgba(255, 255, 255, 0.03)',
                   border: '1px solid rgba(255, 255, 255, 0.05)',
                   color: '#fff',
-                  fontSize: 20,
+                  fontSize: 16,
                   fontWeight: 600,
                   cursor: 'pointer',
                   transition: 'all 0.1s ease',
@@ -1089,12 +1089,12 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
                 </button>
               ))}
               <button onClick={handleNipBackspace} style={{
-                height: 54,
-                borderRadius: 14,
+                height: 44,
+                borderRadius: 10,
                 background: 'rgba(255, 255, 255, 0.03)',
                 border: '1px solid rgba(255, 255, 255, 0.05)',
                 color: '#fff',
-                fontSize: 18,
+                fontSize: 16,
                 cursor: 'pointer',
                 transition: 'all 0.1s ease',
                 display: 'flex',
@@ -1105,12 +1105,12 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
                 <i className="ri-delete-back-2-line" />
               </button>
               <button onClick={() => handleNipClick('0')} style={{
-                height: 54,
-                borderRadius: 14,
+                height: 44,
+                borderRadius: 10,
                 background: 'rgba(255, 255, 255, 0.03)',
                 border: '1px solid rgba(255, 255, 255, 0.05)',
                 color: '#fff',
-                fontSize: 20,
+                fontSize: 16,
                 fontWeight: 600,
                 cursor: 'pointer',
                 transition: 'all 0.1s ease',
@@ -1119,12 +1119,12 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
                 0
               </button>
               <button onClick={handleNipSubmit} style={{
-                height: 54,
-                borderRadius: 14,
+                height: 44,
+                borderRadius: 10,
                 background: 'var(--primary, #c5a059)',
                 border: '1px solid var(--primary, #c5a059)',
                 color: '#fff',
-                fontSize: 16,
+                fontSize: 14,
                 fontWeight: 700,
                 cursor: 'pointer',
                 transition: 'all 0.1s ease',
