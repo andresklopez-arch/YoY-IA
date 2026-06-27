@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef, useMemo, Component } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
-import { obfuscate, deobfuscate, hashNip } from '@/lib/crypto';
+import { obfuscate, deobfuscate, hashNip, obfuscateStatic } from '@/lib/crypto';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth-context';
 import { getBusinessDate } from '@/lib/date-utils';
@@ -1999,6 +1999,10 @@ let globalRentaExtras = [
 export default function MesasPanel({ showToast }) {
   const { user } = useAuth();
   const [mesas, setMesas] = useState([]);
+
+  const getEncodedSalonId = () => {
+    return encodeURIComponent(obfuscateStatic(getActiveSalonId()));
+  };
   const [rentaExtras, setRentaExtras] = useState(globalRentaExtras);
 
   useEffect(() => {
@@ -4575,7 +4579,7 @@ export default function MesasPanel({ showToast }) {
           </div>
           <h2>${mesa.nombre || `Mesa ${mesa.id}`}</h2>
           <p>Escanea para ordenar y pedir asistencia</p>
-          <p style="font-size: 11px; color: #999; margin-top: 10px;">yoy-ia-billar.vercel.app/mesa/${mesa.id}?s=${getActiveSalonId()}</p>
+          <p style="font-size: 11px; color: #999; margin-top: 10px;">yoy-ia-billar.vercel.app/mesa/${mesa.id}?s=${getEncodedSalonId()}</p>
         </div>
       `;
     });
@@ -4584,7 +4588,7 @@ export default function MesasPanel({ showToast }) {
       <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
       <script>
         window.onload = () => {
-          const mesasData = ${JSON.stringify(mesas.map(m => ({ id: m.id, url: `https://yoy-ia-billar.vercel.app/mesa/${m.id}?s=${getActiveSalonId()}` })))};
+          const mesasData = ${JSON.stringify(mesas.map(m => ({ id: m.id, url: `https://yoy-ia-billar.vercel.app/mesa/${m.id}?s=${getEncodedSalonId()}` })))};
           mesasData.forEach(m => {
             new QRCode(document.getElementById('qr-' + m.id), {
               text: m.url,
@@ -4833,7 +4837,7 @@ export default function MesasPanel({ showToast }) {
 
   const imprimirQRRegistroVirtual = () => {
     const host = typeof window !== 'undefined' ? window.location.origin : 'https://yoy-ia-billar.vercel.app';
-    const registroUrl = `${host}/fila/registro?s=${getActiveSalonId()}`;
+    const registroUrl = `${host}/fila/registro?s=${getEncodedSalonId()}`;
 
     const htmlContent = `
       <html><head><title>Fila Virtual - YoY IA Billar Club</title>
@@ -4921,7 +4925,7 @@ export default function MesasPanel({ showToast }) {
 
   const imprimirComprobanteReserva = (mesa) => {
     const host = typeof window !== 'undefined' ? window.location.origin : 'https://yoy-ia-billar.vercel.app';
-    const mesaUrl = `${host}/mesa/${mesa.id}?s=${getActiveSalonId()}`;
+    const mesaUrl = `${host}/mesa/${mesa.id}?s=${getEncodedSalonId()}`;
 
     let htmlContent = `
       <html><head><title>Comprobante de Reserva - YoY IA Billar Club</title>
@@ -6637,7 +6641,7 @@ export default function MesasPanel({ showToast }) {
               {/* QR Code */}
               <div id={`qr-mesa-${modalQR.id}`} style={{ background: '#fff', padding: 20, borderRadius: 16, display: 'inline-block' }}>
                 <QRCodeSVG
-                  value={`https://yoy-ia-billar.vercel.app/mesa/${modalQR.id}?s=${getActiveSalonId()}`}
+                  value={`https://yoy-ia-billar.vercel.app/mesa/${modalQR.id}?s=${getEncodedSalonId()}`}
                   size={200}
                   bgColor="#ffffff"
                   fgColor="#0a0a0f"
@@ -6648,7 +6652,7 @@ export default function MesasPanel({ showToast }) {
               {/* Info */}
               <div>
                 <div style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 800, color: 'var(--bronze-light)', marginBottom: 4 }}>{modalQR.nombre}</div>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)', wordBreak: 'break-all' }}>yoy-ia-billar.vercel.app/mesa/{modalQR.id}?s={getActiveSalonId()}</div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', wordBreak: 'break-all' }}>yoy-ia-billar.vercel.app/mesa/{modalQR.id}?s={getEncodedSalonId()}</div>
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>{modalQR.tipo} · Tarifa: ${modalQR.tarifa}/hr</div>
               </div>
               {/* Instrucciones */}
@@ -6680,7 +6684,7 @@ export default function MesasPanel({ showToast }) {
                     <div class="qr-box">${qrEl.innerHTML}</div>
                     <h2>${modalQR.nombre}</h2>
                     <p>Escanea para ordenar y pedir asistencia</p>
-                    <p style="font-size:11px;color:#aaa;margin-top:8px">yoy-ia-billar.vercel.app/mesa/${modalQR.id}?s=${getActiveSalonId()}</p>
+                    <p style="font-size:11px;color:#aaa;margin-top:8px">yoy-ia-billar.vercel.app/mesa/${modalQR.id}?s=${getEncodedSalonId()}</p>
                     <script>window.onload=()=>window.print()</script>
                     </body></html>
                   `);
@@ -7198,7 +7202,7 @@ function ModalFilaVirtual({ fila, setFila, mesas, onAssign, onClose, showToast, 
             <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--bronze-light)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Registro Autoservicio (QR)</span>
             <div style={{ background: '#fff', padding: 8, borderRadius: 10, display: 'inline-block', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', marginTop: 8 }}>
               <img 
-                src={`https://api.qrserver.com/v1/create-qr-code/?size=130x130&data=${encodeURIComponent(typeof window !== 'undefined' ? `${window.location.origin}/fila/registro?s=${getActiveSalonId()}` : `https://yoy-ia-billar.vercel.app/fila/registro?s=${getActiveSalonId()}`)}`} 
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=130x130&data=${encodeURIComponent(typeof window !== 'undefined' ? `${window.location.origin}/fila/registro?s=${getEncodedSalonId()}` : `https://yoy-ia-billar.vercel.app/fila/registro?s=${getEncodedSalonId()}`)}`} 
                 alt="QR Registro"
                 style={{ width: 130, height: 130, display: 'block' }}
               />

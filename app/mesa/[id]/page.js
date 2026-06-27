@@ -2,8 +2,9 @@
 import { useState, useEffect, useCallback, use, useRef } from 'react';
 import {
   collection, addDoc, onSnapshot, query,
-  where, orderBy, serverTimestamp, doc, updateDoc, setDoc, getDoc
+  where, orderBy, serverTimestamp, doc, updateDoc, setDoc, getDoc, getActiveSalonId
 } from '@/lib/firestore-tenant';
+import { getDocs as rawGetDocs, collection as rawCollection } from 'firebase/firestore';
 import { db, auth } from '@/lib/firebase';
 import { signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import '@/styles/mesa-cliente.css';
@@ -730,6 +731,34 @@ export default function MesaClientePage({ params }) {
     });
     return unsub;
   }, [mesaId]);
+
+  // Fallback: search for the table ID in all salons' tables if not found in current salon
+  useEffect(() => {
+    if (!loadingMesaInfo && !mesaInfo && mesaId) {
+      const scanSalons = async () => {
+        try {
+          const snap = await rawGetDocs(rawCollection(db, 'config'));
+          let foundSalonId = null;
+          snap.forEach(doc => {
+            if (doc.id.startsWith('mesas_estado_')) {
+              const list = doc.data().mesas || [];
+              if (list.some(m => m.id === mesaId)) {
+                foundSalonId = doc.id.replace('mesas_estado_', '');
+              }
+            }
+          });
+          if (foundSalonId) {
+            console.log(`[Multi-Tenant Fallback] Mesa ${mesaId} encontrada en el salón: ${foundSalonId}`);
+            localStorage.setItem('yoy_client_salon_id', foundSalonId);
+            window.location.reload();
+          }
+        } catch (e) {
+          console.error("Error scanning salons:", e);
+        }
+      };
+      scanSalons();
+    }
+  }, [loadingMesaInfo, mesaInfo, mesaId]);
 
   // Detectar cambios en la configuración de la mesa en tiempo real y mostrar notificaciones
   const prevMesaConfig = useRef(null);
@@ -1510,6 +1539,9 @@ export default function MesaClientePage({ params }) {
                 </span>
                 <span className={`mc-diag-pill ${dbConnected ? 'db-ok' : 'db-offline'}`}>
                   📦 {dbConnected ? 'DB OK' : 'DB Offline'}
+                </span>
+                <span className="mc-diag-pill online" style={{ background: 'rgba(197, 168, 128, 0.15)', color: 'var(--cl-bronze-light, #c5a880)', border: '1px solid rgba(197, 168, 128, 0.3)' }}>
+                  🏢 Salón: {getActiveSalonId() === 'default_salon' ? 'Principal' : getActiveSalonId().toUpperCase()}
                 </span>
               </div>
             </div>
