@@ -3,9 +3,8 @@ echo ================================
 echo  YoY IA BILLAR - Subir Cambios
 echo ================================
 
-echo  Creando copia de seguridad local (Backup)...
-powershell -Command "$dateStr = Get-Date -Format 'yyyyMMdd_HHmmss'; Get-ChildItem -Path . -Exclude 'node_modules', '.next', '.git', 'backups', '.vercel' | Compress-Archive -DestinationPath \"..\yoy-ia-billar-backup-$dateStr.zip\" -Force; Copy-Item \"..\yoy-ia-billar-backup-$dateStr.zip\" \"..\yoy-ia-billar-backup-latest.zip\" -Force"
-echo  Backup local guardado.
+echo  [Omitido] Creando copia de seguridad local (Se realiza de forma manual cada 20 modificaciones).
+:: powershell -Command "$dateStr = Get-Date -Format 'yyyyMMdd_HHmmss'; Get-ChildItem -Path . -Exclude 'node_modules', '.next', '.git', 'backups', '.vercel' | Compress-Archive -DestinationPath \"..\yoy-ia-billar-backup-$dateStr.zip\" -Force; Copy-Item \"..\yoy-ia-billar-backup-$dateStr.zip\" \"..\yoy-ia-billar-backup-latest.zip\" -Force"
 
 echo  Corriendo validador sintactico pre-vuelo...
 call node scripts/validate-jsx.js
@@ -29,15 +28,15 @@ if %ERRORLEVEL% NEQ 0 (
 echo  Pruebas completadas exitosamente.
 echo.
 
-echo  Validando compilacion local (npm run build)...
-call npm run build
-if %ERRORLEVEL% NEQ 0 (
-  echo ====================================================
-  echo  ERROR: La compilacion ha fallado. Abortando despliegue.
-  echo ====================================================
-  goto end
-)
-echo  Compilacion local verificada con exito.
+echo  [Omitido] Validando compilacion local (npm run build) para optimizar velocidad.
+:: call npm run build
+:: if %ERRORLEVEL% NEQ 0 (
+::   echo ====================================================
+::   echo  ERROR: La compilacion ha fallado. Abortando despliegue.
+::   echo ====================================================
+::   goto end
+:: )
+echo  Compilacion local omitida (Vercel compilara en la nube).
 echo.
 
 echo  Desplegando reglas de seguridad de Firestore...

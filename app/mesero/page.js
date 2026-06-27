@@ -664,12 +664,13 @@ function MeseroContent() {
   useEffect(() => {
     const q = query(
       collection(db, 'mesa_pedidos'),
-      where('tipo', 'in', ['asistencia', 'cuenta', 'pedido']),
       where('estado', 'in', ['pendiente', 'listo', 'en_camino', 'entregado'])
     );
     const unsub = onSnapshot(q, snap => {
       const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      const filtered = items.filter(alerta => !alerta.atendidoMesero);
+      const filtered = items.filter(alerta => 
+        ['asistencia', 'cuenta', 'pedido'].includes(alerta.tipo) && !alerta.atendidoMesero
+      );
       setAlertasAsistencia(filtered);
 
       // Si la app está en segundo plano y llega nueva alerta, disparar Web Notification
