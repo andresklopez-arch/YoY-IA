@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from 'react';
 import {
   collection, onSnapshot, query, where,
-  orderBy, updateDoc, doc, serverTimestamp, addDoc, getDocs, setDoc, getDoc, deleteDoc
+  orderBy, updateDoc, doc, serverTimestamp, addDoc, getDocs, setDoc, getDoc, deleteDoc, getActiveSalonId
 } from '@/lib/firestore-tenant';
 import { db } from '@/lib/firebase';
 import { AuthProvider, useAuth } from '@/lib/auth-context';
@@ -790,7 +790,15 @@ function CocinaContent() {
             <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--bronze-light)', display: 'flex', alignItems: 'center', gap: 10 }}>
               🍳 Pantalla de Cocina {user?.name ? `· ${user.alias || user.name.split(' ')[0]}` : ''}
             </h1>
-            <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>
+            {user && (
+              <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.4)', marginTop: 4, display: 'flex', flexWrap: 'wrap', gap: '8px 12px', fontFamily: 'monospace' }}>
+                <span style={{ color: 'var(--success)' }}>🏢 Salón: {getActiveSalonId()}</span>
+                <span>📋 Pendientes Cocina: {pedidos.length}</span>
+                <span>👤 Rol: {user.role}</span>
+                <span style={{ color: '#cd7f32' }}>🔑 SalonUsr: {user.salonId || 'null'}</span>
+              </div>
+            )}
+            <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 6 }}>
               Monitoreo de comandas en tiempo real, insumos críticos e inventario general
             </p>
           </div>
