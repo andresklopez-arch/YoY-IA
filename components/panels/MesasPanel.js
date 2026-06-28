@@ -85,7 +85,7 @@ const VOCABULARIO_FRASES = {
     '¡Un pedido!',
     '¡Pedido entrante!',
     '¡Mira, pedido!',
-    '¡Pedido listo!'
+    '¡Nuevo pedido!'
   ],
   asistencia: [
     '¡Oye, ayuda!',
@@ -2240,6 +2240,7 @@ export default function MesasPanel({ showToast }) {
   const isInitialLoadRef = useRef(true);
   const prevMesasStateRef = useRef([]);
   const backupTimeoutRef = useRef(null);
+  const processingOrdersRef = useRef(new Set());
   useEffect(() => {
     if (modalCuentasSolicitadas) {
       const ahora = Date.now();
@@ -2576,6 +2577,7 @@ export default function MesasPanel({ showToast }) {
             );
             if (!confirmar) {
               showToast('Carga de pedido cancelada por falta de stock', 'warning');
+              processingOrdersRef.current.delete(pedidoDoc.id);
               return;
             }
           }
@@ -2596,7 +2598,10 @@ export default function MesasPanel({ showToast }) {
           "No se pudo verificar el stock en tiempo real con el servidor.\n" +
           "¿Desea continuar con la carga del pedido?"
         );
-        if (!continuarSinStock) return;
+        if (!continuarSinStock) {
+          processingOrdersRef.current.delete(pedidoDoc.id);
+          return;
+        }
       }
     }
 
@@ -2763,6 +2768,7 @@ export default function MesasPanel({ showToast }) {
     } catch (err) {
       console.error("Error al procesar la transacción de descuento de stock y cuentas:", err);
       showToast('Error de red al actualizar stock/cuentas atómicamente', 'error');
+      processingOrdersRef.current.delete(pedidoDoc.id);
     }
   };
 
@@ -2789,7 +2795,10 @@ export default function MesasPanel({ showToast }) {
         // Auto-cargar pedidos a la cuenta de forma reactiva si es un pedido o si fue atendido por mesero o admin o si ya está listo/en camino/entregados
         const debCargar = data.tipo === 'pedido' || data.atendidoMesero || data.atendidoAdmin || ['listo', 'en_camino', 'entregado'].includes(data.estado);
         if (data.tipo === 'pedido' && !data.cargadoACuenta && debCargar) {
-          cargarPedidoACuenta(mesaId || 0, { id, ...data }, true);
+          if (!processingOrdersRef.current.has(id)) {
+            processingOrdersRef.current.add(id);
+            cargarPedidoACuenta(mesaId || 0, { id, ...data }, true);
+          }
         }
  
         // Calcular consumos de pedidos no cargados a la cuenta para mostrarlos en tiempo real

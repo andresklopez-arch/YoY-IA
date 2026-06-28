@@ -908,6 +908,9 @@ function MeseroContent() {
   const marcarAtendido = async (id, tipo) => {
     try {
       const docRef = doc(db, 'mesa_pedidos', id);
+      const snap = await getDoc(docRef);
+      const currentEstado = snap.exists() ? (snap.data().estado || 'pendiente') : 'pendiente';
+
       const updateData = {
         atendidoMesero: true,
         updatedAt: serverTimestamp(),
@@ -916,6 +919,12 @@ function MeseroContent() {
       if (tipo !== 'pedido') {
         updateData.estado = 'atendido';
         updateData.atendidoAt = serverTimestamp();
+      } else {
+        // Si el pedido está listo o en camino, el mesero lo entrega
+        if (['listo', 'en_camino'].includes(currentEstado)) {
+          updateData.estado = 'entregado';
+          updateData.entregadoAt = serverTimestamp();
+        }
       }
       await updateDoc(docRef, updateData);
       showToast('Solicitud atendida ✓', 'success');
@@ -1944,8 +1953,12 @@ function MeseroContent() {
                     <button
                       onClick={() => marcarAtendido(alerta.id, alerta.tipo)}
                       style={{
-                        background: 'rgba(34,197,94,0.15)',
-                        border: '1px solid rgba(34,197,94,0.4)',
+                        background: (alerta.tipo === 'pedido' && alerta.estado === 'listo') 
+                          ? 'rgba(34,197,94,0.25)' 
+                          : 'rgba(34,197,94,0.15)',
+                        border: (alerta.tipo === 'pedido' && alerta.estado === 'listo')
+                          ? '1px solid rgba(34,197,94,0.6)'
+                          : '1px solid rgba(34,197,94,0.4)',
                         color: 'var(--success)',
                         padding: '8px 16px',
                         borderRadius: 10,
@@ -1958,10 +1971,11 @@ function MeseroContent() {
                         transition: 'all 0.15s',
                         flexShrink: 0
                       }}
-                      onMouseEnter={e => { e.currentTarget.style.background = 'rgba(34,197,94,0.25)'; }}
-                      onMouseLeave={e => { e.currentTarget.style.background = 'rgba(34,197,94,0.15)'; }}
+                      onMouseEnter={e => { e.currentTarget.style.background = 'rgba(34,197,94,0.35)'; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = (alerta.tipo === 'pedido' && alerta.estado === 'listo') ? 'rgba(34,197,94,0.25)' : 'rgba(34,197,94,0.15)'; }}
                     >
-                      <i className="ri-check-line" /> Atendido
+                      <i className={alerta.tipo === 'pedido' && alerta.estado === 'listo' ? 'ri-check-double-line' : 'ri-check-line'} /> 
+                      {alerta.tipo === 'pedido' && alerta.estado === 'listo' ? 'Entregar' : 'Atendido'}
                     </button>
                   </div>
                 ))}
