@@ -905,12 +905,9 @@ function MeseroContent() {
     }
   };
 
-  const marcarAtendido = async (id, tipo) => {
+  const marcarAtendido = async (id, tipo, estado) => {
     try {
       const docRef = doc(db, 'mesa_pedidos', id);
-      const snap = await getDoc(docRef);
-      const currentEstado = snap.exists() ? (snap.data().estado || 'pendiente') : 'pendiente';
-
       const updateData = {
         atendidoMesero: true,
         updatedAt: serverTimestamp(),
@@ -921,7 +918,7 @@ function MeseroContent() {
         updateData.atendidoAt = serverTimestamp();
       } else {
         // Si el pedido está listo o en camino, el mesero lo entrega
-        if (['listo', 'en_camino'].includes(currentEstado)) {
+        if (['listo', 'en_camino'].includes(estado)) {
           updateData.estado = 'entregado';
           updateData.entregadoAt = serverTimestamp();
         }
@@ -1951,7 +1948,7 @@ function MeseroContent() {
                       </div>
                     </div>
                     <button
-                      onClick={() => marcarAtendido(alerta.id, alerta.tipo)}
+                      onClick={() => marcarAtendido(alerta.id, alerta.tipo, alerta.estado)}
                       style={{
                         background: (alerta.tipo === 'pedido' && alerta.estado === 'listo') 
                           ? 'rgba(34,197,94,0.25)' 
