@@ -271,12 +271,61 @@ function MeseroContent() {
     }
   };
 
+  const sincronizarEntregasOffline = async () => {
+    if (typeof window === 'undefined') return;
+    const stored = localStorage.getItem('yoy_pending_deliveries');
+    if (!stored) return;
+    try {
+      const pending = JSON.parse(stored);
+      if (pending && pending.length > 0) {
+        showToast(`Sincronizando ${pending.length} entrega(s) sin conexión...`, 'info');
+        for (const entrega of pending) {
+          const docRef = doc(db, 'mesa_pedidos', entrega.id);
+          const updateData = {
+            atendidoMesero: true,
+            updatedAt: serverTimestamp(),
+          };
+          if (entrega.tipo !== 'pedido') {
+            updateData.estado = 'atendido';
+            updateData.atendidoAt = serverTimestamp();
+          } else {
+            if (['listo', 'en_camino'].includes(entrega.estado)) {
+              updateData.estado = 'entregado';
+              updateData.entregadoAt = serverTimestamp();
+            }
+          }
+          await updateDoc(docRef, updateData);
+
+          // Crear bitacora_servicio
+          const bitacoraRef = doc(collection(db, 'bitacora_servicio'));
+          await setDoc(bitacoraRef, {
+            pedidoId: entrega.id,
+            mesaId: entrega.mesaId || '',
+            cliente: entrega.cliente || '',
+            meseroId: user?.uid || 'desconocido',
+            meseroNombre: user?.nombre || user?.name || 'Mesero',
+            minutosRetraso: entrega.minutosRetraso || 0,
+            entregadoAt: serverTimestamp(),
+            createdAt: serverTimestamp(),
+            salonId: getActiveSalonId(),
+            offlineSincronizado: true
+          });
+        }
+        localStorage.removeItem('yoy_pending_deliveries');
+        showToast('¡Entregas offline sincronizadas con éxito! ✓', 'success');
+      }
+    } catch (err) {
+      console.error("Error al sincronizar entregas offline:", err);
+    }
+  };
+
   useEffect(() => {
     if (typeof window !== 'undefined') {
       setIsOffline(!navigator.onLine);
       const handleOnline = () => {
         setIsOffline(false);
         sincronizarAlertasOffline();
+        sincronizarEntregasOffline();
       };
       const handleOffline = () => setIsOffline(true);
       window.addEventListener('online', handleOnline);
@@ -291,6 +340,7 @@ function MeseroContent() {
   useEffect(() => {
     if (typeof window !== 'undefined' && navigator.onLine) {
       sincronizarAlertasOffline();
+      sincronizarEntregasOffline();
     }
   }, []);
 
@@ -717,36 +767,68 @@ function MeseroContent() {
   // ── Alarma sonora periódica para asistencias pendientes ──
   useEffect(() => {
     if (!sonido || alertasAsistenciaParaMi.length === 0) return;
+
+    const tieneDemorado = alertasAsistenciaParaMi.some(alerta => {
+      if (alerta.tipo !== 'pedido' || alerta.estado !== 'listo') return false;
+      const listoAt = alerta.cocinaAtendidoAt?.toDate 
+        ? alerta.cocinaAtendidoAt.toDate().getTime() 
+        : (alerta.cocinaAtendidoAt || 0);
+      if (!listoAt) return false;
+      return (Date.now() - listoAt) > 5 * 60 * 1000;
+    });
     
     const sonarAlerta = () => {
       try {
         const ctx = new (window.AudioContext || window.webkitAudioContext)();
-        const osc1 = ctx.createOscillator();
-        const gain1 = ctx.createGain();
-        osc1.connect(gain1); gain1.connect(ctx.destination);
-        osc1.frequency.value = 660; gain1.gain.value = 0.9;
-        osc1.start();
-        osc1.stop(ctx.currentTime + 0.15);
         
-        setTimeout(() => {
-          const osc2 = ctx.createOscillator();
-          const gain2 = ctx.createGain();
-          osc2.connect(gain2); gain2.connect(ctx.destination);
-          osc2.frequency.value = 880; gain2.gain.value = 0.9;
-          osc2.start();
-          osc2.stop(ctx.currentTime + 0.3);
-        }, 180);
+        if (tieneDemorado) {
+          // Sonido de alerta urgente (tres tonos agudos rápidos)
+          const playTono = (freq, startOffset, duration) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain); gain.connect(ctx.destination);
+            osc.frequency.setValueAtTime(freq, ctx.currentTime + startOffset);
+            gain.gain.setValueAtTime(0.7, ctx.currentTime + startOffset);
+            osc.start(ctx.currentTime + startOffset);
+            osc.stop(ctx.currentTime + startOffset + duration);
+          };
+          playTono(987.77, 0, 0.08); // B5
+          playTono(987.77, 0.1, 0.08); // B5
+          playTono(1318.51, 0.2, 0.15); // E6 (alarma urgente)
 
-        if (typeof navigator !== 'undefined' && navigator.vibrate) {
-          navigator.vibrate([150, 100, 150]); // Vibración rítmica
+          if (typeof navigator !== 'undefined' && navigator.vibrate) {
+            navigator.vibrate([100, 50, 100, 50, 150]);
+          }
+        } else {
+          // Sonido normal
+          const osc1 = ctx.createOscillator();
+          const gain1 = ctx.createGain();
+          osc1.connect(gain1); gain1.connect(ctx.destination);
+          osc1.frequency.value = 660; gain1.gain.value = 0.9;
+          osc1.start();
+          osc1.stop(ctx.currentTime + 0.15);
+          
+          setTimeout(() => {
+            const osc2 = ctx.createOscillator();
+            const gain2 = ctx.createGain();
+            osc2.connect(gain2); gain2.connect(ctx.destination);
+            osc2.frequency.value = 880; gain2.gain.value = 0.9;
+            osc2.start();
+            osc2.stop(ctx.currentTime + 0.3);
+          }, 180);
+
+          if (typeof navigator !== 'undefined' && navigator.vibrate) {
+            navigator.vibrate([150, 100, 150]);
+          }
         }
       } catch { /* sin audio */ }
     };
 
     sonarAlerta();
-    const t = setInterval(sonarAlerta, 4000);
+    const intervalTime = tieneDemorado ? 2500 : 4000;
+    const t = setInterval(sonarAlerta, intervalTime);
     return () => clearInterval(t);
-  }, [sonido, alertasAsistenciaParaMi.length]);
+  }, [sonido, alertasAsistenciaParaMi, alertasAsistenciaParaMi.length]);
 
   // ── Autolimpieza de Alertas Huérfanas (> 6 horas) ──
   useEffect(() => {
@@ -910,6 +992,16 @@ function MeseroContent() {
     // Optimistic local state update to dismiss the alert immediately in the UI
     setAlertasAsistencia(prev => prev.filter(alerta => alerta.id !== id));
     setLoadingAlertaId(id);
+
+    // Obtener información adicional de la alerta si la tenemos en el estado actual para la bitácora
+    const alertaEnCache = alertasAsistencia.find(a => a.id === id);
+    const mesaId = alertaEnCache?.mesaId || '';
+    const cliente = alertaEnCache?.cliente || '';
+    const cocinaAtendidoAtMs = alertaEnCache?.cocinaAtendidoAt?.toDate 
+      ? alertaEnCache.cocinaAtendidoAt.toDate().getTime() 
+      : (alertaEnCache?.cocinaAtendidoAt || Date.now());
+    const minutosRetraso = Math.max(0, Math.round((Date.now() - cocinaAtendidoAtMs) / 60000));
+
     try {
       const docRef = doc(db, 'mesa_pedidos', id);
       const updateData = {
@@ -927,16 +1019,55 @@ function MeseroContent() {
           updateData.entregadoAt = serverTimestamp();
         }
       }
-      await updateDoc(docRef, updateData);
-      showToast('Solicitud atendida ✓', 'success');
+
+      if (navigator.onLine) {
+        // Enviar online
+        await updateDoc(docRef, updateData);
+
+        // Crear bitacora_servicio
+        const bitacoraRef = doc(collection(db, 'bitacora_servicio'));
+        await setDoc(bitacoraRef, {
+          pedidoId: id,
+          mesaId,
+          cliente,
+          meseroId: user?.uid || 'desconocido',
+          meseroNombre: user?.nombre || user?.name || 'Mesero',
+          minutosRetraso,
+          entregadoAt: serverTimestamp(),
+          createdAt: serverTimestamp(),
+          salonId: getActiveSalonId()
+        });
+        showToast('Solicitud atendida ✓', 'success');
+      } else {
+        // Forzar error offline para caer en catch
+        throw new Error("offline");
+      }
 
       // Haptic feedback confirmation for mobile devices
       if (typeof window !== 'undefined' && navigator.vibrate) {
         navigator.vibrate([50, 30, 50]);
       }
     } catch (e) {
-      console.error("Error al marcar atendido:", e);
-      showToast('Error al atender solicitud.', 'error');
+      console.warn("Fallo en envío online (o modo offline). Guardando en caché offline...", e);
+
+      const rawQueue = localStorage.getItem('yoy_pending_deliveries') || '[]';
+      const queue = JSON.parse(rawQueue);
+      queue.push({
+        id,
+        tipo,
+        estado,
+        mesaId,
+        cliente,
+        minutosRetraso,
+        timestamp: Date.now()
+      });
+      localStorage.setItem('yoy_pending_deliveries', JSON.stringify(queue));
+
+      showToast('Entrega guardada localmente (Modo Offline) ✓', 'warning');
+
+      if (typeof window !== 'undefined' && navigator.vibrate) {
+        navigator.vibrate([100, 50, 100]);
+      }
     } finally {
       setLoadingAlertaId(null);
     }
@@ -1939,20 +2070,45 @@ function MeseroContent() {
             </div>
             <div className="modal-body" style={{ maxHeight: 360, overflowY: 'auto', padding: '16px 0' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                {alertasAsistenciaParaMi.map((alerta) => (
-                  <div key={alerta.id} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 14, padding: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                      <div style={{ fontSize: 32 }}>{alerta.icono || '🙋'}</div>
-                      <div style={{ textAlign: 'left' }}>
-                        <div style={{ fontSize: 16, fontWeight: 800, color: '#fff' }}>
-                          Mesa {alerta.mesaId}
-                        </div>
-                        <div style={{ fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600, marginTop: 2 }}>
-                          Solicitud: <span style={{ color: alerta.estado === 'listo' ? 'var(--success)' : 'var(--bronze-light)' }}>
-                            {alerta.estado === 'listo' ? '🍳 ¡LISTO PARA SERVIR! ' : ''}
-                            {alerta.etiqueta} {alerta.tipo === 'cuenta' && alerta.totalAcumulado ? `($${alerta.totalAcumulado} MXN)` : alerta.tipo === 'pedido' && alerta.total ? `($${alerta.total} MXN)` : ''}
-                          </span>
-                        </div>
+                 {alertasAsistenciaParaMi.map((alerta) => {
+                  const listoAt = alerta.cocinaAtendidoAt?.toDate 
+                    ? alerta.cocinaAtendidoAt.toDate().getTime() 
+                    : (alerta.cocinaAtendidoAt || 0);
+                  const esDemorado = alerta.tipo === 'pedido' && alerta.estado === 'listo' && listoAt && (Date.now() - listoAt) > 5 * 60 * 1000;
+
+                  return (
+                    <div 
+                      key={alerta.id} 
+                      style={{ 
+                        background: esDemorado ? 'rgba(239, 68, 68, 0.08)' : 'rgba(255,255,255,0.03)', 
+                        border: esDemorado ? '1px solid #ef4444' : '1px solid rgba(255,255,255,0.06)', 
+                        boxShadow: esDemorado ? '0 0 10px rgba(239, 68, 68, 0.15)' : 'none',
+                        animation: esDemorado ? 'pulse-border 2s infinite' : 'none',
+                        borderRadius: 14, 
+                        padding: 16, 
+                        display: 'flex', 
+                        justifyContent: 'space-between', 
+                        alignItems: 'center', 
+                        gap: 12 
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <div style={{ fontSize: 32 }}>{alerta.icono || '🙋'}</div>
+                        <div style={{ textAlign: 'left' }}>
+                          <div style={{ fontSize: 16, fontWeight: 800, color: '#fff' }}>
+                            Mesa {alerta.mesaId}
+                          </div>
+                          <div style={{ fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600, marginTop: 2 }}>
+                            Solicitud: <span style={{ color: alerta.estado === 'listo' ? 'var(--success)' : 'var(--bronze-light)' }}>
+                              {alerta.estado === 'listo' ? '🍳 ¡LISTO PARA SERVIR! ' : ''}
+                              {alerta.etiqueta} {alerta.tipo === 'cuenta' && alerta.totalAcumulado ? `($${alerta.totalAcumulado} MXN)` : alerta.tipo === 'pedido' && alerta.total ? `($${alerta.total} MXN)` : ''}
+                            </span>
+                            {esDemorado && (
+                              <span style={{ fontSize: 9, background: 'rgba(239, 68, 68, 0.2)', color: '#ef4444', border: '1px solid #ef4444', borderRadius: 4, padding: '1px 4px', marginLeft: 6, fontWeight: 800, textTransform: 'uppercase' }}>
+                                ⚠️ Demorado
+                              </span>
+                            )}
+                          </div>
                         <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
                           {alerta.cliente} · {alerta.createdAt?.toDate ? new Date(alerta.createdAt.toDate()).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'Ahora'}
                         </div>
