@@ -642,9 +642,7 @@ export default function MesaClientePage({ params }) {
     } catch (e) {}
 
     const unsub = onSnapshot(doc(db, 'config', 'inventario'), snap => {
-      if (!snap.metadata.fromCache) {
-        setDbConnected(true);
-      }
+      setDbConnected(true);
       if (snap.exists()) {
         const prods = snap.data().productos || [];
         const filtered = prods.filter(p => p.stock > 0);

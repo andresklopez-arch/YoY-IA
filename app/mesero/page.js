@@ -650,6 +650,7 @@ function MeseroContent() {
   useEffect(() => {
     const q = query(
       collection(db, 'mesa_pedidos'),
+      where('tipo', 'in', ['asistencia', 'cuenta', 'pedido']),
       where('estado', 'in', ['pendiente', 'listo', 'en_camino', 'entregado'])
     );
     const unsub = onSnapshot(q, snap => {
@@ -717,6 +718,8 @@ function MeseroContent() {
         } catch { /* sin audio */ }
       }
       setUltimoCount(items.length);
+    }, err => {
+      console.warn("Error en onSnapshot de pedidos (mesero):", err);
     });
     return unsub;
   }, [sonido, ultimoCount, listosNotificados]);
@@ -725,6 +728,7 @@ function MeseroContent() {
   useEffect(() => {
     const q = query(
       collection(db, 'mesa_pedidos'),
+      where('tipo', 'in', ['asistencia', 'cuenta', 'pedido']),
       where('estado', 'in', ['pendiente', 'listo', 'en_camino', 'entregado'])
     );
     const unsub = onSnapshot(q, snap => {
@@ -760,6 +764,8 @@ function MeseroContent() {
           });
         }
       }
+    }, err => {
+      console.warn("Error en onSnapshot de alertasAsistencia (mesero):", err);
     });
     return unsub;
   }, []);

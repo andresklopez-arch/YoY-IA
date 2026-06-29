@@ -214,6 +214,8 @@ function CocinaContent() {
         }
       }
       setUltimoPedidosCount(items.length);
+    }, err => {
+      console.error("Error en onSnapshot de cocina pendientes:", err);
     });
     return unsub;
   }, [sonido, ultimoPedidosCount]);
@@ -233,6 +235,8 @@ function CocinaContent() {
         return tB - tA;
       });
       setHistorial(items.slice(0, 15));
+    }, err => {
+      console.error("Error en onSnapshot de cocina completados:", err);
     });
     return unsub;
   }, []);
