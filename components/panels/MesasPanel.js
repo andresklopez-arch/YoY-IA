@@ -751,7 +751,7 @@ function ModalAbrirMesa({ mesa, adminPinHash, hashPassword, onClose, onConfirm }
 }
 
 // ── MODAL CERRAR MESA ────────────────────────────────────
-function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], registrarNuevoClienteDirectorio, mesas = [], unloadedConsumos, onClose, onCerrar, onAgregarACuenta, imprimirPreTicket, onImprimirPreTicket }) {
+function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], registrarNuevoClienteDirectorio, mesas = [], unloadedConsumos, onClose, onCerrar, onAgregarACuenta, imprimirPreTicket, onImprimirPreTicket, procesandoCierre }) {
   const cuentaAsociada = getCuentaAsociadaSafe(mesa, cuentasActivas);
 
   const [elapsed, setElapsed] = useState(Date.now() - (mesa.inicio || Date.now()));
@@ -929,11 +929,11 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
   const quickBills = Array.from(new Set([costo, ...billetes.filter(b => b > costo)])).slice(0, 5);
 
   // Validación de cierre
-  const isCerrarDisabled = tipoCierre === 'liquidar' && !mesa.socios && costo > 0 && (
+  const isCerrarDisabled = procesandoCierre || (tipoCierre === 'liquidar' && !mesa.socios && costo > 0 && (
     (metodo === 'efectivo' && pagaConVal < costo) ||
     (metodo === 'transferencia' && !referencia.trim()) ||
     (metodo === 'qr' && !referencia.trim())
-  );
+  ));
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -1503,7 +1503,7 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
                     flex: 1
                   }}
                 >
-                  <i className="ri-stop-circle-line" /> {costo === 0 ? 'Registrar Cortesía' : 'Cerrar y Cobrar'}
+                  <i className={procesandoCierre ? "ri-loader-4-line ri-spin" : "ri-stop-circle-line"} /> {procesandoCierre ? 'Procesando...' : (costo === 0 ? 'Registrar Cortesía' : 'Cerrar y Cobrar')}
                 </button>
 
                 {/* Modal de Motivo para Cortesía $0 */}
@@ -1545,17 +1545,17 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
                         />
                       </div>
                       <div className="modal-footer" style={{ padding: '8px 12px' }}>
-                        <button className="btn btn-secondary" style={{ padding: '4px 8px', fontSize: 9.5 }} onClick={() => setShowMotivoCortesia(false)}>Cancelar</button>
+                        <button className="btn btn-secondary" style={{ padding: '4px 8px', fontSize: 9.5 }} onClick={() => setShowMotivoCortesia(false)} disabled={procesandoCierre}>Cancelar</button>
                         <button
                           className="btn btn-primary"
                           style={{ background: 'linear-gradient(135deg, #f97316, #fb923c)', padding: '4px 8px', fontSize: 9.5 }}
-                          disabled={!motivoCortesia.trim()}
+                          disabled={!motivoCortesia.trim() || procesandoCierre}
                           onClick={() => {
                             setShowMotivoCortesia(false);
                             onCerrar({ costo: 0, metodo: 'cortesia', tiempo: elapsed, referencia: motivoCortesia.trim(), pagaCon: 0, cambio: 0, fotoAdjunta: false, motivo: motivoCortesia.trim() });
                           }}
                         >
-                          <i className="ri-check-line" /> Confirmar Cortesía
+                          <i className={procesandoCierre ? "ri-loader-4-line ri-spin" : "ri-check-line"} /> {procesandoCierre ? 'Procesando...' : 'Confirmar Cortesía'}
                         </button>
                       </div>
                     </div>
@@ -1995,6 +1995,7 @@ let globalRentaExtras = [
 export default function MesasPanel({ showToast }) {
   const { user } = useAuth();
   const [mesas, setMesas] = useState([]);
+  const [procesandoCierre, setProcesandoCierre] = useState(false);
 
   const getEncodedSalonId = () => {
     return encodeURIComponent(obfuscateStatic(getActiveSalonId()));
@@ -3497,6 +3498,8 @@ export default function MesasPanel({ showToast }) {
   };
 
   const actualizarCuentasFirestore = async (updaterFn) => {
+    if (procesandoCierre) return;
+    setProcesandoCierre(true);
     const docRef = doc(db, 'config', 'cuentas_estado');
     try {
       let updatedCuentas = [];
@@ -3521,6 +3524,8 @@ export default function MesasPanel({ showToast }) {
       console.error("Error al actualizar cuentas de forma transaccional:", e);
       showToast("Error al guardar en base de datos. Intente de nuevo.", "danger");
       throw e;
+    } finally {
+      setProcesandoCierre(false);
     }
   };
   const registrarNuevoClienteDirectorio = (nombre) => {
@@ -5183,6 +5188,8 @@ export default function MesasPanel({ showToast }) {
   };
 
   const confirmarCerrarMesa = async (mesaId, { costo, metodo, tiempo, referencia, pagaCon, cambio, fotoAdjunta, motivo }) => {
+    if (procesandoCierre) return;
+    setProcesandoCierre(true);
     try {
       const mesa = mesas.find(m => m.id === mesaId);
       const clientName = mesa ? mesa.cliente : 'Público';
@@ -5458,6 +5465,8 @@ export default function MesasPanel({ showToast }) {
     } catch (err) {
       console.error("Error crítico al procesar el cierre/cobro de la mesa:", err);
       showToast("Error de base de datos al registrar el cobro. Verifique conexión.", "danger");
+    } finally {
+      setProcesandoCierre(false);
     }
   };
 
@@ -6732,6 +6741,7 @@ export default function MesasPanel({ showToast }) {
             onAgregarACuenta={agregarSesionACuenta}
             imprimirPreTicket={imprimirPreTicket}
             onImprimirPreTicket={() => registrarPreTicketMesa(modalCerrar.id)}
+            procesandoCierre={procesandoCierre}
           />
         </ModalErrorBoundary>
       )}
@@ -6785,6 +6795,7 @@ export default function MesasPanel({ showToast }) {
             showToast={showToast}
             registrarEvento={registrarEvento}
             meserosPresentes={meserosPresentes}
+            procesandoCierre={procesandoCierre}
           />
         </ModalErrorBoundary>
       )}
@@ -7250,7 +7261,8 @@ function ModalCuentasActivas({
   onClose, 
   showToast, 
   registrarEvento,
-  meserosPresentes
+  meserosPresentes,
+  procesandoCierre
 }) {
   const [activeTab, setActiveTab] = useState('cuentas'); // 'cuentas' o 'mesas'
   const [cuentaSel, setCuentaSel] = useState(null);
@@ -7485,10 +7497,10 @@ function ModalCuentasActivas({
   const billetes = [50, 100, 200, 500, 1000];
   const quickBills = Array.from(new Set([totalNeto, ...billetes.filter(b => b > totalNeto)])).slice(0, 5);
 
-  const isCheckoutDisabled = totalNeto > 0 && (
+  const isCheckoutDisabled = procesandoCierre || (totalNeto > 0 && (
     (metodoPago === 'efectivo' && totalPagaCon < totalNeto) ||
     ((metodoPago === 'transferencia' || metodoPago === 'qr') && !referencia.trim())
-  );
+  ));
 
   const handleAgregarConsumo = () => {
     if (!selectedEntity) return;
@@ -8231,7 +8243,7 @@ function ModalCuentasActivas({
                       cursor: isCheckoutDisabled ? 'not-allowed' : 'pointer'
                     }}
                   >
-                    <i className="ri-checkbox-circle-line" /> Confirmar Cobro e Impresión
+                    <i className={procesandoCierre ? "ri-loader-4-line ri-spin" : "ri-checkbox-circle-line"} /> {procesandoCierre ? 'Procesando...' : 'Confirmar Cobro e Impresión'}
                   </button>
                 </div>
               )}
