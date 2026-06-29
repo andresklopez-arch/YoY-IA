@@ -175,24 +175,23 @@ function CocinaContent() {
     }
   }, [showInsumoModal]);
 
-  // 1. Escuchar pedidos pendientes de cocina
+  // 1. Escuchar pedidos de cocina (Unificado y sin requerimiento de índices compuestos)
   useEffect(() => {
-    const q = query(
-      collection(db, 'mesa_pedidos'),
-      where('tipo', '==', 'pedido'),
-      where('estado', '==', 'pendiente')
-    );
+    const q = query(collection(db, 'mesa_pedidos'));
     const unsub = onSnapshot(q, snap => {
-      const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      items.sort((a, b) => {
+      const allItems = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      
+      // Filtrar y ordenar pendientes
+      const pending = allItems.filter(p => p.tipo === 'pedido' && p.estado === 'pendiente');
+      pending.sort((a, b) => {
         const tA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : (a.createdAt || 0);
         const tB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : (b.createdAt || 0);
         return tB - tA;
       });
-      setPedidos(items);
+      setPedidos(pending);
 
       // Reproducir sonido si hay nuevos pedidos entrantes
-      if (sonido && items.length > ultimoPedidosCount && ultimoPedidosCount > 0) {
+      if (sonido && pending.length > ultimoPedidosCount && ultimoPedidosCount > 0) {
         try {
           const ctx = new (window.AudioContext || window.webkitAudioContext)();
           const osc = ctx.createOscillator();
@@ -213,33 +212,21 @@ function CocinaContent() {
           console.warn('AudioContext error:', err);
         }
       }
-      setUltimoPedidosCount(items.length);
-    }, err => {
-      console.error("Error en onSnapshot de cocina pendientes:", err);
-    });
-    return unsub;
-  }, [sonido, ultimoPedidosCount]);
+      setUltimoPedidosCount(pending.length);
 
-  // 2. Escuchar historial de comandas de hoy (Atendidas/Entregadas)
-  useEffect(() => {
-    const q = query(
-      collection(db, 'mesa_pedidos'),
-      where('tipo', '==', 'pedido'),
-      where('estado', 'in', ['listo', 'en_camino', 'entregado'])
-    );
-    const unsub = onSnapshot(q, snap => {
-      const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      items.sort((a, b) => {
+      // Filtrar y ordenar historial de hoy (Atendidas/Entregadas)
+      const history = allItems.filter(p => p.tipo === 'pedido' && ['listo', 'en_camino', 'entregado'].includes(p.estado));
+      history.sort((a, b) => {
         const tA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : (a.createdAt || 0);
         const tB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : (b.createdAt || 0);
         return tB - tA;
       });
-      setHistorial(items.slice(0, 15));
+      setHistorial(history.slice(0, 15));
     }, err => {
-      console.error("Error en onSnapshot de cocina completados:", err);
+      console.error("Error en onSnapshot de cocina:", err);
     });
     return unsub;
-  }, []);
+  }, [sonido, ultimoPedidosCount]);
 
   // 3. Escuchar/Sincronizar Insumos en tiempo real
   useEffect(() => {

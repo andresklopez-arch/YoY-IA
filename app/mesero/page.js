@@ -644,24 +644,24 @@ function MeseroContent() {
     return unsub;
   }, []);
 
-  // ── Suscripción a pedidos activos ────────────────────────
+  // ── Suscripción a pedidos y asistencias activos (Unificado, sin índices compuestos) ──
   const [listosNotificados, setListosNotificados] = useState(new Set());
 
   useEffect(() => {
-    const q = query(
-      collection(db, 'mesa_pedidos'),
-      where('estado', 'in', ['pendiente', 'listo', 'en_camino', 'entregado'])
-    );
+    const q = query(collection(db, 'mesa_pedidos'));
     const unsub = onSnapshot(q, snap => {
-      const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const allItems = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+      // Filtrar items activos de pedidos
+      const items = allItems.filter(p => ['pendiente', 'listo', 'en_camino', 'entregado'].includes(p.estado));
       items.sort((a, b) => {
         const tA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : (a.createdAt || 0);
         const tB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : (b.createdAt || 0);
         return tB - tA;
       });
       setRawPedidos(items);
-      const filtered = items.filter(p => !p.atendidoMesero);
-      setPedidos(filtered);
+      const filteredPedidos = items.filter(p => !p.atendidoMesero);
+      setPedidos(filteredPedidos);
 
       // 1. Detectar si hay algún pedido recién puesto en 'listo'
       let nuevoListoDetectado = false;
@@ -676,25 +676,23 @@ function MeseroContent() {
 
       if (nuevoListoDetectado) {
         setListosNotificados(nuevosListos);
-        // Reproducir sonido especial de campana de cocina (high-low double chime)
         try {
           const ctx = new (window.AudioContext || window.webkitAudioContext)();
           const osc = ctx.createOscillator();
           const gain = ctx.createGain();
           osc.connect(gain); gain.connect(ctx.destination);
-          osc.frequency.setValueAtTime(1200.00, ctx.currentTime); // D#6 - Tono alto de campana
+          osc.frequency.setValueAtTime(1200.00, ctx.currentTime);
           gain.gain.setValueAtTime(0.9, ctx.currentTime);
           osc.start(); osc.stop(ctx.currentTime + 0.12);
           setTimeout(() => {
             const osc2 = ctx.createOscillator();
             const gain2 = ctx.createGain();
             osc2.connect(gain2); gain2.connect(ctx.destination);
-            osc2.frequency.setValueAtTime(1500.00, ctx.currentTime); // G6 - Tono campanilla
+            osc2.frequency.setValueAtTime(1500.00, ctx.currentTime);
             gain2.gain.setValueAtTime(0.9, ctx.currentTime);
             osc2.start(); osc2.stop(ctx.currentTime + 0.3);
           }, 120);
 
-          // Disparar notificación del sistema también si está en background
           if (typeof window !== 'undefined' && document.hidden && Notification.permission === 'granted') {
             new Notification(`🍳 ¡Pedido Listo en Cocina!`, {
               body: `El pedido de la Mesa ha sido preparado.`,
@@ -717,27 +715,15 @@ function MeseroContent() {
         } catch { /* sin audio */ }
       }
       setUltimoCount(items.length);
-    }, err => {
-      console.warn("Error en onSnapshot de pedidos (mesero):", err);
-    });
-    return unsub;
-  }, [sonido, ultimoCount, listosNotificados]);
 
-  // ── Suscripción a asistencias pendientes (Alertas Emergentes) ──
-  useEffect(() => {
-    const q = query(
-      collection(db, 'mesa_pedidos'),
-      where('estado', 'in', ['pendiente', 'listo', 'en_camino', 'entregado'])
-    );
-    const unsub = onSnapshot(q, snap => {
-      const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      const filtered = items.filter(alerta => 
-        ['asistencia', 'cuenta', 'pedido'].includes(alerta.tipo) && !alerta.atendidoMesero
+      // 3. Procesar alertas de asistencia pendientes
+      const filteredAsist = allItems.filter(alerta => 
+        ['asistencia', 'cuenta', 'pedido'].includes(alerta.tipo) && !alerta.atendidoMesero && ['pendiente', 'listo', 'en_camino', 'entregado'].includes(alerta.estado)
       );
-      setAlertasAsistencia(filtered);
+      setAlertasAsistencia(filteredAsist);
 
       // Si la app está en segundo plano y llega nueva alerta, disparar Web Notification
-      const unattendedForMe = filtered.filter(isAlertaParaMi);
+      const unattendedForMe = filteredAsist.filter(isAlertaParaMi);
       unattendedForMe.sort((a, b) => {
         const tA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : (a.createdAt || 0);
         const tB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : (b.createdAt || 0);
@@ -747,7 +733,6 @@ function MeseroContent() {
       if (unattendedForMe.length > 0 && typeof window !== 'undefined' && document.hidden) {
         const masReciente = unattendedForMe[0];
         if (Notification.permission === 'granted' && !notifiedAssistIds.current.has(masReciente.id)) {
-          // Mantener el Set por debajo de 100 elementos (FIFO) para evitar acumulación en memoria
           if (notifiedAssistIds.current.size >= 100) {
             const oldestId = notifiedAssistIds.current.values().next().value;
             if (oldestId) {
@@ -763,10 +748,10 @@ function MeseroContent() {
         }
       }
     }, err => {
-      console.warn("Error en onSnapshot de alertasAsistencia (mesero):", err);
+      console.warn("Error en onSnapshot de pedidos/asistencias (mesero):", err);
     });
     return unsub;
-  }, []);
+  }, [sonido, ultimoCount, listosNotificados]);
 
   // ── Alarma sonora periódica para asistencias pendientes ──
   useEffect(() => {

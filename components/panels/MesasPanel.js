@@ -2874,10 +2874,7 @@ export default function MesasPanel({ showToast }) {
 
   // Escuchar alertas de mesas activas desde Firestore
   useEffect(() => {
-    const q = query(
-      collection(db, 'mesa_pedidos'),
-      where('estado', 'in', ['pendiente', 'listo', 'en_camino', 'entregado', 'atendido'])
-    );
+    const q = query(collection(db, 'mesa_pedidos'));
     const unsub = onSnapshot(q, snap => {
       const alertsMap = {};
       const unloadedMap = {};
@@ -2888,6 +2885,7 @@ export default function MesasPanel({ showToast }) {
  
       snap.docs.forEach(doc => {
         const data = doc.data();
+        if (!['pendiente', 'listo', 'en_camino', 'entregado', 'atendido'].includes(data.estado)) return;
         const mesaId = data.mesaId;
         const id = doc.id;
         currentAlerts.add(id);
