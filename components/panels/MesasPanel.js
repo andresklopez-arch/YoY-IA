@@ -937,7 +937,28 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 400, maxHeight: '96vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <div className="modal" onClick={e => e.stopPropagation()} style={{ position: 'relative', maxWidth: 400, maxHeight: '96vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        {procesandoCierre && (
+          <div style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(13,13,15,0.7)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10000,
+            borderRadius: 'inherit'
+          }}>
+            <div className="ri-loader-4-line ri-spin" style={{ fontSize: 32, color: 'var(--danger)', marginBottom: 12 }} />
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>Procesando Cobro...</div>
+            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>Por favor espere un momento</div>
+          </div>
+        )}
         <div className="modal-header" style={{ padding: '6px 12px' }}>
           <span className="modal-title" style={{ fontSize: 11 }}><i className="ri-stop-circle-line" style={{ marginRight: 6, color: 'var(--danger)' }} />Cerrar {mesa.nombre}</span>
           <button onClick={onClose} className="btn btn-secondary" style={{ background: 'none', border: 'none', padding: 2 }}>
@@ -5249,7 +5270,7 @@ export default function MesasPanel({ showToast }) {
       }));
 
       // Ejecutar la liquidación de la cuenta y el registro de auditoría en una transacción atómica
-      const stockRef = doc(collection(db, 'historial_stock'));
+      const stockRef = doc(db, 'historial_stock', "cierre_mesa_" + mesaId + "_" + (mesa ? mesa.inicio : 0));
       const cuentasRef = doc(db, 'config', 'cuentas_estado');
       let updatedCuentas = [];
 
@@ -7676,7 +7697,28 @@ function ModalCuentasActivas({
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" style={{ maxWidth: selectedEntity ? 760 : 500, maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }} onClick={e => e.stopPropagation()}>
+      <div className="modal" style={{ position: 'relative', maxWidth: selectedEntity ? 760 : 500, maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }} onClick={e => e.stopPropagation()}>
+        {procesandoCierre && (
+          <div style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(13,13,15,0.7)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10000,
+            borderRadius: 'inherit'
+          }}>
+            <div className="ri-loader-4-line ri-spin" style={{ fontSize: 32, color: 'var(--danger)', marginBottom: 12 }} />
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>Procesando Cobro...</div>
+            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>Por favor espere un momento</div>
+          </div>
+        )}
         <div className="modal-header">
           <span className="modal-title">
             <i className="ri-folder-open-line" style={{ marginRight: 8, color: 'var(--bronze-light)' }} />
