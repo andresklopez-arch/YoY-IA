@@ -339,9 +339,10 @@ function formatTime(ms) {
   return `${h}:${m}:${sc}`;
 }
 
-function calcCosto(mesa) {
+function calcCosto(mesa, elapsedMs) {
   if (!mesa.inicio) return 0;
-  const hrs = (Date.now() - mesa.inicio) / 3600000;
+  const ms = elapsedMs !== undefined ? elapsedMs : (Date.now() - mesa.inicio);
+  const hrs = ms / 3600000;
   let baseCosto = mesa.socios ? 0 : Math.ceil(hrs * mesa.tarifa);
   let premiumCosto = 0;
 
@@ -904,11 +905,6 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [camaraActiva, pagaCon, referencia, fotoComprobante, showPromptMoverPendiente, onClose]);
 
-  useEffect(() => {
-    const t = setInterval(() => setElapsed(Date.now() - (mesa.inicio || Date.now())), 1000);
-    return () => clearInterval(t);
-  }, [mesa.inicio]);
-
   // Limpiar campos al cambiar de método
   useEffect(() => {
     setPagaCon('');
@@ -921,7 +917,7 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
     ? (cuentaAsociada.consumos || []).reduce((sum, item) => sum + item.precio * item.cantidad, 0)
     : 0) + (unloadedConsumos ? (unloadedConsumos[mesa.id] || 0) : 0);
 
-  const costoTiempo = calcCosto({ ...mesa, inicio: mesa.inicio });
+  const costoTiempo = calcCosto({ ...mesa, inicio: mesa.inicio }, elapsed);
   const costo = mesa.socios ? consumosTotal : (costoTiempo + consumosTotal);
   const hrs = (elapsed / 3600000).toFixed(2);
 
@@ -5337,7 +5333,7 @@ export default function MesasPanel({ showToast }) {
           isMesa: true,
           mesaNombre: mesa ? (mesa.nombre || `Mesa ${mesaId}`) : `Mesa ${mesaId}`,
           inicio: mesa ? mesa.inicio : null,
-          tiempoJuegoCosto: mesa ? (mesa.socios ? 0 : calcCosto(mesa)) : 0,
+          tiempoJuegoCosto: mesa ? (mesa.socios ? 0 : calcCosto(mesa, tiempo)) : 0,
           durationStr: tiempo ? formatTime(tiempo) : (mesa && mesa.inicio ? formatTime(Date.now() - mesa.inicio) : '00:00:00'),
           consumos: consumosFinal,
           total: costo,
@@ -5359,7 +5355,7 @@ export default function MesasPanel({ showToast }) {
 
       // CALCULO DE COMISIONES PARA MESEROS ASIGNADOS A LA MESA
       if (mesa) {
-        const costoMesa = mesa.socios ? 0 : calcCosto(mesa);
+        const costoMesa = mesa.socios ? 0 : calcCosto(mesa, tiempo);
         const consumosFinal = consumosConsolidados;
         const costoBar = consumosFinal.reduce((sum, item) => sum + ((item.precio || item.precioVenta || 0) * (item.cantidad || 0)), 0);
         
