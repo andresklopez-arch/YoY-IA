@@ -1910,6 +1910,88 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
   );
 }
 
+// ── MODAL COBRO EXITOSO ──────────────────────────────────
+function ModalCobroExito({ data, onClose, imprimirTicketFinal }) {
+  return (
+    <div className="modal-overlay" onClick={onClose} style={{ zIndex: 3000 }}>
+      <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 360, textAlign: 'center', padding: '24px 20px', borderRadius: 16 }}>
+        <div style={{
+          width: 56,
+          height: 56,
+          borderRadius: '50%',
+          background: 'rgba(46, 213, 115, 0.1)',
+          border: '2px solid var(--success)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          margin: '0 auto 16px',
+          color: 'var(--success)',
+          fontSize: 28
+        }}>
+          <i className="ri-checkbox-circle-fill" />
+        </div>
+        
+        <h3 style={{ fontSize: 16, fontWeight: 800, color: '#fff', marginBottom: 6 }}>¡Mesa Cobrada con Éxito!</h3>
+        <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 20 }}>
+          La mesa ha sido liberada y el cobro se registró correctamente.
+        </p>
+
+        <div style={{
+          background: 'var(--bg-elevated)',
+          borderRadius: 12,
+          padding: '12px 16px',
+          marginBottom: 20,
+          textAlign: 'left',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 8
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
+            <span style={{ color: 'var(--text-secondary)' }}>Mesa:</span>
+            <strong style={{ color: '#fff' }}>{data.mesaNombre}</strong>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
+            <span style={{ color: 'var(--text-secondary)' }}>Cliente:</span>
+            <strong style={{ color: '#fff' }}>{data.cliente}</strong>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
+            <span style={{ color: 'var(--text-secondary)' }}>Método de Pago:</span>
+            <strong style={{ color: 'var(--bronze-light)' }}>{data.metodoPago}</strong>
+          </div>
+          <div style={{ height: '1px', background: 'var(--border)', margin: '4px 0' }} />
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, fontWeight: 900 }}>
+            <span style={{ color: '#fff' }}>Total Cobrado:</span>
+            <span style={{ color: 'var(--success)' }}>${data.total} MXN</span>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button
+            className="btn btn-secondary"
+            style={{ flex: 1, padding: '10px 14px', fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, cursor: 'pointer' }}
+            onClick={() => {
+              try {
+                imprimirTicketFinal(data.ticketData);
+              } catch (err) {
+                console.error("Error al reimprimir:", err);
+              }
+            }}
+          >
+            <i className="ri-printer-line" /> Reimprimir Ticket
+          </button>
+          <button
+            className="btn btn-primary"
+            style={{ flex: 1, padding: '10px 14px', fontSize: 11, background: 'linear-gradient(135deg, var(--success), #2ed573)', color: '#0d0d0f', fontWeight: 800, cursor: 'pointer' }}
+            onClick={onClose}
+          >
+            Aceptar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 
 // ── TIMER HOOK ────────────────────────────────────────────
 function useLiveTick() {
@@ -2017,6 +2099,7 @@ export default function MesasPanel({ showToast }) {
   const { user } = useAuth();
   const [mesas, setMesas] = useState([]);
   const [procesandoCierre, setProcesandoCierre] = useState(false);
+  const [cobroExito, setCobroExito] = useState(null);
 
   const getEncodedSalonId = () => {
     return encodeURIComponent(obfuscateStatic(getActiveSalonId()));
@@ -5482,6 +5565,29 @@ export default function MesasPanel({ showToast }) {
         showToast(`Cortesía registrada para ${clientName}${motivoTexto}`, 'warning');
         registrarEvento('Cortesía $0', `Mesa ${mesaId} cerrada en $0 por ${clientName}${motivoTexto}`);
       }
+
+      setCobroExito({
+        mesaNombre: mesa ? (mesa.nombre || `Mesa ${mesaId}`) : `Mesa ${mesaId}`,
+        cliente: clientName || 'Público General',
+        metodoPago: metodoLabel,
+        total: costo,
+        ticketData: {
+          cliente: clientName || 'Público General',
+          isMesa: true,
+          mesaNombre: mesa ? (mesa.nombre || `Mesa ${mesaId}`) : `Mesa ${mesaId}`,
+          inicio: mesa ? mesa.inicio : null,
+          tiempoJuegoCosto: mesa ? (mesa.socios ? 0 : calcCosto(mesa, tiempo)) : 0,
+          durationStr: tiempo ? formatTime(tiempo) : (mesa && mesa.inicio ? formatTime(Date.now() - mesa.inicio) : '00:00:00'),
+          consumos: consumosConsolidados,
+          total: costo,
+          metodoPago: metodoLabel,
+          pagaCon: parseFloat(pagaCon) || 0,
+          cambio: parseFloat(cambio) || 0,
+          referenciaPago: referencia || '',
+          operador: user ? (user.displayName || user.email || 'Cajero Principal') : 'Cajero Principal'
+        }
+      });
+
       verificarFilaYRecordar(mesaId, mesa ? mesa.tipo : 'Carambola 3B', mesa ? mesa.filaId : null);
     } catch (err) {
       console.error("Error crítico al procesar el cierre/cobro de la mesa:", err);
@@ -6817,6 +6923,16 @@ export default function MesasPanel({ showToast }) {
             registrarEvento={registrarEvento}
             meserosPresentes={meserosPresentes}
             procesandoCierre={procesandoCierre}
+            setCobroExito={setCobroExito}
+          />
+        </ModalErrorBoundary>
+      )}
+      {cobroExito && (
+        <ModalErrorBoundary name="Cobro Exitoso" onClose={() => setCobroExito(null)}>
+          <ModalCobroExito
+            data={cobroExito}
+            onClose={() => setCobroExito(null)}
+            imprimirTicketFinal={imprimirTicketFinal}
           />
         </ModalErrorBoundary>
       )}
@@ -7283,7 +7399,8 @@ function ModalCuentasActivas({
   showToast, 
   registrarEvento,
   meserosPresentes,
-  procesandoCierre
+  procesandoCierre,
+  setCobroExito
 }) {
   const [activeTab, setActiveTab] = useState('cuentas'); // 'cuentas' o 'mesas'
   const [cuentaSel, setCuentaSel] = useState(null);
@@ -7661,23 +7778,25 @@ function ModalCuentasActivas({
       });
       setMesaSel(null);
     } else {
+      const ticketParams = {
+        cliente: clientName || 'Público General',
+        isMesa: false,
+        mesaNombre: '',
+        inicio: null,
+        tiempoJuegoCosto: tiempoJuegoCosto,
+        durationStr: '',
+        consumos: consumosList,
+        total: grandTotal,
+        metodoPago: metodoLabel,
+        pagaCon: totalPagaCon,
+        cambio: cambio,
+        referenciaPago: referencia || '',
+        operador: user ? (user.displayName || user.email || 'Cajero Principal') : 'Cajero Principal'
+      };
+
       // Mandar a imprimir el ticket final de cobro de cuenta de cliente
       try {
-        imprimirTicketFinal({
-          cliente: clientName || 'Público General',
-          isMesa: false,
-          mesaNombre: '',
-          inicio: null,
-          tiempoJuegoCosto: tiempoJuegoCosto,
-          durationStr: '',
-          consumos: consumosList,
-          total: grandTotal,
-          metodoPago: metodoLabel,
-          pagaCon: totalPagaCon,
-          cambio: cambio,
-          referenciaPago: referencia || '',
-          operador: user ? (user.displayName || user.email || 'Cajero Principal') : 'Cajero Principal'
-        });
+        imprimirTicketFinal(ticketParams);
       } catch (printErr) {
         console.error("Error al imprimir ticket de cuenta:", printErr);
       }
@@ -7687,6 +7806,15 @@ function ModalCuentasActivas({
       if (registrarEvento) {
         registrarEvento('Liquidar Cuenta', `Cuenta de ${cuentaSel.cliente} cobrada por completo ($${grandTotal} MXN por ${metodoLabel}${detalleExtra})`, grandTotal);
       }
+
+      setCobroExito({
+        mesaNombre: 'Cuenta Directa',
+        cliente: clientName || 'Público General',
+        metodoPago: metodoLabel,
+        total: grandTotal,
+        ticketData: ticketParams
+      });
+
       setCuentaSel(null);
     }
 
