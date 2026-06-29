@@ -878,7 +878,9 @@ export default function MesaClientePage({ params }) {
       if (estadoMesa === 'ocupada' && inicioSesion > 0) {
         filteredItems = items.filter(item => {
           const itemTime = item.createdAt?.toDate ? item.createdAt.toDate().getTime() : (item.createdAt || 0);
-          return !itemTime || itemTime >= inicioSesion;
+          // Permitir una tolerancia de 2 horas (7200000 ms) para desincronización horaria entre dispositivos y servidor,
+          // evitando que comandas válidas de la sesión actual desaparezcan del dispositivo del cliente.
+          return !itemTime || itemTime >= (inicioSesion - 2 * 60 * 60 * 1000);
         });
       } else if (estadoMesa !== 'ocupada') {
         // Si la mesa no está ocupada, no debería haber comandas activas visibles para el cliente
@@ -935,6 +937,28 @@ export default function MesaClientePage({ params }) {
       const prod = productos.find(p => p.id === parseInt(id));
       return { productoId: parseInt(id), nombre: prod?.nombre, precio: prod?.precioVenta, cantidad: cant, subtotal: (prod?.precioVenta || 0) * cant };
     });
+
+    // Determinar ícono de forma congruente según los productos del pedido
+    const firstItem = items[0];
+    const firstProd = productos.find(p => p.id === firstItem?.productoId);
+    const cat = firstProd?.categoria?.toLowerCase() || '';
+    const name = firstItem?.nombre?.toLowerCase() || '';
+    
+    let icon = '🍔';
+    if (cat.includes('cerveza') || name.includes('cerveza') || name.includes('caguama') || name.includes('corona') || name.includes('modelo') || name.includes('victoria') || name.includes('tarro') || name.includes('media') || name.includes('lata')) {
+      icon = '🍺';
+    } else if (cat.includes('cigarro') || name.includes('cigarro') || name.includes('cigarros') || name.includes('marlboro') || name.includes('pall') || name.includes('tabaco') || name.includes('encendedor')) {
+      icon = '🚬';
+    } else if (cat.includes('pan') || name.includes('pan') || name.includes('torta') || name.includes('sandwich') || name.includes('hot dog') || name.includes('jocho') || name.includes('baguette')) {
+      icon = '🍞';
+    } else if (cat.includes('café') || cat.includes('cafe') || name.includes('café') || name.includes('cafe') || name.includes('capuchino') || name.includes('espresso')) {
+      icon = '☕';
+    } else if (cat.includes('refresco') || cat.includes('bebida') || name.includes('coca') || name.includes('agua') || name.includes('jugo') || name.includes('soda') || name.includes('pepsi') || name.includes('squirt') || name.includes('fanta') || name.includes('mundet') || name.includes('mineral')) {
+      icon = '🥤';
+    } else if (cat.includes('comida') || cat.includes('snack') || name.includes('nachos') || name.includes('alitas') || name.includes('boneless') || name.includes('papas') || name.includes('dedos') || name.includes('aritos') || name.includes('pizza')) {
+      icon = '🍔';
+    }
+
     const orderData = {
       mesaId,
       cliente: clienteNombre || `Mesa ${mesaId}`,
@@ -943,7 +967,7 @@ export default function MesaClientePage({ params }) {
       estado: 'pendiente',
       tipo: 'pedido',
       etiqueta: `Pedido de Consumo: ${items.map(i => `${i.cantidad}x ${i.nombre}`).join(', ')}`,
-      icono: '🍔',
+      icono: icon,
       clienteUid: auth.currentUser?.uid || '',
       atendidoAdmin: false,
       atendidoMesero: false,
@@ -961,13 +985,13 @@ export default function MesaClientePage({ params }) {
     } catch (e) {
       console.warn("Error al enviar pedido, guardando en caché offline...", e);
       try {
-        const rawPending = localStorage.getItem('yoy_pending_orders') || '[]';
+        const rawPending = localStorage.getItem(KEY_PENDING_ORDERS) || '[]';
         const pending = JSON.parse(rawPending);
         pending.push({
           ...orderData,
           createdAtOffline: new Date().toISOString()
         });
-        localStorage.setItem('yoy_pending_orders', JSON.stringify(pending));
+        localStorage.setItem(KEY_PENDING_ORDERS, JSON.stringify(pending));
         
         // Simular éxito para el cliente
         setCarrito({});
