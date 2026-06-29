@@ -2148,7 +2148,8 @@ function MeseroContent() {
                       {loadingAlertaId === alerta.id ? 'Entregando...' : (alerta.tipo === 'pedido' && alerta.estado === 'listo' ? 'Entregar' : 'Atendido')}
                     </button>
                   </div>
-                })}
+                );
+              })}
               </div>
             </div>
             <div className="modal-footer" style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
