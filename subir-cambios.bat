@@ -40,7 +40,7 @@ echo  Compilacion local omitida (Vercel compilara en la nube).
 echo.
 
 echo  Desplegando reglas de seguridad de Firestore...
-call npx firebase deploy --only firestore:rules
+call firebase deploy --only firestore:rules
 echo.
 
 git add .
@@ -60,7 +60,7 @@ if %ERRORLEVEL% EQU 0 (
 
 echo.
 echo  Desplegando en Vercel (Producción)...
-call npx vercel deploy --prod --yes
+call vercel deploy --prod --yes
 if %ERRORLEVEL% EQU 0 (
   echo ================================
   echo  Despliegue completado con éxito en Vercel
