@@ -650,7 +650,6 @@ function MeseroContent() {
   useEffect(() => {
     const q = query(
       collection(db, 'mesa_pedidos'),
-      where('tipo', 'in', ['asistencia', 'cuenta', 'pedido']),
       where('estado', 'in', ['pendiente', 'listo', 'en_camino', 'entregado'])
     );
     const unsub = onSnapshot(q, snap => {
@@ -728,7 +727,6 @@ function MeseroContent() {
   useEffect(() => {
     const q = query(
       collection(db, 'mesa_pedidos'),
-      where('tipo', 'in', ['asistencia', 'cuenta', 'pedido']),
       where('estado', 'in', ['pendiente', 'listo', 'en_camino', 'entregado'])
     );
     const unsub = onSnapshot(q, snap => {

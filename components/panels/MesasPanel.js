@@ -2748,7 +2748,6 @@ export default function MesasPanel({ showToast }) {
         // Marcar el pedido como cargado (Caja)
         const pedidoRef = doc(db, 'mesa_pedidos', pedidoDoc.id);
         const updateData = {
-          atendidoAdmin: true,
           cargadoACuenta: true,
           updatedAt: serverTimestamp()
         };
