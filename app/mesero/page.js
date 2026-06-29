@@ -80,6 +80,7 @@ function MeseroContent() {
   const [sonido, setSonido] = useState(true);
   const [ultimoCount, setUltimoCount] = useState(0);
   const [showAsistenciaModal, setShowAsistenciaModal] = useState(false);
+  const [loadingAlertaId, setLoadingAlertaId] = useState(null);
   
   const [toast, setToast] = useState(null);
   const showToast = (message, type = 'success') => {
@@ -906,6 +907,9 @@ function MeseroContent() {
   };
 
   const marcarAtendido = async (id, tipo, estado) => {
+    // Optimistic local state update to dismiss the alert immediately in the UI
+    setAlertasAsistencia(prev => prev.filter(alerta => alerta.id !== id));
+    setLoadingAlertaId(id);
     try {
       const docRef = doc(db, 'mesa_pedidos', id);
       const updateData = {
@@ -925,9 +929,16 @@ function MeseroContent() {
       }
       await updateDoc(docRef, updateData);
       showToast('Solicitud atendida ✓', 'success');
+
+      // Haptic feedback confirmation for mobile devices
+      if (typeof window !== 'undefined' && navigator.vibrate) {
+        navigator.vibrate([50, 30, 50]);
+      }
     } catch (e) {
       console.error("Error al marcar atendido:", e);
       showToast('Error al atender solicitud.', 'error');
+    } finally {
+      setLoadingAlertaId(null);
     }
   };
 
@@ -1949,6 +1960,7 @@ function MeseroContent() {
                     </div>
                     <button
                       onClick={() => marcarAtendido(alerta.id, alerta.tipo, alerta.estado)}
+                      disabled={loadingAlertaId === alerta.id}
                       style={{
                         background: (alerta.tipo === 'pedido' && alerta.estado === 'listo') 
                           ? 'rgba(34,197,94,0.25)' 
@@ -1961,18 +1973,23 @@ function MeseroContent() {
                         borderRadius: 10,
                         fontWeight: 700,
                         fontSize: 13,
-                        cursor: 'pointer',
+                        cursor: (loadingAlertaId === alerta.id) ? 'not-allowed' : 'pointer',
                         display: 'flex',
                         alignItems: 'center',
                         gap: 6,
                         transition: 'all 0.15s',
-                        flexShrink: 0
+                        flexShrink: 0,
+                        opacity: (loadingAlertaId === alerta.id) ? 0.6 : 1
                       }}
-                      onMouseEnter={e => { e.currentTarget.style.background = 'rgba(34,197,94,0.35)'; }}
-                      onMouseLeave={e => { e.currentTarget.style.background = (alerta.tipo === 'pedido' && alerta.estado === 'listo') ? 'rgba(34,197,94,0.25)' : 'rgba(34,197,94,0.15)'; }}
+                      onMouseEnter={e => { if (loadingAlertaId !== alerta.id) e.currentTarget.style.background = 'rgba(34,197,94,0.35)'; }}
+                      onMouseLeave={e => { if (loadingAlertaId !== alerta.id) e.currentTarget.style.background = (alerta.tipo === 'pedido' && alerta.estado === 'listo') ? 'rgba(34,197,94,0.25)' : 'rgba(34,197,94,0.15)'; }}
                     >
-                      <i className={alerta.tipo === 'pedido' && alerta.estado === 'listo' ? 'ri-check-double-line' : 'ri-check-line'} /> 
-                      {alerta.tipo === 'pedido' && alerta.estado === 'listo' ? 'Entregar' : 'Atendido'}
+                      {loadingAlertaId === alerta.id ? (
+                        <i className="ri-loader-4-line ri-spin" />
+                      ) : (
+                        <i className={alerta.tipo === 'pedido' && alerta.estado === 'listo' ? 'ri-check-double-line' : 'ri-check-line'} />
+                      )}
+                      {loadingAlertaId === alerta.id ? 'Entregando...' : (alerta.tipo === 'pedido' && alerta.estado === 'listo' ? 'Entregar' : 'Atendido')}
                     </button>
                   </div>
                 ))}
