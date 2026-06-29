@@ -944,19 +944,24 @@ export default function MesaClientePage({ params }) {
     const cat = firstProd?.categoria?.toLowerCase() || '';
     const name = firstItem?.nombre?.toLowerCase() || '';
     
-    let icon = '🍔';
-    if (cat.includes('cerveza') || name.includes('cerveza') || name.includes('caguama') || name.includes('corona') || name.includes('modelo') || name.includes('victoria') || name.includes('tarro') || name.includes('media') || name.includes('lata')) {
-      icon = '🍺';
-    } else if (cat.includes('cigarro') || name.includes('cigarro') || name.includes('cigarros') || name.includes('marlboro') || name.includes('pall') || name.includes('tabaco') || name.includes('encendedor')) {
-      icon = '🚬';
-    } else if (cat.includes('pan') || name.includes('pan') || name.includes('torta') || name.includes('sandwich') || name.includes('hot dog') || name.includes('jocho') || name.includes('baguette')) {
-      icon = '🍞';
-    } else if (cat.includes('café') || cat.includes('cafe') || name.includes('café') || name.includes('cafe') || name.includes('capuchino') || name.includes('espresso')) {
-      icon = '☕';
-    } else if (cat.includes('refresco') || cat.includes('bebida') || name.includes('coca') || name.includes('agua') || name.includes('jugo') || name.includes('soda') || name.includes('pepsi') || name.includes('squirt') || name.includes('fanta') || name.includes('mundet') || name.includes('mineral')) {
-      icon = '🥤';
-    } else if (cat.includes('comida') || cat.includes('snack') || name.includes('nachos') || name.includes('alitas') || name.includes('boneless') || name.includes('papas') || name.includes('dedos') || name.includes('aritos') || name.includes('pizza')) {
+    // Sugerencia 1: Priorizar icono o emoji configurado en base de datos para el producto
+    let icon = firstProd?.icono || firstProd?.emoji;
+    
+    if (!icon) {
       icon = '🍔';
+      if (cat.includes('cerveza') || name.includes('cerveza') || name.includes('caguama') || name.includes('corona') || name.includes('modelo') || name.includes('victoria') || name.includes('tarro') || name.includes('media') || name.includes('lata')) {
+        icon = '🍺';
+      } else if (cat.includes('cigarro') || name.includes('cigarro') || name.includes('cigarros') || name.includes('marlboro') || name.includes('pall') || name.includes('tabaco') || name.includes('encendedor')) {
+        icon = '🚬';
+      } else if (cat.includes('pan') || name.includes('pan') || name.includes('torta') || name.includes('sandwich') || name.includes('hot dog') || name.includes('jocho') || name.includes('baguette')) {
+        icon = '🍞';
+      } else if (cat.includes('café') || cat.includes('cafe') || name.includes('café') || name.includes('cafe') || name.includes('capuchino') || name.includes('espresso')) {
+        icon = '☕';
+      } else if (cat.includes('refresco') || cat.includes('bebida') || name.includes('coca') || name.includes('agua') || name.includes('jugo') || name.includes('soda') || name.includes('pepsi') || name.includes('squirt') || name.includes('fanta') || name.includes('mundet') || name.includes('mineral')) {
+        icon = '🥤';
+      } else if (cat.includes('comida') || cat.includes('snack') || name.includes('nachos') || name.includes('alitas') || name.includes('boneless') || name.includes('papas') || name.includes('dedos') || name.includes('aritos') || name.includes('pizza')) {
+        icon = '🍔';
+      }
     }
 
     const orderData = {
