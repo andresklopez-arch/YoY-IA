@@ -78,7 +78,12 @@ function MeseroContent() {
   const [pedidos, setPedidos] = useState([]);
   const [rawPedidos, setRawPedidos] = useState([]);
   const [sonido, setSonido] = useState(true);
-  const [ultimoCount, setUltimoCount] = useState(0);
+  const ultimoCountRef = useRef(0);
+  const sonidoRef = useRef(sonido);
+  const listosNotificadosRef = useRef(new Set());
+  useEffect(() => {
+    sonidoRef.current = sonido;
+  }, [sonido]);
   const [showAsistenciaModal, setShowAsistenciaModal] = useState(false);
   const [loadingAlertaId, setLoadingAlertaId] = useState(null);
   
@@ -645,7 +650,6 @@ function MeseroContent() {
   }, []);
 
   // ── Suscripción a pedidos y asistencias activos (Unificado, sin índices compuestos) ──
-  const [listosNotificados, setListosNotificados] = useState(new Set());
 
   useEffect(() => {
     const q = query(collection(db, 'mesa_pedidos'));
@@ -665,17 +669,17 @@ function MeseroContent() {
 
       // 1. Detectar si hay algún pedido recién puesto en 'listo'
       let nuevoListoDetectado = false;
-      const nuevosListos = new Set(listosNotificados);
+      const nuevosListos = new Set(listosNotificadosRef.current);
       
       items.forEach(item => {
-        if (item.estado === 'listo' && !listosNotificados.has(item.id)) {
+        if (item.estado === 'listo' && !listosNotificadosRef.current.has(item.id)) {
           nuevoListoDetectado = true;
           nuevosListos.add(item.id);
         }
       });
 
       if (nuevoListoDetectado) {
-        setListosNotificados(nuevosListos);
+        listosNotificadosRef.current = nuevosListos;
         try {
           const ctx = new (window.AudioContext || window.webkitAudioContext)();
           const osc = ctx.createOscillator();
@@ -703,7 +707,7 @@ function MeseroContent() {
       }
 
       // 2. Sonido de alerta sutil en nuevos pedidos/cambios ordinarios (solo si no se disparó el de 'listo')
-      if (!nuevoListoDetectado && sonido && items.length > ultimoCount && ultimoCount > 0) {
+      if (!nuevoListoDetectado && sonidoRef.current && items.length > ultimoCountRef.current && ultimoCountRef.current > 0) {
         try {
           const ctx = new (window.AudioContext || window.webkitAudioContext)();
           const osc = ctx.createOscillator();
@@ -714,7 +718,7 @@ function MeseroContent() {
           setTimeout(() => { osc.frequency.value = 1100; osc.start(ctx.currentTime + 0.25); osc.stop(ctx.currentTime + 0.45); }, 250);
         } catch { /* sin audio */ }
       }
-      setUltimoCount(items.length);
+      ultimoCountRef.current = items.length;
 
       // 3. Procesar alertas de asistencia pendientes
       const filteredAsist = allItems.filter(alerta => 
@@ -751,7 +755,7 @@ function MeseroContent() {
       console.warn("Error en onSnapshot de pedidos/asistencias (mesero):", err);
     });
     return unsub;
-  }, [sonido, ultimoCount, listosNotificados]);
+  }, []);
 
   // ── Alarma sonora periódica para asistencias pendientes ──
   useEffect(() => {

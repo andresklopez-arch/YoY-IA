@@ -84,7 +84,11 @@ function CocinaContent() {
   
   // Controles de sonido y notificaciones
   const [sonido, setSonido] = useState(true);
-  const [ultimoPedidosCount, setUltimoPedidosCount] = useState(0);
+  const ultimoPedidosCountRef = useRef(0);
+  const sonidoRef = useRef(sonido);
+  useEffect(() => {
+    sonidoRef.current = sonido;
+  }, [sonido]);
 
   // Estados de formularios/modales para insumos
   const [showInsumoModal, setShowInsumoModal] = useState(false);
@@ -191,7 +195,7 @@ function CocinaContent() {
       setPedidos(pending);
 
       // Reproducir sonido si hay nuevos pedidos entrantes
-      if (sonido && pending.length > ultimoPedidosCount && ultimoPedidosCount > 0) {
+      if (sonidoRef.current && pending.length > ultimoPedidosCountRef.current && ultimoPedidosCountRef.current > 0) {
         try {
           const ctx = new (window.AudioContext || window.webkitAudioContext)();
           const osc = ctx.createOscillator();
@@ -212,7 +216,7 @@ function CocinaContent() {
           console.warn('AudioContext error:', err);
         }
       }
-      setUltimoPedidosCount(pending.length);
+      ultimoPedidosCountRef.current = pending.length;
 
       // Filtrar y ordenar historial de hoy (Atendidas/Entregadas)
       const history = allItems.filter(p => p.tipo === 'pedido' && ['listo', 'en_camino', 'entregado'].includes(p.estado));
@@ -226,7 +230,7 @@ function CocinaContent() {
       console.error("Error en onSnapshot de cocina:", err);
     });
     return unsub;
-  }, [sonido, ultimoPedidosCount]);
+  }, []);
 
   // 3. Escuchar/Sincronizar Insumos en tiempo real
   useEffect(() => {
