@@ -4,7 +4,7 @@ echo  YoY IA BILLAR - Subir Cambios
 echo ================================
 
 echo  [Omitido] Creando copia de seguridad local (Se realiza de forma manual cada 20 modificaciones).
-:: powershell -Command "$dateStr = Get-Date -Format 'yyyyMMdd_HHmmss'; Get-ChildItem -Path . -Exclude 'node_modules', '.next', '.git', 'backups', '.vercel' | Compress-Archive -DestinationPath \"..\yoy-ia-billar-backup-$dateStr.zip\" -Force; Copy-Item \"..\yoy-ia-billar-backup-$dateStr.zip\" \"..\yoy-ia-billar-backup-latest.zip\" -Force"
+echo.
 
 echo  Corriendo validador sintactico pre-vuelo...
 call node scripts/validate-jsx.js
@@ -29,18 +29,11 @@ echo  Pruebas completadas exitosamente.
 echo.
 
 echo  [Omitido] Validando compilacion local (npm run build) para optimizar velocidad.
-:: call npm run build
-:: if %ERRORLEVEL% NEQ 0 (
-::   echo ====================================================
-::   echo  ERROR: La compilacion ha fallado. Abortando despliegue.
-::   echo ====================================================
-::   goto end
-:: )
 echo  Compilacion local omitida (Vercel compilara en la nube).
 echo.
 
 echo  Desplegando reglas de seguridad de Firestore...
-call firebase deploy --only firestore:rules
+call npx firebase deploy --only firestore:rules
 echo.
 
 git add .
@@ -60,7 +53,7 @@ if %ERRORLEVEL% EQU 0 (
 
 echo.
 echo  Desplegando en Vercel (Producción)...
-call vercel deploy --prod --yes
+call npx vercel deploy --prod --yes
 if %ERRORLEVEL% EQU 0 (
   echo ================================
   echo  Despliegue completado con éxito en Vercel
