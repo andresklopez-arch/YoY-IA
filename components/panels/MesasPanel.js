@@ -1016,7 +1016,7 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
                     color: mesa.socios && costo === 0 ? 'var(--success)' : '#39ff14',
                     textShadow: mesa.socios && costo === 0 ? 'none' : '0 0 10px rgba(57, 255, 20, 0.35)'
                   }}>
-                    {mesa.socios && costo === 0 ? 'SOCIO' : `${costo}`}
+                    {mesa.socios && costo === 0 ? 'SOCIO' : `$${Number(costo).toLocaleString('es-MX')}`}
                   </span>
                   {(!mesa.socios || costo > 0) && <span style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 700, textShadow: 'none' }}>MXN</span>}
                 </div>
@@ -1215,7 +1215,7 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
                               textShadow: pagaConVal >= costo ? '0 0 10px rgba(57, 255, 20, 0.35)' : 'none',
                               letterSpacing: '0.02em'
                             }}>
-                              {pagaConVal >= costo ? `$${cambio.toFixed(2)} MXN` : 'Monto insuficiente'}
+                              {pagaConVal >= costo ? `$${Number(cambio).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MXN` : 'Monto insuficiente'}
                             </span>
                           </div>
                         )}
@@ -8317,7 +8317,7 @@ function ModalCuentasActivas({
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontWeight: 900, fontSize: 14 }}>
                       <span>Total Neto</span>
-                      <span style={{ color: 'var(--bronze-light)' }}>${totalNeto} MXN</span>
+                      <span style={{ color: 'var(--bronze-light)' }}>${Number(totalNeto).toLocaleString('es-MX')} MXN</span>
                     </div>
                   </div>
 
@@ -8405,7 +8405,7 @@ function ModalCuentasActivas({
                             textShadow: totalPagaCon >= totalNeto ? '0 0 10px rgba(57, 255, 20, 0.35)' : 'none',
                             letterSpacing: '0.02em'
                           }}>
-                            {totalPagaCon >= totalNeto ? `$${cambio.toFixed(2)} MXN` : 'Monto insuficiente'}
+                            {totalPagaCon >= totalNeto ? `$${Number(cambio).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MXN` : 'Monto insuficiente'}
                           </span>
                         </div>
                       )}
