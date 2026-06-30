@@ -1,6 +1,27 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/firebase';
-import { doc, setDoc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, setDoc, getDoc, collection, query, where, getDocs, addDoc } from 'firebase/firestore';
+
+function hashPhone(phone) {
+  if (!phone) return '';
+  const clean = phone.replace(/\D/g, '');
+  let hash = 0;
+  for (let i = 0; i < clean.length; i++) {
+    const char = clean.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+  return Math.abs(hash).toString(16);
+}
+
+function obfuscatePhone(phone) {
+  if (!phone) return null;
+  const clean = phone.replace(/\D/g, '');
+  if (clean.length <= 4) return `+${clean}`;
+  const start = clean.slice(0, 2);
+  const end = clean.slice(-4);
+  return `+${start}******${end}`;
+}
 
 function ipToLong(ip) {
   const parts = ip.split('.').map(Number);
@@ -133,9 +154,10 @@ export async function POST(request) {
       const snap = await getDocs(q);
       
       let isAuthorized = false;
-      let userPhone = '';
+      let userPhoneObfuscated = '';
       if (!snap.empty) {
-        userPhone = snap.docs[0].data().phone;
+        userPhoneObfuscated = snap.docs[0].data().phoneObfuscated || '';
+        const userHash = snap.docs[0].id;
         
         // Verificar si el teléfono coincide con el configurado como gerente en config/telegram
         const tgRef = doc(db, 'config', 'telegram');
@@ -143,8 +165,8 @@ export async function POST(request) {
         if (tgSnap.exists()) {
           const tgData = tgSnap.data();
           const cleanManagerPhone = (tgData.phone || '').replace(/\D/g, '');
-          const cleanUserPhone = userPhone.replace(/\D/g, '');
-          if (cleanManagerPhone === cleanUserPhone || chatId.toString() === tgData.chatId?.toString()) {
+          const managerHash = hashPhone(cleanManagerPhone);
+          if (managerHash === userHash || chatId.toString() === tgData.chatId?.toString()) {
             isAuthorized = true;
           }
         }
@@ -156,7 +178,7 @@ export async function POST(request) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             chat_id: chatId,
-            text: `❌ *Acceso Denegado*\n\nEste chat de Telegram o tu número de teléfono (${userPhone ? `+${userPhone}` : 'No vinculado'}) no está configurado como gerente en el panel de administración del billar.\n\nPor favor comparte tu contacto usando /start o configura tu número en la app.`,
+            text: `❌ *Acceso Denegado*\n\nEste chat de Telegram o tu número de teléfono (${userPhoneObfuscated ? userPhoneObfuscated : 'No vinculado'}) no está configurado como gerente en el panel de administración del billar.\n\nPor favor comparte tu contacto usando /start o configura tu número en la app.`,
             parse_mode: 'Markdown'
           })
         });
@@ -216,6 +238,21 @@ export async function POST(request) {
         })
       });
 
+      // Registrar evento en la bitácora del billar
+      try {
+        await addDoc(collection(db, 'bitacora'), {
+          salonId: 'central',
+          fecha: new Date().toISOString(),
+          accion: 'Consulta Telegram',
+          detalle: `El gerente consultó el estado operativo del salón desde Telegram (${userPhoneObfuscated || 'ID: ' + chatId}).`,
+          monto: 0,
+          operador: snap.docs[0].data().nombre || 'Gerente Telegram',
+          rolOperador: 'gerente'
+        });
+      } catch (logErr) {
+        console.error("Error al registrar consulta en la bitácora:", logErr);
+      }
+
       return NextResponse.json({ ok: true });
     }
 
@@ -226,15 +263,15 @@ export async function POST(request) {
       const cleanPhone = rawPhone.replace(/\D/g, '');
 
       // Guardar la vinculación en Firestore en la colección centralizada
-      const vinculacionRef = doc(db, 'telegram_vinculaciones', cleanPhone);
+      const vinculacionRef = doc(db, 'telegram_vinculaciones', hashPhone(cleanPhone));
       await setDoc(vinculacionRef, {
         chatId: chatId.toString(),
-        phone: cleanPhone,
+        phoneObfuscated: obfuscatePhone(cleanPhone),
         nombre: contact.first_name || '',
         updatedAt: new Date().toISOString()
       }, { merge: true });
 
-      const successText = `✅ *¡Vinculación Exitosa!*\n\nTu número *+${cleanPhone}* ha sido enlazado a este chat de Telegram.\n\nAhora ya puedes ingresar este número telefónico en el panel de **Configuración -> Alertas Telegram** de tu billar para empezar a recibir notificaciones automáticas.`;
+      const successText = `✅ *¡Vinculación Exitosa!*\n\nTu número *${obfuscatePhone(cleanPhone)}* ha sido enlazado a este chat de Telegram.\n\nAhora ya puedes ingresar este número telefónico en el panel de **Configuración -> Alertas Telegram** de tu billar para empezar a recibir notificaciones automáticas.`;
       
       // Remover el teclado personalizado y confirmar al usuario
       await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {

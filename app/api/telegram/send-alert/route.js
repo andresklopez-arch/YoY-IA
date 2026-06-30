@@ -2,6 +2,18 @@ import { NextResponse } from 'next/server';
 import { db } from '@/lib/firebase';
 import { doc, getDoc, addDoc, collection, serverTimestamp } from 'firebase/firestore';
 
+function hashPhone(phone) {
+  if (!phone) return '';
+  const clean = phone.replace(/\D/g, '');
+  let hash = 0;
+  for (let i = 0; i < clean.length; i++) {
+    const char = clean.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+  return Math.abs(hash).toString(16);
+}
+
 function obfuscatePhone(phone) {
   if (!phone) return null;
   const clean = phone.replace(/\D/g, '');
@@ -23,7 +35,7 @@ async function enqueueFailedAlert(body, errorMsg, resolvedChatId, resolvedToken)
     // Si no tenemos chatId pero tenemos el teléfono, buscar vinculación
     if (!finalChatId && phone) {
       const cleanPhone = phone.replace(/\D/g, '');
-      const vincRef = doc(db, 'telegram_vinculaciones', cleanPhone);
+      const vincRef = doc(db, 'telegram_vinculaciones', hashPhone(cleanPhone));
       const vincSnap = await getDoc(vincRef);
       if (vincSnap.exists()) {
         finalChatId = vincSnap.data().chatId;
@@ -94,7 +106,7 @@ export async function POST(request) {
       const cleanPhone = phone.replace(/\D/g, '');
       
       // Buscar el chatId en la colección central de vinculaciones
-      const vincRef = doc(db, 'telegram_vinculaciones', cleanPhone);
+      const vincRef = doc(db, 'telegram_vinculaciones', hashPhone(cleanPhone));
       const vincSnap = await getDoc(vincRef);
 
       if (vincSnap.exists()) {
