@@ -6627,11 +6627,17 @@ export default function MesasPanel({ showToast }) {
               ...(meserosPresentes || []).map(m => m.nombre),
               ...(mesas || []).flatMap(m => m.meseroNombres || []),
               ...(mesas || []).map(m => m.meseroNombre).filter(Boolean)
-            ])).filter(Boolean).map(nombre => (
-              <option key={nombre} value={nombre} style={{ background: '#141418', color: '#f0f0f4' }}>
-                👤 {nombre}
-              </option>
-            ))}
+            ])).filter(Boolean).map(nombre => {
+              const countActivas = (mesas || []).filter(m => 
+                m.estado === 'ocupada' && 
+                (m.meseroNombre === nombre || (m.meseroNombres || []).includes(nombre))
+              ).length;
+              return (
+                <option key={nombre} value={nombre} style={{ background: '#141418', color: '#f0f0f4' }}>
+                  👤 {nombre} {countActivas > 0 ? `(${countActivas} activas)` : ''}
+                </option>
+              );
+            })}
           </select>
         </div>
 

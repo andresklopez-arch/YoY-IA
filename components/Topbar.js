@@ -1905,10 +1905,16 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
                     {todasLasMesas.map(mesa => {
                       const isSelected = mesasAsignadasPase.includes(mesa.id);
                       const otrosMeseros = (mesa.meseroNombres || []).filter(n => n && n !== asignacionPaseEmpleado?.nombre);
+                      
+                      const isManten = mesa.estado === 'manten';
+                      const isFuera = mesa.estado === 'fuera';
+                      const isDisabled = isManten || isFuera;
+                      
                       return (
                         <div 
                           key={mesa.id}
                           onClick={() => {
+                            if (isDisabled) return;
                             if (isSelected) {
                               setMesasAsignadasPase(prev => prev.filter(id => id !== mesa.id));
                             } else {
@@ -1916,27 +1922,41 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
                             }
                           }}
                           style={{
-                            background: isSelected ? 'rgba(197, 168, 128, 0.12)' : 'var(--bg-elevated)',
-                            border: isSelected ? '1px solid var(--border-bronze)' : '1px solid var(--border)',
+                            background: isDisabled ? 'rgba(239, 68, 68, 0.03)' : (isSelected ? 'rgba(197, 168, 128, 0.12)' : 'var(--bg-elevated)'),
+                            border: isDisabled ? '1px dashed rgba(239, 68, 68, 0.25)' : (isSelected ? '1px solid var(--border-bronze)' : '1px solid var(--border)'),
                             borderRadius: 10,
                             padding: '10px 12px',
-                            cursor: 'pointer',
+                            cursor: isDisabled ? 'not-allowed' : 'pointer',
                             display: 'flex',
                             alignItems: 'center',
                             gap: 8,
+                            opacity: isDisabled ? 0.65 : 1,
                             transition: 'all 0.15s'
                           }}
                         >
                           <input 
                             type="checkbox" 
                             checked={isSelected}
+                            disabled={isDisabled}
                             onChange={() => {}} 
-                            style={{ accentColor: 'var(--bronze-light)', cursor: 'pointer' }}
+                            style={{ accentColor: 'var(--bronze-light)', cursor: isDisabled ? 'not-allowed' : 'pointer' }}
                           />
                           <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', width: '100%' }}>
-                            <span style={{ fontSize: 12, fontWeight: 700, color: isSelected ? 'var(--bronze-light)' : '#fff' }}>Mesa {mesa.id}</span>
+                            <span style={{ fontSize: 12, fontWeight: 700, color: isDisabled ? 'var(--text-muted)' : (isSelected ? 'var(--bronze-light)' : '#fff') }}>Mesa {mesa.id}</span>
                             <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>{mesa.tipo || 'Carambola'}</span>
-                            {otrosMeseros.length > 0 && (
+                            
+                            {isManten && (
+                              <span style={{ fontSize: 8, color: '#ef4444', fontWeight: 700, marginTop: 2 }}>
+                                🛠️ Mantenimiento
+                              </span>
+                            )}
+                            {isFuera && (
+                              <span style={{ fontSize: 8, color: '#ef4444', fontWeight: 700, marginTop: 2 }}>
+                                🚫 Fuera de Servicio
+                              </span>
+                            )}
+                            
+                            {!isDisabled && otrosMeseros.length > 0 && (
                               <span style={{ fontSize: 8, color: '#f59e0b', fontWeight: 700, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={`Atendida por: ${otrosMeseros.join(', ')}`}>
                                 👤 {otrosMeseros.join(', ')}
                               </span>
