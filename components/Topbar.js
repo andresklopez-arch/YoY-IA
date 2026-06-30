@@ -309,6 +309,22 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
     return () => unsub();
   }, [showModalPaseLista]);
 
+  const [pctOcupacion, setPctOcupacion] = useState(0);
+
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, 'config', 'mesas_estado'), snap => {
+      if (snap.exists()) {
+        const mesas = snap.data().mesas || [];
+        const total = mesas.length;
+        if (total > 0) {
+          const ocupadas = mesas.filter(m => m.estado === 'ocupada').length;
+          setPctOcupacion(Math.round((ocupadas / total) * 100));
+        }
+      }
+    }, err => console.error("Error loading occupancy for Topbar clock:", err));
+    return () => unsub();
+  }, []);
+
   useEffect(() => {
     if (!showModalPaseLista) return;
     const docRef = doc(db, 'config', 'mesas_estado');
@@ -852,7 +868,7 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
     if (typeof window !== 'undefined' && navigator.language) {
       setLocale(navigator.language);
     }
-    const t = setInterval(() => setTime(new Date()), 10000);
+    const t = setInterval(() => setTime(new Date()), 1000);
     return () => clearInterval(t);
   }, []);
 
@@ -984,7 +1000,17 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
     setShowNotificationDrawer(false);
   };
 
-  const timeStr = time.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
+  const baseTimeStr = time.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
+  const timeParts = baseTimeStr.split(':');
+  
+  const seconds = time.getSeconds();
+  const colonOpacity = seconds % 2 === 0 ? 1 : 0.2;
+
+  const isHighOccupancy = pctOcupacion > 85;
+  const clockColor = isHighOccupancy ? '#ff3300' : '#39ff14';
+  const glowColor = isHighOccupancy ? 'rgba(255, 51, 0, 0.75)' : 'rgba(57, 255, 20, 0.75)';
+  const shadowColor = isHighOccupancy ? 'rgba(255, 51, 0, 0.3)' : 'rgba(57, 255, 20, 0.3)';
+
   const dateStr = time.toLocaleDateString(locale, { weekday: 'short', day: 'numeric', month: 'short' });
 
   // Lista unificada de notificaciones
@@ -1533,20 +1559,37 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
         {/* Reloj */}
-        <div style={{ textAlign: 'right', flexShrink: 0 }}>
+        <div style={{ textAlign: 'right', flexShrink: 0 }} title={`Ocupación actual: ${pctOcupacion}%`}>
           <div style={{ 
             fontFamily: 'var(--font-display)', 
             fontSize: 18, 
             fontWeight: 800, 
             letterSpacing: '0.05em', 
-            color: '#39ff14', 
+            color: clockColor, 
             lineHeight: 1, 
             whiteSpace: 'nowrap',
-            textShadow: '0 0 10px rgba(57, 255, 20, 0.75), 0 0 20px rgba(57, 255, 20, 0.3)'
+            textShadow: `0 0 10px ${glowColor}, 0 0 20px ${shadowColor}`,
+            transition: 'color 0.5s ease, text-shadow 0.5s ease'
           }}>
-            {timeStr}
+            {timeParts.length === 2 ? (
+              <>
+                {timeParts[0]}
+                <span style={{ opacity: colonOpacity, transition: 'opacity 0.2s', margin: '0 1px' }}>:</span>
+                {timeParts[1]}
+              </>
+            ) : (
+              baseTimeStr
+            )}
           </div>
-          <div style={{ fontSize: 10, color: 'rgba(57, 255, 20, 0.75)', textTransform: 'uppercase', letterSpacing: '0.1em', marginTop: 3, whiteSpace: 'nowrap' }}>
+          <div style={{ 
+            fontSize: 10, 
+            color: isHighOccupancy ? 'rgba(255, 51, 0, 0.75)' : 'rgba(57, 255, 20, 0.75)', 
+            textTransform: 'uppercase', 
+            letterSpacing: '0.1em', 
+            marginTop: 3, 
+            whiteSpace: 'nowrap',
+            transition: 'color 0.5s ease'
+          }}>
             {dateStr}
           </div>
         </div>
