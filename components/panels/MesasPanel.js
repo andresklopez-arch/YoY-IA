@@ -3813,14 +3813,59 @@ export default function MesasPanel({ showToast }) {
 
   // ── Memorización de Cuentas Pendientes Solicitadas ──
   const infoCuentasSolicitadas = useMemo(() => {
-    if (!alertasMesas) return { total: 0, tieneDirectas: false };
+    if (!alertasMesas) return { total: 0, tieneDirectas: false, antiguedadMaxMs: 0 };
     const list = Object.values(alertasMesas)
       .flat()
       .filter(a => a && a.tipo === 'cuenta' && !a.atendidoAdmin);
     
+    let oldestTime = Date.now();
+    let hasTime = false;
+    list.forEach(a => {
+      if (a.createdAt) {
+        const t = a.createdAt.toDate ? a.createdAt.toDate().getTime() : a.createdAt.seconds * 1000;
+        if (t < oldestTime) {
+          oldestTime = t;
+          hasTime = true;
+        }
+      }
+    });
+
+    const maxAge = hasTime ? Date.now() - oldestTime : 0;
     const tieneDirectas = list.some(a => !a.mesaId || a.mesaId === 0 || a.mesaId === '0');
-    return { total: list.length, tieneDirectas };
+    return { total: list.length, tieneDirectas, antiguedadMaxMs: maxAge };
   }, [alertasMesas]);
+
+  // Recordatorio sonoro periódico para Cuentas Solicitadas demoradas (> 3 minutos)
+  useEffect(() => {
+    if (infoCuentasSolicitadas.total === 0 || infoCuentasSolicitadas.antiguedadMaxMs < 3 * 60 * 1000) {
+      return;
+    }
+
+    const sonarRecordatorio = () => {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(380, ctx.currentTime);
+        gain.gain.setValueAtTime(0, ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.04, ctx.currentTime + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+        
+        osc.start();
+        osc.stop(ctx.currentTime + 0.3);
+      } catch (e) {}
+    };
+
+    // Suena inmediatamente al cumplirse la condición
+    sonarRecordatorio();
+
+    const interval = setInterval(sonarRecordatorio, 45000); // Recordatorio cada 45 segundos
+    return () => clearInterval(interval);
+  }, [infoCuentasSolicitadas.total, infoCuentasSolicitadas.antiguedadMaxMs > 3 * 60 * 1000]);
 
   // ── Memorización de Cuentas Nuevas desde la Última Consulta ──
   const totalNuevasCuentas = useMemo(() => {
@@ -6289,7 +6334,11 @@ export default function MesasPanel({ showToast }) {
               color: infoCuentasSolicitadas.total > 0 ? (infoCuentasSolicitadas.tieneDirectas ? '#f59e0b' : '#ef4444') : 'var(--bronze-light)',
               borderColor: infoCuentasSolicitadas.total > 0 ? (infoCuentasSolicitadas.tieneDirectas ? 'rgba(245, 158, 11, 0.5)' : 'rgba(239, 68, 68, 0.5)') : 'var(--border-bronze)',
               boxShadow: infoCuentasSolicitadas.total > 0 ? (infoCuentasSolicitadas.tieneDirectas ? '0 0 10px rgba(245, 158, 11, 0.25)' : '0 0 8px rgba(239, 68, 68, 0.2)') : 'none',
-              animation: infoCuentasSolicitadas.total > 0 ? (infoCuentasSolicitadas.tieneDirectas ? 'pulseAlertSolicitadaDirecta 1.6s infinite ease-in-out' : 'pulseAlertSolicitada 1.6s infinite ease-in-out') : 'none',
+              animation: infoCuentasSolicitadas.total > 0
+                ? (infoCuentasSolicitadas.tieneDirectas
+                    ? `pulseAlertSolicitadaDirecta ${infoCuentasSolicitadas.antiguedadMaxMs > 5 * 60 * 1000 ? '0.8s' : (infoCuentasSolicitadas.antiguedadMaxMs > 2 * 60 * 1000 ? '1.2s' : '1.8s')} infinite ease-in-out`
+                    : `pulseAlertSolicitada ${infoCuentasSolicitadas.antiguedadMaxMs > 5 * 60 * 1000 ? '0.8s' : (infoCuentasSolicitadas.antiguedadMaxMs > 2 * 60 * 1000 ? '1.2s' : '1.8s')} infinite ease-in-out`)
+                : 'none',
               transition: 'all 0.2s ease',
               height: '100%'
             }}
