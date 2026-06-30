@@ -7325,6 +7325,9 @@ export default function MesasPanel({ showToast }) {
             setNuevoMonto={setNuevoMonto}
             setNuevaDesc={setNuevaDesc}
             setAlertaCobroAsociadaId={setAlertaCobroAsociadaId}
+            actualizarCuentasFirestore={actualizarCuentasFirestore}
+            setMesas={setMesas}
+            registrarEvento={registrarEvento}
           />
         </ModalErrorBoundary>
       )}
@@ -10774,7 +10777,7 @@ function ModalGasto({ onClose, onConfirm, CATEGORIAS_GASTO }) {
   );
 }
 
-function ModalCuentasSolicitadas({ onClose, showToast, setMostrarCobroManual, setNuevoMonto, setNuevaDesc, setAlertaCobroAsociadaId }) {
+function ModalCuentasSolicitadas({ onClose, showToast, setMostrarCobroManual, setNuevoMonto, setNuevaDesc, setAlertaCobroAsociadaId, actualizarCuentasFirestore, setMesas, registrarEvento }) {
   const [loading, setLoading] = useState(true);
   const [solicitudes, setSolicitudes] = useState([]);
   const [filtroTab, setFiltroTab] = useState('todas'); // 'todas', 'pendientes', 'atendidas'
