@@ -685,11 +685,12 @@ function AppContent() {
         case 'clienteNoAtendido':
           const mesasSinAtender = mesas.filter(m => {
             if (m.estado !== 'ocupada' || !m.inicio) return false;
-            const elapsedMin = (Date.now() - m.inicio) / 60000;
+            const startCheck = m.ultimoRegistroAtencion || m.inicio;
+            const elapsedMin = (Date.now() - startCheck) / 60000;
             if (elapsedMin < 15) return false;
             const cuenta = cuentas.find(c => c.mesaId === m.id);
             if (!cuenta || !cuenta.consumos || cuenta.consumos.length === 0) return true;
-            const lastTime = cuenta.consumos.reduce((max, item) => Math.max(max, item.timestamp || 0), m.inicio);
+            const lastTime = cuenta.consumos.reduce((max, item) => Math.max(max, item.timestamp || 0), startCheck);
             return (Date.now() - lastTime) / 60000 > 15;
           });
           if (mesasSinAtender.length > 0) {
@@ -897,6 +898,27 @@ function AppContent() {
             // Actualizar timestamp de envío antes de disparar el fetch para evitar race conditions
             lastSentTelegramAlerts.current[alertId] = ahora;
 
+            let replyMarkup = undefined;
+            if (alertId === 'clienteNoAtendido') {
+              const unattendedMesas = mesas.filter(m => {
+                if (m.estado !== 'ocupada' || !m.inicio) return false;
+                const startCheck = m.ultimoRegistroAtencion || m.inicio;
+                const elapsedMin = (Date.now() - startCheck) / 60000;
+                if (elapsedMin < 15) return false;
+                const cuenta = cuentas.find(c => c.mesaId === m.id);
+                if (!cuenta || !cuenta.consumos || cuenta.consumos.length === 0) return true;
+                const lastTime = cuenta.consumos.reduce((max, item) => Math.max(max, item.timestamp || 0), startCheck);
+                return (Date.now() - lastTime) / 60000 > 15;
+              });
+              if (unattendedMesas.length > 0) {
+                replyMarkup = {
+                  inline_keyboard: unattendedMesas.map(m => [
+                    { text: `✅ Atender ${m.nombre || `Mesa ${m.id}`}`, callback_data: `atender_mesa_${m.id}` }
+                  ])
+                };
+              }
+            }
+
             const text = `🤖 *ALERTA IA CRÍTICA* 🤖\n\n` +
               `• *Alerta:* ${alert.text}\n` +
               `• *Acción:* ${alert.btnText}\n` +
@@ -910,7 +932,8 @@ function AppContent() {
                 token: tgConfig.botToken,
                 chatId: tgConfig.chatId,
                 phone: tgConfig.phone,
-                text: text
+                text: text,
+                reply_markup: replyMarkup
               })
             })
             .then(res => res.json())

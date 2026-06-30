@@ -134,7 +134,8 @@ export async function POST(request) {
           body: JSON.stringify({
             mode: 'central-resolve',
             phone: phone,
-            text: text
+            text: text,
+            reply_markup: body.reply_markup || undefined
           })
         });
 
@@ -211,7 +212,8 @@ export async function POST(request) {
       body: JSON.stringify({
         chat_id: targetChatId,
         text: text,
-        parse_mode: 'Markdown'
+        parse_mode: 'Markdown',
+        reply_markup: body.reply_markup || undefined
       })
     });
 

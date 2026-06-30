@@ -60,6 +60,60 @@ export async function POST(request) {
     const update = await request.json();
     console.log('Recibido update de Telegram:', JSON.stringify(update));
 
+    // Manejar Callback Queries (Acciones Interactivas desde Botones)
+    const callbackQuery = update.callback_query;
+    if (callbackQuery) {
+      const data = callbackQuery.data;
+      const callbackChatId = callbackQuery.message.chat.id;
+      const callbackMessageId = callbackQuery.message.message_id;
+      const botToken = process.env.TELEGRAM_OFFICIAL_BOT_TOKEN || '7438459438:AAElh_L0K0kHDF9sd832jklsd-Central';
+
+      if (data && data.startsWith('atender_mesa_')) {
+        const mesaIdStr = data.substring(13);
+        const mesasRef = doc(db, 'config', 'mesas_estado');
+        const mesasSnap = await getDoc(mesasRef);
+        let mesaNombre = `Mesa ${mesaIdStr}`;
+        if (mesasSnap.exists()) {
+          const list = mesasSnap.data().mesas || [];
+          const updatedList = list.map(m => {
+            if (m.id.toString() === mesaIdStr) {
+              mesaNombre = m.nombre || mesaNombre;
+              return {
+                ...m,
+                ultimoRegistroAtencion: Date.now()
+              };
+            }
+            return m;
+          });
+          await setDoc(mesasRef, { mesas: updatedList }, { merge: true });
+        }
+
+        // Quitar estado de carga en Telegram
+        await fetch(`https://api.telegram.org/bot${botToken}/answerCallbackQuery`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            callback_query_id: callbackQuery.id,
+            text: `✅ ${mesaNombre} marcada como atendida.`
+          })
+        });
+
+        // Editar el mensaje original
+        const newText = (callbackQuery.message.text || '') + `\n\n✅ *Atendida desde Telegram por Gerente*`;
+        await fetch(`https://api.telegram.org/bot${botToken}/editMessageText`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: callbackChatId,
+            message_id: callbackMessageId,
+            text: newText,
+            parse_mode: 'Markdown'
+          })
+        });
+      }
+      return NextResponse.json({ ok: true });
+    }
+
     const message = update.message;
     if (!message) {
       return NextResponse.json({ ok: true });

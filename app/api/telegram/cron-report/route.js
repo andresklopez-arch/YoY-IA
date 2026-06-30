@@ -279,16 +279,70 @@ export async function GET(request) {
       return NextResponse.json({ success: false, error: 'No se pudo resolver el Chat ID de Telegram' }, { status: 400 });
     }
 
-    const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
-    const res = await fetch(url, {
+    // 3. Crear gráfico de avance de metas con QuickChart (Sugerencia 1)
+    const chartConfig = {
+      type: 'bar',
+      data: {
+        labels: ['Meta Diaria', 'Venta Realizada'],
+        datasets: [{
+          label: 'Pesos ($)',
+          data: [Math.round(metaDiaria), Math.round(montoVendido)],
+          backgroundColor: ['rgba(212, 175, 55, 0.5)', 'rgba(57, 255, 20, 0.7)'],
+          borderColor: ['#d4af37', '#39ff14'],
+          borderWidth: 1
+        }]
+      },
+      options: {
+        title: {
+          display: true,
+          text: 'Ventas de Hoy vs Meta Diaria',
+          fontColor: '#ffffff',
+          fontSize: 16
+        },
+        legend: { display: false },
+        scales: {
+          yAxes: [{
+            ticks: {
+              beginAtZero: true,
+              fontColor: '#ffffff'
+            }
+          }],
+          xAxes: [{
+            ticks: {
+              fontColor: '#ffffff'
+            }
+          }]
+        }
+      }
+    };
+    const chartUrl = `https://quickchart.io/chart?c=${encodeURIComponent(JSON.stringify(chartConfig))}&bkg=%23121212`;
+
+    const photoUrl = `https://api.telegram.org/bot${botToken}/sendPhoto`;
+    let res = await fetch(photoUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         chat_id: targetChatId,
-        text: reportText,
+        photo: chartUrl,
+        caption: reportText,
         parse_mode: 'Markdown'
       })
     });
+
+    // Fallback si falla sendPhoto (ej. problemas con QuickChart)
+    if (!res.ok) {
+      console.warn("sendPhoto falló o no se pudo entregar, intentando con sendMessage normal...");
+      const sendUrl = `https://api.telegram.org/bot${botToken}/sendMessage`;
+      res = await fetch(sendUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: targetChatId,
+          text: reportText,
+          parse_mode: 'Markdown'
+        })
+      });
+    }
 
     if (res.ok) {
       // Guardar el estado del reporte enviado
