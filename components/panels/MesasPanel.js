@@ -286,6 +286,41 @@ const getCleanClientName = (name) => {
   return name.replace(/\s*\(Mesa[s]?\s+\d+.*?\)/gi, '').trim();
 };
 
+const playSuccessSound = () => {
+  try {
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContext) return;
+    const ctx = new AudioContext();
+    
+    // Play a short double beep (success tone)
+    const osc1 = ctx.createOscillator();
+    const gain1 = ctx.createGain();
+    osc1.type = 'sine';
+    osc1.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
+    gain1.gain.setValueAtTime(0.08, ctx.currentTime);
+    gain1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
+    osc1.connect(gain1);
+    gain1.connect(ctx.destination);
+    osc1.start();
+    osc1.stop(ctx.currentTime + 0.12);
+    
+    setTimeout(() => {
+      const osc2 = ctx.createOscillator();
+      const gain2 = ctx.createGain();
+      osc2.type = 'sine';
+      osc2.frequency.setValueAtTime(880.00, ctx.currentTime); // A5
+      gain2.gain.setValueAtTime(0.08, ctx.currentTime);
+      gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.2);
+      osc2.connect(gain2);
+      gain2.connect(ctx.destination);
+      osc2.start();
+      osc2.stop(ctx.currentTime + 0.2);
+    }, 100);
+  } catch (e) {
+    console.error("No se pudo reproducir el tono de éxito:", e);
+  }
+};
+
 const matchesTableType = (waitlistType, tableType) => {
   if (!waitlistType || !tableType) return false;
   const wt = waitlistType.toLowerCase();
@@ -673,7 +708,14 @@ function ModalAbrirMesa({ mesa, adminPinHash, hashPassword, onClose, onConfirm }
                           value={pinInput} 
                           onChange={e => setPinInput(e.target.value)}
                           maxLength={8}
-                          style={{ padding: '6px 10px', fontSize: 12, flex: 1 }}
+                          style={{
+                            padding: '6px 10px',
+                            fontSize: 12,
+                            flex: 1,
+                            borderColor: pinInput ? '#f97316' : 'var(--border)',
+                            boxShadow: pinInput ? '0 0 10px rgba(249, 115, 22, 0.35)' : 'none',
+                            transition: 'all 0.25s ease-in-out'
+                          }}
                           onKeyDown={e => { if (e.key === 'Enter') handleVerifyBypass(); }}
                         />
                         <button type="button" className="btn btn-primary btn-xs" onClick={handleVerifyBypass} style={{ padding: '0 10px' }}>
@@ -955,6 +997,18 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
 
   return (
     <div className="modal-overlay" onClick={handleClose}>
+      <style>{`
+        @keyframes fadeInScale {
+          from {
+            opacity: 0;
+            transform: scale(0.96) translateY(4px);
+          }
+          to {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+          }
+        }
+      `}</style>
       <div className="modal" onClick={e => e.stopPropagation()} style={{
         position: 'relative',
         maxWidth: 400,
@@ -964,7 +1018,8 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
         overflow: 'hidden',
         border: preTicketFlash ? '2px solid #39ff14' : '1px solid var(--border)',
         boxShadow: preTicketFlash ? '0 0 25px rgba(57, 255, 20, 0.45)' : 'none',
-        transition: 'all 0.25s ease-in-out'
+        transition: 'all 0.25s ease-in-out',
+        animation: 'fadeInScale 0.25s cubic-bezier(0.16, 1, 0.3, 1)'
       }}>
         {procesandoCierre && (
           <div style={{
@@ -3220,6 +3275,7 @@ export default function MesasPanel({ showToast }) {
       showToast('PIN de autorización incorrecto', 'danger');
       return;
     }
+    playSuccessSound();
     const monto = parseFloat(nuevoMonto);
 
     let currentCobros = [];
@@ -7803,6 +7859,7 @@ function ModalCuentasActivas({
       showToast('PIN de autorización incorrecto', 'danger');
       return;
     }
+    playSuccessSound();
     
     const { cId, itemId, prodName, cant } = itemAEliminar;
 
@@ -8206,17 +8263,18 @@ function ModalCuentasActivas({
                   {/* Prompt de Autorización PIN */}
                   {itemAEliminar && (
                     <div style={{
-                      background: 'rgba(217, 83, 79, 0.1)',
-                      border: '1px solid var(--danger)',
+                      background: 'rgba(249, 115, 22, 0.06)',
+                      border: '1px solid #f97316',
                       borderRadius: 10,
                       padding: 10,
                       display: 'flex',
                       flexDirection: 'column',
                       gap: 6,
-                      animation: 'fadeIn 0.2s ease'
+                      animation: 'fadeIn 0.2s ease',
+                      boxShadow: '0 0 12px rgba(249, 115, 22, 0.25)'
                     }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--danger)' }}>
+                        <div style={{ fontSize: 9, fontWeight: 700, color: '#f97316' }}>
                           <i className="ri-shield-keyhole-line" style={{ marginRight: 4 }} />
                           SE REQUIERE AUTORIZACIÓN DE ADMINISTRADOR
                         </div>
@@ -9481,7 +9539,11 @@ function ModalCobroManual({ nuevoMonto, setNuevoMonto, nuevaDesc, setNuevaDesc, 
                 value={pinAutorizacion}
                 onChange={e => setPinAutorizacion(e.target.value)}
                 maxLength={8}
-                style={{ borderColor: 'var(--border-bronze)' }}
+                style={{
+                  borderColor: pinAutorizacion ? '#f97316' : 'var(--border-bronze)',
+                  boxShadow: pinAutorizacion ? '0 0 10px rgba(249, 115, 22, 0.35)' : 'none',
+                  transition: 'all 0.25s ease-in-out'
+                }}
               />
             </div>
           </div>
