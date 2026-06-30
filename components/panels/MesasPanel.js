@@ -754,6 +754,15 @@ function ModalAbrirMesa({ mesa, adminPinHash, hashPassword, onClose, onConfirm }
 function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], registrarNuevoClienteDirectorio, mesas = [], unloadedConsumos, onClose, onCerrar, onAgregarACuenta, imprimirPreTicket, onImprimirPreTicket, procesandoCierre }) {
   const cuentaAsociada = getCuentaAsociadaSafe(mesa, cuentasActivas);
   const [preTicketFlash, setPreTicketFlash] = useState(false);
+  const inputNuevoClienteRef = useRef(null);
+
+  const handleClose = () => {
+    setNuevoCliente('');
+    setCuentaSeleccionada('');
+    setPagaCon('');
+    setReferencia('');
+    onClose();
+  };
 
   const [elapsed, setElapsed] = useState(Date.now() - (mesa.inicio || Date.now()));
   const [metodo, setMetodo] = useState('efectivo');
@@ -823,6 +832,12 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
       setNuevoCliente(isRealName(name) ? name : '');
     }
   }, [cuentaAsociada?.id, cuentaAsociada?.cliente, mesa.id, mesa.cliente]);
+
+  useEffect(() => {
+    if (tipoCierre === 'cuenta' && inputNuevoClienteRef.current) {
+      setTimeout(() => inputNuevoClienteRef.current?.focus(), 50);
+    }
+  }, [tipoCierre]);
 
   // Nuevos estados para cálculo de cambio, QR y transferencia con foto
   const [pagaCon, setPagaCon] = useState('');
@@ -939,7 +954,7 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
   ));
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onClick={handleClose}>
       <div className="modal" onClick={e => e.stopPropagation()} style={{
         position: 'relative',
         maxWidth: 400,
@@ -974,7 +989,7 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
         )}
         <div className="modal-header" style={{ padding: '6px 12px' }}>
           <span className="modal-title" style={{ fontSize: 11 }}><i className="ri-stop-circle-line" style={{ marginRight: 6, color: 'var(--danger)' }} />Cerrar {mesa.nombre}</span>
-          <button onClick={onClose} className="btn btn-secondary" style={{ background: 'none', border: 'none', padding: 2 }}>
+          <button onClick={handleClose} className="btn btn-secondary" style={{ background: 'none', border: 'none', padding: 2 }}>
             <i className="ri-close-line" style={{ fontSize: 18 }} />
           </button>
         </div>
@@ -1357,12 +1372,22 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
                       </label>
                       <div style={{ display: 'flex', gap: 4 }}>
                         <input
+                          ref={inputNuevoClienteRef}
                           className="form-input"
                           style={{ padding: '6px 10px', fontSize: 11, flex: 1 }}
                           placeholder="Ej: Pedro Domínguez"
                           value={nuevoCliente}
                           onChange={e => { setNuevoCliente(e.target.value); setLimiteCoincidencias(3); }}
                           list="clientes-nuevo-list"
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              if (!((cuentaSeleccionada === '' || isSelectedGeneric) && !nuevoCliente.trim())) {
+                                const btn = document.getElementById('btn-guardar-cuenta-mesa');
+                                btn?.click();
+                              }
+                            }
+                          }}
                         />
                         <button
                           type="button"
@@ -1552,7 +1577,7 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
           </div>
         </div>
         <div className="modal-footer" style={{ padding: '8px 12px' }}>
-          <button className="btn btn-secondary" style={{ padding: '4px 8px', fontSize: 9.5 }} onClick={onClose}>Cancelar</button>
+          <button className="btn btn-secondary" style={{ padding: '4px 8px', fontSize: 9.5 }} onClick={handleClose}>Cancelar</button>
           {tipoCierre === 'liquidar' ? (
             <div style={{ display: 'flex', gap: 6, flex: 1 }}>
                 <button
@@ -1923,6 +1948,7 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
               </div>
           ) : (
             <button
+              id="btn-guardar-cuenta-mesa"
               className="btn btn-primary"
               disabled={(cuentaSeleccionada === '' || isSelectedGeneric) && !nuevoCliente.trim()}
               onClick={() => {
