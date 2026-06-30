@@ -5830,21 +5830,25 @@ export default function MesasPanel({ showToast }) {
         else if (metodoPagoImprimir === 'tarjeta') metodoPagoImprimir = 'Tarjeta';
         else if (metodoPagoImprimir === 'cortesia') metodoPagoImprimir = 'Cortesía';
 
-        imprimirTicketFinal({
-          cliente: clientName || 'Público General',
-          isMesa: true,
-          mesaNombre: mesa ? (mesa.nombre || `Mesa ${mesaId}`) : `Mesa ${mesaId}`,
-          inicio: mesa ? mesa.inicio : null,
-          tiempoJuegoCosto: mesa ? (mesa.socios ? 0 : calcCosto(mesa, tiempo)) : 0,
-          durationStr: tiempo ? formatTime(tiempo) : (mesa && mesa.inicio ? formatTime(Date.now() - mesa.inicio) : '00:00:00'),
-          consumos: consumosFinal,
-          total: costo,
-          metodoPago: metodoPagoImprimir,
-          pagaCon: parseFloat(pagaCon) || 0,
-          cambio: parseFloat(cambio) || 0,
-          referenciaPago: referencia || '',
-          operador: user ? (user.displayName || user.email || 'Cajero Principal') : 'Cajero Principal'
-        });
+        if (typeof imprimirTicketFinal === 'function') {
+          imprimirTicketFinal({
+            cliente: clientName || 'Público General',
+            isMesa: true,
+            mesaNombre: mesa ? (mesa.nombre || `Mesa ${mesaId}`) : `Mesa ${mesaId}`,
+            inicio: mesa ? mesa.inicio : null,
+            tiempoJuegoCosto: mesa ? (mesa.socios ? 0 : calcCosto(mesa, tiempo)) : 0,
+            durationStr: tiempo ? formatTime(tiempo) : (mesa && mesa.inicio ? formatTime(Date.now() - mesa.inicio) : '00:00:00'),
+            consumos: consumosFinal,
+            total: costo,
+            metodoPago: metodoPagoImprimir,
+            pagaCon: parseFloat(pagaCon) || 0,
+            cambio: parseFloat(cambio) || 0,
+            referenciaPago: referencia || '',
+            operador: user ? (user.displayName || user.email || 'Cajero Principal') : 'Cajero Principal'
+          });
+        } else {
+          console.warn("La función de impresión final 'imprimirTicketFinal' no está definida.");
+        }
       } catch (printErr) {
         console.error("Error al imprimir ticket de cobro:", printErr);
       }
@@ -7414,7 +7418,6 @@ export default function MesasPanel({ showToast }) {
             meserosPresentes={meserosPresentes}
             procesandoCierre={procesandoCierre}
             setCobroExito={setCobroExito}
-            user={user}
             imprimirTicketFinal={imprimirTicketFinal}
           />
         </ModalErrorBoundary>
@@ -7892,9 +7895,9 @@ function ModalCuentasActivas({
   meserosPresentes,
   procesandoCierre,
   setCobroExito,
-  user,
   imprimirTicketFinal
 }) {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('cuentas'); // 'cuentas' o 'mesas'
   const [cuentaSel, setCuentaSel] = useState(null);
   const [mesaSel, setMesaSel] = useState(null);
@@ -8291,7 +8294,11 @@ function ModalCuentasActivas({
 
       // Mandar a imprimir el ticket final de cobro de cuenta de cliente
       try {
-        imprimirTicketFinal(ticketParams);
+        if (typeof imprimirTicketFinal === 'function') {
+          imprimirTicketFinal(ticketParams);
+        } else {
+          console.warn("La función de impresión final 'imprimirTicketFinal' no fue provista al modal.");
+        }
       } catch (printErr) {
         console.error("Error al imprimir ticket de cuenta:", printErr);
       }
