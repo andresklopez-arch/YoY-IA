@@ -7414,6 +7414,8 @@ export default function MesasPanel({ showToast }) {
             meserosPresentes={meserosPresentes}
             procesandoCierre={procesandoCierre}
             setCobroExito={setCobroExito}
+            user={user}
+            imprimirTicketFinal={imprimirTicketFinal}
           />
         </ModalErrorBoundary>
       )}
@@ -7889,7 +7891,9 @@ function ModalCuentasActivas({
   registrarEvento,
   meserosPresentes,
   procesandoCierre,
-  setCobroExito
+  setCobroExito,
+  user,
+  imprimirTicketFinal
 }) {
   const [activeTab, setActiveTab] = useState('cuentas'); // 'cuentas' o 'mesas'
   const [cuentaSel, setCuentaSel] = useState(null);
