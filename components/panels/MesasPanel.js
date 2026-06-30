@@ -826,6 +826,112 @@ function ModalAbrirMesa({ mesa, adminPinHash, hashPassword, onClose, onConfirm }
   );
 }
 
+// ── MODAL RECONCILIACION ──────────────────────────────────
+function ModalReconciliacion({ data, user, adminPinHash, hashPassword, onClose, onCobrar, onDescartada, showToast }) {
+  const { mesa, cuentaVieja, totalPendiente } = data;
+  const [showPinInput, setShowPinInput] = useState(false);
+  const [pinInput, setPinInput] = useState('');
+  const [pinError, setPinError] = useState('');
+
+  const esAutorizado = hasPermission(user, 'DISCARD_DEBTS');
+
+  const handleDescartarConCheck = () => {
+    if (esAutorizado) {
+      onDescartada(mesa, 'Rol', totalPendiente);
+    } else {
+      setShowPinInput(true);
+    }
+  };
+
+  const handleConfirmarPin = () => {
+    setPinError('');
+    if (hashPassword(pinInput) === adminPinHash) {
+      onDescartada(mesa, 'PIN', totalPendiente);
+    } else {
+      setPinError('PIN de Administrador incorrecto');
+    }
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 420 }}>
+        <div className="modal-header" style={{ borderBottom: '1px solid var(--border)', paddingBottom: 12 }}>
+          <span className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#ef4444', fontWeight: 800 }}>
+            <i className="ri-error-warning-line" />
+            Reconciliación de Cuenta
+          </span>
+          <button onClick={onClose} className="btn-icon btn btn-secondary" style={{ background: 'none', border: 'none' }}>
+            <i className="ri-close-line" style={{ fontSize: 20 }} />
+          </button>
+        </div>
+
+        <div className="modal-body" style={{ padding: '16px 0', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+            La <strong>Mesa {mesa.id}</strong> tiene una cuenta pendiente de la sesión anterior con un saldo de:
+          </p>
+          <div style={{ background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: 10, padding: '12px 16px', textAlign: 'center' }}>
+            <span style={{ fontSize: 24, fontWeight: 800, color: '#ef4444' }}>${totalPendiente} MXN</span>
+          </div>
+
+          {!showPinInput ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
+              <button 
+                className="btn btn-success" 
+                onClick={() => onCobrar(cuentaVieja)}
+                style={{ width: '100%', justifyContent: 'center', gap: 6 }}
+              >
+                <i className="ri-hand-coin-line" /> Cobrar Cuenta Pendiente
+              </button>
+              
+              <button 
+                className="btn btn-secondary" 
+                onClick={handleDescartarConCheck}
+                style={{ width: '100%', justifyContent: 'center', gap: 6, color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.3)' }}
+              >
+                <i className="ri-delete-bin-line" /> Descartar Cuenta {esAutorizado ? '' : '(PIN Admin)'}
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8, padding: 12, background: 'var(--bg-elevated)', borderRadius: 8, border: '1px solid var(--border)' }}>
+              <p style={{ margin: 0, fontSize: 11, fontWeight: 700, color: '#ef4444', letterSpacing: '0.05em' }}>
+                AUTORIZACIÓN REQUERIDA (PIN DE GERENTE/ADMIN)
+              </p>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <input 
+                  type="password"
+                  placeholder="PIN"
+                  value={pinInput}
+                  onChange={e => setPinInput(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleConfirmarPin()}
+                  style={{ flex: 1, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 6, padding: '6px 10px', color: 'var(--text-primary)', fontSize: 13 }}
+                  autoFocus
+                />
+                <button className="btn btn-primary" onClick={handleConfirmarPin} style={{ background: '#ef4444', border: 'none' }}>
+                  Autorizar
+                </button>
+              </div>
+              {pinError && <span style={{ color: '#ef4444', fontSize: 11, fontWeight: 600 }}>{pinError}</span>}
+              <button 
+                className="btn btn-link btn-sm" 
+                onClick={() => { setShowPinInput(false); setPinInput(''); setPinError(''); }}
+                style={{ alignSelf: 'flex-start', padding: 0, fontSize: 11, color: 'var(--text-muted)' }}
+              >
+                Volver
+              </button>
+            </div>
+          )}
+        </div>
+
+        <div className="modal-footer" style={{ borderTop: '1px solid var(--border)', paddingTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
+          <button className="btn btn-secondary" onClick={onClose}>
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── MODAL CERRAR MESA ────────────────────────────────────
 function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], registrarNuevoClienteDirectorio, mesas = [], unloadedConsumos, onClose, onCerrar, onAgregarACuenta, imprimirPreTicket, onImprimirPreTicket, procesandoCierre }) {
   const cuentaAsociada = getCuentaAsociadaSafe(mesa, cuentasActivas);
@@ -2502,6 +2608,7 @@ export default function MesasPanel({ showToast }) {
     }
   }, []);
   const [modalAbrir, setModalAbrir] = useState(null);
+  const [modalReconciliacion, setModalReconciliacion] = useState(null);
   const [modalCerrar, setModalCerrar] = useState(null);
   const [modalNuevaMesa, setModalNuevaMesa] = useState(false);
   const [modalFila, setModalFila] = useState(false);
@@ -4680,36 +4787,13 @@ export default function MesasPanel({ showToast }) {
     if (mesa.estado === 'ocupada') { setModalCerrar(mesa); return; }
     if (mesa.estado === 'manten') { showToast('Mesa en mantenimiento, no disponible.', 'warning'); return; }
     
-    // Sugerencia 1: Reconciliación de deuda antes de abrir mesa
+    // Sugerencia 1: Reconciliación de deuda antes de abrir mesa (personalizado en modal React)
     const cuentaVieja = cuentasActivas.find(c => c.mesaId === mesa.id || (c.cliente && c.cliente.toLowerCase() === `mesa ${mesa.id}`));
     if (cuentaVieja) {
       const totalPendiente = (cuentaVieja.tiempoJuego || 0) + (cuentaVieja.consumos || []).reduce((s, i) => s + (i.precio * i.cantidad), 0);
       if (totalPendiente > 0) {
-        const option = window.confirm(`La Mesa ${mesa.id} tiene una cuenta pendiente anterior por $${totalPendiente} MXN.\n\n¿Deseas cobrarla/liquidarla antes de abrir la mesa?\n\n- Aceptar: Ir a cobrar la cuenta ahora.\n- Cancelar: Limpiar la cuenta (borrarla) y abrir la mesa.`);
-        if (option) {
-          setCuentaLeftover(cuentaVieja);
-          setModalCuentas(true);
-          return;
-        } else {
-          // Validar permisos del operador: solo gerente y administrador pueden borrar/cancelar
-          const esAutorizado = hasPermission(user, 'DISCARD_DEBTS');
-          let authMethod = 'Rol';
-          if (!esAutorizado) {
-            const pinIngresado = window.prompt("No tiene permisos de Gerente o Administrador para borrar deudas pendientes.\n\nPor favor ingrese el PIN de Administrador para autorizar:");
-            if (!pinIngresado || hashPassword(pinIngresado) !== adminPinHash) {
-              alert("PIN de administración incorrecto. La cuenta no puede ser eliminada y la mesa no se abrirá.");
-              return;
-            }
-            authMethod = 'PIN';
-          }
-          
-          // Registrar en la bitácora el descarte auditado
-          registrarEvento(
-            'Descarte Cuenta Pendiente', 
-            `Cuenta pendiente de la Mesa ${mesa.id} por $${totalPendiente} MXN fue eliminada para abrir una nueva sesión. Operador: ${user ? (user.displayName || user.email) : 'Cajero Principal'} (Autorizado vía ${authMethod})`,
-            totalPendiente
-          );
-        }
+        setModalReconciliacion({ mesa, cuentaVieja, totalPendiente });
+        return;
       }
     }
     
@@ -7391,6 +7475,33 @@ export default function MesasPanel({ showToast }) {
             </div>
           </div>
         </div>
+      )}
+      {modalReconciliacion && (
+        <ModalErrorBoundary name="Reconciliacion Cuenta" onClose={() => setModalReconciliacion(null)}>
+          <ModalReconciliacion
+            data={modalReconciliacion}
+            user={user}
+            adminPinHash={adminPinHash}
+            hashPassword={hashPassword}
+            onClose={() => setModalReconciliacion(null)}
+            onCobrar={(cuenta) => {
+              setCuentaLeftover(cuenta);
+              setModalCuentas(true);
+              setModalReconciliacion(null);
+            }}
+            onDescartada={(mesa, authMethod, totalPendiente) => {
+              setModalReconciliacion(null);
+              registrarEvento(
+                'Descarte Cuenta Pendiente', 
+                `Cuenta pendiente de la Mesa ${mesa.id} por $${totalPendiente} MXN fue eliminada para abrir una nueva sesión. Operador: ${user ? (user.displayName || user.email) : 'Cajero Principal'} (Autorizado vía ${authMethod})`,
+                totalPendiente
+              );
+              // Proceder a abrir la mesa
+              setModalAbrir(mesa);
+            }}
+            showToast={showToast}
+          />
+        </ModalErrorBoundary>
       )}
       {modalAbrir && (
         <ModalErrorBoundary name="Abrir Mesa" onClose={() => setModalAbrir(null)}>
