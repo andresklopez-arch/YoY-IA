@@ -2499,6 +2499,8 @@ export default function MesasPanel({ showToast }) {
   const [modalAbrirCuenta, setModalAbrirCuenta] = useState(false);
   const [modalCuentasSolicitadas, setModalCuentasSolicitadas] = useState(false);
   const [alertaCobroAsociadaId, setAlertaCobroAsociadaId] = useState(null);
+  const [alertaClienteAsoc, setAlertaClienteAsoc] = useState('');
+  const [alertaMesaIdAsoc, setAlertaMesaIdAsoc] = useState(null);
   const [lastCheckedTime, setLastCheckedTime] = useState(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('yoy_last_checked_solicitudes');
@@ -3383,12 +3385,14 @@ export default function MesasPanel({ showToast }) {
     }
   };
 
-  const registrarCobroManual = () => {
+  const registrarCobroManual = (pagaConParam = 0, cambioParam = 0) => {
     if (!nuevoMonto || !nuevaDesc) {
       showToast('Completa todos los campos', 'warning');
       return;
     }
     const monto = parseFloat(nuevoMonto);
+    const pagaConVal = parseFloat(pagaConParam) || 0;
+    const cambioVal = parseFloat(cambioParam) || 0;
 
     let currentCobros = [];
     try {
@@ -3402,13 +3406,15 @@ export default function MesasPanel({ showToast }) {
       console.error(err);
     }
 
+    let metodoPagoTexto = nuevoMetodo === 'efectivo' ? 'Efectivo' : (nuevoMetodo === 'spei' ? 'Transferencia' : 'Tarjeta');
+
     const nuevoCobro = {
       id: Date.now(),
       tipo: 'manual',
       descripcion: nuevaDesc,
       cliente: 'Manual (Autorizado)',
       monto: monto,
-      metodo: nuevoMetodo,
+      metodo: metodoPagoTexto,
       hora: new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }),
       color: monto > 0 ? 'var(--success)' : 'var(--danger)',
     };
@@ -3416,31 +3422,43 @@ export default function MesasPanel({ showToast }) {
     const updatedCobros = [nuevoCobro, ...currentCobros];
     localStorage.setItem('yoy_caja_cobros', JSON.stringify(updatedCobros));
     
+    // Disparar evento storage local para sincronizar otros paneles (por ejemplo, CajaPanel)
+    window.dispatchEvent(new Event('storage'));
+
     registrarEvento('Cobro Manual', `Cobro manual de $${monto} registrado (${nuevaDesc}) por ${nuevoMetodo}`, monto);
     showToast(`Cobro manual de $${monto} registrado`, 'success');
 
     // ── IMPRESIÓN OBLIGATORIA DEL COMPROBANTE ──
     if (monto > 0) {
+      // Intentar buscar la cuenta activa asociada para el ticket detallado
+      let consumosTicket = [
+        {
+          id: Date.now(),
+          producto: nuevaDesc,
+          precio: monto,
+          cantidad: 1
+        }
+      ];
+      let clienteTicket = 'Cobro Manual Directo';
+
+      if (cuentaAsociadaManual) {
+        consumosTicket = cuentaAsociadaManual.consumos || consumosTicket;
+        clienteTicket = cuentaAsociadaManual.cliente || clienteTicket;
+      }
+
       try {
         imprimirTicketFinal({
-          cliente: 'Cobro Manual Directo',
+          cliente: clienteTicket,
           isMesa: false,
-          mesaNombre: '',
+          mesaNombre: cuentaAsociadaManual && cuentaAsociadaManual.mesaId ? `Mesa ${cuentaAsociadaManual.mesaId}` : '',
           inicio: null,
           tiempoJuegoCosto: 0,
           durationStr: '',
-          consumos: [
-            {
-              id: Date.now(),
-              producto: nuevaDesc,
-              precio: monto,
-              cantidad: 1
-            }
-          ],
+          consumos: consumosTicket,
           total: monto,
-          metodoPago: nuevoMetodo === 'efectivo' ? 'Efectivo' : (nuevoMetodo === 'spei' ? 'SPEI' : 'Tarjeta'),
-          pagaCon: monto,
-          cambio: 0,
+          metodoPago: metodoPagoTexto,
+          pagaCon: pagaConVal > 0 ? pagaConVal : monto,
+          cambio: cambioVal,
           referenciaPago: '',
           operador: user ? (user.displayName || user.email || 'Cajero Principal') : 'Cajero Principal'
         });
@@ -3465,6 +3483,8 @@ export default function MesasPanel({ showToast }) {
     if (alertaCobroAsociadaId) {
       marcarAlertaAtendida(alertaCobroAsociadaId, 'cuenta');
       setAlertaCobroAsociadaId(null);
+      setAlertaClienteAsoc('');
+      setAlertaMesaIdAsoc(null);
     }
 
     setMostrarCobroManual(false);
@@ -3490,6 +3510,18 @@ export default function MesasPanel({ showToast }) {
     { id: 101, cliente: 'Juan Pérez', tiempoJuego: 160, consumos: [{ id: 1, producto: 'Cerveza Corona', precio: 45, cantidad: 2 }, { id: 2, producto: 'Refresco Coca-Cola', precio: 30, cantidad: 1 }], inicio: Date.now() - 1.5*3600000 },
     { id: 102, cliente: 'Marta S.', tiempoJuego: 0, consumos: [{ id: 3, producto: 'Nachos con Queso', precio: 75, cantidad: 1 }], inicio: Date.now() - 40*60000 }
   ]);
+
+  const cuentaAsociadaManual = useMemo(() => {
+    if (!alertaCobroAsociadaId) return null;
+    return cuentasActivas.find(c => {
+      const tieneMesa = alertaMesaIdAsoc && alertaMesaIdAsoc !== 0 && alertaMesaIdAsoc !== '0';
+      if (tieneMesa) {
+        return String(c.mesaId) === String(alertaMesaIdAsoc);
+      } else {
+        return c.cliente && c.cliente.toLowerCase() === alertaClienteAsoc.toLowerCase();
+      }
+    });
+  }, [alertaCobroAsociadaId, alertaMesaIdAsoc, alertaClienteAsoc, cuentasActivas]);
 
   useEffect(() => {
     const docRef = doc(db, 'config', 'cuentas_estado');
@@ -5823,6 +5855,38 @@ export default function MesasPanel({ showToast }) {
       }
       setCuentasActivas(updatedCuentas);
 
+      // ── REGISTRAR EN COBROS DE LA CAJA DIARIA (Cuentas del Día) ──
+      try {
+        const savedCobros = localStorage.getItem('yoy_caja_cobros');
+        let currentCobros = savedCobros ? JSON.parse(savedCobros) : [];
+
+        let metodoPagoCobro = metodo || 'efectivo';
+        if (metodoPagoCobro === 'efectivo') metodoPagoCobro = 'Efectivo';
+        else if (metodoPagoCobro === 'transferencia') metodoPagoCobro = 'Transferencia';
+        else if (metodoPagoCobro === 'qr') metodoPagoCobro = 'Código QR';
+        else if (metodoPagoCobro === 'tarjeta') metodoPagoCobro = 'Tarjeta';
+        else if (metodoPagoCobro === 'cortesia') metodoPagoCobro = 'Cortesía';
+
+        const nuevoCobro = {
+          id: Date.now(),
+          tipo: 'cierre_mesa',
+          descripcion: `Cierre ${mesa ? (mesa.nombre || `Mesa ${mesaId}`) : `Mesa ${mesaId}`} - ${clientName || 'Público General'}`,
+          cliente: clientName || 'Público General',
+          monto: Number(costo),
+          metodo: metodoPagoCobro,
+          hora: new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }),
+          color: 'var(--success)'
+        };
+
+        const updatedCobros = [nuevoCobro, ...currentCobros];
+        localStorage.setItem('yoy_caja_cobros', JSON.stringify(updatedCobros));
+
+        // Sincronizar otros paneles (por ejemplo, CajaPanel)
+        window.dispatchEvent(new Event('storage'));
+      } catch (err) {
+        console.error("Error al registrar cierre de mesa en cobros de caja:", err);
+      }
+
       // CALCULO DE COMISIONES PARA MESEROS ASIGNADOS A LA MESA
       if (mesa) {
         const costoMesa = mesa.socios ? 0 : calcCosto(mesa, tiempo);
@@ -7328,6 +7392,8 @@ export default function MesasPanel({ showToast }) {
             actualizarCuentasFirestore={actualizarCuentasFirestore}
             setMesas={setMesas}
             registrarEvento={registrarEvento}
+            setAlertaClienteAsoc={setAlertaClienteAsoc}
+            setAlertaMesaIdAsoc={setAlertaMesaIdAsoc}
           />
         </ModalErrorBoundary>
       )}
@@ -7438,6 +7504,7 @@ export default function MesasPanel({ showToast }) {
             setNuevaDesc={setNuevaDesc}
             nuevoMetodo={nuevoMetodo}
             setNuevoMetodo={setNuevoMetodo}
+            cuentaAsociada={cuentaAsociadaManual}
             onClose={() => {
               if (nuevoMonto || nuevaDesc) {
                 sessionStorage.setItem('yoy_draft_cobro_manual', JSON.stringify({ nuevoMonto, nuevaDesc }));
@@ -10777,7 +10844,7 @@ function ModalGasto({ onClose, onConfirm, CATEGORIAS_GASTO }) {
   );
 }
 
-function ModalCuentasSolicitadas({ onClose, showToast, setMostrarCobroManual, setNuevoMonto, setNuevaDesc, setAlertaCobroAsociadaId, actualizarCuentasFirestore, setMesas, registrarEvento }) {
+function ModalCuentasSolicitadas({ onClose, showToast, setMostrarCobroManual, setNuevoMonto, setNuevaDesc, setAlertaCobroAsociadaId, actualizarCuentasFirestore, setMesas, registrarEvento, setAlertaClienteAsoc, setAlertaMesaIdAsoc }) {
   const [loading, setLoading] = useState(true);
   const [solicitudes, setSolicitudes] = useState([]);
   const [filtroTab, setFiltroTab] = useState('todas'); // 'todas', 'pendientes', 'atendidas'
@@ -10888,6 +10955,8 @@ function ModalCuentasSolicitadas({ onClose, showToast, setMostrarCobroManual, se
     if (setNuevoMonto) setNuevoMonto(String(solicitud.totalAcumulado || 0));
     if (setNuevaDesc) setNuevaDesc(`Cobro Cuenta Directa - ${solicitud.cliente || `Mesa ${solicitud.mesaId}`}`);
     if (setAlertaCobroAsociadaId) setAlertaCobroAsociadaId(solicitud.id);
+    if (setAlertaClienteAsoc) setAlertaClienteAsoc(solicitud.cliente || '');
+    if (setAlertaMesaIdAsoc) setAlertaMesaIdAsoc(solicitud.mesaId || null);
     onClose();
     if (setMostrarCobroManual) setMostrarCobroManual(true);
     showToast("Cobro manual directo cargado ✓", "info");
