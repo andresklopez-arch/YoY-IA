@@ -4680,6 +4680,25 @@ export default function MesasPanel({ showToast }) {
           setCuentaLeftover(cuentaVieja);
           setModalCuentas(true);
           return;
+        } else {
+          // Validar permisos del operador: solo gerente y administrador pueden borrar/cancelar
+          const esAutorizado = user && (user.role === 'admin' || user.role === 'gerente');
+          let authMethod = 'Rol';
+          if (!esAutorizado) {
+            const pinIngresado = window.prompt("No tiene permisos de Gerente o Administrador para borrar deudas pendientes.\n\nPor favor ingrese el PIN de Administrador para autorizar:");
+            if (!pinIngresado || hashPassword(pinIngresado) !== adminPinHash) {
+              alert("PIN de administración incorrecto. La cuenta no puede ser eliminada y la mesa no se abrirá.");
+              return;
+            }
+            authMethod = 'PIN';
+          }
+          
+          // Registrar en la bitácora el descarte auditado
+          registrarEvento(
+            'Descarte Cuenta Pendiente', 
+            `Cuenta pendiente de la Mesa ${mesa.id} por $${totalPendiente} MXN fue eliminada para abrir una nueva sesión. Operador: ${user ? (user.displayName || user.email) : 'Cajero Principal'} (Autorizado vía ${authMethod})`,
+            totalPendiente
+          );
         }
       }
     }
@@ -6779,7 +6798,13 @@ export default function MesasPanel({ showToast }) {
                 {mesa.estado === 'libre' && (
                   (() => {
                     const mNombreStr = mesa.nombre || `Mesa ${mesa.id}`;
+                    
+                    // Buscar si tiene cuenta huérfana con saldo pendiente
+                    const cPendiente = cuentasActivas.find(c => c.mesaId === mesa.id || (c.cliente && c.cliente.toLowerCase() === `mesa ${mesa.id}`));
+                    const totalPendiente = cPendiente ? (cPendiente.tiempoJuego || 0) + (cPendiente.consumos || []).reduce((s, i) => s + (i.precio * i.cantidad), 0) : 0;
+                    
                     const assignment = assignedFila.find(f => f.mesaAsignada && f.mesaAsignada.toLowerCase() === mNombreStr.toLowerCase());
+                    
                     if (assignment) {
                       const timeRemaining = Math.max(0, 5 * 60 - Math.floor((Date.now() - (assignment.assignedAt || Date.now())) / 1000));
                       const minutes = Math.floor(timeRemaining / 60);
@@ -6797,6 +6822,16 @@ export default function MesasPanel({ showToast }) {
                         </div>
                       );
                     }
+                    
+                    if (totalPendiente > 0) {
+                      return (
+                        <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: 8, padding: '4px 8px', width: 'fit-content' }}>
+                          <i className="ri-error-warning-line" style={{ color: '#ef4444', fontSize: 12 }} />
+                          <span style={{ fontSize: 10, color: '#ef4444', fontWeight: 700 }}>Deuda: ${totalPendiente} MXN</span>
+                        </div>
+                      );
+                    }
+                    
                     return null;
                   })()
                 )}
