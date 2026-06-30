@@ -2605,6 +2605,76 @@ export default function MesasPanel({ showToast }) {
 
   const [filtro, setFiltro] = useState('todas');
   const [filtroMesero, setFiltroMesero] = useState('');
+  const [showTransferModal, setShowTransferModal] = useState(false);
+  const [targetMeseroTraspaso, setTargetMeseroTraspaso] = useState('');
+
+  const handleTraspasarMesas = async () => {
+    if (!filtroMesero || !targetMeseroTraspaso) return;
+    try {
+      const docRef = doc(db, 'config', 'mesas_estado');
+      const snap = await getDoc(docRef);
+      if (snap.exists()) {
+        const currentMesas = snap.data().mesas || [];
+        
+        const receptorEmp = (meserosPresentes || []).find(e => e.nombre === targetMeseroTraspaso) || { id: targetMeseroTraspaso, nombre: targetMeseroTraspaso };
+        const emisorEmp = (meserosPresentes || []).find(e => e.nombre === filtroMesero) || { id: filtroMesero, nombre: filtroMesero };
+
+        const updatedMesas = currentMesas.map(m => {
+          const tieneEmisor = m.meseroNombre === emisorEmp.nombre || (m.meseroNombres || []).includes(emisorEmp.nombre);
+          
+          if (tieneEmisor) {
+            let currentIds = (m.meseroIds || []).filter(id => id !== emisorEmp.id);
+            let currentNombres = (m.meseroNombres || []).filter(nombre => nombre !== emisorEmp.nombre);
+            
+            if (!currentIds.includes(receptorEmp.id)) {
+              currentIds = [...currentIds, receptorEmp.id];
+              currentNombres = [...currentNombres, receptorEmp.nombre];
+            }
+
+            const firstId = currentIds[0] || null;
+            const firstNombre = currentNombres[0] || null;
+
+            return {
+              ...m,
+              meseroIds: currentIds,
+              meseroNombres: currentNombres,
+              meseroId: firstId,
+              meseroNombre: firstNombre
+            };
+          }
+          return m;
+        });
+
+        await setDoc(docRef, {
+          mesas: updatedMesas,
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('yoy_billar_mesas', obfuscate(updatedMesas));
+        }
+
+        await addDoc(collection(db, 'bitacora'), {
+          salonId: user.salonId,
+          fecha: new Date().toISOString(),
+          accion: 'Traspaso Mesas',
+          detalle: `Se traspasaron todas las mesas asignadas a ${emisorEmp.nombre} hacia ${receptorEmp.nombre}.`,
+          monto: 0,
+          operador: user.nombre || 'Administrador',
+          rolOperador: (user.rol || 'admin').toLowerCase()
+        });
+
+        showToast(`Mesas de ${emisorEmp.nombre} traspasadas a ${receptorEmp.nombre} con éxito`, 'success');
+        setShowTransferModal(false);
+        setTargetMeseroTraspaso('');
+        setFiltroMesero(receptorEmp.nombre);
+      }
+    } catch (err) {
+      console.error("Error al traspasar mesas:", err);
+      showToast("Error al traspasar las mesas.", "danger");
+    }
+  };
+
   const [ordenamiento, setOrdenamiento] = useState('numero'); // numero | carambola_primero | pool_primero | snooker_primero
   const animacionesActivas = true;
   useEffect(() => {
@@ -6641,6 +6711,26 @@ export default function MesasPanel({ showToast }) {
           </select>
         </div>
 
+        {filtroMesero && (
+          <button
+            onClick={() => setShowTransferModal(true)}
+            className="btn btn-secondary btn-sm"
+            style={{
+              height: 28,
+              fontSize: 10,
+              fontWeight: 700,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              marginLeft: 6,
+              borderColor: 'var(--border-bronze)',
+              color: 'var(--bronze-light)'
+            }}
+          >
+            <i className="ri-swap-line" /> Traspasar Zonas
+          </button>
+        )}
+
         {/* Separador vertical */}
         <div style={{ width: 1, height: 18, background: 'var(--border-bronze)', opacity: 0.3, margin: '0 4px' }} />
 
@@ -7662,6 +7752,80 @@ export default function MesasPanel({ showToast }) {
             imprimirTicketFinal={imprimirTicketFinal}
           />
         </ModalErrorBoundary>
+      )}
+
+      {showTransferModal && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 99999, padding: 16
+        }}>
+          <div style={{
+            background: 'var(--bg-elevated)', border: '1px solid var(--border-bronze)',
+            borderRadius: 16, width: '100%', maxWidth: 400, overflow: 'hidden',
+            boxShadow: '0 10px 30px rgba(0,0,0,0.5)'
+          }}>
+            <div style={{
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              padding: '16px 20px', borderBottom: '1px solid var(--border)',
+              background: 'rgba(197, 168, 128, 0.05)'
+            }}>
+              <h3 style={{ fontSize: 13, fontWeight: 800, color: 'var(--bronze-light)', margin: 0, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Traspasar Mesas de Servicio
+              </h3>
+              <button
+                onClick={() => { setShowTransferModal(false); setTargetMeseroTraspaso(''); }}
+                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 20, cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+              >
+                <i className="ri-close-line" />
+              </button>
+            </div>
+            <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <p style={{ fontSize: 11, color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>
+                Se transferirán todas las mesas actualmente asignadas a <strong>{filtroMesero}</strong> hacia el mesero receptor que elija a continuación.
+              </p>
+              
+              <div className="form-group" style={{ gap: 4 }}>
+                <label className="form-label">Mesero Receptor</label>
+                <select
+                  value={targetMeseroTraspaso}
+                  onChange={e => setTargetMeseroTraspaso(e.target.value)}
+                  style={{ background: 'var(--bg)', border: '1px solid var(--border)', color: '#fff', padding: '8px 12px', fontSize: '13px', borderRadius: 8, outline: 'none', width: '100%' }}
+                  required
+                >
+                  <option value="">Seleccione un mesero...</option>
+                  {Array.from(new Set([
+                    ...(meserosPresentes || []).map(m => m.nombre),
+                    ...(mesas || []).flatMap(m => m.meseroNombres || []),
+                    ...(mesas || []).map(m => m.meseroNombre).filter(Boolean)
+                  ])).filter(Boolean).filter(n => n !== filtroMesero).map(nombre => (
+                    <option key={nombre} value={nombre} style={{ background: '#141418', color: '#f0f0f4' }}>
+                      👤 {nombre}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 12, padding: '16px 20px', borderTop: '1px solid var(--border)', background: 'rgba(0,0,0,0.1)' }}>
+              <button
+                className="btn btn-secondary"
+                style={{ flex: 1, padding: '8px 14px', fontSize: '12px', cursor: 'pointer' }}
+                onClick={() => { setShowTransferModal(false); setTargetMeseroTraspaso(''); }}
+              >
+                Cancelar
+              </button>
+              <button
+                className="btn btn-primary"
+                style={{ flex: 1, padding: '8px 14px', fontSize: '12px', opacity: targetMeseroTraspaso ? 1 : 0.6, cursor: targetMeseroTraspaso ? 'pointer' : 'not-allowed' }}
+                disabled={!targetMeseroTraspaso}
+                onClick={handleTraspasarMesas}
+              >
+                Confirmar Traspaso
+              </button>
+            </div>
+          </div>
+        </div>
       )}
       {modalAbrirCuenta && (
         <ModalErrorBoundary name="Abrir Cuenta Directa" onClose={() => setModalAbrirCuenta(false)}>

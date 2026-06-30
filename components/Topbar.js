@@ -297,6 +297,17 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
   const [todasLasMesas, setTodasLasMesas] = useState([]);
   const [asignacionPaseEmpleado, setAsignacionPaseEmpleado] = useState(null);
   const [mesasAsignadasPase, setMesasAsignadasPase] = useState([]);
+  const [limiteMesasMesero, setLimiteMesasMesero] = useState(5);
+
+  useEffect(() => {
+    if (!showModalPaseLista) return;
+    const unsub = onSnapshot(doc(db, 'config', 'seguridad'), snap => {
+      if (snap.exists() && snap.data().limiteMesasMesero !== undefined) {
+        setLimiteMesasMesero(Number(snap.data().limiteMesasMesero));
+      }
+    }, err => console.error("Error loading table limit in Topbar:", err));
+    return () => unsub();
+  }, [showModalPaseLista]);
 
   useEffect(() => {
     if (!showModalPaseLista) return;
@@ -1827,7 +1838,7 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
                   <p style={{ fontSize: 11, color: 'var(--text-secondary)', margin: '6px 0 0 0', lineHeight: 1.4 }}>
                     Seleccione las mesas asignadas. Si el empleado es mesero, las alertas y comisiones de las ventas se le asociarán automáticamente.
                   </p>
-                  {mesasAsignadasPase.length > 5 && (
+                   {mesasAsignadasPase.length > limiteMesasMesero && (
                     <div style={{
                       marginTop: 10,
                       padding: '8px 12px',
@@ -1842,7 +1853,7 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
                       fontWeight: 600
                     }}>
                       <i className="ri-error-warning-line" style={{ fontSize: 13 }} />
-                      <span>Saturación: {asignacionPaseEmpleado.nombre} tiene {mesasAsignadasPase.length} mesas seleccionadas. Esto podría causar demoras en el servicio.</span>
+                      <span>Saturación: {asignacionPaseEmpleado.nombre} tiene {mesasAsignadasPase.length} mesas seleccionadas (límite: {limiteMesasMesero}). Esto podría causar demoras en el servicio.</span>
                     </div>
                   )}
                 </div>

@@ -275,6 +275,7 @@ export default function ConfigPanel({ showToast }) {
   const [actualPin, setActualPin] = useState('');
   const [nuevoPin, setNuevoPin] = useState('');
   const [confirmarPin, setConfirmarPin] = useState('');
+  const [limiteMesasMesero, setLimiteMesasMesero] = useState(5);
 
   const [resetPin, setResetPin] = useState('');
   const [confirmWipeText, setConfirmWipeText] = useState('');
@@ -510,6 +511,12 @@ export default function ConfigPanel({ showToast }) {
         setSucursal(p => ({ ...p, ...d }));
       }
     }).catch(err => console.error("Error al cargar configuración de sucursal:", err));
+
+    getDoc(doc(db, 'config', 'seguridad')).then(snap => {
+      if (snap.exists() && snap.data().limiteMesasMesero !== undefined) {
+        setLimiteMesasMesero(Number(snap.data().limiteMesasMesero));
+      }
+    }).catch(err => console.error("Error al cargar limiteMesasMesero:", err));
 
     // Cargar límite de cortesías desde Firestore
     import('@/lib/firebase').then(({ db }) =>
@@ -1250,6 +1257,21 @@ export default function ConfigPanel({ showToast }) {
       setConfirmarPin('');
     }
   };
+
+  const handleSaveLimiteMesas = async (e) => {
+    e.preventDefault();
+    try {
+      await setDoc(doc(db, 'config', 'seguridad'), {
+        limiteMesasMesero: Number(limiteMesasMesero),
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+      showToast("Límite de mesas por mesero actualizado con éxito", "success");
+    } catch (err) {
+      console.error(err);
+      showToast("Error al guardar el límite de mesas", "danger");
+    }
+  };
+
   const handleSaveMesa = (e) => {
     e.preventDefault();
 
@@ -2198,6 +2220,37 @@ export default function ConfigPanel({ showToast }) {
                 </div>
                 <button type="submit" className="btn btn-primary" style={{ padding: '8px 14px', fontSize: '12px' }}>
                   <i className="ri-lock-unlock-line" /> Guardar Nuevo PIN
+                </button>
+              </form>
+            </div>
+
+            <div className="card" style={{ padding: '12px 14px' }}>
+              <div className="card-header" style={{ marginBottom: 4 }}>
+                <h3 className="card-title">
+                  <i className="ri-error-warning-line" style={{ marginRight: 6, color: '#f59e0b' }} />
+                  Límites de Operación / Saturación
+                </h3>
+              </div>
+              <p style={{ fontSize: '10.5px', color: 'var(--text-secondary)', margin: '0 0 10px 0', lineHeight: '1.4' }}>
+                Establece la cantidad máxima de mesas que puede tener asignadas un mesero simultáneamente antes de que el sistema advierta de una saturación en el servicio.
+              </p>
+              <form onSubmit={handleSaveLimiteMesas} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div className="form-group" style={{ gap: 4 }}>
+                  <label className="form-label" style={{ fontSize: '10.5px' }}>Límite de Mesas por Mesero</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="20"
+                    className="form-input"
+                    placeholder="Ej: 5"
+                    value={limiteMesasMesero}
+                    onChange={e => setLimiteMesasMesero(e.target.value)}
+                    style={{ padding: '8px 12px', fontSize: '13px' }}
+                    required
+                  />
+                </div>
+                <button type="submit" className="btn btn-primary" style={{ padding: '8px 14px', fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: 6, width: 'fit-content' }}>
+                  <i className="ri-save-line" /> Guardar Límite
                 </button>
               </form>
             </div>
