@@ -1016,7 +1016,7 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
                     color: mesa.socios && costo === 0 ? 'var(--success)' : '#39ff14',
                     textShadow: mesa.socios && costo === 0 ? 'none' : '0 0 10px rgba(57, 255, 20, 0.35)'
                   }}>
-                    {mesa.socios && costo === 0 ? 'SOCIO' : `$${Number(costo).toLocaleString('es-MX')}`}
+                    {mesa.socios && costo === 0 ? 'SOCIO' : `$${Math.round(costo).toLocaleString('es-MX')}`}
                   </span>
                   {(!mesa.socios || costo > 0) && <span style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 700, textShadow: 'none' }}>MXN</span>}
                 </div>
@@ -1028,9 +1028,9 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
               <div style={{ background: 'var(--bg-elevated)', borderRadius: 10, padding: '6px 10px', fontSize: 9.5, border: '1px solid var(--border)' }}>
                 <div style={{ fontWeight: 'bold', color: 'var(--bronze-light)', marginBottom: 4 }}>Detalle de Consumos:</div>
                 <ul style={{ margin: 0, paddingLeft: 14, color: 'var(--text-muted)' }}>
-                  {!mesa.socios && <li>Tiempo de juego: ${costoTiempo}</li>}
+                  {!mesa.socios && <li>Tiempo de juego: ${Math.round(costoTiempo).toLocaleString('es-MX')}</li>}
                   {(cuentaAsociada?.consumos || []).map((item, idx) => (
-                    <li key={idx}>{item.cantidad}x {item.producto} (${item.precio * item.cantidad})</li>
+                    <li key={idx}>{item.cantidad}x {item.producto} (${Math.round(item.precio * item.cantidad).toLocaleString('es-MX')})</li>
                   ))}
                 </ul>
               </div>
@@ -1215,7 +1215,7 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
                               textShadow: pagaConVal >= costo ? '0 0 10px rgba(57, 255, 20, 0.35)' : 'none',
                               letterSpacing: '0.02em'
                             }}>
-                              {pagaConVal >= costo ? `$${Number(cambio).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MXN` : 'Monto insuficiente'}
+                              {pagaConVal >= costo ? `$${Math.round(cambio).toLocaleString('es-MX')} MXN` : 'Monto insuficiente'}
                             </span>
                           </div>
                         )}
@@ -8311,13 +8311,13 @@ function ModalCuentasActivas({
                       {consumosList.map(item => (
                         <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--text-secondary)' }}>
                           <span>{item.cantidad}x {item.producto}</span>
-                          <span>${item.precio * item.cantidad} MXN</span>
+                          <span>${Math.round(item.precio * item.cantidad).toLocaleString('es-MX')} MXN</span>
                         </div>
                       ))}
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontWeight: 900, fontSize: 14 }}>
                       <span>Total Neto</span>
-                      <span style={{ color: 'var(--bronze-light)' }}>${Number(totalNeto).toLocaleString('es-MX')} MXN</span>
+                      <span style={{ color: 'var(--bronze-light)' }}>${Math.round(totalNeto).toLocaleString('es-MX')} MXN</span>
                     </div>
                   </div>
 
@@ -8405,7 +8405,7 @@ function ModalCuentasActivas({
                             textShadow: totalPagaCon >= totalNeto ? '0 0 10px rgba(57, 255, 20, 0.35)' : 'none',
                             letterSpacing: '0.02em'
                           }}>
-                            {totalPagaCon >= totalNeto ? `$${Number(cambio).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MXN` : 'Monto insuficiente'}
+                            {totalPagaCon >= totalNeto ? `$${Math.round(cambio).toLocaleString('es-MX')} MXN` : 'Monto insuficiente'}
                           </span>
                         </div>
                       )}
