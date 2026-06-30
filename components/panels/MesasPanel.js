@@ -977,10 +977,16 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
               <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
                 <div style={{ fontSize: 8, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 2 }}>Total de Mesa</div>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 3, lineHeight: 1 }}>
-                  <span style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(20px, 4.5vw, 28px)', fontWeight: 950, color: mesa.socios && costo === 0 ? 'var(--success)' : 'var(--text-primary)' }}>
+                  <span style={{
+                    fontFamily: 'var(--font-display)',
+                    fontSize: 'clamp(20px, 4.5vw, 28px)',
+                    fontWeight: 950,
+                    color: mesa.socios && costo === 0 ? 'var(--success)' : '#39ff14',
+                    textShadow: mesa.socios && costo === 0 ? 'none' : '0 0 10px rgba(57, 255, 20, 0.35)'
+                  }}>
                     {mesa.socios && costo === 0 ? 'SOCIO' : `${costo}`}
                   </span>
-                  {(!mesa.socios || costo > 0) && <span style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 700 }}>MXN</span>}
+                  {(!mesa.socios || costo > 0) && <span style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 700, textShadow: 'none' }}>MXN</span>}
                 </div>
               </div>
             </div>
