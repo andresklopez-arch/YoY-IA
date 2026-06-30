@@ -1004,7 +1004,7 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
               <div>
                 <div style={{ fontSize: 8, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 1 }}>Tiempo</div>
                 <div style={{ fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 700, letterSpacing: '0.08em', color: 'var(--bronze-light)' }}>{formatTime(elapsed)}</div>
-                <div style={{ fontSize: 8, color: 'var(--text-muted)' }}>{hrs} hrs · ${mesa.tarifa}/hr</div>
+                <div style={{ fontSize: 8, color: 'var(--text-muted)' }}>{hrs} hrs · ${Math.round(mesa.tarifa).toLocaleString('es-MX')}/hr</div>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
                 <div style={{ fontSize: 8, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 2 }}>Total de Mesa</div>
@@ -1177,8 +1177,8 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
                             style={{
                               padding: '6px 10px',
                               fontSize: 12,
-                              borderColor: pagaConVal >= costo ? '#39ff14' : 'var(--border)',
-                              boxShadow: pagaConVal >= costo ? '0 0 8px rgba(57, 255, 20, 0.25)' : 'none',
+                              borderColor: pagaConVal >= costo ? (pagaConVal > costo * 10 ? '#f97316' : '#39ff14') : 'var(--border)',
+                              boxShadow: pagaConVal >= costo ? (pagaConVal > costo * 10 ? '0 0 8px rgba(249, 115, 22, 0.25)' : '0 0 8px rgba(57, 255, 20, 0.25)') : 'none',
                               transition: 'all 0.2s ease-in-out'
                             }}
                             placeholder="0.00"
@@ -1199,7 +1199,7 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
                                   cursor: 'pointer'
                                 }}
                               >
-                                {b === costo ? 'Exacto' : `$${b}`}
+                                {b === costo ? `Exacto ($${Math.round(b).toLocaleString('es-MX')})` : `$${Math.round(b).toLocaleString('es-MX')}`}
                               </button>
                             ))}
                           </div>
@@ -8367,8 +8367,8 @@ function ModalCuentasActivas({
                           style={{
                             padding: '6px 10px',
                             fontSize: 12,
-                            borderColor: totalPagaCon >= totalNeto ? '#39ff14' : 'var(--border)',
-                            boxShadow: totalPagaCon >= totalNeto ? '0 0 8px rgba(57, 255, 20, 0.25)' : 'none',
+                            borderColor: totalPagaCon >= totalNeto ? (totalPagaCon > totalNeto * 10 ? '#f97316' : '#39ff14') : 'var(--border)',
+                            boxShadow: totalPagaCon >= totalNeto ? (totalPagaCon > totalNeto * 10 ? '0 0 8px rgba(249, 115, 22, 0.25)' : '0 0 8px rgba(57, 255, 20, 0.25)') : 'none',
                             transition: 'all 0.2s ease-in-out'
                           }}
                           placeholder="0.00"
@@ -8389,7 +8389,7 @@ function ModalCuentasActivas({
                                 cursor: 'pointer'
                               }}
                             >
-                              Exacto (${b})
+                              {b === totalNeto ? `Exacto ($${Math.round(b).toLocaleString('es-MX')})` : `$${Math.round(b).toLocaleString('es-MX')}`}
                             </button>
                           ))}
                         </div>
