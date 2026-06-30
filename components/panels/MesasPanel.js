@@ -4771,6 +4771,7 @@ export default function MesasPanel({ showToast }) {
 
             return { 
               ...c, 
+              mesaId: null,
               tiempoJuego: c.tiempoJuego + costo,
               cliente: nombreNuevo && nombreNuevo.includes('Pendiente')
                 ? nombreNuevo
@@ -6404,7 +6405,7 @@ export default function MesasPanel({ showToast }) {
           const consumosTotal = consumosPorMesa[mesa.id] || 0;
           const totalMesa = costo + consumosTotal;
           const cfg = ESTADO_CONFIG[mesa.estado];
-          const alertsForMesa = alertasMesas[mesa.id] || [];
+          const alertsForMesa = mesa.estado === 'ocupada' ? (alertasMesas[mesa.id] || []) : [];
           const hasAlert = alertsForMesa.length > 0;
 
           const isPorCobrar = mesa.estado === 'ocupada' && mesa.preTicketImpreso;

@@ -153,13 +153,15 @@ function MeseroContent() {
   // Buscar mesa asociada a una cuenta
   const findMesaAsociada = (c) => {
     return mesas.find(m => 
-      (c.mesaId && String(m.id) === String(c.mesaId)) ||
-      (c.cliente && (
-        (m.cliente && !['publico'].includes(normalizeText(m.cliente)) && startsWithBoundary(normalizeText(c.cliente), normalizeText(m.cliente))) ||
-        normalizeText(c.cliente) === `mesa ${m.id}` ||
-        normalizeText(c.cliente) === `mesa ${m.id} - pendiente` ||
-        normalizeText(c.cliente).startsWith(`mesa ${m.id} `)
-      ))
+      m.estado === 'ocupada' && (
+        (c.mesaId && String(m.id) === String(c.mesaId)) ||
+        (c.cliente && (
+          (m.cliente && !['publico'].includes(normalizeText(m.cliente)) && startsWithBoundary(normalizeText(c.cliente), normalizeText(m.cliente))) ||
+          normalizeText(c.cliente) === `mesa ${m.id}` ||
+          normalizeText(c.cliente) === `mesa ${m.id} - pendiente` ||
+          normalizeText(c.cliente).startsWith(`mesa ${m.id} `)
+        ))
+      )
     );
   };
 
