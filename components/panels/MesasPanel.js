@@ -1147,7 +1147,13 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
                           <input
                             type="number"
                             className="form-input"
-                            style={{ padding: '6px 10px', fontSize: 12 }}
+                            style={{
+                              padding: '6px 10px',
+                              fontSize: 12,
+                              borderColor: pagaConVal >= costo ? '#39ff14' : 'var(--border)',
+                              boxShadow: pagaConVal >= costo ? '0 0 8px rgba(57, 255, 20, 0.25)' : 'none',
+                              transition: 'all 0.2s ease-in-out'
+                            }}
                             placeholder="0.00"
                             value={pagaCon}
                             onChange={e => setPagaCon(e.target.value)}
@@ -1555,7 +1561,10 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
                     padding: '4px 8px', 
                     fontSize: 9.5,
                     cursor: isCerrarDisabled ? 'not-allowed' : 'pointer',
-                    flex: 1
+                    flex: 1,
+                    boxShadow: !isCerrarDisabled && (metodo !== 'efectivo' || pagaConVal >= costo) ? '0 0 15px rgba(57, 255, 20, 0.45)' : 'none',
+                    border: !isCerrarDisabled && (metodo !== 'efectivo' || pagaConVal >= costo) ? '1px solid #39ff14' : '1px solid transparent',
+                    transition: 'all 0.3s ease-in-out'
                   }}
                 >
                   <i className={procesandoCierre ? "ri-loader-4-line ri-spin" : "ri-stop-circle-line"} /> {procesandoCierre ? 'Procesando...' : (costo === 0 ? 'Registrar Cortesía' : 'Cerrar y Cobrar')}
@@ -8316,7 +8325,13 @@ function ModalCuentasActivas({
                         <input
                           type="number"
                           className="form-input"
-                          style={{ padding: '6px 10px', fontSize: 12 }}
+                          style={{
+                            padding: '6px 10px',
+                            fontSize: 12,
+                            borderColor: totalPagaCon >= totalNeto ? '#39ff14' : 'var(--border)',
+                            boxShadow: totalPagaCon >= totalNeto ? '0 0 8px rgba(57, 255, 20, 0.25)' : 'none',
+                            transition: 'all 0.2s ease-in-out'
+                          }}
                           placeholder="0.00"
                           value={pagaCon}
                           onChange={e => setPagaCon(e.target.value)}
@@ -8449,7 +8464,10 @@ function ModalCuentasActivas({
                       color: isCheckoutDisabled ? 'var(--text-muted)' : '#0d0d0f', 
                       width: '100%', 
                       marginTop: 6,
-                      cursor: isCheckoutDisabled ? 'not-allowed' : 'pointer'
+                      cursor: isCheckoutDisabled ? 'not-allowed' : 'pointer',
+                      boxShadow: !isCheckoutDisabled ? '0 0 15px rgba(57, 255, 20, 0.45)' : 'none',
+                      border: !isCheckoutDisabled ? '1px solid #39ff14' : '1px solid transparent',
+                      transition: 'all 0.3s ease-in-out'
                     }}
                   >
                     <i className={procesandoCierre ? "ri-loader-4-line ri-spin" : "ri-checkbox-circle-line"} /> {procesandoCierre ? 'Procesando...' : 'Confirmar Cobro e Impresión'}
