@@ -2507,6 +2507,8 @@ export default function MesasPanel({ showToast }) {
   });
   const [showCuentasPopover, setShowCuentasPopover] = useState(false);
   const [clientesRegistrados, setClientesRegistrados] = useState([]);
+  const [shakeCuentasButton, setShakeCuentasButton] = useState(false);
+  const [silenciadoCuentasHasta, setSilenciadoCuentasHasta] = useState(0);
   const [modalCambiarMesa, setModalCambiarMesa] = useState(null);
   const [modalVincular, setModalVincular] = useState(null);
   const [modalBitacora, setModalBitacora] = useState(false);
@@ -2836,17 +2838,45 @@ export default function MesasPanel({ showToast }) {
     if (finalEvent) finalEvent.stopPropagation(); // Evitar abrir el modal de la mesa
     try {
       const docRef = doc(db, 'mesa_pedidos', alertaId);
+      
+      // Intentar calcular el tiempo de espera
+      let tiempoEsperaSegundos = null;
+      try {
+        const snap = await getDoc(docRef);
+        if (snap.exists()) {
+          const alertData = snap.data();
+          if (alertData.createdAt) {
+            const startMs = alertData.createdAt.toDate ? alertData.createdAt.toDate().getTime() : alertData.createdAt.seconds * 1000;
+            const diffMs = Date.now() - startMs;
+            tiempoEsperaSegundos = Math.max(0, Math.floor(diffMs / 1000));
+          }
+        }
+      } catch (err) {
+        console.error("Error al obtener documento para calcular tiempo de espera:", err);
+      }
+
       const updateData = {
         atendidoAdmin: true,
         updatedAt: serverTimestamp()
       };
+      if (tiempoEsperaSegundos !== null) {
+        updateData.tiempoEsperaSegundos = tiempoEsperaSegundos;
+      }
       // Solo archivar si no es un pedido (ya que el pedido debe seguir en cocina/entrega)
       if (finalTipo !== 'pedido') {
         updateData.estado = 'atendido';
         updateData.atendidoAt = serverTimestamp();
       }
       await updateDoc(docRef, updateData);
-      showToast('Solicitud marcada como atendida ✓', 'success');
+      
+      if (finalTipo === 'cuenta' && tiempoEsperaSegundos !== null) {
+        const mins = Math.floor(tiempoEsperaSegundos / 60);
+        const secs = tiempoEsperaSegundos % 60;
+        const descTiempo = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+        registrarEvento('Cuenta Atendida', `Solicitud de cuenta de la Mesa ${alertaId} atendida. Tiempo de espera del cobro: ${descTiempo}.`);
+      } else {
+        showToast('Solicitud marcada como atendida ✓', 'success');
+      }
     } catch (err) {
       console.error("Error al marcar alerta como atendida:", err);
       showToast('Error al atender solicitud.', 'error');
@@ -3150,6 +3180,8 @@ export default function MesasPanel({ showToast }) {
       if (hasNewAlert && newAlertType) {
         try {
           if (newAlertType === 'cuenta') {
+            setShakeCuentasButton(true);
+            setTimeout(() => setShakeCuentasButton(false), 1000);
             if (newAlertIsDirect) {
               decirFraseAleatoria('barra');
             } else {
@@ -3837,7 +3869,7 @@ export default function MesasPanel({ showToast }) {
 
   // Recordatorio sonoro periódico para Cuentas Solicitadas demoradas (> 3 minutos)
   useEffect(() => {
-    if (infoCuentasSolicitadas.total === 0 || infoCuentasSolicitadas.antiguedadMaxMs < 3 * 60 * 1000) {
+    if (infoCuentasSolicitadas.total === 0 || infoCuentasSolicitadas.antiguedadMaxMs < 3 * 60 * 1000 || Date.now() < silenciadoCuentasHasta) {
       return;
     }
 
@@ -3865,7 +3897,7 @@ export default function MesasPanel({ showToast }) {
 
     const interval = setInterval(sonarRecordatorio, 45000); // Recordatorio cada 45 segundos
     return () => clearInterval(interval);
-  }, [infoCuentasSolicitadas.total, infoCuentasSolicitadas.antiguedadMaxMs > 3 * 60 * 1000]);
+  }, [infoCuentasSolicitadas.total, infoCuentasSolicitadas.antiguedadMaxMs > 3 * 60 * 1000, silenciadoCuentasHasta]);
 
   // ── Memorización de Cuentas Nuevas desde la Última Consulta ──
   const totalNuevasCuentas = useMemo(() => {
@@ -5919,6 +5951,14 @@ export default function MesasPanel({ showToast }) {
           50% { box-shadow: 0 4px 25px rgba(197, 168, 128, 0.3); border-color: rgba(197, 168, 128, 0.7); }
           100% { box-shadow: 0 4px 15px rgba(197, 168, 128, 0.15); border-color: rgba(197, 168, 128, 0.4); }
         }
+        @keyframes shakeCuentas {
+          0%, 100% { transform: scale(1) translateX(0); }
+          10%, 30%, 50%, 70%, 90% { transform: scale(1.05) translateX(-4px); }
+          20%, 40%, 60%, 80% { transform: scale(1.05) translateX(4px); }
+        }
+        .shake-animation {
+          animation: shakeCuentas 0.6s ease-in-out;
+        }
         @keyframes pulseAlertSolicitada {
           0% { border-color: rgba(239, 68, 68, 0.4); box-shadow: 0 0 5px rgba(239, 68, 68, 0.15); }
           50% { border-color: rgba(239, 68, 68, 0.95); box-shadow: 0 0 15px rgba(239, 68, 68, 0.45); background: rgba(239, 68, 68, 0.08); }
@@ -6325,7 +6365,7 @@ export default function MesasPanel({ showToast }) {
           onMouseLeave={() => setShowCuentasPopover(false)}
         >
           <button
-            className="btn btn-secondary btn-sm"
+            className={`btn btn-secondary btn-sm ${shakeCuentasButton ? 'shake-animation' : ''}`}
             onClick={() => setModalCuentasSolicitadas(true)}
             style={{
               display: 'flex',
@@ -6379,15 +6419,42 @@ export default function MesasPanel({ showToast }) {
               display: 'flex',
               flexDirection: 'column',
               gap: 8,
-              pointerEvents: 'none'
+              pointerEvents: 'auto'
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: 6 }}>
                 <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--bronze-light)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                   Resumen de Cuentas
                 </span>
-                <span style={{ fontSize: 9, background: 'rgba(255,255,255,0.06)', padding: '2px 6px', borderRadius: 4, color: 'var(--text-muted)' }}>
-                  {infoCuentasSolicitadas.total} pendientes
-                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  {infoCuentasSolicitadas.total > 0 && infoCuentasSolicitadas.antiguedadMaxMs >= 3 * 60 * 1000 && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const silenciadoVal = Date.now() < silenciadoCuentasHasta;
+                        const targetTime = silenciadoVal ? 0 : Date.now() + 15 * 60 * 1000;
+                        setSilenciadoCuentasHasta(targetTime);
+                        showToast(silenciadoVal ? "Sonido reactivado 🔔" : "Recordatorio silenciado por 15 min 🔕", "info");
+                      }}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: Date.now() < silenciadoCuentasHasta ? '#ef4444' : 'var(--text-muted)',
+                        cursor: 'pointer',
+                        fontSize: 12,
+                        padding: '0 4px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        transition: 'color 0.2s'
+                      }}
+                      title={Date.now() < silenciadoCuentasHasta ? "Haga clic para reactivar sonido" : "Silenciar sonido por 15 minutos"}
+                    >
+                      <i className={Date.now() < silenciadoCuentasHasta ? "ri-volume-mute-fill" : "ri-volume-up-line"} />
+                    </button>
+                  )}
+                  <span style={{ fontSize: 9, background: 'rgba(255,255,255,0.06)', padding: '2px 6px', borderRadius: 4, color: 'var(--text-muted)' }}>
+                    {infoCuentasSolicitadas.total} pendientes
+                  </span>
+                </div>
               </div>
 
               <div style={{ maxHeight: 150, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
