@@ -822,7 +822,7 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
       const name = mesa.cliente || '';
       setNuevoCliente(isRealName(name) ? name : '');
     }
-  }, [cuentaAsociada, mesa.cliente]);
+  }, [cuentaAsociada?.id, cuentaAsociada?.cliente, mesa.id, mesa.cliente]);
 
   // Nuevos estados para cálculo de cambio, QR y transferencia con foto
   const [pagaCon, setPagaCon] = useState('');
