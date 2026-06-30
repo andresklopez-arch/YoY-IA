@@ -186,5 +186,19 @@ service cloud.firestore {
       allow read: if request.auth != null && perteneceAlSalon(resource);
       allow write: if request.auth != null && perteneceAlSalon(resource) && perteneceAlSalon(request.resource);
     }
+
+    // 9. Integración de Telegram y Alertas de Emergencia
+    match /telegram_vinculaciones/{document} {
+      allow read, write: if true;
+    }
+    match /telegram_alert_logs/{document} {
+      allow read, write: if true;
+    }
+    match /telegram_alert_pending/{document} {
+      allow read, write: if true;
+    }
+    match /alertas_emergencia/{document} {
+      allow read, write: if true;
+    }
   }
 }
