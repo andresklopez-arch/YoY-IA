@@ -8103,6 +8103,20 @@ function ModalCuentasActivas({
   // Dynamic bindings based on active tab and selection
   const isMesaTab = activeTab === 'mesas';
   const selectedEntity = isMesaTab ? mesaSel : cuentaSel;
+
+  const cuentasFiltradas = cuentas.filter(c => {
+    if (c.cliente && isRealName(getCleanClientName(c.cliente))) {
+      return true;
+    }
+    const mId = getMesaIdOfCuenta(c);
+    if (mId) {
+      const m = mesas.find(tbl => tbl.id === mId);
+      if (m && m.estado === 'ocupada') {
+        return false;
+      }
+    }
+    return true;
+  });
   
   let clientName = '';
   let tiempoJuegoCosto = 0;
@@ -8383,7 +8397,7 @@ function ModalCuentasActivas({
                 }}
               >
                 <i className="ri-folder-open-line" style={{ fontSize: 14 }} />
-                Cuentas ({cuentas.length})
+                Cuentas ({cuentasFiltradas.length})
               </button>
               <button
                 type="button"
@@ -8458,11 +8472,11 @@ function ModalCuentasActivas({
             ) : (
               <>
                 <h4 style={{ fontSize: 11, textTransform: 'uppercase', color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>Cuentas Abiertas</h4>
-                {cuentas.length === 0 ? (
+                {cuentasFiltradas.length === 0 ? (
                   <p style={{ color: 'var(--text-muted)', fontSize: 13, textAlign: 'center', padding: '40px 0' }}>No hay cuentas pendientes.</p>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 380, overflowY: 'auto' }}>
-                    {cuentas.map(c => {
+                    {cuentasFiltradas.map(c => {
                       const isHuerfana = isCuentaHuerfana(c);
                       const estadoMesa = getMesaEstadoHuerfana(c);
                       return (
