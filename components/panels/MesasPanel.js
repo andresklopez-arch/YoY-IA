@@ -5874,6 +5874,16 @@ export default function MesasPanel({ showToast }) {
           50% { box-shadow: 0 4px 25px rgba(197, 168, 128, 0.3); border-color: rgba(197, 168, 128, 0.7); }
           100% { box-shadow: 0 4px 15px rgba(197, 168, 128, 0.15); border-color: rgba(197, 168, 128, 0.4); }
         }
+        @keyframes pulseAlertSolicitada {
+          0% { border-color: rgba(239, 68, 68, 0.4); box-shadow: 0 0 5px rgba(239, 68, 68, 0.15); }
+          50% { border-color: rgba(239, 68, 68, 0.95); box-shadow: 0 0 15px rgba(239, 68, 68, 0.45); background: rgba(239, 68, 68, 0.08); }
+          100% { border-color: rgba(239, 68, 68, 0.4); box-shadow: 0 0 5px rgba(239, 68, 68, 0.15); }
+        }
+        @keyframes pulseAlertSolicitadaDirecta {
+          0% { border-color: rgba(245, 158, 11, 0.4); box-shadow: 0 0 5px rgba(245, 158, 11, 0.15); }
+          50% { border-color: rgba(245, 158, 11, 0.95); box-shadow: 0 0 15px rgba(245, 158, 11, 0.45); background: rgba(245, 158, 11, 0.08); }
+          100% { border-color: rgba(245, 158, 11, 0.4); box-shadow: 0 0 5px rgba(245, 158, 11, 0.15); }
+        }
         @keyframes ringBell {
           0% { transform: rotate(0); }
           15% { transform: rotate(15deg); }
@@ -6279,23 +6289,26 @@ export default function MesasPanel({ showToast }) {
               color: infoCuentasSolicitadas.total > 0 ? (infoCuentasSolicitadas.tieneDirectas ? '#f59e0b' : '#ef4444') : 'var(--bronze-light)',
               borderColor: infoCuentasSolicitadas.total > 0 ? (infoCuentasSolicitadas.tieneDirectas ? 'rgba(245, 158, 11, 0.5)' : 'rgba(239, 68, 68, 0.5)') : 'var(--border-bronze)',
               boxShadow: infoCuentasSolicitadas.total > 0 ? (infoCuentasSolicitadas.tieneDirectas ? '0 0 10px rgba(245, 158, 11, 0.25)' : '0 0 8px rgba(239, 68, 68, 0.2)') : 'none',
+              animation: infoCuentasSolicitadas.total > 0 ? (infoCuentasSolicitadas.tieneDirectas ? 'pulseAlertSolicitadaDirecta 1.6s infinite ease-in-out' : 'pulseAlertSolicitada 1.6s infinite ease-in-out') : 'none',
               transition: 'all 0.2s ease',
               height: '100%'
             }}
-            title={infoCuentasSolicitadas.total > 0 ? `Tienes ${infoCuentasSolicitadas.total} cuentas pendientes (${totalNuevasCuentas} nuevas desde tu revisión)` : "Sin cobros pendientes"}
+            title={infoCuentasSolicitadas.total > 0 ? `Tienes ${infoCuentasSolicitadas.total} cuentas pendientes` : "Sin cobros pendientes"}
           >
-            <i className="ri-wallet-3-line" style={{ animation: totalNuevasCuentas > 0 ? 'pulse 1.2s infinite' : 'none' }} />
+            <i className="ri-wallet-3-line" style={{ animation: infoCuentasSolicitadas.total > 0 ? 'pulse 1.2s infinite' : 'none' }} />
             <span>Cuentas Solicitadas</span>
-            {totalNuevasCuentas > 0 && (
+            {infoCuentasSolicitadas.total > 0 && (
               <span className="badge" style={{
                 background: infoCuentasSolicitadas.tieneDirectas ? '#f59e0b' : '#ef4444',
                 color: '#fff',
                 marginLeft: 4,
                 padding: '2px 6px',
                 fontSize: 9,
-                borderRadius: '50%'
+                borderRadius: '50%',
+                fontWeight: 'bold',
+                boxShadow: '0 0 5px rgba(255,255,255,0.2)'
               }}>
-                {totalNuevasCuentas}
+                {infoCuentasSolicitadas.total}
               </span>
             )}
           </button>
