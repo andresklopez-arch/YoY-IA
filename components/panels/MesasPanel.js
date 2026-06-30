@@ -24,7 +24,11 @@ function areMesasEqual(arr1, arr2) {
         m1.socios !== m2.socios ||
         m1.clienteUid !== m2.clienteUid ||
         m1.preTicketImpreso !== m2.preTicketImpreso ||
-        m1.filaId !== m2.filaId) {
+        m1.filaId !== m2.filaId ||
+        m1.meseroId !== m2.meseroId ||
+        m1.meseroNombre !== m2.meseroNombre ||
+        JSON.stringify(m1.meseroIds || []) !== JSON.stringify(m2.meseroIds || []) ||
+        JSON.stringify(m1.meseroNombres || []) !== JSON.stringify(m2.meseroNombres || [])) {
       return false;
     }
   }

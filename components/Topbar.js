@@ -523,56 +523,60 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
     await handlePaseListaClick(emp);
 
     // 2. Registrar asignaciones de mesas
-    if (selectedMesaIds.length > 0) {
-      try {
-        const docRef = doc(db, 'config', 'mesas_estado');
-        const snap = await getDoc(docRef);
-        if (snap.exists()) {
-          const currentMesas = snap.data().mesas || [];
-          const updatedMesas = currentMesas.map(m => {
-            if (selectedMesaIds.includes(m.id)) {
-              let currentIds = m.meseroIds || [];
-              let currentNombres = m.meseroNombres || [];
-              
-              if (m.meseroId && !currentIds.includes(m.meseroId)) {
-                currentIds = [m.meseroId, ...currentIds];
-                currentNombres = [m.meseroNombre || 'Mesero', ...currentNombres];
-              }
-
-              if (!currentIds.includes(emp.id)) {
-                currentIds = [...currentIds, emp.id];
-                currentNombres = [...currentNombres, emp.nombre];
-              }
-
-              const firstId = currentIds[0] || null;
-              const firstNombre = currentNombres[0] || null;
-
-              return {
-                ...m,
-                meseroIds: currentIds,
-                meseroNombres: currentNombres,
-                meseroId: firstId,
-                meseroNombre: firstNombre
-              };
-            }
-            return m;
-          });
-
-          await setDoc(docRef, {
-            mesas: updatedMesas,
-            updatedAt: serverTimestamp()
-          }, { merge: true });
-
-          if (typeof window !== 'undefined') {
-            localStorage.setItem('yoy_billar_mesas', obfuscate(updatedMesas));
-          }
+    try {
+      const docRef = doc(db, 'config', 'mesas_estado');
+      const snap = await getDoc(docRef);
+      if (snap.exists()) {
+        const currentMesas = snap.data().mesas || [];
+        const updatedMesas = currentMesas.map(m => {
+          let currentIds = m.meseroIds || [];
+          let currentNombres = m.meseroNombres || [];
           
-          showToast(`Mesas asignadas a ${emp.nombre} exitosamente`, 'success');
+          if (m.meseroId && !currentIds.includes(m.meseroId)) {
+            currentIds = [m.meseroId, ...currentIds];
+            currentNombres = [m.meseroNombre || 'Mesero', ...currentNombres];
+          }
+
+          if (selectedMesaIds.includes(m.id)) {
+            if (!currentIds.includes(emp.id)) {
+              currentIds = [...currentIds, emp.id];
+              currentNombres = [...currentNombres, emp.nombre];
+            }
+          } else {
+            currentIds = currentIds.filter(id => id !== emp.id);
+            currentNombres = currentNombres.filter(nombre => nombre !== emp.nombre);
+          }
+
+          const firstId = currentIds[0] || null;
+          const firstNombre = currentNombres[0] || null;
+
+          return {
+            ...m,
+            meseroIds: currentIds,
+            meseroNombres: currentNombres,
+            meseroId: firstId,
+            meseroNombre: firstNombre
+          };
+        });
+
+        await setDoc(docRef, {
+          mesas: updatedMesas,
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('yoy_billar_mesas', obfuscate(updatedMesas));
         }
-      } catch (err) {
-        console.error("Error al asignar mesas en el pase de lista:", err);
-        showToast("Error al asignar las mesas.", "danger");
+        
+        if (selectedMesaIds.length > 0) {
+          showToast(`Mesas asignadas a ${emp.nombre} exitosamente`, 'success');
+        } else {
+          showToast(`Pase de lista de ${emp.nombre} sin mesas asignadas`, 'success');
+        }
       }
+    } catch (err) {
+      console.error("Error al asignar mesas en el pase de lista:", err);
+      showToast("Error al asignar las mesas.", "danger");
     }
     setAsignacionPaseEmpleado(null);
   };
@@ -1881,6 +1885,7 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: 10 }}>
                     {todasLasMesas.map(mesa => {
                       const isSelected = mesasAsignadasPase.includes(mesa.id);
+                      const otrosMeseros = (mesa.meseroNombres || []).filter(n => n && n !== asignacionPaseEmpleado?.nombre);
                       return (
                         <div 
                           key={mesa.id}
@@ -1909,9 +1914,14 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
                             onChange={() => {}} 
                             style={{ accentColor: 'var(--bronze-light)', cursor: 'pointer' }}
                           />
-                          <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', width: '100%' }}>
                             <span style={{ fontSize: 12, fontWeight: 700, color: isSelected ? 'var(--bronze-light)' : '#fff' }}>Mesa {mesa.id}</span>
                             <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>{mesa.tipo || 'Carambola'}</span>
+                            {otrosMeseros.length > 0 && (
+                              <span style={{ fontSize: 8, color: '#f59e0b', fontWeight: 700, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={`Atendida por: ${otrosMeseros.join(', ')}`}>
+                                👤 {otrosMeseros.join(', ')}
+                              </span>
+                            )}
                           </div>
                         </div>
                       );
