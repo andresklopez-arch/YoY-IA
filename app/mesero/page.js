@@ -1767,6 +1767,41 @@ function MeseroContent() {
 
                           <button
                             className="btn btn-sm"
+                            onClick={() => {
+                              setCapturaMesaId(c.mesaId ? `mesa_${c.mesaId}` : `cuenta_${c.id}`);
+                              setShowCapturarModal(true);
+                            }}
+                            style={{
+                              background: 'var(--bg-elevated)',
+                              border: '1px solid var(--border-bronze, rgba(205,127,50,0.5))',
+                              color: 'var(--bronze-light)',
+                              fontWeight: 700,
+                              fontSize: 10,
+                              padding: '4px 10px',
+                              borderRadius: 6,
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 3,
+                              cursor: 'pointer',
+                              whiteSpace: 'nowrap',
+                              height: 28,
+                              transition: 'all 0.2s'
+                            }}
+                            onMouseEnter={e => {
+                              e.currentTarget.style.background = 'rgba(205,127,50,0.1)';
+                              e.currentTarget.style.boxShadow = '0 0 8px rgba(205,127,50,0.2)';
+                            }}
+                            onMouseLeave={e => {
+                              e.currentTarget.style.background = 'var(--bg-elevated)';
+                              e.currentTarget.style.boxShadow = 'none';
+                            }}
+                          >
+                            <i className="ri-add-circle-line" style={{ fontSize: 12 }} />
+                            Agregar
+                          </button>
+
+                          <button
+                            className="btn btn-sm"
                             onClick={() => !cuentaSolicitada && loadingCuentaId !== c.id && pedirCuenta(c)}
                             disabled={cuentaSolicitada || loadingCuentaId === c.id}
                             style={{
@@ -1962,6 +1997,41 @@ function MeseroContent() {
                               {isExpanded ? 'Ocultar ▲' : 'Detalle ▼'}
                             </button>
                           </div>
+
+                          <button
+                            className="btn btn-sm"
+                            onClick={() => {
+                              setCapturaMesaId(c.mesaId ? `mesa_${c.mesaId}` : `cuenta_${c.id}`);
+                              setShowCapturarModal(true);
+                            }}
+                            style={{
+                              background: 'var(--bg-elevated)',
+                              border: '1px solid var(--border-bronze, rgba(205,127,50,0.5))',
+                              color: 'var(--bronze-light)',
+                              fontWeight: 700,
+                              fontSize: 10,
+                              padding: '4px 10px',
+                              borderRadius: 6,
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 3,
+                              cursor: 'pointer',
+                              whiteSpace: 'nowrap',
+                              height: 28,
+                              transition: 'all 0.2s'
+                            }}
+                            onMouseEnter={e => {
+                              e.currentTarget.style.background = 'rgba(205,127,50,0.1)';
+                              e.currentTarget.style.boxShadow = '0 0 8px rgba(205,127,50,0.2)';
+                            }}
+                            onMouseLeave={e => {
+                              e.currentTarget.style.background = 'var(--bg-elevated)';
+                              e.currentTarget.style.boxShadow = 'none';
+                            }}
+                          >
+                            <i className="ri-add-circle-line" style={{ fontSize: 12 }} />
+                            Agregar
+                          </button>
 
                           <button
                             className="btn btn-sm"
