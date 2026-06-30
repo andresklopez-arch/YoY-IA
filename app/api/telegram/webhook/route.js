@@ -69,6 +69,17 @@ export async function POST(request) {
     const text = message.text;
     const contact = message.contact;
 
+    // Detectar si el usuario escribió directamente su número de teléfono en vez de compartir su contacto
+    let cleanPhoneFromText = null;
+    if (text && !text.startsWith('/')) {
+      const digits = text.replace(/\D/g, '');
+      if (digits.length === 10) {
+        cleanPhoneFromText = '52' + digits; // prepended Mexico country code
+      } else if (digits.length >= 11 && digits.length <= 13) {
+        cleanPhoneFromText = digits;
+      }
+    }
+
     // Sugerencia 1: Rate Limiter en Firestore
     if (chatId) {
       try {
@@ -256,9 +267,9 @@ export async function POST(request) {
       return NextResponse.json({ ok: true });
     }
 
-    // 2. Manejar la recepción del contacto telefónico compartido
-    if (contact) {
-      const rawPhone = contact.phone_number;
+    // 2. Manejar la recepción del contacto telefónico compartido o escrito
+    if (contact || cleanPhoneFromText) {
+      const rawPhone = contact ? contact.phone_number : cleanPhoneFromText;
       // Limpiar el teléfono para dejar solo dígitos (ej. +52 1 55... -> 52155...)
       const cleanPhone = rawPhone.replace(/\D/g, '');
 
@@ -267,7 +278,7 @@ export async function POST(request) {
       await setDoc(vinculacionRef, {
         chatId: chatId.toString(),
         phoneObfuscated: obfuscatePhone(cleanPhone),
-        nombre: contact.first_name || '',
+        nombre: contact ? (contact.first_name || '') : (message.from.first_name || 'Gerente'),
         updatedAt: new Date().toISOString()
       }, { merge: true });
 
