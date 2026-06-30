@@ -111,6 +111,88 @@ export async function POST(request) {
           })
         });
       }
+      else if (data && data.startsWith('pedir_insumo_')) {
+        const insumoNombre = data.substring(13);
+
+        // 1. Registrar en la bitácora
+        await addDoc(collection(db, 'bitacora'), {
+          salonId: 'central',
+          fecha: new Date().toISOString(),
+          accion: 'Reabastecimiento Solicitado',
+          detalle: `Se solicitó orden de compra tentativa para el insumo "${insumoNombre}" desde Telegram por Gerente.`,
+          monto: 0,
+          operador: 'Gerente Telegram',
+          rolOperador: 'gerente'
+        });
+
+        // 2. Quitar estado de carga en Telegram
+        await fetch(`https://api.telegram.org/bot${botToken}/answerCallbackQuery`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            callback_query_id: callbackQuery.id,
+            text: `🛒 Pedido solicitado para ${insumoNombre}.`
+          })
+        });
+
+        // 3. Editar el mensaje original
+        const newText = (callbackQuery.message.text || '') + `\n\n🛒 *Pedido de reabastecimiento solicitado para ${insumoNombre}*`;
+        await fetch(`https://api.telegram.org/bot${botToken}/editMessageText`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: callbackChatId,
+            message_id: callbackMessageId,
+            text: newText,
+            parse_mode: 'Markdown'
+          })
+        });
+      }
+      else if (data && data.startsWith('reportar_incidencia_')) {
+        const empleadoId = data.substring(20);
+        let empleadoNombre = 'Empleado';
+        try {
+          const empRef = doc(db, 'nomina_empleados', empleadoId);
+          const empSnap = await getDoc(empRef);
+          if (empSnap.exists()) {
+            empleadoNombre = `${empSnap.data().nombre} ${empSnap.data().apellido || ''}`.trim();
+          }
+        } catch (e) {}
+
+        // 1. Registrar en la bitácora
+        await addDoc(collection(db, 'bitacora'), {
+          salonId: 'central',
+          fecha: new Date().toISOString(),
+          accion: 'Incidencia Registrada',
+          detalle: `Se registró reporte de amonestación por fichaje inusual (dispositivo no habitual) para el empleado "${empleadoNombre}" (ID: ${empleadoId}) desde Telegram.`,
+          monto: 0,
+          operador: 'Gerente Telegram',
+          rolOperador: 'gerente'
+        });
+
+        // 2. Quitar estado de carga en Telegram
+        await fetch(`https://api.telegram.org/bot${botToken}/answerCallbackQuery`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            callback_query_id: callbackQuery.id,
+            text: `⚠️ Incidencia registrada para ${empleadoNombre}.`
+          })
+        });
+
+        // 3. Editar el mensaje original
+        const newText = (callbackQuery.message.text || '') + `\n\n⚠️ *Reporte de incidencia registrado en el sistema*`;
+        await fetch(`https://api.telegram.org/bot${botToken}/editMessageText`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: callbackChatId,
+            message_id: callbackMessageId,
+            text: newText,
+            parse_mode: 'Markdown'
+          })
+        });
+      }
       return NextResponse.json({ ok: true });
     }
 

@@ -168,6 +168,12 @@ export async function POST(request) {
                                 `🔄 *Celular Habitual:* \`${mostFrequentPhone}\`\n` +
                                 `📅 *Fecha/Hora:* ${new Date().toLocaleString('es-MX', { timeZone: 'America/Mexico_City' })}`;
             
+            const replyMarkup = {
+              inline_keyboard: [
+                [{ text: '⚠️ Registrar Incidencia', callback_data: `reportar_incidencia_${emp.id}` }]
+              ]
+            };
+
             const officialBotToken = process.env.TELEGRAM_OFFICIAL_BOT_TOKEN;
             if (isSimplified) {
               if (officialBotToken) {
@@ -184,7 +190,8 @@ export async function POST(request) {
                       body: JSON.stringify({
                         chat_id: resolvedChatId,
                         text: messageText,
-                        parse_mode: 'Markdown'
+                        parse_mode: 'Markdown',
+                        reply_markup: replyMarkup
                       })
                     }).catch(err => console.error("Telegram official sendMessage failed:", err));
                   }
@@ -197,7 +204,8 @@ export async function POST(request) {
                   body: JSON.stringify({
                     mode: 'central-resolve',
                     phone: tgData.phone,
-                    text: messageText
+                    text: messageText,
+                    reply_markup: replyMarkup
                   })
                 }).catch(err => console.error("Telegram send-alert fetch failed:", err));
               }
@@ -209,7 +217,8 @@ export async function POST(request) {
                 body: JSON.stringify({
                   chat_id: tgData.chatId,
                   text: messageText,
-                  parse_mode: 'Markdown'
+                  parse_mode: 'Markdown',
+                  reply_markup: replyMarkup
                 })
               }).catch(err => console.error("Telegram custom sendMessage failed:", err));
             }
