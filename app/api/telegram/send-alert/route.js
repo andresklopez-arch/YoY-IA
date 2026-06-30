@@ -2,6 +2,15 @@ import { NextResponse } from 'next/server';
 import { db } from '@/lib/firebase';
 import { doc, getDoc, addDoc, collection, serverTimestamp } from 'firebase/firestore';
 
+function obfuscatePhone(phone) {
+  if (!phone) return null;
+  const clean = phone.replace(/\D/g, '');
+  if (clean.length <= 4) return `+${clean}`;
+  const start = clean.slice(0, 2);
+  const end = clean.slice(-4);
+  return `+${start}******${end}`;
+}
+
 // Helper para encolar alertas fallidas en la colección telegram_alert_pending
 async function enqueueFailedAlert(body, errorMsg, resolvedChatId, resolvedToken) {
   try {
@@ -121,7 +130,7 @@ export async function POST(request) {
         if (resCentral.ok) {
           try {
             await addDoc(collection(db, 'telegram_alert_logs'), {
-              phone: phone || null,
+              phone: obfuscatePhone(phone),
               chatId: targetChatId || null,
               text: text,
               mode: mode || 'simplified',
@@ -135,7 +144,7 @@ export async function POST(request) {
         } else {
           try {
             await addDoc(collection(db, 'telegram_alert_logs'), {
-              phone: phone || null,
+              phone: obfuscatePhone(phone),
               chatId: targetChatId || null,
               text: text,
               mode: mode || 'simplified',
@@ -155,7 +164,7 @@ export async function POST(request) {
         console.error('Error al contactar al servidor central de SaaS:', errCentral);
         try {
           await addDoc(collection(db, 'telegram_alert_logs'), {
-            phone: phone || null,
+            phone: obfuscatePhone(phone),
             chatId: targetChatId || null,
             text: text,
             mode: mode || 'simplified',
@@ -197,7 +206,7 @@ export async function POST(request) {
     if (res.ok) {
       try {
         await addDoc(collection(db, 'telegram_alert_logs'), {
-          phone: phone || null,
+          phone: obfuscatePhone(phone),
           chatId: targetChatId || null,
           text: text,
           mode: mode || 'custom',
@@ -212,7 +221,7 @@ export async function POST(request) {
       const errorData = await res.json();
       try {
         await addDoc(collection(db, 'telegram_alert_logs'), {
-          phone: phone || null,
+          phone: obfuscatePhone(phone),
           chatId: targetChatId || null,
           text: text,
           mode: mode || 'custom',
@@ -232,7 +241,7 @@ export async function POST(request) {
     console.error('Error en API send-alert:', err);
     try {
       await addDoc(collection(db, 'telegram_alert_logs'), {
-        phone: body.phone || null,
+        phone: obfuscatePhone(body.phone),
         chatId: targetChatId || body.chatId || null,
         text: body.text || '',
         mode: body.mode || 'unknown',

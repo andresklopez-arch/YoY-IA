@@ -2,13 +2,22 @@ import { NextResponse } from 'next/server';
 import { db } from '@/lib/firebase';
 import { collection, query, where, getDocs, doc, deleteDoc, updateDoc, addDoc, serverTimestamp } from 'firebase/firestore';
 
+function obfuscatePhone(phone) {
+  if (!phone) return null;
+  const clean = phone.replace(/\D/g, '');
+  if (clean.length <= 4) return `+${clean}`;
+  const start = clean.slice(0, 2);
+  const end = clean.slice(-4);
+  return `+${start}******${end}`;
+}
+
 // Función para enviar notificaciones de respaldo (SMS / Email) en fallas definitivas (Sugerencia 3)
 async function sendBackupNotification(data, errorMsg) {
   try {
     // 1. Guardar siempre en la colección de emergencia para auditoría
     await addDoc(collection(db, 'alertas_emergencia'), {
       originalAlert: {
-        phone: data.phone || null,
+        phone: obfuscatePhone(data.phone),
         chatId: data.chatId || null,
         text: data.text,
         mode: data.mode || 'unknown'
@@ -115,7 +124,7 @@ export async function GET(request) {
         // Borrar de pendientes e insertar en logs
         await deleteDoc(doc(db, 'telegram_alert_pending', alertId));
         await addDoc(collection(db, 'telegram_alert_logs'), {
-          phone: data.phone || null,
+          phone: obfuscatePhone(data.phone),
           chatId: data.chatId || null,
           text: data.text,
           mode: data.mode || 'custom',
@@ -130,7 +139,7 @@ export async function GET(request) {
           // Descartar de pendientes tras 5 intentos fallidos
           await deleteDoc(doc(db, 'telegram_alert_pending', alertId));
           await addDoc(collection(db, 'telegram_alert_logs'), {
-            phone: data.phone || null,
+            phone: obfuscatePhone(data.phone),
             chatId: data.chatId || null,
             text: data.text,
             mode: data.mode || 'custom',
