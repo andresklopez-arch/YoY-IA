@@ -5330,6 +5330,21 @@ export default function MesasPanel({ showToast }) {
     w.document.close();
   };
 
+  const enviarReporteCierre = async () => {
+    try {
+      showToast('Enviando reporte de cierre a Telegram...', 'info');
+      const res = await fetch('/api/telegram/cron-report?force=true');
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showToast('Reporte de cierre enviado a Telegram con éxito ✓', 'success');
+      } else {
+        showToast(`Fallo al enviar reporte: ${data.error || 'Error desconocido'}`, 'danger');
+      }
+    } catch (err) {
+      showToast(`Error al conectar con el servidor: ${err.message}`, 'danger');
+    }
+  };
+
   const registrarPreTicketMesa = (mesaId) => {
     setMesas(prev => prev.map(m => m.id === mesaId ? { ...m, preTicketImpreso: true, preTicketImpresoAt: Date.now() } : m));
     showToast(`Pre-ticket registrado para Mesa ${mesaId} ✓`, 'success');
@@ -6949,6 +6964,34 @@ export default function MesasPanel({ showToast }) {
           style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--bronze-light)', borderColor: 'var(--border-bronze)' }}
         >
           <i className="ri-qr-code-line" /> Imprimir todos los QRs
+        </button>
+
+        <button
+          onClick={enviarReporteCierre}
+          className="btn btn-sm"
+          style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: 6, 
+            color: '#39ff14', 
+            backgroundColor: 'rgba(57, 255, 20, 0.05)',
+            border: '1px solid #39ff14', 
+            boxShadow: '0 0 8px rgba(57, 255, 20, 0.2)',
+            textShadow: '0 0 2px rgba(57, 255, 20, 0.2)',
+            fontWeight: '600',
+            cursor: 'pointer',
+            transition: 'all 0.2s ease-in-out'
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = 'rgba(57, 255, 20, 0.15)';
+            e.currentTarget.style.boxShadow = '0 0 12px rgba(57, 255, 20, 0.4)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = 'rgba(57, 255, 20, 0.05)';
+            e.currentTarget.style.boxShadow = '0 0 8px rgba(57, 255, 20, 0.2)';
+          }}
+        >
+          <i className="ri-telegram-line" style={{ fontSize: '15px' }} /> Reporte de Cierre
         </button>
       </div>
 
