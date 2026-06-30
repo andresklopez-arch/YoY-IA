@@ -1,0 +1,306 @@
+import { NextResponse } from 'next/server';
+import { db } from '@/lib/firebase';
+import { doc, getDoc, setDoc, getDocs, collection, query, where, orderBy, limit } from 'firebase/firestore';
+
+function hashPhone(phone) {
+  if (!phone) return '';
+  const clean = phone.replace(/\D/g, '');
+  let hash = 0;
+  for (let i = 0; i < clean.length; i++) {
+    const char = clean.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+  return Math.abs(hash).toString(16);
+}
+
+function obfuscatePhone(phone) {
+  if (!phone) return null;
+  const clean = phone.replace(/\D/g, '');
+  if (clean.length <= 4) return `+${clean}`;
+  const start = clean.slice(0, 2);
+  const end = clean.slice(-4);
+  return `+${start}******${end}`;
+}
+
+export async function GET(request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const force = searchParams.get('force') === 'true';
+
+    // 1. Cargar la configuración de Telegram
+    const tgSnap = await getDoc(doc(db, 'config', 'telegram'));
+    if (!tgSnap.exists()) {
+      return NextResponse.json({ success: false, error: 'Configuración de Telegram no encontrada' }, { status: 404 });
+    }
+    const tgConfig = tgSnap.data();
+    if (!tgConfig.enabled) {
+      return NextResponse.json({ success: false, error: 'Las alertas de Telegram están desactivadas globalmente' });
+    }
+
+    // Si no está activado el reporte periódico y no es un envío forzado, omitir
+    if (!tgConfig.notifyPeriodicReport && !force) {
+      return NextResponse.json({ success: false, error: 'Reporte periódico de Telegram desactivado en la configuración' });
+    }
+
+    const stateRef = doc(db, 'config', 'telegram_report_state');
+    const stateSnap = await getDoc(stateRef);
+    const now = Date.now();
+
+    if (!force) {
+      if (stateSnap.exists()) {
+        const lastSentAt = stateSnap.data().lastSentAt || 0;
+        const diffMs = now - lastSentAt;
+        const targetInterval = 1.5 * 60 * 60 * 1000; // 1.5 horas en milisegundos
+        
+        if (diffMs < targetInterval) {
+          const remainingMins = Math.round((targetInterval - diffMs) / 60000);
+          return NextResponse.json({ 
+            success: true, 
+            skipped: true, 
+            reason: `Faltan ${remainingMins} minutos para el siguiente reporte periódico.` 
+          });
+        }
+      }
+    }
+
+    // 2. Recopilar datos en tiempo real para las 10 métricas operativas
+    const mxDateStr = new Date().toLocaleString('sv-SE', { timeZone: 'America/Mexico_City' }).split(' ')[0];
+
+    // Métrica 1: Ocupación Actual
+    let activeMesas = 0;
+    let totalMesas = 0;
+    let mesasEstado = [];
+    const mesasSnap = await getDoc(doc(db, 'config', 'mesas_estado'));
+    if (mesasSnap.exists()) {
+      mesasEstado = mesasSnap.data().mesas || [];
+      totalMesas = mesasEstado.length;
+      activeMesas = mesasEstado.filter(m => m.estado === 'ocupada').length;
+    }
+    const ocupacionPct = totalMesas > 0 ? Math.round((activeMesas / totalMesas) * 100) : 0;
+
+    // Métrica 2: Monto Vendido Hoy (Bitácora de cobros)
+    const qBitacora = query(
+      collection(db, 'bitacora'),
+      where('fecha', '>=', mxDateStr + 'T00:00:00'),
+      where('fecha', '<=', mxDateStr + 'T23:59:59.999Z')
+    );
+    const snapBitacora = await getDocs(qBitacora);
+    let montoVendido = 0;
+    snapBitacora.forEach(d => {
+      const e = d.data();
+      const acc = e.accion;
+      if (acc === 'Cierre Directo' || acc === 'Mesa a Cuenta' || acc === 'Cobro Manual' || acc === 'Venta Barra' || acc === 'Cobro Barra' || acc === 'Clientes - Suscripción' || acc === 'Torneos - Registro') {
+        if (e.monto && Number(e.monto) > 0) {
+          montoVendido += Number(e.monto);
+        }
+      }
+    });
+
+    // Métrica 3: Meta de Ingresos Diaria
+    let metaMensual = 100000;
+    const sucursalSnap = await getDoc(doc(db, 'config', 'sucursal'));
+    if (sucursalSnap.exists()) {
+      metaMensual = Number(sucursalSnap.data().metaMensual) || 100000;
+    }
+    const metaDiaria = metaMensual / 30;
+    const avanceMetaPct = metaDiaria > 0 ? Math.round((montoVendido / metaDiaria) * 100) : 0;
+
+    // Métrica 4: Trabajadores en Turno
+    const qAsist = query(
+      collection(db, 'nomina_asistencia_log'),
+      where('fecha', '==', mxDateStr)
+    );
+    const snapAsist = await getDocs(qAsist);
+    const lastStatusByWorker = {};
+    snapAsist.forEach(d => {
+      const data = d.data();
+      const empId = data.empleadoId;
+      const time = data.createdAt?.toDate ? data.createdAt.toDate().getTime() : 0;
+      if (!lastStatusByWorker[empId] || time > lastStatusByWorker[empId].time) {
+        lastStatusByWorker[empId] = { tipo: data.tipo, name: data.nombre, time };
+      }
+    });
+    const presentWorkers = Object.values(lastStatusByWorker).filter(w => w.tipo === 'entrada');
+    const presentWorkersCount = presentWorkers.length;
+    const presentWorkersNames = presentWorkers.map(w => w.name).join(', ') || 'Ninguno';
+
+    // Métrica 5: Clientes en Fila de Espera
+    const qFila = query(collection(db, 'fila_espera'), where('estado', '==', 'espera'));
+    const snapFila = await getDocs(qFila);
+    const clientesEsperaCount = snapFila.size;
+
+    // Métrica 6: Mesa con Mayor Consumo Actual (Renta acumulada + consumos)
+    let mesaMayorConsumoNombre = 'Ninguna';
+    let mesaMayorConsumoTotal = 0;
+    const cuentasSnap = await getDoc(doc(db, 'config', 'cuentas_estado'));
+    if (cuentasSnap.exists()) {
+      const listCuentas = cuentasSnap.data().cuentas || [];
+      listCuentas.forEach(c => {
+        const mesa = mesasEstado.find(m => m.id === c.mesaId);
+        if (mesa && mesa.estado === 'ocupada') {
+          let totalRenta = 0;
+          if (mesa.inicio) {
+            const horas = (Date.now() - mesa.inicio) / 3600000;
+            totalRenta = horas * (mesa.tarifa || 60);
+          }
+          const totalConsumos = (c.consumos || []).reduce((sum, item) => sum + (item.precio * item.cantidad), 0);
+          const totalMesa = totalRenta + totalConsumos;
+          if (totalMesa > mesaMayorConsumoTotal) {
+            mesaMayorConsumoTotal = totalMesa;
+            mesaMayorConsumoNombre = mesa.nombre || `Mesa ${mesa.id}`;
+          }
+        }
+      });
+    }
+
+    // Métrica 7: Gastos del Día
+    const qGastos = query(
+      collection(db, 'gastos'),
+      where('fecha', '>=', mxDateStr + 'T00:00:00'),
+      where('fecha', '<=', mxDateStr + 'T23:59:59.999Z')
+    );
+    const snapGastos = await getDocs(qGastos);
+    let totalGastos = 0;
+    snapGastos.forEach(d => {
+      const data = d.data();
+      if (data.monto) {
+        totalGastos += Number(data.monto);
+      }
+    });
+
+    // Métrica 8: Comandas Cocina Pendientes
+    const qComandas = query(
+      collection(db, 'mesa_pedidos'),
+      where('tipo', '==', 'pedido'),
+      where('estado', '==', 'pendiente')
+    );
+    const snapComandas = await getDocs(qComandas);
+    const comandasPendientesCount = snapComandas.size;
+
+    // Métrica 9: Alertas y Desviaciones
+    const desviaciones = [];
+    const mesasSinAtender = [];
+    if (cuentasSnap.exists()) {
+      const listCuentas = cuentasSnap.data().cuentas || [];
+      mesasEstado.forEach(m => {
+        if (m.estado !== 'ocupada' || !m.inicio) return;
+        const elapsedMin = (Date.now() - m.inicio) / 60000;
+        if (elapsedMin < 15) return;
+        const cuenta = listCuentas.find(c => c.mesaId === m.id);
+        let needsAlert = false;
+        if (!cuenta || !cuenta.consumos || cuenta.consumos.length === 0) {
+          needsAlert = true;
+        } else {
+          const lastTime = cuenta.consumos.reduce((max, item) => Math.max(max, item.timestamp || 0), m.inicio);
+          if ((Date.now() - lastTime) / 60000 > 15) {
+            needsAlert = true;
+          }
+        }
+        if (needsAlert) {
+          mesasSinAtender.push(m.nombre || `Mesa ${m.id}`);
+        }
+      });
+    }
+    const mesasExcesivas = mesasEstado.filter(m => {
+      if (m.estado !== 'ocupada' || !m.inicio) return false;
+      const elapsedHrs = (Date.now() - m.inicio) / 3600000;
+      return elapsedHrs > 4 && !m.preTicketImpreso;
+    }).map(m => m.nombre || `Mesa ${m.id}`);
+
+    let demoradasCount = 0;
+    snapComandas.forEach(d => {
+      const s = d.data();
+      if (s.createdAt) {
+        const elapsedMin = (Date.now() - s.createdAt) / 60000;
+        if (elapsedMin > 20) {
+          demoradasCount++;
+        }
+      }
+    });
+
+    if (mesasSinAtender.length > 0) {
+      desviaciones.push(`⚠️ Mesas sin atención (>15m): ${mesasSinAtender.join(', ')}`);
+    }
+    if (mesasExcesivas.length > 0) {
+      desviaciones.push(`⚠️ Tiempo excesivo juego (>4h): ${mesasExcesivas.join(', ')}`);
+    }
+    if (demoradasCount > 0) {
+      desviaciones.push(`⚠️ Pedidos demorados cocina (>20m): ${demoradasCount}`);
+    }
+    if (presentWorkersCount === 0 && activeMesas > 0) {
+      desviaciones.push(`⚠️ Alerta: Billar operando sin personal fichado hoy.`);
+    }
+    const desviacionesStr = desviaciones.length > 0 ? desviaciones.join('\n') : 'Ninguna desviación detectada. Operación estable.';
+
+    // Métrica 10: Último Corte de Caja
+    const qCortes = query(
+      collection(db, 'cortes_caja'),
+      orderBy('fecha', 'desc'),
+      limit(1)
+    );
+    const snapCortes = await getDocs(qCortes);
+    let corteCajaStatus = 'Sin cortes de caja recientes';
+    if (!snapCortes.empty) {
+      const c = snapCortes.docs[0].data();
+      const diff = Number(c.diferencia || 0);
+      corteCajaStatus = diff === 0 ? 'Caja cuadrada ✓' : `Descuadre de $${diff.toFixed(2)} MXN`;
+    }
+
+    // 3. Ensamblar y enviar el reporte por Telegram
+    const branchName = sucursalSnap.exists() ? (sucursalSnap.data().nombre || 'YoY Billar') : 'YoY Billar';
+    const reportText = `📊 *REPORTE DE OPERACIÓN - ${branchName.toUpperCase()}* 📊\n` +
+      `🕒 *Hora:* ${new Date().toLocaleString('es-MX', { timeZone: 'America/Mexico_City', hour12: true })}\n\n` +
+      `1️⃣ *Ocupación Actual:* ${ocupacionPct}% (${activeMesas}/${totalMesas} mesas ocupadas)\n` +
+      `2️⃣ *Monto Vendido Hoy:* $${montoVendido.toLocaleString('es-MX')} MXN\n` +
+      `3️⃣ *Avance de Meta:* Meta mensual: $${metaMensual.toLocaleString('es-MX')} MXN (Meta diaria: $${Math.round(metaDiaria).toLocaleString('es-MX')} MXN). Avance hoy: *${avanceMetaPct}%*\n` +
+      `4️⃣ *Trabajadores en Turno:* ${presentWorkersCount} activo(s) (${presentWorkersNames})\n` +
+      `5️⃣ *Clientes en Espera:* ${clientesEsperaCount} en fila\n` +
+      `6️⃣ *Mayor Renta Activa:* ${mesaMayorConsumoNombre} ($${Math.round(mesaMayorConsumoTotal).toLocaleString('es-MX')} MXN)\n` +
+      `7️⃣ *Gastos de Hoy:* $${totalGastos.toLocaleString('es-MX')} MXN\n` +
+      `8️⃣ *Pedidos Cocina:* ${comandasPendientesCount} comandas pendientes\n` +
+      `9️⃣ *Corte de Caja:* ${corteCajaStatus}\n` +
+      `🔟 *Desviaciones Operativas:*\n${desviacionesStr}`;
+
+    // Resolver chatId si no está disponible directamente
+    let targetChatId = tgConfig.mode === 'custom' ? tgConfig.chatId : null;
+    const botToken = tgConfig.mode === 'custom' ? tgConfig.botToken : (process.env.TELEGRAM_OFFICIAL_BOT_TOKEN || '7438459438:AAElh_L0K0kHDF9sd832jklsd-Central');
+
+    if (!targetChatId && tgConfig.phone) {
+      const cleanPhone = tgConfig.phone.replace(/\D/g, '');
+      const vincRef = doc(db, 'telegram_vinculaciones', hashPhone(cleanPhone));
+      const vincSnap = await getDoc(vincRef);
+      if (vincSnap.exists()) {
+        targetChatId = vincSnap.data().chatId;
+      }
+    }
+
+    if (!targetChatId) {
+      return NextResponse.json({ success: false, error: 'No se pudo resolver el Chat ID de Telegram' }, { status: 400 });
+    }
+
+    const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: targetChatId,
+        text: reportText,
+        parse_mode: 'Markdown'
+      })
+    });
+
+    if (res.ok) {
+      // Guardar el estado del reporte enviado
+      await setDoc(stateRef, { lastSentAt: now }, { merge: true });
+      return NextResponse.json({ success: true, text: reportText });
+    } else {
+      const errData = await res.json();
+      return NextResponse.json({ success: false, error: errData.description || 'Error al enviar a Telegram' }, { status: 500 });
+    }
+
+  } catch (err) {
+    console.error("Error en API cron-report:", err);
+    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+  }
+}

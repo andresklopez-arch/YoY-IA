@@ -302,6 +302,7 @@ export default function ConfigPanel({ showToast }) {
     notifyPrevShiftSummary: true,
     notifyAttendance: true,
     notifyDisruptiveAlerts: true,
+    notifyPeriodicReport: true,
     discrepancyThreshold: 100
   });
   const [savingTelegram, setSavingTelegram] = useState(false);
@@ -545,6 +546,7 @@ export default function ConfigPanel({ showToast }) {
           notifyPrevShiftSummary: d.notifyPrevShiftSummary !== undefined ? d.notifyPrevShiftSummary : true,
           notifyAttendance: d.notifyAttendance !== undefined ? d.notifyAttendance : true,
           notifyDisruptiveAlerts: d.notifyDisruptiveAlerts !== undefined ? d.notifyDisruptiveAlerts : true,
+          notifyPeriodicReport: d.notifyPeriodicReport !== undefined ? d.notifyPeriodicReport : true,
           discrepancyThreshold: d.discrepancyThreshold !== undefined ? Number(d.discrepancyThreshold) : 100,
         });
       }
@@ -1151,6 +1153,20 @@ export default function ConfigPanel({ showToast }) {
     } catch (err) {
       console.error("Error al enviar mensaje de prueba:", err);
       showToast('Error al enviar prueba: ' + err.message, 'danger');
+    }
+  };
+
+  const handleSendPeriodicReportNow = async () => {
+    try {
+      const res = await fetch('/api/telegram/cron-report?force=true');
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showToast('Reporte de operación enviado a Telegram con éxito ✓', 'success');
+      } else {
+        showToast(`Fallo al enviar reporte: ${data.error || 'Error desconocido'}`, 'danger');
+      }
+    } catch (err) {
+      showToast(`Error al conectar con el servidor: ${err.message}`, 'danger');
     }
   };
 
@@ -2463,6 +2479,24 @@ export default function ConfigPanel({ showToast }) {
                   </div>
                 </div>
 
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 700 }}>Reporte de Operación Periódico</div>
+                    <div style={{ fontSize: 9.5, color: 'var(--text-muted)' }}>Monto de ventas, meta, ocupación y asistencia cada 1.5 horas</div>
+                  </div>
+                  <div
+                    onClick={() => setTelegramConfig(p => ({ ...p, notifyPeriodicReport: !p.notifyPeriodicReport }))}
+                    style={{
+                      width: 38, height: 20, borderRadius: 10, cursor: 'pointer', transition: 'all 0.2s',
+                      background: telegramConfig.notifyPeriodicReport ? 'var(--bronze)' : 'var(--bg-elevated)',
+                      border: `1px solid ${telegramConfig.notifyPeriodicReport ? 'var(--bronze)' : 'var(--border)'}`,
+                      position: 'relative',
+                    }}
+                  >
+                    <div style={{ width: 14, height: 14, borderRadius: '50%', background: '#fff', position: 'absolute', top: 2, left: telegramConfig.notifyPeriodicReport ? 22 : 2, transition: 'left 0.2s' }} />
+                  </div>
+                </div>
+
                 {telegramConfig.notifyDisruptiveAlerts && (
                   <div className="form-group" style={{ gap: 4, marginTop: 4 }}>
                     <label className="form-label" style={{ fontSize: 10 }}>Umbral de Alerta de Descuadre ($)</label>
@@ -2478,21 +2512,31 @@ export default function ConfigPanel({ showToast }) {
                 )}
               </div>
 
-              <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-                <button 
-                  type="button" 
-                  className="btn btn-secondary" 
-                  onClick={handleTestTelegram} 
-                  style={{ flex: 1, height: 32, fontSize: 11, padding: '4px 8px' }}
-                >
-                  <i className="ri-send-plane-line" /> Probar
-                </button>
+              <div style={{ display: 'flex', gap: 8, marginTop: 12, flexDirection: 'column' }}>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button 
+                    type="button" 
+                    className="btn btn-secondary" 
+                    onClick={handleTestTelegram} 
+                    style={{ flex: 1, height: 32, fontSize: 11, padding: '4px 8px' }}
+                  >
+                    <i className="ri-send-plane-line" /> Probar
+                  </button>
+                  <button 
+                    type="button" 
+                    className="btn btn-secondary" 
+                    onClick={handleSendPeriodicReportNow} 
+                    style={{ flex: 1.5, height: 32, fontSize: 11, padding: '4px 8px' }}
+                  >
+                    <i className="ri-file-list-3-line" /> Enviar Reporte Ahora
+                  </button>
+                </div>
                 <button 
                   type="button" 
                   className="btn btn-primary" 
                   onClick={handleSaveTelegram} 
                   disabled={savingTelegram} 
-                  style={{ flex: 2, height: 32, fontSize: 11, padding: '4px 8px' }}
+                  style={{ width: '100%', height: 32, fontSize: 11, padding: '4px 8px' }}
                 >
                   <i className="ri-save-line" /> {savingTelegram ? 'Guardando...' : 'Guardar Telegram'}
                 </button>

@@ -868,9 +868,21 @@ function AppContent() {
         let tgConfig = null;
         for (const alert of activeAlertsList) {
           const alertId = alert.id;
-          
-          // Verificar si esta alerta tiene habilitado el envío por Telegram
-          if (!iaAlerts.telegramAlerts || !iaAlerts.telegramAlerts[alertId]) {
+
+          // Cargar configuración de Telegram
+          if (!tgConfig) {
+            const snap = await getDoc(doc(db, 'config', 'telegram'));
+            if (snap.exists()) {
+              tgConfig = snap.data();
+            }
+          }
+
+          // Verificar si esta alerta tiene habilitado el envío por Telegram (individual o por desviaciones críticas globales)
+          const isCriticalDeviation = ['clienteNoAtendido', 'sinPersonalActivo', 'descuadreCaja', 'tiempoExcesivo', 'insumoCritico', 'comandaDemorada', 'excesoCortesias', 'altoConsumo'].includes(alertId);
+          const hasIndividualAlertEnabled = iaAlerts.telegramAlerts && iaAlerts.telegramAlerts[alertId];
+          const hasGlobalDisruptiveEnabled = tgConfig && tgConfig.enabled && tgConfig.notifyDisruptiveAlerts;
+
+          if (!hasIndividualAlertEnabled && !(isCriticalDeviation && hasGlobalDisruptiveEnabled)) {
             continue;
           }
 
@@ -879,14 +891,6 @@ function AppContent() {
           const lastSentTime = lastSentTelegramAlerts.current[alertId] || 0;
           if (ahora - lastSentTime < 3600000) {
             continue;
-          }
-
-          // Cargar configuración de Telegram
-          if (!tgConfig) {
-            const snap = await getDoc(doc(db, 'config', 'telegram'));
-            if (snap.exists()) {
-              tgConfig = snap.data();
-            }
           }
 
           if (tgConfig && tgConfig.enabled) {
@@ -929,6 +933,21 @@ function AppContent() {
 
     sendTelegramAlerts();
   }, [activeAlertsList, iaAlerts.telegramAlerts, user]);
+
+  // Disparador automático del reporte operativo cada 5 minutos (corre en segundo plano)
+  useEffect(() => {
+    if (!user) return;
+
+    // Ejecutar una vez al inicio
+    fetch('/api/telegram/cron-report').catch(() => {});
+
+    // Luego cada 5 minutos
+    const interval = setInterval(() => {
+      fetch('/api/telegram/cron-report').catch(() => {});
+    }, 5 * 60 * 1000);
+
+    return () => clearInterval(interval);
+  }, [user]);
 
   // Motor de Aprendizaje IA Diario
   const ejecutarAprendizajeIA = async () => {
