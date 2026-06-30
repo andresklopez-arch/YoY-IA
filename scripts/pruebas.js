@@ -3,7 +3,7 @@ const path = require('path');
 const dns = require('dns');
 const { execSync } = require('child_process');
 const { initializeApp } = require('firebase/app');
-const { getFirestore, collection, getDocs, query, orderBy, limit, doc, getDoc } = require('firebase/firestore');
+const { getFirestore, collection, getDocs, query, orderBy, limit, doc, getDoc, where } = require('firebase/firestore');
 const { getAuth, signInWithEmailAndPassword } = require('firebase/auth');
 
 // Helper para logs
@@ -189,6 +189,25 @@ async function runTests() {
       logPass(`Prueba 8: Integridad de Datos de Operación (${data.mesas.length} mesas activas consistentes)`);
     } catch (e) {
       logFail("Prueba 8: Integridad y Consistencia de Datos de Operación", e.message);
+      failedTests++;
+    }
+
+    // --- PRUEBA 9: Validación de Flujo de Cobro y Tiempos de Auditoría ---
+    try {
+      const pendingAccountsQuery = query(collection(db, 'mesa_pedidos'), where('tipo', '==', 'cuenta'), limit(5));
+      const snap = await getDocs(pendingAccountsQuery);
+      // Validar estructura de las alertas de cuenta
+      snap.forEach(d => {
+        const data = d.data();
+        if (data.atendidoAdmin && data.tiempoEsperaSegundos !== undefined) {
+          if (typeof data.tiempoEsperaSegundos !== 'number') {
+            throw new Error(`El campo tiempoEsperaSegundos en la comanda ${d.id} no es de tipo numérico`);
+          }
+        }
+      });
+      logPass("Prueba 9: Validación de Flujo de Cobro y Tiempos de Auditoría (Atendidos con métricas)");
+    } catch (e) {
+      logFail("Prueba 9: Validación de Flujo de Cobro y Tiempos de Auditoría", e.message);
       failedTests++;
     }
   }
