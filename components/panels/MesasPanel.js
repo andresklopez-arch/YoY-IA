@@ -321,6 +321,28 @@ const playSuccessSound = () => {
   }
 };
 
+const playErrorSound = () => {
+  try {
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContext) return;
+    const ctx = new AudioContext();
+    
+    // Play a low error buzzer tone
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sawtooth'; // Sawtooth waveform gives a buzz sound
+    osc.frequency.setValueAtTime(120.00, ctx.currentTime); // Low pitch
+    gain.gain.setValueAtTime(0.08, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.25);
+  } catch (e) {
+    console.error("No se pudo reproducir el tono de error:", e);
+  }
+};
+
 const matchesTableType = (waitlistType, tableType) => {
   if (!waitlistType || !tableType) return false;
   const wt = waitlistType.toLowerCase();
@@ -653,6 +675,7 @@ function ModalAbrirMesa({ mesa, adminPinHash, hashPassword, onClose, onConfirm }
       setPinInput('');
       setCliente(''); // Permitir ingresar otro nombre
     } else {
+      playErrorSound();
       setPinError('PIN de Administrador incorrecto');
     }
   };
@@ -1184,14 +1207,16 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
                       style={{
                         padding: '3px 6px',
                         fontSize: 8.5,
-                        background: 'var(--bg-hover)',
-                        border: '1px solid var(--border)',
-                        color: 'var(--text-secondary)',
+                        background: preTicketFlash ? 'rgba(57, 255, 20, 0.1)' : 'var(--bg-hover)',
+                        border: preTicketFlash ? '1px solid #39ff14' : '1px solid var(--border)',
+                        color: preTicketFlash ? '#39ff14' : 'var(--text-secondary)',
                         display: 'flex',
                         alignItems: 'center',
                         gap: 2,
                         transition: 'all 0.2s ease-in-out',
-                        borderRadius: 6
+                        borderRadius: 6,
+                        boxShadow: preTicketFlash ? '0 0 12px rgba(57, 255, 20, 0.5)' : 'none',
+                        transform: preTicketFlash ? 'scale(1.02)' : 'none'
                       }}
                       title="Imprimir Pre-Ticket"
                     >
@@ -1466,6 +1491,36 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
                           <i className="ri-user-add-line" style={{ fontSize: 12 }} />
                         </button>
                       </div>
+                      {/* Coincidencias rápidas del catálogo */}
+                      {nuevoCliente.trim().length >= 1 && getFilteredClientes(nuevoCliente).length > 0 && (
+                        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 2 }}>
+                          <span style={{ fontSize: 8, color: 'var(--text-muted)', alignSelf: 'center' }}>Catálogo:</span>
+                          {getFilteredClientes(nuevoCliente).slice(0, 3).map((cli, idx) => (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() => {
+                                setNuevoCliente(cli.nombre);
+                                showToast(`Cliente "${cli.nombre}" seleccionado ✓`, 'info');
+                              }}
+                              style={{
+                                background: 'var(--bg-hover)',
+                                border: '1px solid var(--border)',
+                                borderRadius: 4,
+                                padding: '2px 6px',
+                                fontSize: 8.5,
+                                color: 'var(--bronze-light)',
+                                cursor: 'pointer',
+                                transition: 'all 0.15s'
+                              }}
+                              onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--bronze-light)'}
+                              onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
+                            >
+                              {cli.nombre}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                       {nuevoCliente.trim().length >= 2 ? (
                         getMatchingActiveAccounts(nuevoCliente).length > 0 && (
                           <div style={{
@@ -3272,6 +3327,7 @@ export default function MesasPanel({ showToast }) {
       return;
     }
     if (hashPassword(pinAutorizacion) !== adminPinHash) {
+      playErrorSound();
       showToast('PIN de autorización incorrecto', 'danger');
       return;
     }
@@ -7856,6 +7912,7 @@ function ModalCuentasActivas({
   const handleConfirmarEliminarConPin = () => {
     if (!itemAEliminar) return;
     if (hashPassword(pinEliminar) !== adminPinHash) {
+      playErrorSound();
       showToast('PIN de autorización incorrecto', 'danger');
       return;
     }
