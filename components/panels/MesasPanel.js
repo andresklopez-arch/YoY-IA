@@ -3326,12 +3326,6 @@ export default function MesasPanel({ showToast }) {
       showToast('Completa todos los campos', 'warning');
       return;
     }
-    if (hashPassword(pinAutorizacion) !== adminPinHash) {
-      playErrorSound();
-      showToast('PIN de autorización incorrecto', 'danger');
-      return;
-    }
-    playSuccessSound();
     const monto = parseFloat(nuevoMonto);
 
     let currentCobros = [];
@@ -7230,8 +7224,6 @@ export default function MesasPanel({ showToast }) {
             setNuevaDesc={setNuevaDesc}
             nuevoMetodo={nuevoMetodo}
             setNuevoMetodo={setNuevoMetodo}
-            pinAutorizacion={pinAutorizacion}
-            setPinAutorizacion={setPinAutorizacion}
             onClose={() => {
               if (nuevoMonto || nuevaDesc) {
                 sessionStorage.setItem('yoy_draft_cobro_manual', JSON.stringify({ nuevoMonto, nuevaDesc }));
@@ -9481,7 +9473,7 @@ function ModalRegistrarComanda({ mesas, setMesas, cuentasActivas, actualizarCuen
 }
 
 // ── MODAL COBRO MANUAL ───────────────────────────────────
-function ModalCobroManual({ nuevoMonto, setNuevoMonto, nuevaDesc, setNuevaDesc, nuevoMetodo, setNuevoMetodo, pinAutorizacion, setPinAutorizacion, onClose, onConfirm }) {
+function ModalCobroManual({ nuevoMonto, setNuevoMonto, nuevaDesc, setNuevaDesc, nuevoMetodo, setNuevoMetodo, onClose, onConfirm }) {
   const [isClosing, setIsClosing] = useState(false);
 
   const handleClose = () => {
@@ -9538,7 +9530,7 @@ function ModalCobroManual({ nuevoMonto, setNuevoMonto, nuevaDesc, setNuevaDesc, 
           return;
         }
 
-        if (nuevoMonto || nuevaDesc || pinAutorizacion) {
+        if (nuevoMonto || nuevaDesc) {
           if (!window.confirm('¿Deseas salir? Perderás los datos ingresados en el cobro manual.')) {
             return;
           }
@@ -9548,7 +9540,7 @@ function ModalCobroManual({ nuevoMonto, setNuevoMonto, nuevaDesc, setNuevaDesc, 
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [nuevoMonto, nuevaDesc, pinAutorizacion, onClose]);
+  }, [nuevoMonto, nuevaDesc, onClose]);
 
   return (
     <div className={`modal-overlay ${isClosing ? 'modal-closing' : ''}`} onClick={handleClose}>
@@ -9579,29 +9571,6 @@ function ModalCobroManual({ nuevoMonto, setNuevoMonto, nuevaDesc, setNuevaDesc, 
                 <option value="spei">📱 SPEI / QR CoDi</option>
                 <option value="tarjeta">💳 Tarjeta</option>
               </select>
-            </div>
-            <div className="form-group" style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 12 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <label className="form-label" style={{ color: 'var(--bronze-light)', display: 'flex', alignItems: 'center', gap: 6, margin: 0 }}>
-                  <i className="ri-shield-user-line" /> Contraseña de Autorización Admin
-                </label>
-                <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
-                  {pinAutorizacion?.length || 0}/8
-                </span>
-              </div>
-              <input
-                className="form-input"
-                type="password"
-                placeholder="Ingrese PIN (123456)"
-                value={pinAutorizacion}
-                onChange={e => setPinAutorizacion(e.target.value)}
-                maxLength={8}
-                style={{
-                  borderColor: pinAutorizacion ? '#f97316' : 'var(--border-bronze)',
-                  boxShadow: pinAutorizacion ? '0 0 10px rgba(249, 115, 22, 0.35)' : 'none',
-                  transition: 'all 0.25s ease-in-out'
-                }}
-              />
             </div>
           </div>
         </div>
