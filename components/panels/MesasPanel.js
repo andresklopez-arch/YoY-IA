@@ -2496,6 +2496,7 @@ export default function MesasPanel({ showToast }) {
   const [modalNuevaMesa, setModalNuevaMesa] = useState(false);
   const [modalFila, setModalFila] = useState(false);
   const [modalCuentas, setModalCuentas] = useState(false);
+  const [cuentaLeftover, setCuentaLeftover] = useState(null);
   const [modalAbrirCuenta, setModalAbrirCuenta] = useState(false);
   const [modalCuentasSolicitadas, setModalCuentasSolicitadas] = useState(false);
   const [alertaCobroAsociadaId, setAlertaCobroAsociadaId] = useState(null);
@@ -4668,6 +4669,20 @@ export default function MesasPanel({ showToast }) {
   const abrirMesa = (mesa) => {
     if (mesa.estado === 'ocupada') { setModalCerrar(mesa); return; }
     if (mesa.estado === 'manten') { showToast('Mesa en mantenimiento, no disponible.', 'warning'); return; }
+    
+    // Sugerencia 1: Reconciliación de deuda antes de abrir mesa
+    const cuentaVieja = cuentasActivas.find(c => c.mesaId === mesa.id || (c.cliente && c.cliente.toLowerCase() === `mesa ${mesa.id}`));
+    if (cuentaVieja) {
+      const totalPendiente = (cuentaVieja.tiempoJuego || 0) + (cuentaVieja.consumos || []).reduce((s, i) => s + (i.precio * i.cantidad), 0);
+      if (totalPendiente > 0) {
+        const option = window.confirm(`La Mesa ${mesa.id} tiene una cuenta pendiente anterior por $${totalPendiente} MXN.\n\n¿Deseas cobrarla/liquidarla antes de abrir la mesa?\n\n- Aceptar: Ir a cobrar la cuenta ahora.\n- Cancelar: Limpiar la cuenta (borrarla) y abrir la mesa.`);
+        if (option) {
+          setCuentaLeftover(cuentaVieja);
+          setModalCuentas(true);
+          return;
+        }
+      }
+    }
     
     // 1. Verificar si esta mesa específica ya fue asignada/alertada a un cliente en la fila
     const assignedToThisMesa = assignedFila.find(f => {
@@ -7412,13 +7427,14 @@ export default function MesasPanel({ showToast }) {
             confirmarCerrarMesa={confirmarCerrarMesa}
             adminPinHash={adminPinHash}
             hashPassword={hashPassword}
-            onClose={() => setModalCuentas(false)}
+            onClose={() => { setModalCuentas(false); setCuentaLeftover(null); }}
             showToast={showToast}
             registrarEvento={registrarEvento}
             meserosPresentes={meserosPresentes}
             procesandoCierre={procesandoCierre}
             setCobroExito={setCobroExito}
             imprimirTicketFinal={imprimirTicketFinal}
+            initialCuentaSel={cuentaLeftover}
           />
         </ModalErrorBoundary>
       )}
@@ -7895,11 +7911,12 @@ function ModalCuentasActivas({
   meserosPresentes,
   procesandoCierre,
   setCobroExito,
-  imprimirTicketFinal
+  imprimirTicketFinal,
+  initialCuentaSel
 }) {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('cuentas'); // 'cuentas' o 'mesas'
-  const [cuentaSel, setCuentaSel] = useState(null);
+  const [cuentaSel, setCuentaSel] = useState(initialCuentaSel || null);
   const [mesaSel, setMesaSel] = useState(null);
   
   const [prodSel, setProdSel] = useState('Cerveza Corona');
@@ -8479,6 +8496,7 @@ function ModalCuentasActivas({
                     {cuentasFiltradas.map(c => {
                       const isHuerfana = isCuentaHuerfana(c);
                       const estadoMesa = getMesaEstadoHuerfana(c);
+                      const mesaAsoc = mesas.find(m => m.estado === 'ocupada' && (m.id === c.mesaId || (m.cliente && c.cliente && getCleanClientName(m.cliente).toLowerCase() === getCleanClientName(c.cliente).toLowerCase())));
                       return (
                         <div
                           key={c.id}
@@ -8499,6 +8517,10 @@ function ModalCuentasActivas({
                               ) : isHuerfana ? (
                                 <span style={{ background: '#ef4444', color: '#fff', fontSize: 9, padding: '2px 6px', borderRadius: 4, fontWeight: 800 }} title="La mesa asociada no está en juego u ocupada">
                                   ⚠️ Huérfana
+                                </span>
+                              ) : mesaAsoc ? (
+                                <span style={{ background: '#2563eb', color: '#fff', fontSize: 9, padding: '2px 6px', borderRadius: 4, fontWeight: 800 }} title={`El cliente está jugando en la Mesa ${mesaAsoc.id}`}>
+                                  En Mesa {mesaAsoc.id}
                                 </span>
                               ) : null}
                             </span>
