@@ -977,7 +977,7 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
               <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
                 <div style={{ fontSize: 8, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 2 }}>Total de Mesa</div>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 3, lineHeight: 1 }}>
-                  <span style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 950, color: mesa.socios && costo === 0 ? 'var(--success)' : 'var(--text-primary)' }}>
+                  <span style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(20px, 4.5vw, 28px)', fontWeight: 950, color: mesa.socios && costo === 0 ? 'var(--success)' : 'var(--text-primary)' }}>
                     {mesa.socios && costo === 0 ? 'SOCIO' : `${costo}`}
                   </span>
                   {(!mesa.socios || costo > 0) && <span style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 700 }}>MXN</span>}
@@ -1149,7 +1149,7 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
                         {pagaConVal > 0 && (
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border)', paddingTop: 6, marginTop: 2 }}>
                             <span style={{ fontSize: 10, color: 'var(--text-secondary)' }}>Cambio a Entregar:</span>
-                            <span style={{ fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 900, color: pagaConVal >= costo ? 'var(--success)' : 'var(--danger)' }}>
+                            <span style={{ fontFamily: 'var(--font-display)', fontSize: 19, fontWeight: 950, color: pagaConVal >= costo ? 'var(--success)' : 'var(--danger)', letterSpacing: '0.02em' }}>
                               {pagaConVal >= costo ? `$${cambio.toFixed(2)} MXN` : 'Monto insuficiente'}
                             </span>
                           </div>
@@ -8311,7 +8311,7 @@ function ModalCuentasActivas({
                       {totalPagaCon > 0 && (
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border)', paddingTop: 6, marginTop: 2 }}>
                           <span style={{ fontSize: 10, color: 'var(--text-secondary)' }}>Cambio a Entregar:</span>
-                          <span style={{ fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 900, color: totalPagaCon >= totalNeto ? 'var(--success)' : 'var(--danger)' }}>
+                          <span style={{ fontFamily: 'var(--font-display)', fontSize: 19, fontWeight: 950, color: totalPagaCon >= totalNeto ? 'var(--success)' : 'var(--danger)', letterSpacing: '0.02em' }}>
                             {totalPagaCon >= totalNeto ? `$${cambio.toFixed(2)} MXN` : 'Monto insuficiente'}
                           </span>
                         </div>
