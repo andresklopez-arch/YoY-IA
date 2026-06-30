@@ -3357,6 +3357,49 @@ export default function MesasPanel({ showToast }) {
     registrarEvento('Cobro Manual', `Cobro manual de $${monto} registrado (${nuevaDesc}) por ${nuevoMetodo}`, monto);
     showToast(`Cobro manual de $${monto} registrado`, 'success');
 
+    // ── IMPRESIÓN OBLIGATORIA DEL COMPROBANTE ──
+    if (monto > 0) {
+      try {
+        imprimirTicketFinal({
+          cliente: 'Cobro Manual Directo',
+          isMesa: false,
+          mesaNombre: '',
+          inicio: null,
+          tiempoJuegoCosto: 0,
+          durationStr: '',
+          consumos: [
+            {
+              id: Date.now(),
+              producto: nuevaDesc,
+              precio: monto,
+              cantidad: 1
+            }
+          ],
+          total: monto,
+          metodoPago: nuevoMetodo === 'efectivo' ? 'Efectivo' : (nuevoMetodo === 'spei' ? 'SPEI' : 'Tarjeta'),
+          pagaCon: monto,
+          cambio: 0,
+          referenciaPago: '',
+          operador: user ? (user.displayName || user.email || 'Cajero Principal') : 'Cajero Principal'
+        });
+      } catch (printErr) {
+        console.error("Error al imprimir ticket de cobro manual:", printErr);
+      }
+    } else {
+      try {
+        imprimirTicketGasto({
+          fecha: new Date().toLocaleDateString('es-MX'),
+          categoria: 'General',
+          descripcion: nuevaDesc,
+          proveedor: 'N/A',
+          notas: 'Registrado vía cobro/gasto manual en caja',
+          monto: Math.abs(monto)
+        });
+      } catch (printErr) {
+        console.error("Error al imprimir ticket de gasto manual:", printErr);
+      }
+    }
+
     if (alertaCobroAsociadaId) {
       marcarAlertaAtendida(alertaCobroAsociadaId, 'cuenta');
       setAlertaCobroAsociadaId(null);
@@ -4553,7 +4596,6 @@ export default function MesasPanel({ showToast }) {
     setModalAbrir(null);
     showToast(`Mesa ${mesaId} iniciada para ${finalCliente}`, 'success');
     registrarEvento('Apertura', `Mesa ${mesaId} abierta para ${finalCliente}${esSocio ? ' (Socio)' : ''} ${rentarTaco ? '[Taco Premium] ' : ''}${rentarBolas ? '[Bolas Aramith] ' : ''}${rentarTiza ? '[Tiza Kamui]' : ''}`);
-    enviarAlertaMesero(mesaId, finalCliente, 'Mesa Abierta (Juego)', 'asistencia', '🎮');
   };
 
   const registrarNuevaMesa = (nueva) => {
