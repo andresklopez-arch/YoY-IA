@@ -1087,6 +1087,16 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
                     <button
                       type="button"
                       onClick={handleImprimirPreTicket}
+                      onMouseEnter={e => {
+                        e.currentTarget.style.borderColor = 'var(--border-bronze)';
+                        e.currentTarget.style.color = 'var(--bronze-light)';
+                        e.currentTarget.style.boxShadow = '0 0 8px rgba(197, 168, 128, 0.2)';
+                      }}
+                      onMouseLeave={e => {
+                        e.currentTarget.style.borderColor = 'var(--border)';
+                        e.currentTarget.style.color = 'var(--text-secondary)';
+                        e.currentTarget.style.boxShadow = 'none';
+                      }}
                       className="btn btn-secondary btn-sm"
                       style={{
                         padding: '3px 6px',
@@ -1096,7 +1106,9 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
                         color: 'var(--text-secondary)',
                         display: 'flex',
                         alignItems: 'center',
-                        gap: 2
+                        gap: 2,
+                        transition: 'all 0.2s ease-in-out',
+                        borderRadius: 6
                       }}
                       title="Imprimir Pre-Ticket"
                     >
@@ -1120,12 +1132,13 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
                           type="button"
                           onClick={() => setMetodo(m.id)}
                           style={{
-                            background: metodo === m.id ? 'var(--bronze-subtle)' : 'var(--bg-elevated)',
-                            border: `1px solid ${metodo === m.id ? 'var(--border-bronze)' : 'var(--border)'}`,
+                            background: metodo === m.id ? 'rgba(57, 255, 20, 0.08)' : 'var(--bg-elevated)',
+                            border: `1px solid ${metodo === m.id ? '#39ff14' : 'var(--border)'}`,
                             borderRadius: 6, padding: '4px 2px', cursor: 'pointer',
-                            color: metodo === m.id ? 'var(--bronze-light)' : 'var(--text-secondary)',
+                            color: metodo === m.id ? '#39ff14' : 'var(--text-secondary)',
                             display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1,
                             fontSize: 7.5, fontWeight: 600, transition: 'all 0.15s',
+                            boxShadow: metodo === m.id ? '0 0 10px rgba(57, 255, 20, 0.2)' : 'none',
                           }}
                         >
                           <i className={m.icon} style={{ fontSize: 11 }} />
@@ -8299,12 +8312,13 @@ function ModalCuentasActivas({
                           type="button"
                           onClick={() => setMetodoPago(m.id)}
                           style={{
-                            background: metodoPago === m.id ? 'var(--bronze-subtle)' : 'var(--bg-elevated)',
-                            border: `1px solid ${metodoPago === m.id ? 'var(--border-bronze)' : 'var(--border)'}`,
+                            background: metodoPago === m.id ? 'rgba(57, 255, 20, 0.08)' : 'var(--bg-elevated)',
+                            border: `1px solid ${metodoPago === m.id ? '#39ff14' : 'var(--border)'}`,
                             borderRadius: 8, padding: '6px 2px', cursor: 'pointer',
-                            color: metodoPago === m.id ? 'var(--bronze-light)' : 'var(--text-secondary)',
+                            color: metodoPago === m.id ? '#39ff14' : 'var(--text-secondary)',
                             display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
                             fontSize: 8, fontWeight: 600, transition: 'all 0.15s',
+                            boxShadow: metodoPago === m.id ? '0 0 10px rgba(57, 255, 20, 0.2)' : 'none',
                           }}
                         >
                           <i className={m.icon} style={{ fontSize: 12 }} />
