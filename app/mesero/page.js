@@ -1969,10 +1969,30 @@ function MeseroContent() {
                     }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontWeight: 800, fontSize: 13, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'flex', alignItems: 'center' }}>
-                            {c.cliente}
+                          <div style={{ fontWeight: 800, fontSize: 13, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span>{c.cliente.replace(/\(?[Mm]esa\s+\d+\s*-\s*[Pp]endiente\)?/g, '').trim()}</span>
+                            {(() => {
+                              const match = c.cliente.match(/\(?[Mm]esa\s+(\d+)\s*-\s*[Pp]endiente\)?/);
+                              if (match) {
+                                return (
+                                  <span style={{ 
+                                    background: 'rgba(197, 168, 128, 0.1)', 
+                                    color: 'var(--bronze-light)', 
+                                    border: '1px solid rgba(197, 168, 128, 0.25)',
+                                    borderRadius: 4, 
+                                    padding: '1px 4px', 
+                                    fontSize: 9,
+                                    fontWeight: 600,
+                                    lineHeight: 1
+                                  }}>
+                                    📍 Mesa {match[1]}
+                                  </span>
+                                );
+                              }
+                              return null;
+                            })()}
                             {tieneAsistenciaPendiente && (
-                              <i className="ri-notification-3-fill wiggle-bell" style={{ color: 'var(--bronze-light)', marginLeft: 6, fontSize: 12, verticalAlign: 'middle' }} title="Llamada de asistencia o pedido pendiente" />
+                              <i className="ri-notification-3-fill wiggle-bell" style={{ color: 'var(--bronze-light)', fontSize: 12, verticalAlign: 'middle' }} title="Llamada de asistencia o pedido pendiente" />
                             )}
                           </div>
                           <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 1 }}>
