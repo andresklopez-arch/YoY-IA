@@ -968,7 +968,26 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
         <div className="modal-body" style={{ padding: '6px 12px', overflowY: 'auto', flex: 1 }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {/* Resumen */}
-            <div style={{ background: 'var(--bg-elevated)', borderRadius: 10, padding: '6px 10px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
+            <div
+              onMouseEnter={e => {
+                e.currentTarget.style.borderColor = 'rgba(57, 255, 20, 0.35)';
+                e.currentTarget.style.boxShadow = '0 0 15px rgba(57, 255, 20, 0.15)';
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.borderColor = 'transparent';
+                e.currentTarget.style.boxShadow = 'none';
+              }}
+              style={{
+                background: 'var(--bg-elevated)',
+                borderRadius: 10,
+                padding: '6px 10px',
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: 4,
+                border: '1px solid transparent',
+                transition: 'all 0.25s ease-in-out'
+              }}
+            >
               <div>
                 <div style={{ fontSize: 8, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 1 }}>Tiempo</div>
                 <div style={{ fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 700, letterSpacing: '0.08em', color: 'var(--bronze-light)' }}>{formatTime(elapsed)}</div>
@@ -1155,7 +1174,14 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
                         {pagaConVal > 0 && (
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border)', paddingTop: 6, marginTop: 2 }}>
                             <span style={{ fontSize: 10, color: 'var(--text-secondary)' }}>Cambio a Entregar:</span>
-                            <span style={{ fontFamily: 'var(--font-display)', fontSize: 19, fontWeight: 950, color: pagaConVal >= costo ? 'var(--success)' : 'var(--danger)', letterSpacing: '0.02em' }}>
+                            <span style={{
+                              fontFamily: 'var(--font-display)',
+                              fontSize: 19,
+                              fontWeight: 950,
+                              color: pagaConVal >= costo ? '#39ff14' : 'var(--danger)',
+                              textShadow: pagaConVal >= costo ? '0 0 10px rgba(57, 255, 20, 0.35)' : 'none',
+                              letterSpacing: '0.02em'
+                            }}>
                               {pagaConVal >= costo ? `$${cambio.toFixed(2)} MXN` : 'Monto insuficiente'}
                             </span>
                           </div>
@@ -8317,7 +8343,14 @@ function ModalCuentasActivas({
                       {totalPagaCon > 0 && (
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border)', paddingTop: 6, marginTop: 2 }}>
                           <span style={{ fontSize: 10, color: 'var(--text-secondary)' }}>Cambio a Entregar:</span>
-                          <span style={{ fontFamily: 'var(--font-display)', fontSize: 19, fontWeight: 950, color: totalPagaCon >= totalNeto ? 'var(--success)' : 'var(--danger)', letterSpacing: '0.02em' }}>
+                          <span style={{
+                            fontFamily: 'var(--font-display)',
+                            fontSize: 19,
+                            fontWeight: 950,
+                            color: totalPagaCon >= totalNeto ? '#39ff14' : 'var(--danger)',
+                            textShadow: totalPagaCon >= totalNeto ? '0 0 10px rgba(57, 255, 20, 0.35)' : 'none',
+                            letterSpacing: '0.02em'
+                          }}>
                             {totalPagaCon >= totalNeto ? `$${cambio.toFixed(2)} MXN` : 'Monto insuficiente'}
                           </span>
                         </div>
