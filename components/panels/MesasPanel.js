@@ -2840,20 +2840,49 @@ export default function MesasPanel({ showToast }) {
     try {
       const docRef = doc(db, 'mesa_pedidos', alertaId);
       
-      // Intentar calcular el tiempo de espera
+      // Intentar calcular el tiempo de espera y liquidar cuenta si es de tipo cuenta
       let tiempoEsperaSegundos = null;
       try {
         const snap = await getDoc(docRef);
         if (snap.exists()) {
           const alertData = snap.data();
+          
           if (alertData.createdAt) {
             const startMs = alertData.createdAt.toDate ? alertData.createdAt.toDate().getTime() : alertData.createdAt.seconds * 1000;
             const diffMs = Date.now() - startMs;
             tiempoEsperaSegundos = Math.max(0, Math.floor(diffMs / 1000));
           }
+
+          if (alertData.tipo === 'cuenta') {
+            const alertMesaId = alertData.mesaId;
+            const alertCliente = alertData.cliente || '';
+            
+            // Liquidar la cuenta activa en Firestore
+            await actualizarCuentasFirestore(prev => prev.filter(c => {
+              const tieneMesa = alertMesaId && alertMesaId !== 0 && alertMesaId !== '0';
+              if (tieneMesa) {
+                return String(c.mesaId) !== String(alertMesaId);
+              } else {
+                const cName = (c.cliente || '').trim().toLowerCase();
+                const aName = alertCliente.trim().toLowerCase();
+                return cName !== aName;
+              }
+            }));
+
+            // Si es una mesa física, liberarla
+            const tieneMesaFisica = alertMesaId && alertMesaId !== 0 && alertMesaId !== '0';
+            if (tieneMesaFisica) {
+              setMesas(prev => prev.map(m => {
+                if (String(m.id) === String(alertMesaId)) {
+                  return { ...m, estado: 'libre', cliente: null, inicio: null, socios: false, clienteUid: '', preTicketImpreso: false, reservadaAt: null, limiteReservaMs: null, telefono: '', filaId: null };
+                }
+                return m;
+              }));
+            }
+          }
         }
       } catch (err) {
-        console.error("Error al obtener documento para calcular tiempo de espera:", err);
+        console.error("Error al obtener documento para calcular tiempo de espera y liquidar:", err);
       }
 
       const updateData = {
@@ -10804,12 +10833,47 @@ function ModalCuentasSolicitadas({ onClose, showToast, setMostrarCobroManual, se
 
   const marcarComoAtendida = async (id) => {
     try {
-      await updateDoc(doc(db, 'mesa_pedidos', id), {
+      const docRef = doc(db, 'mesa_pedidos', id);
+      const snap = await getDoc(docRef);
+      if (snap.exists()) {
+        const alertData = snap.data();
+        const alertMesaId = alertData.mesaId;
+        const alertCliente = alertData.cliente || '';
+        
+        // Liquidar la cuenta activa en Firestore
+        await actualizarCuentasFirestore(prev => prev.filter(c => {
+          const tieneMesa = alertMesaId && alertMesaId !== 0 && alertMesaId !== '0';
+          if (tieneMesa) {
+            return String(c.mesaId) !== String(alertMesaId);
+          } else {
+            const cName = (c.cliente || '').trim().toLowerCase();
+            const aName = alertCliente.trim().toLowerCase();
+            return cName !== aName;
+          }
+        }));
+
+        // Si es una mesa física, liberarla
+        const tieneMesaFisica = alertMesaId && alertMesaId !== 0 && alertMesaId !== '0';
+        if (tieneMesaFisica) {
+          setMesas(prev => prev.map(m => {
+            if (String(m.id) === String(alertMesaId)) {
+              return { ...m, estado: 'libre', cliente: null, inicio: null, socios: false, clienteUid: '', preTicketImpreso: false, reservadaAt: null, limiteReservaMs: null, telefono: '', filaId: null };
+            }
+            return m;
+          }));
+        }
+
+        // Registrar evento
+        registrarEvento('Cuenta Atendida', `Cuenta de ${alertCliente} liquidada automáticamente desde el panel de solicitudes.`);
+      }
+
+      await updateDoc(docRef, {
         atendidoAdmin: true,
         atendidoMesero: true,
-        estado: 'entregado'
+        estado: 'entregado',
+        atendidoAt: serverTimestamp()
       });
-      showToast("Solicitud marcada como atendida ✓", "success");
+      showToast("Solicitud atendida y cuenta liquidada ✓", "success");
       setSolicitudes(prev => prev.map(s => s.id === id ? { ...s, atendidoAdmin: true, atendidoMesero: true } : s));
     } catch (err) {
       console.error("Error al atender solicitud:", err);
@@ -11010,26 +11074,24 @@ function ModalCuentasSolicitadas({ onClose, showToast, setMostrarCobroManual, se
                             </span>
                           ) : (
                             <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
-                              {(!s.mesaId || s.mesaId === 0 || s.mesaId === '0') && (
-                                <button
-                                  onClick={() => iniciarCobroRapido(s)}
-                                  className="btn btn-primary btn-xs"
-                                  style={{
-                                    padding: '2px 6px',
-                                    fontSize: 9,
-                                    background: '#22c55e',
-                                    borderColor: '#22c55e',
-                                    color: '#000',
-                                    fontWeight: 'bold',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: 3
-                                  }}
-                                  title="Cobrar cuenta directa en caja"
-                                >
-                                  <i className="ri-money-dollar-circle-line" /> Cobrar
-                                </button>
-                              )}
+                              <button
+                                onClick={() => iniciarCobroRapido(s)}
+                                className="btn btn-primary btn-xs"
+                                style={{
+                                  padding: '2px 6px',
+                                  fontSize: 9,
+                                  background: '#22c55e',
+                                  borderColor: '#22c55e',
+                                  color: '#000',
+                                  fontWeight: 'bold',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 3
+                                }}
+                                title="Cobrar cuenta en caja"
+                              >
+                                <i className="ri-money-dollar-circle-line" /> Cobrar
+                              </button>
                               <button
                                 onClick={() => marcarComoAtendida(s.id)}
                                 className="btn btn-danger btn-xs"
