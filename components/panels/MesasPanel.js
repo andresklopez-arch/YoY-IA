@@ -237,6 +237,16 @@ class ModalErrorBoundary extends Component {
 
 
 
+const hasPermission = (user, action) => {
+  if (!user) return false;
+  const role = (user.role || 'staff').toLowerCase();
+  if (role === 'admin') return true;
+  if (action === 'DISCARD_DEBTS' || action === 'DELETE_ITEM' || action === 'MANAGE_SYSTEM') {
+    return role === 'gerente';
+  }
+  return false;
+};
+
 const isRealName = (name) => {
   const normalized = (name || '').trim().toLowerCase();
   
@@ -4682,7 +4692,7 @@ export default function MesasPanel({ showToast }) {
           return;
         } else {
           // Validar permisos del operador: solo gerente y administrador pueden borrar/cancelar
-          const esAutorizado = user && (user.role === 'admin' || user.role === 'gerente');
+          const esAutorizado = hasPermission(user, 'DISCARD_DEBTS');
           let authMethod = 'Rol';
           if (!esAutorizado) {
             const pinIngresado = window.prompt("No tiene permisos de Gerente o Administrador para borrar deudas pendientes.\n\nPor favor ingrese el PIN de Administrador para autorizar:");
@@ -8255,16 +8265,8 @@ function ModalCuentasActivas({
     }
   };
 
-  const handleConfirmarEliminarConPin = () => {
-    if (!itemAEliminar) return;
-    if (hashPassword(pinEliminar) !== adminPinHash) {
-      playErrorSound();
-      showToast('PIN de autorización incorrecto', 'danger');
-      return;
-    }
-    playSuccessSound();
-    
-    const { cId, itemId, prodName, cant } = itemAEliminar;
+  const eliminarItemDeCuenta = (itemToDelete) => {
+    const { cId, itemId, prodName, cant } = itemToDelete;
 
     if (isMesaTab) {
       setCuentas(prev => prev.map(c => {
@@ -8297,7 +8299,17 @@ function ModalCuentasActivas({
     if (registrarEvento) {
       registrarEvento('Eliminar Consumo', `Retirado ${cant}x ${prodName} de la cuenta de ${clientName}`);
     }
+  };
 
+  const handleConfirmarEliminarConPin = () => {
+    if (!itemAEliminar) return;
+    if (hashPassword(pinEliminar) !== adminPinHash) {
+      playErrorSound();
+      showToast('PIN de autorización incorrecto', 'danger');
+      return;
+    }
+    playSuccessSound();
+    eliminarItemDeCuenta(itemAEliminar);
     setItemAEliminar(null);
     setPinEliminar('');
   };
@@ -8656,14 +8668,25 @@ function ModalCuentasActivas({
                           <span style={{ fontWeight: 700, marginRight: 10 }}>${item.precio * item.cantidad} MXN</span>
                           <button
                             className="btn btn-secondary btn-icon sm"
-                            onClick={() => setItemAEliminar({ 
-                              cId: isMesaTab ? (cuentaAsociadaMesa ? cuentaAsociadaMesa.id : null) : cuentaSel.id, 
-                              itemId: item.id, 
-                              prodName: item.producto, 
-                              cant: item.cantidad 
-                            })}
+                            onClick={() => {
+                              const itemToDelete = { 
+                                cId: isMesaTab ? (cuentaAsociadaMesa ? cuentaAsociadaMesa.id : null) : cuentaSel.id, 
+                                itemId: item.id, 
+                                prodName: item.producto, 
+                                cant: item.cantidad 
+                              };
+                              const esAutorizado = hasPermission(user, 'DELETE_ITEM');
+                              if (esAutorizado) {
+                                if (window.confirm(`¿Seguro que deseas eliminar ${itemToDelete.cant}x ${itemToDelete.prodName} de la cuenta?`)) {
+                                  playSuccessSound();
+                                  eliminarItemDeCuenta(itemToDelete);
+                                }
+                              } else {
+                                setItemAEliminar(itemToDelete);
+                              }
+                            }}
                             style={{ padding: 4, height: 24, width: 24, border: 'none', background: 'none', color: 'var(--danger)' }}
-                            title="Quitar con PIN de Admin"
+                            title={hasPermission(user, 'DELETE_ITEM') ? "Quitar consumo" : "Quitar con PIN de Admin"}
                           >
                             <i className="ri-close-fill" />
                           </button>
