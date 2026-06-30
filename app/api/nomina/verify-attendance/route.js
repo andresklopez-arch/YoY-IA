@@ -166,7 +166,8 @@ export async function POST(request) {
                                 `📥 *Evento:* ${tipoRegistro === 'entrada' ? 'ENTRADA' : 'SALIDA'}\n` +
                                 `📱 *Celular Utilizado:* \`${currentDevice}\`\n` +
                                 `🔄 *Celular Habitual:* \`${mostFrequentPhone}\`\n` +
-                                `📅 *Fecha/Hora:* ${new Date().toLocaleString('es-MX', { timeZone: 'America/Mexico_City' })}`;
+                                `📅 *Fecha/Hora:* ${new Date().toLocaleString('es-MX', { timeZone: 'America/Mexico_City' })}\n\n` +
+                                `🔗 *Acceder al Sistema:* [YoY IA Billar](https://yoy-ia-billar.vercel.app)`;
             
             const replyMarkup = {
               inline_keyboard: [

@@ -46,6 +46,21 @@ export async function GET(request) {
     const stateRef = doc(db, 'config', 'telegram_report_state');
     const stateSnap = await getDoc(stateRef);
     const now = Date.now();
+    const mxDateStr = new Date().toLocaleString('sv-SE', { timeZone: 'America/Mexico_City' }).split(' ')[0];
+
+    let history = [];
+    let currentDate = mxDateStr;
+
+    if (stateSnap.exists()) {
+      const stateData = stateSnap.data();
+      currentDate = stateData.currentDate || mxDateStr;
+      if (currentDate === mxDateStr) {
+        history = stateData.history || [];
+      } else {
+        history = [];
+        currentDate = mxDateStr;
+      }
+    }
 
     if (!force) {
       if (stateSnap.exists()) {
@@ -65,7 +80,6 @@ export async function GET(request) {
     }
 
     // 2. Recopilar datos en tiempo real para las 10 métricas operativas
-    const mxDateStr = new Date().toLocaleString('sv-SE', { timeZone: 'America/Mexico_City' }).split(' ')[0];
 
     // Métrica 1: Ocupación Actual
     let activeMesas = 0;
@@ -247,6 +261,28 @@ export async function GET(request) {
       corteCajaStatus = diff === 0 ? 'Caja cuadrada ✓' : `Descuadre de $${diff.toFixed(2)} MXN`;
     }
 
+    // Formatear hora de la CDMX para el punto en el gráfico
+    const currentTimeStr = new Date().toLocaleString('es-MX', { 
+      timeZone: 'America/Mexico_City', 
+      hour: '2-digit', 
+      minute: '2-digit', 
+      hour12: false 
+    });
+
+    // Evitar duplicados del mismo minuto en el historial
+    if (history.length === 0 || history[history.length - 1].time !== currentTimeStr) {
+      history.push({
+        time: currentTimeStr,
+        sales: Math.round(montoVendido),
+        occupancy: Math.round(ocupacionPct)
+      });
+    }
+
+    // Limitar historial diario a 30 cortes máximo
+    if (history.length > 30) {
+      history.shift();
+    }
+
     // 3. Ensamblar y enviar el reporte por Telegram
     const branchName = sucursalSnap.exists() ? (sucursalSnap.data().nombre || 'YoY Billar') : 'YoY Billar';
     const reportText = `📊 *REPORTE DE OPERACIÓN - ${branchName.toUpperCase()}* 📊\n` +
@@ -260,7 +296,8 @@ export async function GET(request) {
       `7️⃣ *Gastos de Hoy:* $${totalGastos.toLocaleString('es-MX')} MXN\n` +
       `8️⃣ *Pedidos Cocina:* ${comandasPendientesCount} comandas pendientes\n` +
       `9️⃣ *Corte de Caja:* ${corteCajaStatus}\n` +
-      `🔟 *Desviaciones Operativas:*\n${desviacionesStr}`;
+      `🔟 *Desviaciones Operativas:*\n${desviacionesStr}\n\n` +
+      `🔗 *Acceder al Sistema:* [YoY IA Billar](https://yoy-ia-billar.vercel.app)`;
 
     // Resolver chatId si no está disponible directamente
     let targetChatId = tgConfig.mode === 'custom' ? tgConfig.chatId : null;
@@ -279,42 +316,88 @@ export async function GET(request) {
       return NextResponse.json({ success: false, error: 'No se pudo resolver el Chat ID de Telegram' }, { status: 400 });
     }
 
-    // 3. Crear gráfico de avance de metas con QuickChart (Sugerencia 1)
-    const chartConfig = {
-      type: 'bar',
-      data: {
-        labels: ['Meta Diaria', 'Venta Realizada'],
-        datasets: [{
-          label: 'Pesos ($)',
-          data: [Math.round(metaDiaria), Math.round(montoVendido)],
-          backgroundColor: ['rgba(212, 175, 55, 0.5)', 'rgba(57, 255, 20, 0.7)'],
-          borderColor: ['#d4af37', '#39ff14'],
-          borderWidth: 1
-        }]
-      },
-      options: {
-        title: {
-          display: true,
-          text: 'Ventas de Hoy vs Meta Diaria',
-          fontColor: '#ffffff',
-          fontSize: 16
+    // 4. Configurar el gráfico de QuickChart (Líneas para historial o barras para primer corte)
+    let chartConfig;
+    if (history.length > 1) {
+      chartConfig = {
+        type: 'line',
+        data: {
+          labels: history.map(h => h.time),
+          datasets: [
+            {
+              label: 'Ventas ($)',
+              data: history.map(h => h.sales),
+              borderColor: '#39ff14',
+              backgroundColor: 'rgba(57, 255, 20, 0.1)',
+              fill: true,
+              yAxisID: 'y-sales'
+            },
+            {
+              label: 'Ocupación (%)',
+              data: history.map(h => h.occupancy),
+              borderColor: '#d4af37',
+              backgroundColor: 'rgba(212, 175, 55, 0.1)',
+              fill: true,
+              yAxisID: 'y-occupancy'
+            }
+          ]
         },
-        legend: { display: false },
-        scales: {
-          yAxes: [{
-            ticks: {
-              beginAtZero: true,
-              fontColor: '#ffffff'
-            }
-          }],
-          xAxes: [{
-            ticks: {
-              fontColor: '#ffffff'
-            }
-          }]
+        options: {
+          title: {
+            display: true,
+            text: 'Historial de Operación de Hoy (Cortes 1.5 hrs)',
+            fontColor: '#ffffff',
+            fontSize: 14
+          },
+          scales: {
+            yAxes: [
+              {
+                id: 'y-sales',
+                type: 'linear',
+                position: 'left',
+                ticks: { fontColor: '#39ff14', beginAtZero: true },
+                scaleLabel: { display: true, labelString: 'Ventas ($)', fontColor: '#39ff14' }
+              },
+              {
+                id: 'y-occupancy',
+                type: 'linear',
+                position: 'right',
+                ticks: { fontColor: '#d4af37', beginAtZero: true, max: 100 },
+                gridLines: { drawOnChartArea: false },
+                scaleLabel: { display: true, labelString: 'Ocupación (%)', fontColor: '#d4af37' }
+              }
+            ],
+            xAxes: [{ ticks: { fontColor: '#ffffff' } }]
+          }
         }
-      }
-    };
+      };
+    } else {
+      chartConfig = {
+        type: 'bar',
+        data: {
+          labels: ['Meta Diaria', 'Venta Realizada', 'Ocupación (%)'],
+          datasets: [{
+            data: [Math.round(metaDiaria), Math.round(montoVendido), Math.round(ocupacionPct)],
+            backgroundColor: ['rgba(212, 175, 55, 0.5)', 'rgba(57, 255, 20, 0.7)', 'rgba(0, 191, 255, 0.6)'],
+            borderColor: ['#d4af37', '#39ff14', '#00bfff'],
+            borderWidth: 1
+          }]
+        },
+        options: {
+          title: {
+            display: true,
+            text: 'Rendimiento Operativo YoY Billar (Primer Corte)',
+            fontColor: '#ffffff',
+            fontSize: 14
+          },
+          legend: { display: false },
+          scales: {
+            yAxes: [{ ticks: { beginAtZero: true, fontColor: '#ffffff' } }],
+            xAxes: [{ ticks: { fontColor: '#ffffff' } }]
+          }
+        }
+      };
+    }
     const chartUrl = `https://quickchart.io/chart?c=${encodeURIComponent(JSON.stringify(chartConfig))}&bkg=%23121212`;
 
     const photoUrl = `https://api.telegram.org/bot${botToken}/sendPhoto`;
@@ -346,7 +429,11 @@ export async function GET(request) {
 
     if (res.ok) {
       // Guardar el estado del reporte enviado
-      await setDoc(stateRef, { lastSentAt: now }, { merge: true });
+      await setDoc(stateRef, { 
+        lastSentAt: now,
+        currentDate: currentDate,
+        history: history
+      }, { merge: true });
       return NextResponse.json({ success: true, text: reportText });
     } else {
       const errData = await res.json();

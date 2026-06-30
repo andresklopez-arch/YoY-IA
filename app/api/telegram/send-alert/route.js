@@ -87,8 +87,13 @@ export async function POST(request) {
     // Prepend sucursal name multitenant prefix
     if (sucursalName && text && !text.startsWith('🏢')) {
       text = `🏢 *[${sucursalName}]*\n\n${text}`;
-      body.text = text; // Actualizar en el cuerpo para guardarlo en la cola de pendientes
     }
+
+    // Append YoY app link signature
+    if (text && !text.includes('yoy-ia-billar.vercel.app')) {
+      text = `${text}\n\n🔗 *Acceder al Sistema:* [YoY IA Billar](https://yoy-ia-billar.vercel.app)`;
+    }
+    body.text = text;
 
     targetToken = token;
     targetChatId = chatId;
