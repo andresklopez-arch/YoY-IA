@@ -8505,7 +8505,7 @@ function ModalCuentasActivas({
 
           {/* Panel Derecho */}
           {selectedEntity && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14, borderLeft: '1px solid var(--border)', paddingLeft: 20 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: showCheckout ? 8 : 14, borderLeft: '1px solid var(--border)', paddingLeft: 20 }}>
               {!showCheckout ? (
                 <>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -8719,7 +8719,7 @@ function ModalCuentasActivas({
                 </>
               ) : (
                 /* Detalle Checkout */
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <button className="btn btn-secondary btn-icon sm" onClick={() => setShowCheckout(false)} style={{ border: 'none', background: 'none' }}>
                       <i className="ri-arrow-left-line" style={{ fontSize: 18 }} />
@@ -8727,7 +8727,7 @@ function ModalCuentasActivas({
                     <h3 style={{ fontSize: 15, fontWeight: 800 }}>Liquidar Cuenta: {clientName}</h3>
                   </div>
 
-                  <div style={{ background: 'var(--bg-elevated)', padding: 10, borderRadius: 10 }}>
+                  <div style={{ background: 'var(--bg-elevated)', padding: '6px 10px', borderRadius: 10 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border)', paddingBottom: 4, fontSize: 11 }}>
                       <span>Tiempo de Juego</span>
                       <span>${tiempoJuegoCosto} MXN</span>
@@ -8749,7 +8749,7 @@ function ModalCuentasActivas({
                   {/* Método */}
                   <div className="form-group" style={{ gap: 2 }}>
                     <label className="form-label" style={{ fontSize: 9 }}>Método de Pago</label>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 4 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 3 }}>
                       {[
                         { id: 'efectivo', label: 'Efectivo', icon: 'ri-money-dollar-circle-line' },
                         { id: 'transferencia', label: 'Transf.', icon: 'ri-bank-line' },
@@ -8781,7 +8781,7 @@ function ModalCuentasActivas({
                   {/* Sub-Paneles Condicionales */}
                   {metodoPago === 'efectivo' && totalNeto > 0 && (
                     <div style={{
-                      background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 10, padding: 10, display: 'flex', flexDirection: 'column', gap: 6, animation: 'fadeIn 0.2s ease'
+                      background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 10, padding: '6px 10px', display: 'flex', flexDirection: 'column', gap: 4, animation: 'fadeIn 0.2s ease'
                     }}>
                       <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--bronze-light)' }}><i className="ri-coins-line" style={{ marginRight: 4 }} />CÁLCULO DE CAMBIO</div>
                       <div className="form-group" style={{ gap: 2 }}>
@@ -8790,7 +8790,7 @@ function ModalCuentasActivas({
                           type="number"
                           className="form-input"
                           style={{
-                            padding: '6px 10px',
+                            padding: '4px 8px',
                             fontSize: 12,
                             borderColor: totalPagaCon >= totalNeto ? (totalPagaCon > totalNeto * 10 ? '#f97316' : '#39ff14') : 'var(--border)',
                             boxShadow: totalPagaCon >= totalNeto ? (totalPagaCon > totalNeto * 10 ? '0 0 8px rgba(249, 115, 22, 0.25)' : '0 0 8px rgba(57, 255, 20, 0.25)') : 'none',
@@ -8927,7 +8927,7 @@ function ModalCuentasActivas({
                       background: isCheckoutDisabled ? 'var(--bg-hover)' : 'linear-gradient(135deg, var(--success), #2ed573)', 
                       color: isCheckoutDisabled ? 'var(--text-muted)' : '#0d0d0f', 
                       width: '100%', 
-                      marginTop: 6,
+                      marginTop: 4,
                       cursor: isCheckoutDisabled ? 'not-allowed' : 'pointer',
                       boxShadow: !isCheckoutDisabled ? '0 0 15px rgba(57, 255, 20, 0.45)' : 'none',
                       border: !isCheckoutDisabled ? '1px solid #39ff14' : '1px solid transparent',
