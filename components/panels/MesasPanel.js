@@ -753,6 +753,7 @@ function ModalAbrirMesa({ mesa, adminPinHash, hashPassword, onClose, onConfirm }
 // ── MODAL CERRAR MESA ────────────────────────────────────
 function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], registrarNuevoClienteDirectorio, mesas = [], unloadedConsumos, onClose, onCerrar, onAgregarACuenta, imprimirPreTicket, onImprimirPreTicket, procesandoCierre }) {
   const cuentaAsociada = getCuentaAsociadaSafe(mesa, cuentasActivas);
+  const [preTicketFlash, setPreTicketFlash] = useState(false);
 
   const [elapsed, setElapsed] = useState(Date.now() - (mesa.inicio || Date.now()));
   const [metodo, setMetodo] = useState('efectivo');
@@ -851,6 +852,8 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
   const handleImprimirPreTicket = () => {
     imprimirPreTicket(mesa);
     onImprimirPreTicket();
+    setPreTicketFlash(true);
+    setTimeout(() => setPreTicketFlash(false), 800);
   };
 
   useEffect(() => {
@@ -937,7 +940,17 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" onClick={e => e.stopPropagation()} style={{ position: 'relative', maxWidth: 400, maxHeight: '96vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <div className="modal" onClick={e => e.stopPropagation()} style={{
+        position: 'relative',
+        maxWidth: 400,
+        maxHeight: '96vh',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+        border: preTicketFlash ? '2px solid #39ff14' : '1px solid var(--border)',
+        boxShadow: preTicketFlash ? '0 0 25px rgba(57, 255, 20, 0.45)' : 'none',
+        transition: 'all 0.25s ease-in-out'
+      }}>
         {procesandoCierre && (
           <div style={{
             position: 'absolute',
@@ -1139,6 +1152,7 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
                             display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1,
                             fontSize: 7.5, fontWeight: 600, transition: 'all 0.15s',
                             boxShadow: metodo === m.id ? '0 0 10px rgba(57, 255, 20, 0.2)' : 'none',
+                            transform: metodo === m.id ? 'scale(1.04)' : 'none',
                           }}
                         >
                           <i className={m.icon} style={{ fontSize: 11 }} />
@@ -1548,12 +1562,22 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
                     setNombrePagador(isGeneric ? '' : mesa.cliente);
                     setShowPromptMoverPendiente(true);
                   }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.boxShadow = '0 0 15px rgba(249, 115, 22, 0.4)';
+                    e.currentTarget.style.borderColor = '#f97316';
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.boxShadow = 'none';
+                    e.currentTarget.style.borderColor = 'transparent';
+                  }}
                   style={{
                     background: 'linear-gradient(135deg, var(--bronze-light), var(--bronze))',
                     color: '#fff',
                     padding: '4px 8px',
                     fontSize: 9.5,
-                    flex: 1
+                    flex: 1,
+                    border: '1px solid transparent',
+                    transition: 'all 0.3s ease-in-out'
                   }}
                 >
                   <i className="ri-folder-shared-line" /> Mover a Pendiente
@@ -8319,6 +8343,7 @@ function ModalCuentasActivas({
                             display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
                             fontSize: 8, fontWeight: 600, transition: 'all 0.15s',
                             boxShadow: metodoPago === m.id ? '0 0 10px rgba(57, 255, 20, 0.2)' : 'none',
+                            transform: metodoPago === m.id ? 'scale(1.04)' : 'none',
                           }}
                         >
                           <i className={m.icon} style={{ fontSize: 12 }} />
