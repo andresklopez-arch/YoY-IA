@@ -1534,10 +1534,19 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
       <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
         {/* Reloj */}
         <div style={{ textAlign: 'right', flexShrink: 0 }}>
-          <div style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 700, letterSpacing: '0.1em', color: 'var(--text-primary)', lineHeight: 1, whiteSpace: 'nowrap' }}>
+          <div style={{ 
+            fontFamily: 'var(--font-display)', 
+            fontSize: 18, 
+            fontWeight: 800, 
+            letterSpacing: '0.05em', 
+            color: '#39ff14', 
+            lineHeight: 1, 
+            whiteSpace: 'nowrap',
+            textShadow: '0 0 10px rgba(57, 255, 20, 0.75), 0 0 20px rgba(57, 255, 20, 0.3)'
+          }}>
             {timeStr}
           </div>
-          <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginTop: 2, whiteSpace: 'nowrap' }}>
+          <div style={{ fontSize: 10, color: 'rgba(57, 255, 20, 0.75)', textTransform: 'uppercase', letterSpacing: '0.1em', marginTop: 3, whiteSpace: 'nowrap' }}>
             {dateStr}
           </div>
         </div>
