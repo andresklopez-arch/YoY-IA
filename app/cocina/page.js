@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import {
-  collection, onSnapshot, query, where,
+  collection, onSnapshot, query,
   orderBy, updateDoc, doc, serverTimestamp, addDoc, getDocs, setDoc, getDoc, deleteDoc, getActiveSalonId
 } from '@/lib/firestore-tenant';
 import { db } from '@/lib/firebase';
