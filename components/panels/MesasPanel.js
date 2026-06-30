@@ -2604,6 +2604,7 @@ export default function MesasPanel({ showToast }) {
   };
 
   const [filtro, setFiltro] = useState('todas');
+  const [filtroMesero, setFiltroMesero] = useState('');
   const [ordenamiento, setOrdenamiento] = useState('numero'); // numero | carambola_primero | pool_primero | snooker_primero
   const animacionesActivas = true;
   useEffect(() => {
@@ -4761,7 +4762,13 @@ export default function MesasPanel({ showToast }) {
   };
 
   const getOrderedMesas = () => {
-    const base = filtro === 'todas' ? mesas : mesas.filter(m => m.estado === filtro);
+    let base = filtro === 'todas' ? mesas : mesas.filter(m => m.estado === filtro);
+    if (filtroMesero) {
+      base = base.filter(m => 
+        m.meseroNombre === filtroMesero || 
+        (m.meseroNombres || []).includes(filtroMesero)
+      );
+    }
     if (ordenamiento === 'numero') {
       return [...base].sort((a, b) => Number(a.id) - Number(b.id));
     }
@@ -6582,6 +6589,49 @@ export default function MesasPanel({ showToast }) {
             <option value="carambola_primero" style={{ background: '#141418', color: '#f0f0f4' }}>🏆 Carambola primero</option>
             <option value="pool_primero" style={{ background: '#141418', color: '#f0f0f4' }}>🎱 Pool primero</option>
             <option value="snooker_primero" style={{ background: '#141418', color: '#f0f0f4' }}>🟢 Snooker primero</option>
+          </select>
+        </div>
+
+        {/* Filtrar por Mesero */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          background: 'var(--bg-elevated)',
+          border: '1px solid var(--border-bronze)',
+          borderRadius: 8,
+          padding: '0 10px',
+          height: 28,
+          boxShadow: 'var(--shadow-sm)',
+          marginLeft: 6
+        }}>
+          <i className="ri-user-star-line" style={{ color: filtroMesero ? '#f59e0b' : 'var(--text-muted)', fontSize: 13 }} />
+          <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Mesero:</span>
+          <select
+            value={filtroMesero}
+            onChange={e => setFiltroMesero(e.target.value)}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: filtroMesero ? '#f59e0b' : 'var(--text-secondary)',
+              fontSize: 10,
+              fontWeight: 700,
+              outline: 'none',
+              cursor: 'pointer',
+              padding: '0 4px',
+              fontFamily: 'var(--font-main)'
+            }}
+          >
+            <option value="" style={{ background: '#141418', color: '#f0f0f4' }}>Todos</option>
+            {Array.from(new Set([
+              ...(meserosPresentes || []).map(m => m.nombre),
+              ...(mesas || []).flatMap(m => m.meseroNombres || []),
+              ...(mesas || []).map(m => m.meseroNombre).filter(Boolean)
+            ])).filter(Boolean).map(nombre => (
+              <option key={nombre} value={nombre} style={{ background: '#141418', color: '#f0f0f4' }}>
+                👤 {nombre}
+              </option>
+            ))}
           </select>
         </div>
 

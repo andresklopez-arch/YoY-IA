@@ -460,7 +460,7 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
     return unsub;
   }, [showModalPaseLista, user?.salonId]);
 
-  const handlePaseListaClick = async (emp) => {
+  const handlePaseListaClick = async (emp, selectedMesaIds = []) => {
     try {
       if (!user?.salonId) {
         throw new Error('No se ha detectado el identificador del salón.');
@@ -486,6 +486,7 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
           fecha: fechaHoy,
           turno: turnoActual,
           estado: 'presente',
+          mesasAsignadas: selectedMesaIds || [], // Guardar historial de mesas asignadas
           createdAt: serverTimestamp()
         });
         showToast(`Asistencia de ${emp.nombre} registrada ✅`, 'success');
@@ -520,7 +521,7 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
 
   const processAttendanceAndAssignments = async (emp, selectedMesaIds) => {
     // 1. Registrar asistencia
-    await handlePaseListaClick(emp);
+    await handlePaseListaClick(emp, selectedMesaIds);
 
     // 2. Registrar asignaciones de mesas
     try {
@@ -1826,6 +1827,24 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
                   <p style={{ fontSize: 11, color: 'var(--text-secondary)', margin: '6px 0 0 0', lineHeight: 1.4 }}>
                     Seleccione las mesas asignadas. Si el empleado es mesero, las alertas y comisiones de las ventas se le asociarán automáticamente.
                   </p>
+                  {mesasAsignadasPase.length > 5 && (
+                    <div style={{
+                      marginTop: 10,
+                      padding: '8px 12px',
+                      background: 'rgba(245, 158, 11, 0.08)',
+                      border: '1px solid rgba(245, 158, 11, 0.25)',
+                      borderRadius: 8,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      fontSize: 11,
+                      color: '#f59e0b',
+                      fontWeight: 600
+                    }}>
+                      <i className="ri-error-warning-line" style={{ fontSize: 13 }} />
+                      <span>Saturación: {asignacionPaseEmpleado.nombre} tiene {mesasAsignadasPase.length} mesas seleccionadas. Esto podría causar demoras en el servicio.</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Accesos rápidos */}
