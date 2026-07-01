@@ -4,7 +4,7 @@ import {
   collection, addDoc, updateDoc, deleteDoc, doc,
   onSnapshot, query, orderBy, where, getDocs, serverTimestamp, limit
 } from '@/lib/firestore-tenant';
-import { db } from '@/lib/firebase';
+import { auth, db } from '@/lib/firebase';
 import { hashNip } from '@/lib/crypto';
 import { getBusinessDate } from '@/lib/date-utils';
 import { QRCodeSVG } from 'qrcode.react';
@@ -376,9 +376,14 @@ export default function NominaPanel({ showToast }) {
 
   const generarTokenQR = async (empleadoId) => {
     try {
+      const headers = { 'Content-Type': 'application/json' };
+      if (auth.currentUser) {
+        const tokenJWT = await auth.currentUser.getIdToken();
+        headers['Authorization'] = `Bearer ${tokenJWT}`;
+      }
       const res = await fetch('/api/nomina/generate-qr-token', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ empleadoId })
       });
       const data = await res.json();

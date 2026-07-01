@@ -5,7 +5,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useAlertasNomina } from '@/components/panels/NominaPanel';
 import { QRCodeSVG } from 'qrcode.react';
 import { collection, query, where, onSnapshot, doc, getDoc, setDoc, addDoc, getDocs, serverTimestamp, updateDoc, orderBy, limit, writeBatch } from '@/lib/firestore-tenant';
-import { db } from '@/lib/firebase';
+import { auth, db } from '@/lib/firebase';
 import { deobfuscate, obfuscate } from '@/lib/crypto';
 import { getBusinessDate } from '@/lib/date-utils';
 
@@ -338,9 +338,14 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
   const regenerarQROnTimeout = async () => {
     if (!focusedEmpleadoQR) return;
     try {
+      const headers = { 'Content-Type': 'application/json' };
+      if (auth.currentUser) {
+        const tokenJWT = await auth.currentUser.getIdToken();
+        headers['Authorization'] = `Bearer ${tokenJWT}`;
+      }
       const res = await fetch('/api/nomina/generate-qr-token', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ empleadoId: focusedEmpleadoQR.id })
       });
       const data = await res.json();
@@ -2187,9 +2192,14 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
                               e.stopPropagation(); // Evitar registrar asistencia al hacer clic en ver QR
                               
                               try {
+                                const headers = { 'Content-Type': 'application/json' };
+                                if (auth.currentUser) {
+                                  const tokenJWT = await auth.currentUser.getIdToken();
+                                  headers['Authorization'] = `Bearer ${tokenJWT}`;
+                                }
                                 const res = await fetch('/api/nomina/generate-qr-token', {
                                   method: 'POST',
-                                  headers: { 'Content-Type': 'application/json' },
+                                  headers,
                                   body: JSON.stringify({ empleadoId: emp.id })
                                 });
                                 const data = await res.json();
