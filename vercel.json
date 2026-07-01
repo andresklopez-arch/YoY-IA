@@ -1,8 +1,8 @@
-﻿{
-    "crons":  [
-                  {
-                      "path":  "/api/telegram/cron-report",
-                      "schedule":  "0 * * * *"
-                  }
-              ]
+{
+  "crons": [
+    {
+      "path": "/api/telegram/cron-report",
+      "schedule": "0 * * * *"
+    }
+  ]
 }
