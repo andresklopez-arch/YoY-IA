@@ -31,11 +31,17 @@ export async function GET(request) {
     // 1. Cargar la configuración de Telegram
     const tgSnap = await getDoc(doc(db, 'config', 'telegram'));
     if (!tgSnap.exists()) {
-      return NextResponse.json({ success: false, error: 'Configuración de Telegram no encontrada' }, { status: 404 });
+      return NextResponse.json({ 
+        success: false, 
+        error: 'Telegram no está configurado. Por favor, ve a la pestaña "Configuración" en el panel de Administración, ingresa los datos de Telegram (ej. Modo Simplificado y tu teléfono) y haz clic en "Guardar".' 
+      }, { status: 404 });
     }
     const tgConfig = tgSnap.data();
     if (!tgConfig.enabled) {
-      return NextResponse.json({ success: false, error: 'Las alertas de Telegram están desactivadas globalmente' });
+      return NextResponse.json({ 
+        success: false, 
+        error: 'Las alertas de Telegram están desactivadas. Actívalas seleccionando "Habilitar Alertas" en la pestaña "Configuración" del panel de Administración y guarda los cambios.' 
+      });
     }
 
     // Si no está activado el reporte periódico y no es un envío forzado, omitir
