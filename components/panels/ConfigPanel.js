@@ -2575,6 +2575,237 @@ export default function ConfigPanel({ showToast }) {
                 </button>
               </form>
             </div>
+            <div className="card" style={{ border: '1px solid rgba(239,68,68,0.2)', padding: '12px 14px' }}>
+              <div className="card-header" style={{ marginBottom: 12 }}>
+                <h3 className="card-title" style={{ color: 'var(--danger)' }}><i className="ri-error-warning-line" style={{ marginRight: 6 }} />Mantenimiento y Depuración</h3>
+                <span className="badge badge-danger" style={{ fontSize: '9px', padding: '2px 6px' }}>Zona Peligrosa</span>
+              </div>
+              <p style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 10, lineHeight: 1.4 }}>
+                Use esta herramienta para limpiar por completo todos los torneos, comandas, bitácora de caja, histórico y restablecer las mesas.
+              </p>
+              <form onSubmit={handleRestablecerTodo} style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <div className="form-group" style={{ margin: 0, gap: 4 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: 90 }}>
+                    <label className="form-label">PIN Admin</label>
+                    <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
+                      {resetPin?.length || 0}/8
+                    </span>
+                  </div>
+                  <input
+                    type="password"
+                    className="form-input"
+                    placeholder="••••"
+                    value={resetPin}
+                    onChange={e => setResetPin(e.target.value)}
+                    maxLength={8}
+                    style={{ width: 90, letterSpacing: '0.2em', textAlign: 'center', padding: '6px 10px', fontSize: '13px' }}
+                    required
+                  />
+                </div>
+                <div className="form-group" style={{ flex: 1, minWidth: 150, margin: 0, gap: 4 }}>
+                  <label className="form-label">Escriba RESTABLECER</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="RESTABLECER"
+                    value={confirmWipeText}
+                    onChange={e => setConfirmWipeText(e.target.value)}
+                    style={{ textTransform: 'uppercase', padding: '6px 10px', fontSize: '13px' }}
+                    required
+                  />
+                </div>
+                <button 
+                  type="submit" 
+                  className="btn btn-danger" 
+                  disabled={isResetting || !resetPin || confirmWipeText.trim().toUpperCase() !== 'RESTABLECER'} 
+                  style={{ alignSelf: 'flex-end', height: 32, padding: '4px 8px', fontSize: '11px' }}
+                >
+                  <i className="ri-delete-bin-line" /> {isResetting ? 'Restableciendo...' : 'Restablecer Base de Datos'}
+                </button>
+              </form>
+
+              <hr style={{ border: 'none', borderTop: '1px dashed var(--border)', margin: '16px 0' }} />
+              
+              <div style={{ marginBottom: 10 }}>
+                <h4 style={{ fontSize: 12, fontWeight: 700, color: 'var(--bronze-light)', margin: '0 0 4px 0', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <i className="ri-archive-line" /> Archivado de Comandas Antiguas
+                </h4>
+                <p style={{ fontSize: 10.5, color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>
+                  Mueve comandas finalizadas del historial activo a una colección histórica secundaria. Acelera los reportes de Caja y reduce el consumo de base de datos.
+                </p>
+              </div>
+              
+              <form onSubmit={handleArchivarPedidos} style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <div className="form-group" style={{ margin: 0, gap: 4 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: 90 }}>
+                    <label className="form-label">PIN Admin</label>
+                    <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
+                      {archivingPin?.length || 0}/8
+                    </span>
+                  </div>
+                  <input
+                    type="password"
+                    className="form-input"
+                    placeholder="••••"
+                    value={archivingPin}
+                    onChange={e => setArchivingPin(e.target.value)}
+                    maxLength={8}
+                    style={{ width: 90, letterSpacing: '0.2em', textAlign: 'center', padding: '6px 10px', fontSize: '13px' }}
+                    required
+                  />
+                </div>
+                <div className="form-group" style={{ flex: 1, minWidth: 150, margin: 0, gap: 4 }}>
+                  <label className="form-label">Antigüedad mínima</label>
+                  <select
+                    className="form-input"
+                    value={archivingDays}
+                    onChange={e => setArchivingDays(Number(e.target.value))}
+                    style={{ padding: '6px 10px', fontSize: '13px', background: 'var(--bg-elevated)', color: '#fff', border: '1px solid var(--border)', borderRadius: 6, height: 32 }}
+                  >
+                    <option value={15}>Más de 15 días de antigüedad</option>
+                    <option value={30}>Más de 30 días (Recomendado)</option>
+                    <option value={60}>Más de 60 días de antigüedad</option>
+                    <option value={90}>Más de 90 días de antigüedad</option>
+                  </select>
+                </div>
+                <button 
+                  type="submit" 
+                  className="btn" 
+                  disabled={isArchiving || !archivingPin} 
+                  style={{ 
+                    alignSelf: 'flex-end', height: 32, padding: '4px 14px', fontSize: '11px', fontWeight: 700,
+                    background: 'linear-gradient(135deg, var(--bronze), var(--bronze-light))', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer'
+                  }}
+                >
+                  <i className="ri-archive-line" /> {isArchiving ? 'Archivando...' : 'Archivar Pedidos'}
+                </button>
+              </form>
+            </div>
+
+            {/* Registro de Errores (Crashes) del Sistema */}
+            <div className="card" style={{ border: '1px solid rgba(227,168,105,0.2)', padding: '12px 14px', marginTop: 12 }}>
+              <div className="card-header" style={{ marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h3 className="card-title" style={{ color: 'var(--bronze-light)' }}>
+                  <i className="ri-error-warning-fill" style={{ marginRight: 6 }} />Registro de Errores (Crashes)
+                </h3>
+                {crashLogs.length > 0 && (
+                  <button 
+                    type="button"
+                    onClick={handleClearCrashLogs}
+                    className="btn btn-secondary btn-xs"
+                    style={{ fontSize: 10, padding: '3px 8px', color: 'var(--danger)', borderColor: 'rgba(239,68,68,0.2)', background: 'none', cursor: 'pointer' }}
+                  >
+                    <i className="ri-delete-bin-line" /> Limpiar Registro
+                  </button>
+                )}
+              </div>
+              <p style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 12, lineHeight: 1.4 }}>
+                Últimos 10 fallos críticos reportados en tiempo real por el sistema de monitoreo.
+              </p>
+
+              {/* Filtros de logs */}
+              {crashLogs.length > 0 && (
+                <div style={{ display: 'flex', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
+                  <div style={{ flex: 1, minWidth: 150 }}>
+                    <input 
+                      type="text"
+                      className="form-input"
+                      placeholder="Buscar por mensaje o usuario..."
+                      value={logSearchQuery}
+                      onChange={e => setLogSearchQuery(e.target.value)}
+                      style={{ fontSize: 11, padding: '5px 10px' }}
+                    />
+                  </div>
+                  <div style={{ width: 140 }}>
+                    <select
+                      className="form-input"
+                      value={logPanelFilter}
+                      onChange={e => setLogPanelFilter(e.target.value)}
+                      style={{ fontSize: 11, padding: '5px' }}
+                    >
+                      <option value="todos">Todos los Paneles</option>
+                      {Array.from(new Set(crashLogs.map(l => l.panelName))).map(pName => (
+                        <option key={pName} value={pName}>{pName}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
+
+              {loadingLogs ? (
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', padding: '12px 0' }}>Cargando registros...</div>
+              ) : crashLogs.length === 0 ? (
+                <div style={{ fontSize: 11, color: 'var(--success)', textAlign: 'center', padding: '16px 0', background: 'rgba(34,197,94,0.04)', borderRadius: 8, border: '1px dashed rgba(34,197,94,0.1)' }}>
+                  ✓ No se han reportado errores en el sistema. ¡Operación saludable!
+                </div>
+              ) : (
+                (() => {
+                  const filteredLogs = crashLogs.filter(log => {
+                    const matchesSearch = logSearchQuery.trim() === '' || 
+                      (log.errorMessage && log.errorMessage.toLowerCase().includes(logSearchQuery.toLowerCase())) ||
+                      (log.userEmail && log.userEmail.toLowerCase().includes(logSearchQuery.toLowerCase()));
+                      
+                    const matchesPanel = logPanelFilter === 'todos' || 
+                      (log.panelName && log.panelName.toLowerCase() === logPanelFilter.toLowerCase());
+                      
+                    return matchesSearch && matchesPanel;
+                  });
+
+                  if (filteredLogs.length === 0) {
+                    return (
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', padding: '12px 0' }}>
+                        No se encontraron registros que coincidan con la búsqueda.
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 300, overflowY: 'auto' }}>
+                      {filteredLogs.map((log) => {
+                        const isExpanded = selectedLogId === log.id;
+                        const dateStr = log.createdAt ? new Date(log.createdAt).toLocaleString() : 'Desconocida';
+                        return (
+                          <div key={log.id} style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 10px', fontSize: 11 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+                              <span style={{ fontWeight: 800, color: '#ef4444', textTransform: 'uppercase' }}>
+                                Panel: {log.panelName}
+                              </span>
+                              <span style={{ color: 'var(--text-muted)', fontSize: 9.5 }}>{dateStr}</span>
+                            </div>
+                            <div style={{ marginTop: 4, fontWeight: 600, color: 'var(--text-main)', wordBreak: 'break-all', textAlign: 'left' }}>
+                              {log.errorMessage}
+                            </div>
+                            <div style={{ marginTop: 4, fontSize: 9.5, color: 'var(--text-secondary)', display: 'flex', gap: 12 }}>
+                              <span><strong>User:</strong> {log.userEmail}</span>
+                              <span><strong>URL:</strong> {log.url ? log.url.split('/').pop() : ''}</span>
+                            </div>
+                            
+                            {log.errorStack && (
+                              <button
+                                type="button"
+                                onClick={() => setSelectedLogId(isExpanded ? null : log.id)}
+                                style={{ background: 'none', border: 'none', color: 'var(--bronze-light)', cursor: 'pointer', padding: '4px 0 0 0', fontSize: 9.5, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 3 }}
+                              >
+                                <i className={isExpanded ? 'ri-arrow-up-s-line' : 'ri-arrow-down-s-line'} />
+                                {isExpanded ? 'Ocultar detalles' : 'Ver detalles técnicos'}
+                              </button>
+                            )}
+
+                            {isExpanded && (
+                              <div style={{ marginTop: 6, background: 'var(--bg-main)', padding: 8, borderRadius: 6, border: '1px solid var(--border)', overflowX: 'auto', fontFamily: 'monospace', fontSize: 9, whiteSpace: 'pre-wrap', color: 'var(--text-muted)', maxHeight: 150, overflowY: 'auto', textAlign: 'left' }}>
+                                <strong>Stack Trace:</strong>{"\n"}{log.errorStack}{"\n\n"}
+                                <strong>Component Stack:</strong>{"\n"}{log.componentStack}{"\n\n"}
+                                <strong>User Agent:</strong>{"\n"}{log.userAgent}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()
+              )}
+            </div>
             </div>
 
             {/* COLUMNA 2 */}
@@ -3816,237 +4047,6 @@ export default function ConfigPanel({ showToast }) {
               </button>
             </div>
 
-            <div className="card" style={{ border: '1px solid rgba(239,68,68,0.2)', padding: '12px 14px' }}>
-              <div className="card-header" style={{ marginBottom: 12 }}>
-                <h3 className="card-title" style={{ color: 'var(--danger)' }}><i className="ri-error-warning-line" style={{ marginRight: 6 }} />Mantenimiento y Depuración</h3>
-                <span className="badge badge-danger" style={{ fontSize: '9px', padding: '2px 6px' }}>Zona Peligrosa</span>
-              </div>
-              <p style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 10, lineHeight: 1.4 }}>
-                Use esta herramienta para limpiar por completo todos los torneos, comandas, bitácora de caja, histórico y restablecer las mesas.
-              </p>
-              <form onSubmit={handleRestablecerTodo} style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                <div className="form-group" style={{ margin: 0, gap: 4 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: 90 }}>
-                    <label className="form-label">PIN Admin</label>
-                    <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
-                      {resetPin?.length || 0}/8
-                    </span>
-                  </div>
-                  <input
-                    type="password"
-                    className="form-input"
-                    placeholder="••••"
-                    value={resetPin}
-                    onChange={e => setResetPin(e.target.value)}
-                    maxLength={8}
-                    style={{ width: 90, letterSpacing: '0.2em', textAlign: 'center', padding: '6px 10px', fontSize: '13px' }}
-                    required
-                  />
-                </div>
-                <div className="form-group" style={{ flex: 1, minWidth: 150, margin: 0, gap: 4 }}>
-                  <label className="form-label">Escriba RESTABLECER</label>
-                  <input
-                    type="text"
-                    className="form-input"
-                    placeholder="RESTABLECER"
-                    value={confirmWipeText}
-                    onChange={e => setConfirmWipeText(e.target.value)}
-                    style={{ textTransform: 'uppercase', padding: '6px 10px', fontSize: '13px' }}
-                    required
-                  />
-                </div>
-                <button 
-                  type="submit" 
-                  className="btn btn-danger" 
-                  disabled={isResetting || !resetPin || confirmWipeText.trim().toUpperCase() !== 'RESTABLECER'} 
-                  style={{ alignSelf: 'flex-end', height: 32, padding: '4px 8px', fontSize: '11px' }}
-                >
-                  <i className="ri-delete-bin-line" /> {isResetting ? 'Restableciendo...' : 'Restablecer Base de Datos'}
-                </button>
-              </form>
-
-              <hr style={{ border: 'none', borderTop: '1px dashed var(--border)', margin: '16px 0' }} />
-              
-              <div style={{ marginBottom: 10 }}>
-                <h4 style={{ fontSize: 12, fontWeight: 700, color: 'var(--bronze-light)', margin: '0 0 4px 0', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <i className="ri-archive-line" /> Archivado de Comandas Antiguas
-                </h4>
-                <p style={{ fontSize: 10.5, color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>
-                  Mueve comandas finalizadas del historial activo a una colección histórica secundaria. Acelera los reportes de Caja y reduce el consumo de base de datos.
-                </p>
-              </div>
-              
-              <form onSubmit={handleArchivarPedidos} style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                <div className="form-group" style={{ margin: 0, gap: 4 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: 90 }}>
-                    <label className="form-label">PIN Admin</label>
-                    <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
-                      {archivingPin?.length || 0}/8
-                    </span>
-                  </div>
-                  <input
-                    type="password"
-                    className="form-input"
-                    placeholder="••••"
-                    value={archivingPin}
-                    onChange={e => setArchivingPin(e.target.value)}
-                    maxLength={8}
-                    style={{ width: 90, letterSpacing: '0.2em', textAlign: 'center', padding: '6px 10px', fontSize: '13px' }}
-                    required
-                  />
-                </div>
-                <div className="form-group" style={{ flex: 1, minWidth: 150, margin: 0, gap: 4 }}>
-                  <label className="form-label">Antigüedad mínima</label>
-                  <select
-                    className="form-input"
-                    value={archivingDays}
-                    onChange={e => setArchivingDays(Number(e.target.value))}
-                    style={{ padding: '6px 10px', fontSize: '13px', background: 'var(--bg-elevated)', color: '#fff', border: '1px solid var(--border)', borderRadius: 6, height: 32 }}
-                  >
-                    <option value={15}>Más de 15 días de antigüedad</option>
-                    <option value={30}>Más de 30 días (Recomendado)</option>
-                    <option value={60}>Más de 60 días de antigüedad</option>
-                    <option value={90}>Más de 90 días de antigüedad</option>
-                  </select>
-                </div>
-                <button 
-                  type="submit" 
-                  className="btn" 
-                  disabled={isArchiving || !archivingPin} 
-                  style={{ 
-                    alignSelf: 'flex-end', height: 32, padding: '4px 14px', fontSize: '11px', fontWeight: 700,
-                    background: 'linear-gradient(135deg, var(--bronze), var(--bronze-light))', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer'
-                  }}
-                >
-                  <i className="ri-archive-line" /> {isArchiving ? 'Archivando...' : 'Archivar Pedidos'}
-                </button>
-              </form>
-            </div>
-
-            {/* Registro de Errores (Crashes) del Sistema */}
-            <div className="card" style={{ border: '1px solid rgba(227,168,105,0.2)', padding: '12px 14px', marginTop: 12 }}>
-              <div className="card-header" style={{ marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h3 className="card-title" style={{ color: 'var(--bronze-light)' }}>
-                  <i className="ri-error-warning-fill" style={{ marginRight: 6 }} />Registro de Errores (Crashes)
-                </h3>
-                {crashLogs.length > 0 && (
-                  <button 
-                    type="button"
-                    onClick={handleClearCrashLogs}
-                    className="btn btn-secondary btn-xs"
-                    style={{ fontSize: 10, padding: '3px 8px', color: 'var(--danger)', borderColor: 'rgba(239,68,68,0.2)', background: 'none', cursor: 'pointer' }}
-                  >
-                    <i className="ri-delete-bin-line" /> Limpiar Registro
-                  </button>
-                )}
-              </div>
-              <p style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 12, lineHeight: 1.4 }}>
-                Últimos 10 fallos críticos reportados en tiempo real por el sistema de monitoreo.
-              </p>
-
-              {/* Filtros de logs */}
-              {crashLogs.length > 0 && (
-                <div style={{ display: 'flex', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
-                  <div style={{ flex: 1, minWidth: 150 }}>
-                    <input 
-                      type="text"
-                      className="form-input"
-                      placeholder="Buscar por mensaje o usuario..."
-                      value={logSearchQuery}
-                      onChange={e => setLogSearchQuery(e.target.value)}
-                      style={{ fontSize: 11, padding: '5px 10px' }}
-                    />
-                  </div>
-                  <div style={{ width: 140 }}>
-                    <select
-                      className="form-input"
-                      value={logPanelFilter}
-                      onChange={e => setLogPanelFilter(e.target.value)}
-                      style={{ fontSize: 11, padding: '5px' }}
-                    >
-                      <option value="todos">Todos los Paneles</option>
-                      {Array.from(new Set(crashLogs.map(l => l.panelName))).map(pName => (
-                        <option key={pName} value={pName}>{pName}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              )}
-
-              {loadingLogs ? (
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', padding: '12px 0' }}>Cargando registros...</div>
-              ) : crashLogs.length === 0 ? (
-                <div style={{ fontSize: 11, color: 'var(--success)', textAlign: 'center', padding: '16px 0', background: 'rgba(34,197,94,0.04)', borderRadius: 8, border: '1px dashed rgba(34,197,94,0.1)' }}>
-                  ✓ No se han reportado errores en el sistema. ¡Operación saludable!
-                </div>
-              ) : (
-                (() => {
-                  const filteredLogs = crashLogs.filter(log => {
-                    const matchesSearch = logSearchQuery.trim() === '' || 
-                      (log.errorMessage && log.errorMessage.toLowerCase().includes(logSearchQuery.toLowerCase())) ||
-                      (log.userEmail && log.userEmail.toLowerCase().includes(logSearchQuery.toLowerCase()));
-                      
-                    const matchesPanel = logPanelFilter === 'todos' || 
-                      (log.panelName && log.panelName.toLowerCase() === logPanelFilter.toLowerCase());
-                      
-                    return matchesSearch && matchesPanel;
-                  });
-
-                  if (filteredLogs.length === 0) {
-                    return (
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', padding: '12px 0' }}>
-                        No se encontraron registros que coincidan con la búsqueda.
-                      </div>
-                    );
-                  }
-
-                  return (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 300, overflowY: 'auto' }}>
-                      {filteredLogs.map((log) => {
-                        const isExpanded = selectedLogId === log.id;
-                        const dateStr = log.createdAt ? new Date(log.createdAt).toLocaleString() : 'Desconocida';
-                        return (
-                          <div key={log.id} style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 10px', fontSize: 11 }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
-                              <span style={{ fontWeight: 800, color: '#ef4444', textTransform: 'uppercase' }}>
-                                Panel: {log.panelName}
-                              </span>
-                              <span style={{ color: 'var(--text-muted)', fontSize: 9.5 }}>{dateStr}</span>
-                            </div>
-                            <div style={{ marginTop: 4, fontWeight: 600, color: 'var(--text-main)', wordBreak: 'break-all', textAlign: 'left' }}>
-                              {log.errorMessage}
-                            </div>
-                            <div style={{ marginTop: 4, fontSize: 9.5, color: 'var(--text-secondary)', display: 'flex', gap: 12 }}>
-                              <span><strong>User:</strong> {log.userEmail}</span>
-                              <span><strong>URL:</strong> {log.url ? log.url.split('/').pop() : ''}</span>
-                            </div>
-                            
-                            {log.errorStack && (
-                              <button
-                                type="button"
-                                onClick={() => setSelectedLogId(isExpanded ? null : log.id)}
-                                style={{ background: 'none', border: 'none', color: 'var(--bronze-light)', cursor: 'pointer', padding: '4px 0 0 0', fontSize: 9.5, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 3 }}
-                              >
-                                <i className={isExpanded ? 'ri-arrow-up-s-line' : 'ri-arrow-down-s-line'} />
-                                {isExpanded ? 'Ocultar detalles' : 'Ver detalles técnicos'}
-                              </button>
-                            )}
-
-                            {isExpanded && (
-                              <div style={{ marginTop: 6, background: 'var(--bg-main)', padding: 8, borderRadius: 6, border: '1px solid var(--border)', overflowX: 'auto', fontFamily: 'monospace', fontSize: 9, whiteSpace: 'pre-wrap', color: 'var(--text-muted)', maxHeight: 150, overflowY: 'auto', textAlign: 'left' }}>
-                                <strong>Stack Trace:</strong>{"\n"}{log.errorStack}{"\n\n"}
-                                <strong>Component Stack:</strong>{"\n"}{log.componentStack}{"\n\n"}
-                                <strong>User Agent:</strong>{"\n"}{log.userAgent}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  );
-                })()
-              )}
-            </div>
             </div>
 
           </div>
