@@ -310,6 +310,7 @@ export default function ConfigPanel({ showToast }) {
   const [loadingPending, setLoadingPending] = useState(false);
   const [telegramLogs, setTelegramLogs] = useState([]);
   const [retryingLogIds, setRetryingLogIds] = useState({});
+  const [countryCode, setCountryCode] = useState('+52');
 
   // --- Estados de Registro de Errores (Crashes) ---
   const [crashLogs, setCrashLogs] = useState([]);
@@ -537,6 +538,11 @@ export default function ConfigPanel({ showToast }) {
     getDoc(doc(db, 'config', 'telegram')).then(snap => {
       if (snap.exists()) {
         const d = snap.data();
+        if (d.phone) {
+          if (d.phone.startsWith('+57')) setCountryCode('+57');
+          else if (d.phone.startsWith('+1')) setCountryCode('+1');
+          else setCountryCode('+52');
+        }
         setTelegramConfig({
           enabled: d.enabled || false,
           mode: d.mode || 'simplified',
@@ -1153,6 +1159,63 @@ export default function ConfigPanel({ showToast }) {
     }
   };
 
+  const handlePhoneInputChange = (e) => {
+    let val = e.target.value;
+    let clean = val.replace(/\D/g, '');
+    
+    // Si empieza con los dígitos de countryCode, removerlos para formatear sólo el número local
+    const prefixDigits = countryCode.replace('+', '');
+    if (clean.startsWith(prefixDigits)) {
+      clean = clean.slice(prefixDigits.length);
+    }
+    if (clean.length > 10) clean = clean.slice(0, 10);
+    
+    let formatted = '';
+    if (clean.length <= 2) {
+      formatted = clean;
+    } else if (clean.length <= 6) {
+      formatted = `(${clean.slice(0, 2)}) ${clean.slice(2)}`;
+    } else {
+      formatted = `(${clean.slice(0, 2)}) ${clean.slice(2, 6)}-${clean.slice(6, 10)}`;
+    }
+    
+    const finalVal = clean ? `${countryCode} ${formatted}` : '';
+    setTelegramConfig(p => ({
+      ...p,
+      phone: finalVal,
+      enabled: !!clean
+    }));
+  };
+
+  const handleCountryCodeChange = (newCode) => {
+    setCountryCode(newCode);
+    
+    // Obtener número local actual y re-formatear con el nuevo prefijo
+    let clean = (telegramConfig.phone || '').replace(/\D/g, '');
+    const oldPrefixDigits = countryCode.replace('+', '');
+    if (clean.startsWith(oldPrefixDigits)) {
+      clean = clean.slice(oldPrefixDigits.length);
+    }
+    if (clean.length > 10) clean = clean.slice(0, 10);
+    
+    let formatted = '';
+    if (clean.length > 0) {
+      if (clean.length <= 2) {
+        formatted = clean;
+      } else if (clean.length <= 6) {
+        formatted = `(${clean.slice(0, 2)}) ${clean.slice(2)}`;
+      } else {
+        formatted = `(${clean.slice(0, 2)}) ${clean.slice(2, 6)}-${clean.slice(6, 10)}`;
+      }
+    }
+    
+    setTelegramConfig(p => ({
+      ...p,
+      phone: clean ? `${newCode} ${formatted}` : '',
+      enabled: !!clean
+    }));
+  };
+
   const checkPhoneLinking = async () => {
     if (!telegramConfig.phone) {
       showToast('Ingresa un número de teléfono primero', 'warning');
@@ -1183,13 +1246,20 @@ export default function ConfigPanel({ showToast }) {
         
         // Guardar automáticamente configuración activa
         const salonId = getActiveSalonId();
-        await setDoc(doc(db, 'config', `telegram_${salonId}`), {
+        const activeConfig = {
           ...telegramConfig,
           phone: finalPhone,
           enabled: true,
           updatedAt: serverTimestamp()
-        });
+        };
+        await setDoc(doc(db, 'config', `telegram_${salonId}`), activeConfig);
         showToast('Configuración de Telegram guardada y activada de forma automática ✓', 'success');
+        
+        // Disparar prueba automática
+        showToast('Enviando reporte de prueba automático...', 'info');
+        setTimeout(() => {
+          handleTestTelegram(activeConfig);
+        }, 800);
       } else {
         showToast(`El número +${cleanPhone} no está vinculado con @YoYBillarBot. Abre Telegram, busca @YoYBillarBot y presiona Iniciar.`, 'warning');
       }
@@ -1251,12 +1321,13 @@ export default function ConfigPanel({ showToast }) {
     }
   };
 
-  const handleTestTelegram = async () => {
-    if (telegramConfig.mode === 'custom' && (!telegramConfig.botToken || !telegramConfig.chatId)) {
+  const handleTestTelegram = async (overrideConfig) => {
+    const configToUse = overrideConfig || telegramConfig;
+    if (configToUse.mode === 'custom' && (!configToUse.botToken || !configToUse.chatId)) {
       showToast('Ingresa el Token y Chat ID para enviar un mensaje de prueba', 'warning');
       return;
     }
-    if (telegramConfig.mode === 'simplified' && !telegramConfig.phone) {
+    if (configToUse.mode === 'simplified' && !configToUse.phone) {
       showToast('Primero debes ingresar tu número telefónico vinculado a Telegram', 'warning');
       return;
     }
@@ -1286,16 +1357,16 @@ export default function ConfigPanel({ showToast }) {
       };
       const chartUrl = `https://quickchart.io/chart?c=${encodeURIComponent(JSON.stringify(testChartConfig))}&bkg=%23121212`;
       
-      const text = `🔔 *YoY Billar - Prueba de Notificaciones*\n\nSi estás viendo este mensaje, la integración con Telegram se ha configurado correctamente en modo *${telegramConfig.mode === 'simplified' ? 'Simplificado (Bot Oficial)' : 'Personalizado'}*.\n\nEste reporte de prueba incluye una gráfica simulada de rendimiento para confirmar el correcto renderizado de imágenes en tu dispositivo.`;
+      const text = `🔔 *YoY Billar - Prueba de Notificaciones*\n\nSi estás viendo este mensaje, la integración con Telegram se ha configurado correctamente en modo *${configToUse.mode === 'simplified' ? 'Simplificado (Bot Oficial)' : 'Personalizado'}*.\n\nEste reporte de prueba incluye una gráfica simulada de rendimiento para confirmar el correcto renderizado de imágenes en tu dispositivo.`;
 
       const res = await fetch('/api/telegram/send-alert', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          mode: telegramConfig.mode,
-          token: telegramConfig.botToken,
-          chatId: telegramConfig.chatId,
-          phone: telegramConfig.phone,
+          mode: configToUse.mode,
+          token: configToUse.botToken,
+          chatId: configToUse.chatId,
+          phone: configToUse.phone,
           text: text,
           photo: chartUrl
         })
@@ -2498,11 +2569,30 @@ export default function ConfigPanel({ showToast }) {
                   <div className="form-group" style={{ gap: 4 }}>
                     <label className="form-label">Número de Teléfono (Telegram)</label>
                     <div style={{ display: 'flex', gap: 8 }}>
+                      <select
+                        className="form-input"
+                        value={countryCode}
+                        onChange={e => handleCountryCodeChange(e.target.value)}
+                        style={{
+                          width: '95px',
+                          padding: '8px 10px',
+                          fontSize: '12px',
+                          background: 'var(--bg-card)',
+                          borderColor: 'var(--border-subtle)',
+                          borderRadius: '6px',
+                          color: 'var(--text-main)',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <option value="+52">🇲🇽 +52</option>
+                        <option value="+57">🇨🇴 +57</option>
+                        <option value="+1">🇺🇸 +1</option>
+                      </select>
                       <input
                         className="form-input"
-                        placeholder="Ej: +525512345678 (con código de país)"
+                        placeholder="Ej: (55) 1234-5678"
                         value={telegramConfig.phone || ''}
-                        onChange={e => setTelegramConfig(p => ({ ...p, phone: e.target.value, enabled: !!e.target.value.trim() }))}
+                        onChange={handlePhoneInputChange}
                         onBlur={handlePhoneBlur}
                         style={{ padding: '8px 12px', fontSize: '12px', flex: 1 }}
                       />
