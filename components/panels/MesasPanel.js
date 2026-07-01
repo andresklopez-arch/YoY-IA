@@ -4215,6 +4215,24 @@ export default function MesasPanel({ showToast }) {
     return map;
   }, [mesas, cuentasActivas, unloadedConsumos]);
 
+  // ── Identificar la Mesa con el Mayor Consumo Acumulado (Mesa VIP) ──
+  const vipTableId = useMemo(() => {
+    let maxTotal = 0;
+    let maxMesaId = null;
+    mesas.forEach(m => {
+      if (m.estado === 'ocupada') {
+        const consumosTotal = consumosPorMesa[m.id] || 0;
+        const costoTiempo = m.socios ? 0 : calcCosto(m);
+        const totalCuenta = costoTiempo + consumosTotal;
+        if (totalCuenta > maxTotal && totalCuenta > 0) {
+          maxTotal = totalCuenta;
+          maxMesaId = m.id;
+        }
+      }
+    });
+    return maxMesaId;
+  }, [mesas, consumosPorMesa]);
+
   // ── Efecto de Pulsación de Consumos Nuevos ──
   useEffect(() => {
     const updatedPulses = { ...pulseMesas };
@@ -4229,13 +4247,18 @@ export default function MesasPanel({ showToast }) {
       if (prevTotal !== undefined && newTotal > prevTotal) {
         updatedPulses[mId] = true;
         hasChanges = true;
-        // Apagar la pulsación después de 4 segundos
+        
+        // Calcular duración: 8s si el aumento es >= $1000 MXN, de lo contrario 4s
+        const diff = newTotal - prevTotal;
+        const duration = diff >= 1000 ? 8000 : 4000;
+
+        // Apagar la pulsación después de la duración correspondiente
         setTimeout(() => {
           setPulseMesas(prev => ({
             ...prev,
             [mId]: false
           }));
-        }, 4000);
+        }, duration);
       }
     });
 
@@ -5569,7 +5592,18 @@ export default function MesasPanel({ showToast }) {
       `;
     }
 
-    consumos.forEach(item => {
+    const consolidatedMap = {};
+    (consumos || []).forEach(item => {
+      const key = `${item.productoId || ''}_${item.producto.toLowerCase()}_${item.precio}`;
+      if (consolidatedMap[key]) {
+        consolidatedMap[key].cantidad += item.cantidad;
+      } else {
+        consolidatedMap[key] = { ...item };
+      }
+    });
+    const consolidatedConsumos = Object.values(consolidatedMap);
+
+    consolidatedConsumos.forEach(item => {
       htmlContent += `
         <tr>
           <td>${item.cantidad}x ${item.producto}</td>
@@ -5971,7 +6005,18 @@ export default function MesasPanel({ showToast }) {
       `;
     }
 
-    consumos.forEach(item => {
+    const consolidatedMap = {};
+    (consumos || []).forEach(item => {
+      const key = `${item.productoId || ''}_${item.producto.toLowerCase()}_${item.precio}`;
+      if (consolidatedMap[key]) {
+        consolidatedMap[key].cantidad += item.cantidad;
+      } else {
+        consolidatedMap[key] = { ...item };
+      }
+    });
+    const consolidatedConsumos = Object.values(consolidatedMap);
+
+    consolidatedConsumos.forEach(item => {
       htmlContent += `
         <tr>
           <td>${item.cantidad}x ${item.producto}</td>
@@ -7180,6 +7225,7 @@ export default function MesasPanel({ showToast }) {
           const isAssignedToQueue = mesa.estado === 'libre' && assignedFila.some(f => f.mesaAsignada && f.mesaAsignada.toLowerCase() === mesaNombreStr.toLowerCase());
 
           const isPulsing = pulseMesas[mesa.id];
+          const isVip = mesa.id === vipTableId;
           const dynamicStyle = isPulsing ? {
             border: '1.5px solid #22c55e',
             boxShadow: '0 0 15px rgba(34, 197, 94, 0.45)',
@@ -7195,6 +7241,10 @@ export default function MesasPanel({ showToast }) {
             boxShadow: '0 0 10px rgba(197, 168, 128, 0.25)',
             background: 'rgba(197, 168, 128, 0.03)',
             animation: 'pulseBorderGold 3s infinite ease-in-out'
+          } : isVip ? {
+            border: '1.5px solid rgba(245, 158, 11, 0.65)',
+            boxShadow: '0 0 12px rgba(245, 158, 11, 0.25)',
+            background: 'linear-gradient(135deg, rgba(20,20,22,1) 0%, rgba(245,158,11,0.02) 100%)'
           } : {};
 
           const mergedStyle = { ...baseStyle, ...dynamicStyle };
@@ -7202,7 +7252,7 @@ export default function MesasPanel({ showToast }) {
           return (
             <div
               key={mesa.id}
-              className={`mesa-card ${mesa.estado} ${isPorCobrar ? 'por-cobrar' : ''} ${hasAlert ? 'has-alert' : ''} ${isPulsing ? 'pulse-consumption-active' : ''} ${!animacionesActivas ? 'sin-animaciones' : ''}`}
+              className={`mesa-card ${mesa.estado} ${isPorCobrar ? 'por-cobrar' : ''} ${hasAlert ? 'has-alert' : ''} ${isPulsing ? 'pulse-consumption-active' : ''} ${isVip ? 'mesa-card-vip' : ''} ${!animacionesActivas ? 'sin-animaciones' : ''}`}
               onClick={() => abrirMesa(mesa)}
               style={mergedStyle}
             >
@@ -7211,6 +7261,20 @@ export default function MesasPanel({ showToast }) {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <div className="mesa-number" style={{ lineHeight: 1.1, marginBottom: 0 }}>{mesa.id}</div>
                     {getGameIcon(mesa.tipo, 24)}
+                    {isVip && (
+                      <span 
+                        title="👑 Mesa VIP: Mayor consumo acumulado" 
+                        style={{ 
+                          fontSize: 14, 
+                          animation: 'pulseAlertSolicitadaDirecta 2.5s infinite ease-in-out',
+                          cursor: 'default',
+                          display: 'inline-flex',
+                          alignItems: 'center'
+                        }}
+                      >
+                        👑
+                      </span>
+                    )}
                   </div>
                   {mesa.nombre && mesa.nombre.trim().toLowerCase() !== `mesa ${mesa.id}`.toLowerCase() && mesa.nombre.trim().toLowerCase() !== `mesa${mesa.id}`.toLowerCase() && (
                     <div style={{ fontSize: 11, fontWeight: 500, color: 'var(--bronze-light)', marginTop: 2, maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={mesa.nombre}>
