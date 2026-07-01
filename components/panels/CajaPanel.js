@@ -3619,27 +3619,104 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
       };
     }
 
-    // Case 3: Historical filter (7d, 15d, 1m, 6m, 1a, vida) - aggregated from resumenesDiariosList + datosHoy
-    let rentasMesas = datosHoy.rentasMesas;
-    let ventasBar = datosHoy.ventasBar;
-    let inscripcionesTorneo = datosHoy.inscripcionesTorneo;
-    let gastosG = datosHoy.gastosG;
-    let nominaS = datosHoy.nominaS;
-    let efectivoIngresos = datosHoy.efectivoIngresos;
-    let tarjetaIngresos = datosHoy.tarjetaIngresos;
-    let transferIngresos = datosHoy.transferIngresos;
+    // Case 3: Historical filter (7d, 15d, 1m, 6m, 1a, vida)
+    // Calcular límite de tiempo del período seleccionado
+    const nowMs = Date.now();
+    let limitDays = 7;
+    if (rfFiltro === '15d') limitDays = 15;
+    else if (rfFiltro === '1m') limitDays = 30;
+    else if (rfFiltro === '6m') limitDays = 180;
+    else if (rfFiltro === '1a') limitDays = 365;
+    else if (rfFiltro === 'vida') limitDays = 9999;
+    const limitMs = nowMs - limitDays * 24 * 60 * 60 * 1000;
 
-    resumenesDiariosList.forEach(d => {
-      if (d.id === hoyStr) return; // Skip today to prevent double counting
-      rentasMesas += Number(d.rentasMesas || 0);
-      ventasBar += Number(d.ventasBar || 0);
-      inscripcionesTorneo += Number(d.inscripcionesTorneo || 0);
-      gastosG += Number(d.gastosG || 0);
-      nominaS += Number(d.nominaS || 0);
-      efectivoIngresos += Number(d.efectivoIngresos || 0);
-      tarjetaIngresos += Number(d.tarjetaIngresos || 0);
-      transferIngresos += Number(d.transferIngresos || 0);
-    });
+    // ── ESTRATEGIA DUAL ──────────────────────────────────────────────────────
+    // 1. Si hay resúmenes diarios en Firestore: agrega datosHoy + resumenesDiarios
+    // 2. Si la colección de resúmenes está vacía (no se ha hecho corte): usa
+    //    bitácora en tiempo real (igual que "último corte") como fallback universal.
+    // ─────────────────────────────────────────────────────────────────────────
+    const tieneResumenes = resumenesDiariosList.length > 0;
+
+    let rentasMesas, ventasBar, inscripcionesTorneo, gastosG, nominaS;
+    let efectivoIngresos, tarjetaIngresos, transferIngresos;
+
+    if (tieneResumenes) {
+      // ── Camino principal: agrega datosHoy + resumenesDiarios filtrados por período ──
+      rentasMesas = datosHoy.rentasMesas;
+      ventasBar = datosHoy.ventasBar;
+      inscripcionesTorneo = datosHoy.inscripcionesTorneo;
+      gastosG = datosHoy.gastosG;
+      nominaS = datosHoy.nominaS;
+      efectivoIngresos = datosHoy.efectivoIngresos;
+      tarjetaIngresos = datosHoy.tarjetaIngresos;
+      transferIngresos = datosHoy.transferIngresos;
+
+      resumenesDiariosList.forEach(d => {
+        if (d.id === hoyStr) return; // Evitar duplicar hoy
+        // Para cada filtro, solo sumar si el día está dentro del rango
+        const dMs = d.id ? new Date(d.id).getTime() : 0;
+        if (dMs < limitMs) return; // Fuera del período seleccionado
+        rentasMesas += Number(d.rentasMesas || 0);
+        ventasBar += Number(d.ventasBar || 0);
+        inscripcionesTorneo += Number(d.inscripcionesTorneo || 0);
+        gastosG += Number(d.gastosG || 0);
+        nominaS += Number(d.nominaS || 0);
+        efectivoIngresos += Number(d.efectivoIngresos || 0);
+        tarjetaIngresos += Number(d.tarjetaIngresos || 0);
+        transferIngresos += Number(d.transferIngresos || 0);
+      });
+    } else {
+      // ── Fallback: calcular directamente desde bitácora en tiempo real ──────
+      // Esto es idéntico al Case 2 "último corte" pero usando limitMs del período
+      const eventosPeriodo = bitacora.filter(e => {
+        if (!e.fecha) return false;
+        return new Date(e.fecha).getTime() >= limitMs;
+      });
+      const listMesasFb = eventosPeriodo.filter(e => e.accion === 'Cierre Directo' || e.accion === 'Mesa a Cuenta');
+      rentasMesas = listMesasFb.reduce((s, e) => s + Math.abs(Number(e.monto) || 0), 0);
+
+      const listBarFb = cobros.filter(c => c.tipo === 'bar' && c.monto > 0 && (c.id > 1000000 ? c.id : nowMs) >= limitMs);
+      ventasBar = listBarFb.reduce((s, c) => s + Number(c.monto), 0);
+
+      inscripcionesTorneo = 0;
+      if (typeof window !== 'undefined') {
+        try {
+          const rawTorneos = localStorage.getItem('yoy_billar_torneos');
+          if (rawTorneos) {
+            const torneos = deobfuscate(rawTorneos) || [];
+            const torneosFb = torneos.filter(t => new Date(t.fechaInicio).getTime() >= limitMs);
+            inscripcionesTorneo = torneosFb.reduce((s, t) => {
+              const cost = parseFloat(t.inscripcion?.replace('$', '') || 0);
+              return s + (cost * (t.jugadores || 0));
+            }, 0);
+          }
+        } catch (err) { console.warn(err); }
+      }
+
+      efectivoIngresos = 0;
+      tarjetaIngresos = 0;
+      transferIngresos = 0;
+      listMesasFb.forEach(e => {
+        const detLower = (e.detalle || '').toLowerCase();
+        const montoVal = Math.abs(Number(e.monto) || 0);
+        if (detLower.includes('tarjeta')) tarjetaIngresos += montoVal;
+        else if (detLower.includes('transferencia') || detLower.includes('spei') || detLower.includes('qr')) transferIngresos += montoVal;
+        else efectivoIngresos += montoVal;
+      });
+      listBarFb.forEach(c => {
+        const montoVal = Number(c.monto) || 0;
+        const m = (c.metodo || 'efectivo').toLowerCase();
+        if (m === 'tarjeta') tarjetaIngresos += montoVal;
+        else if (m === 'spei' || m === 'transferencia' || m === 'transfer' || m === 'qr') transferIngresos += montoVal;
+        else efectivoIngresos += montoVal;
+      });
+
+      // Gastos y nómina filtrados en tiempo real
+      gastosG = gastosList.filter(g => g.fecha && new Date(g.fecha).getTime() >= limitMs)
+        .reduce((s, g) => s + (Number(g.monto) || 0), 0);
+      nominaS = nominaPagosList.filter(p => p.fecha && new Date(p.fecha).getTime() >= limitMs)
+        .reduce((s, p) => s + (Number(p.total || p.totalNeto) || 0), 0);
+    }
 
     const totalIngresos = rentasMesas + ventasBar + inscripcionesTorneo;
     const cogsBar = ventasBar * 0.35;
@@ -3651,15 +3728,6 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
     const margenUtilidad = totalIngresos > 0 ? (utilidadNeta / totalIngresos) * 100 : 0;
     const totalEfectivoPeriodo = Math.max(0, efectivoIngresos - totalOPEX);
     const totalDigitalPeriodo = tarjetaIngresos + transferIngresos;
-
-    const nowMs = Date.now();
-    let limitDays = 7;
-    if (rfFiltro === '15d') limitDays = 15;
-    else if (rfFiltro === '1m') limitDays = 30;
-    else if (rfFiltro === '6m') limitDays = 180;
-    else if (rfFiltro === '1a') limitDays = 365;
-    else if (rfFiltro === 'vida') limitDays = 9999;
-    const limitMs = nowMs - limitDays * 24 * 60 * 60 * 1000;
 
     const listGastos = gastosList.filter(g => g.fecha && new Date(g.fecha).getTime() >= limitMs);
     const listNomina = nominaPagosList.filter(p => p.fecha && new Date(p.fecha).getTime() >= limitMs);
@@ -3689,13 +3757,14 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
       torneosPeriodo: [], // Loaded on-demand
       listGastos,
       listNomina,
-      rentasMesasUsadasFallback: false,
-      ventasBarUsadasFallback: false,
+      usandoFallbackBitacora: !tieneResumenes, // flag para mostrar aviso opcional
+      rentasMesasUsadasFallback: !tieneResumenes,
+      ventasBarUsadasFallback: !tieneResumenes,
       gastosGUsadasFallback: false,
       nominaSUsadasFallback: false,
       limiteMs: limitMs
     };
-  }, [rfFiltro, resumenesDiariosList, datosHoy, gastosList, nominaPagosList, ultimoCorteFecha]);
+  }, [rfFiltro, resumenesDiariosList, datosHoy, bitacora, cobros, gastosList, nominaPagosList, ultimoCorteFecha]);
 
   const totalMontoMetodo = useMemo(() => {
     if (!rfModalDetalleMetodo) return 0;
