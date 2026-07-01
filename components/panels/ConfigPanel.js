@@ -1155,10 +1155,18 @@ export default function ConfigPanel({ showToast }) {
 
   const checkPhoneLinking = async () => {
     if (!telegramConfig.phone) {
-      showToast('Ingresa un número de de teléfono primero', 'warning');
+      showToast('Ingresa un número de teléfono primero', 'warning');
       return;
     }
-    const cleanPhone = telegramConfig.phone.replace(/\D/g, '');
+    // Formatear automáticamente si ingresa 10 dígitos sin prefijo
+    let cleanPhone = telegramConfig.phone.replace(/\D/g, '');
+    let finalPhone = telegramConfig.phone;
+    if (cleanPhone.length === 10) {
+      finalPhone = '+52' + cleanPhone;
+      cleanPhone = '52' + cleanPhone;
+      setTelegramConfig(p => ({ ...p, phone: finalPhone, enabled: true }));
+    }
+
     let hash = 0;
     for (let i = 0; i < cleanPhone.length; i++) {
       const char = cleanPhone.charCodeAt(i);
@@ -1172,11 +1180,29 @@ export default function ConfigPanel({ showToast }) {
       const snap = await getDoc(docRef);
       if (snap.exists()) {
         showToast(`¡Número vinculado correctamente! (Chat ID: ${snap.data().chatId}) ✓`, 'success');
+        
+        // Guardar automáticamente configuración activa
+        const salonId = getActiveSalonId();
+        await setDoc(doc(db, 'config', `telegram_${salonId}`), {
+          ...telegramConfig,
+          phone: finalPhone,
+          enabled: true,
+          updatedAt: serverTimestamp()
+        });
+        showToast('Configuración de Telegram guardada y activada de forma automática ✓', 'success');
       } else {
         showToast(`El número +${cleanPhone} no está vinculado con @YoYBillarBot. Abre Telegram, busca @YoYBillarBot y presiona Iniciar.`, 'warning');
       }
     } catch (err) {
       showToast('Error al verificar vinculación: ' + err.message, 'danger');
+    }
+  };
+
+  const handlePhoneBlur = () => {
+    if (!telegramConfig.phone) return;
+    const clean = telegramConfig.phone.replace(/\D/g, '');
+    if (clean.length === 10) {
+      setTelegramConfig(p => ({ ...p, phone: '+52' + clean, enabled: true }));
     }
   };
 
@@ -2477,6 +2503,7 @@ export default function ConfigPanel({ showToast }) {
                         placeholder="Ej: +525512345678 (con código de país)"
                         value={telegramConfig.phone || ''}
                         onChange={e => setTelegramConfig(p => ({ ...p, phone: e.target.value, enabled: !!e.target.value.trim() }))}
+                        onBlur={handlePhoneBlur}
                         style={{ padding: '8px 12px', fontSize: '12px', flex: 1 }}
                       />
                       <button
