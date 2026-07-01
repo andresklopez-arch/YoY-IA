@@ -276,14 +276,21 @@ export async function GET(request) {
     const avanceMetaPct = metaDiaria > 0 ? Math.round((montoVendido / metaDiaria) * 100) : 0;
 
     // Métrica 4: Trabajadores en Turno
-    const snapAsist = await fetchCollectionQuery('nomina_asistencia_log', [
-      { type: 'where', field: 'salonId', op: '==', value: salonId },
-      { type: 'orderBy', field: 'createdAt', direction: 'desc' },
-      { type: 'limit', limitVal: 500 }
+    const snapAsistRaw = await fetchCollectionQuery('nomina_asistencia_log', [
+      { type: 'where', field: 'salonId', op: '==', value: salonId }
     ]);
+    
+    // Convertir a datos y ordenar en memoria por createdAt desc para evitar requerir un índice compuesto
+    const asistDocs = snapAsistRaw.docs.map(d => d.data());
+    asistDocs.sort((a, b) => {
+      const tA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : (a.createdAt || 0);
+      const tB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : (b.createdAt || 0);
+      return tB - tA;
+    });
+    const limitedAsistDocs = asistDocs.slice(0, 500);
+
     const lastStatusByWorker = {};
-    snapAsist.forEach(d => {
-      const data = d.data();
+    limitedAsistDocs.forEach(data => {
       const empId = data.empleadoId;
       const time = data.createdAt?.toDate ? data.createdAt.toDate().getTime() : 0;
       if (!lastStatusByWorker[empId] || time > lastStatusByWorker[empId].time) {
