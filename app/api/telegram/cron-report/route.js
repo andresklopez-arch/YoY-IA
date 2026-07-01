@@ -165,18 +165,45 @@ export async function GET(request) {
     }
 
     if (!force) {
-      if (stateSnap.exists()) {
-        const lastSentAt = stateSnap.data().lastSentAt || 0;
-        const diffMs = now - lastSentAt;
-        const targetInterval = 1.5 * 60 * 60 * 1000; // 1.5 horas en milisegundos
+      const reportInterval = tgConfig.reportInterval !== undefined ? Number(tgConfig.reportInterval) : 4;
+      const reportHour = tgConfig.reportHour !== undefined ? Number(tgConfig.reportHour) : 9;
+
+      if (reportInterval === 24) {
+        // Enviar una vez al día a partir de reportHour
+        const mxDate = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Mexico_City' }));
+        const currentHour = mxDate.getHours();
         
-        if (diffMs < targetInterval) {
-          const remainingMins = Math.round((targetInterval - diffMs) / 60000);
-          return NextResponse.json({ 
-            success: true, 
-            skipped: true, 
-            reason: `Faltan ${remainingMins} minutos para el siguiente reporte periódico.` 
+        const lastSentDate = stateSnap.exists() ? (stateSnap.data().lastSentDate || '') : '';
+        if (lastSentDate === mxDateStr) {
+          return NextResponse.json({
+            success: true,
+            skipped: true,
+            reason: `El reporte periódico de 24 horas ya se envió hoy (${mxDateStr}).`
           });
+        }
+        
+        if (currentHour < reportHour) {
+          return NextResponse.json({
+            success: true,
+            skipped: true,
+            reason: `Aún no es la hora de envío configurada (${reportHour}:00h). Hora actual: ${currentHour}:00h.`
+          });
+        }
+      } else {
+        // Enviar cada reportInterval horas
+        if (stateSnap.exists()) {
+          const lastSentAt = stateSnap.data().lastSentAt || 0;
+          const diffMs = now - lastSentAt;
+          const targetInterval = reportInterval * 60 * 60 * 1000;
+          
+          if (diffMs < targetInterval) {
+            const remainingMins = Math.round((targetInterval - diffMs) / 60000);
+            return NextResponse.json({ 
+              success: true, 
+              skipped: true, 
+              reason: `Faltan ${remainingMins} minutos para el siguiente reporte periódico de ${reportInterval}h.` 
+            });
+          }
         }
       }
     }
@@ -380,11 +407,13 @@ export async function GET(request) {
       { type: 'limit', limitVal: 30 }
     ]);
     const snapCortes = snapCortesRaw.docs.filter(d => d.data().salonId === salonId);
-    let corteCajaStatus = 'Sin cortes de caja recientes';
+    let corteCajaStatus = '⚪ Sin cortes de caja recientes';
     if (snapCortes.length > 0) {
       const c = snapCortes[0].data();
       const diff = Number(c.diferencia || 0);
-      corteCajaStatus = diff === 0 ? 'Caja cuadrada ✓' : `Descuadre de $${diff.toFixed(2)} MXN`;
+      corteCajaStatus = diff === 0 
+        ? '🟢 Caja cuadrada ✓' 
+        : `🔴 Descuadre de $${diff.toLocaleString('es-MX')} MXN`;
     }
 
     // Formatear hora de la CDMX para el punto en el gráfico
@@ -419,9 +448,19 @@ export async function GET(request) {
       metaEmoji = '🟡';
     }
 
+    let trendEmoji = '➡️';
+    if (history.length > 1) {
+      const prevOccupancy = history[history.length - 2].occupancy;
+      if (ocupacionPct > prevOccupancy) {
+        trendEmoji = '📈';
+      } else if (ocupacionPct < prevOccupancy) {
+        trendEmoji = '📉';
+      }
+    }
+
     const reportText = `📊 *REPORTE DE OPERACIÓN - ${branchName.toUpperCase()}* 📊\n` +
       `🕒 *Hora:* ${new Date().toLocaleString('es-MX', { timeZone: 'America/Mexico_City', hour12: true })}\n\n` +
-      `1️⃣ *Ocupación Actual:* ${ocupacionPct}% (${activeMesas}/${totalMesas} mesas ocupadas)\n` +
+      `1️⃣ *Ocupación Actual:* ${ocupacionPct}% ${trendEmoji} (${activeMesas}/${totalMesas} mesas ocupadas)\n` +
       `2️⃣ *Monto Vendido Hoy:* $${montoVendido.toLocaleString('es-MX')} MXN\n` +
       `3️⃣ *Avance de Meta:* Meta mensual: $${metaMensual.toLocaleString('es-MX')} MXN (Meta diaria: $${Math.round(metaDiaria).toLocaleString('es-MX')} MXN). Avance hoy: ${metaEmoji} *${avanceMetaPct}%*\n` +
       `4️⃣ *Trabajadores en Turno:* ${presentWorkersCount} activo(s) (${presentWorkersNames})\n` +
@@ -574,6 +613,7 @@ export async function GET(request) {
       // Guardar el estado del reporte enviado
       await saveDocument('config', `telegram_report_state_${salonId}`, { 
         lastSentAt: now,
+        lastSentDate: mxDateStr,
         currentDate: currentDate,
         history: history
       }, { merge: true });
