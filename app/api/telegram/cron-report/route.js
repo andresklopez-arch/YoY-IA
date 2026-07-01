@@ -569,10 +569,6 @@ export async function GET(request) {
       `8️⃣ *Pedidos Cocina:* ${comandasPendientesCount} comandas pendientes\n` +
       `9️⃣ *Corte de Caja:* ${corteCajaStatus}\n` +
       `🔟 *Desviaciones Operativas:*\n${desviacionesStr}\n\n` +
-      `🎨 *Guía Visual de Gráfica (Triple Dona):*\n` +
-      `• *Anillo Exterior (Meta):* 🟢 Realizado (Lineal) | 🟣 Restante (Cuadros) | ❇️ Excedente (Zigzag)\n` +
-      `• *Anillo Medio (Mesas):* 🟡 Pool (Zigzag V.) | 🔴 Carambola (L. Vert.) | ⚫ Libre\n` +
-      `• *Anillo Interior (Venta):* 🔵 Renta (Lineal Inv.) | 🟠 Barra (Zigzag) | 🟡 Otros (Cuadros)\n\n` +
       `🔗 *Acceder al Sistema:* [YoY IA Billar](https://yoy-ia-billar.vercel.app)`;
 
     // Resolver chatId si no está disponible directamente
