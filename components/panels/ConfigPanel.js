@@ -1335,39 +1335,42 @@ export default function ConfigPanel({ showToast }) {
       showToast('Generando reporte y gráfica de prueba...', 'info');
       
       const testChartConfig = {
-        type: 'bar',
+        type: 'doughnut',
         data: {
-          labels: ['Métricas de Prueba'],
+          labels: ['Meta Alcanzada', 'Faltante Meta', 'Excedente Ventas', 'Pool Ocupada', 'Carambola Ocupada', 'Mesa Libre', 'Ingresos Renta', 'Ingresos Barra', 'Otros Ingresos'],
           datasets: [
             {
-              label: 'Meta Diaria ($)',
-              data: [10000],
-              backgroundColor: 'rgba(127, 0, 255, 0.5)',
-              borderColor: '#7F00FF',
-              borderWidth: 2,
-              yAxisID: 'y-sales'
-            },
-            {
-              label: 'Venta Realizada ($)',
-              data: [7500],
-              backgroundColor: 'rgba(0, 245, 160, 0.65)',
-              borderColor: '#00F5A0',
-              borderWidth: 2,
-              yAxisID: 'y-sales'
-            },
-            {
-              type: 'line',
-              label: 'Ocupación (%)',
-              data: [75],
-              borderColor: '#FFB800',
-              backgroundColor: 'rgba(255, 184, 0, 0.2)',
+              data: [10000, 2000, 3000],
+              backgroundColor: [
+                '#00F5A0', 
+                '#7F00FF',
+                '#39ff14'
+              ],
+              borderColor: '#121212',
               borderWidth: 3,
-              fill: false,
-              pointRadius: 8,
-              pointBackgroundColor: '#ffffff',
-              pointBorderColor: '#FFB800',
-              pointBorderWidth: 3,
-              yAxisID: 'y-occupancy'
+              label: 'Avance Ventas ($)'
+            },
+            {
+              data: [5, 3, 4],
+              backgroundColor: [
+                '#FFB800', 
+                '#FF007F', 
+                '#2A2F3D'
+              ],
+              borderColor: '#121212',
+              borderWidth: 3,
+              label: 'Ocupación Mesas'
+            },
+            {
+              data: [8000, 4000, 1000],
+              backgroundColor: [
+                '#00BFFF', 
+                '#FF7F50', 
+                '#FFD700'
+              ],
+              borderColor: '#121212',
+              borderWidth: 3,
+              label: 'Desglose Ventas ($)'
             }
           ]
         },
@@ -1382,51 +1385,31 @@ export default function ConfigPanel({ showToast }) {
           },
           legend: {
             display: true,
+            position: 'bottom',
             labels: {
               fontColor: '#a0aec0',
               fontFamily: "'Outfit', 'Inter', sans-serif",
-              fontSize: 10,
-              boxWidth: 12
+              fontSize: 9,
+              boxWidth: 10
             }
-          },
-          scales: {
-            yAxes: [
-              {
-                id: 'y-sales',
-                type: 'linear',
-                position: 'left',
-                ticks: {
-                  fontColor: '#00F5A0',
-                  fontFamily: "'Outfit', 'Inter', sans-serif",
-                  beginAtZero: true
-                },
-                gridLines: { color: 'rgba(255, 255, 255, 0.06)' }
-              },
-              {
-                id: 'y-occupancy',
-                type: 'linear',
-                position: 'right',
-                ticks: {
-                  fontColor: '#FFB800',
-                  fontFamily: "'Outfit', 'Inter', sans-serif",
-                  beginAtZero: true,
-                  max: 100
-                },
-                gridLines: { drawOnChartArea: false }
-              }
-            ]
           },
           plugins: {
             datalabels: {
               display: true,
-              align: 'top',
               color: '#ffffff',
-              backgroundColor: 'rgba(18, 18, 18, 0.7)',
+              backgroundColor: 'rgba(18, 18, 18, 0.85)',
               borderRadius: 4,
               font: {
                 family: "'Outfit', 'Inter', sans-serif",
                 weight: 'bold',
-                size: 9
+                size: 8
+              },
+              formatter: (value, context) => {
+                if (value === 0) return null;
+                if (context.datasetIndex === 0 || context.datasetIndex === 2) {
+                  return '$' + Number(value).toLocaleString('es-MX');
+                }
+                return value + (value === 1 ? ' mesa' : ' mesas');
               }
             }
           }

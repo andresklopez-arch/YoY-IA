@@ -361,16 +361,16 @@ export async function GET(request) {
     });
 
     if (mesasSinAtender.length > 0) {
-      desviaciones.push(`⚠️ Mesas sin atención (>15m): ${mesasSinAtender.join(', ')}`);
+      desviaciones.push(`🔔 Mesas sin atención (>15m): ${mesasSinAtender.join(', ')}`);
     }
     if (mesasExcesivas.length > 0) {
-      desviaciones.push(`⚠️ Tiempo excesivo juego (>4h): ${mesasExcesivas.join(', ')}`);
+      desviaciones.push(`⏱️ Tiempo excesivo juego (>4h): ${mesasExcesivas.join(', ')}`);
     }
     if (demoradasCount > 0) {
-      desviaciones.push(`⚠️ Pedidos demorados cocina (>20m): ${demoradasCount}`);
+      desviaciones.push(`🍳 Pedidos demorados cocina (>20m): ${demoradasCount}`);
     }
     if (presentWorkersCount === 0 && activeMesas > 0) {
-      desviaciones.push(`⚠️ Alerta: Billar operando sin personal fichado hoy.`);
+      desviaciones.push(`👥 Alerta: Billar operando sin personal fichado hoy.`);
     }
     const desviacionesStr = desviaciones.length > 0 ? desviaciones.join('\n') : 'Ninguna desviación detectada. Operación estable.';
 
@@ -471,6 +471,8 @@ export async function GET(request) {
               pattern.draw('square', '#7F00FF'),
               pattern.draw('zigzag', '#39ff14')
             ],
+            borderColor: '#121212',
+            borderWidth: 3,
             label: 'Avance Ventas ($)'
           },
           {
@@ -480,6 +482,8 @@ export async function GET(request) {
               pattern.draw('vertical-line', '#FF007F'), 
               '#2A2F3D'
             ],
+            borderColor: '#121212',
+            borderWidth: 3,
             label: 'Ocupación Mesas'
           },
           {
@@ -489,6 +493,8 @@ export async function GET(request) {
               pattern.draw('zigzag', '#FF7F50'), 
               pattern.draw('square', '#FFD700')
             ],
+            borderColor: '#121212',
+            borderWidth: 3,
             label: 'Desglose Ventas ($)'
           }
         ]
