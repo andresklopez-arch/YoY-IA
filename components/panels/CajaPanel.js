@@ -2739,6 +2739,46 @@ ${diferenciaVal < 0 ? '1. Implementar auditoría ciega por turnos.\n2. Conciliar
                              `*Análisis IA:* ${analisisMetodo}\n` +
                              `*Historial:* ${historicosStr}`;
 
+            // Generar gráfico de descuadre de caja comparativo
+            const chartConfig = {
+              type: 'bar',
+              data: {
+                labels: ['Esperado (Sistema)', 'Contado (Físico)'],
+                datasets: [{
+                  label: 'Efectivo (MXN)',
+                  data: [calculationsCorte.efectivoEsperado, sumaContada],
+                  backgroundColor: ['#7F00FF', '#00F5A0'],
+                  borderColor: ['#5a00b3', '#00c480'],
+                  borderWidth: 1
+                }]
+              },
+              options: {
+                title: {
+                  display: true,
+                  text: 'DIFERENCIA EN ARQUEO DE CAJA',
+                  fontColor: '#ffffff',
+                  fontSize: 14,
+                  fontFamily: "'Outfit', 'Inter', sans-serif"
+                },
+                legend: { display: false },
+                scales: {
+                  yAxes: [{
+                    ticks: {
+                      beginAtZero: true,
+                      fontColor: '#a0aec0',
+                      callback: (value) => '$' + Number(value).toLocaleString('es-MX')
+                    }
+                  }],
+                  xAxes: [{
+                    ticks: {
+                      fontColor: '#a0aec0'
+                    }
+                  }]
+                }
+              }
+            };
+            const chartUrl = `https://quickchart.io/chart?c=${encodeURIComponent(JSON.stringify(chartConfig))}&w=500&h=300&bkg=%23121212`;
+
             await fetch('/api/telegram/send-alert', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -2747,7 +2787,8 @@ ${diferenciaVal < 0 ? '1. Implementar auditoría ciega por turnos.\n2. Conciliar
                 token: telegramConfig.botToken,
                 chatId: telegramConfig.chatId,
                 phone: telegramConfig.phone,
-                text: alertMsg
+                text: alertMsg,
+                photo: chartUrl
               })
             });
           } catch (tgErr) {

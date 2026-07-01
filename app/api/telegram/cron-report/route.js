@@ -146,9 +146,74 @@ export async function GET(request) {
       return NextResponse.json({ success: false, error: 'Reporte periódico de Telegram desactivado en la configuración' });
     }
 
-    const stateSnap = await fetchDocument('config', `telegram_report_state_${salonId}`);
+    let stateSnap = await fetchDocument('config', `telegram_report_state_${salonId}`);
     const now = Date.now();
     const mxDateStr = new Date().toLocaleString('sv-SE', { timeZone: 'America/Mexico_City' }).split(' ')[0];
+
+    // A. Auto-Salida nocturna automática a las 05:00 a.m. (ejecutar una vez al día)
+    const mxDateNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Mexico_City' }));
+    const currentHourNow = mxDateNow.getHours();
+    const currentMinNow = mxDateNow.getMinutes();
+
+    if (currentHourNow === 5 && currentMinNow < 15) {
+      let alreadyRunToday = false;
+      if (stateSnap.exists()) {
+        const stateData = stateSnap.data();
+        if (stateData.lastAutoSalidaDate === mxDateStr) {
+          alreadyRunToday = true;
+        }
+      }
+
+      if (!alreadyRunToday) {
+        console.log("Ejecutando auto-salida automática nocturna para turnos olvidados...");
+        try {
+          const snapAsistAll = await fetchCollectionQuery('nomina_asistencia_log', [
+            { type: 'where', field: 'salonId', op: '==', value: salonId }
+          ]);
+          const asistDocsAll = snapAsistAll.docs.map(d => d.data());
+          
+          asistDocsAll.sort((a, b) => {
+            const tA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : (a.createdAt || 0);
+            const tB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : (b.createdAt || 0);
+            return tB - tA;
+          });
+
+          const lastLogByWorker = {};
+          asistDocsAll.forEach(data => {
+            const empId = data.empleadoId;
+            if (empId && !lastLogByWorker[empId]) {
+              lastLogByWorker[empId] = data;
+            }
+          });
+
+          for (const empId of Object.keys(lastLogByWorker)) {
+            const lastLog = lastLogByWorker[empId];
+            if (lastLog.tipo === 'entrada' && lastLog.fecha !== mxDateStr) {
+              console.log(`Auto-cerrando turno de días anteriores para: ${lastLog.nombre}`);
+              await appendDocument('nomina_asistencia_log', {
+                empleadoId: empId,
+                nombre: lastLog.nombre,
+                rol: lastLog.rol || 'Mesero',
+                fecha: lastLog.fecha,
+                tipo: 'salida',
+                coordenadas: { lat: null, lng: null, precision: null, status: 'Cierre automático nocturno' },
+                dispositivo: 'SISTEMA (Auto-Cierre)',
+                salonId: salonId
+              });
+            }
+          }
+
+          await saveDocument('config', `telegram_report_state_${salonId}`, { 
+            lastAutoSalidaDate: mxDateStr
+          }, { merge: true });
+
+          // Recargar stateSnap para reflejar el cambio
+          stateSnap = await fetchDocument('config', `telegram_report_state_${salonId}`);
+        } catch (err) {
+          console.error("Error en proceso de auto-salida nocturna:", err);
+        }
+      }
+    }
 
     let history = [];
     let currentDate = mxDateStr;

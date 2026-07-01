@@ -285,26 +285,83 @@ export async function POST(request) {
 
     // Enviar el mensaje o foto a la API de Telegram
     const isPhoto = !!body.photo;
-    const method = isPhoto ? 'sendPhoto' : 'sendMessage';
-    const url = `https://api.telegram.org/bot${targetToken}/${method}`;
-    const payload = isPhoto ? {
-      chat_id: targetChatId,
-      photo: body.photo,
-      caption: text,
-      parse_mode: 'Markdown',
-      reply_markup: body.reply_markup || undefined
-    } : {
-      chat_id: targetChatId,
-      text: text,
-      parse_mode: 'Markdown',
-      reply_markup: body.reply_markup || undefined
-    };
+    let res = null;
 
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
+    if (isPhoto) {
+      // Intentar descargar la imagen localmente en el servidor para enviarla vía multipart/form-data
+      let imageBuffer = null;
+      try {
+        console.log("Descargando imagen de alerta:", body.photo);
+        const imgRes = await fetch(body.photo);
+        if (imgRes.ok) {
+          imageBuffer = await imgRes.arrayBuffer();
+        }
+      } catch (err) {
+        console.error("Fallo al descargar imagen en send-alert:", err);
+      }
+
+      if (imageBuffer) {
+        try {
+          const photoUrl = `https://api.telegram.org/bot${targetToken}/sendPhoto`;
+          const formData = new FormData();
+          formData.append('chat_id', String(targetChatId));
+          const blob = new Blob([imageBuffer], { type: 'image/png' });
+          formData.append('photo', blob, 'alert.png');
+          formData.append('caption', text);
+          formData.append('parse_mode', 'Markdown');
+          if (body.reply_markup) {
+            formData.append('reply_markup', typeof body.reply_markup === 'string' ? body.reply_markup : JSON.stringify(body.reply_markup));
+          }
+
+          res = await fetch(photoUrl, {
+            method: 'POST',
+            body: formData
+          });
+
+          if (!res.ok) {
+            const errText = await res.text();
+            console.warn("Fallo al enviar foto en send-alert usando FormData:", errText);
+          }
+        } catch (err) {
+          console.error("Excepción al enviar foto usando FormData en send-alert:", err);
+        }
+      }
+
+      // Fallback a URL tradicional si falló la descarga o el envío por FormData
+      if (!res || !res.ok) {
+        const photoUrl = `https://api.telegram.org/bot${targetToken}/sendPhoto`;
+        try {
+          res = await fetch(photoUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              chat_id: targetChatId,
+              photo: body.photo,
+              caption: text,
+              parse_mode: 'Markdown',
+              reply_markup: body.reply_markup || undefined
+            })
+          });
+        } catch (err) {
+          console.error("Excepción en fallback sendPhoto por URL:", err);
+        }
+      }
+    }
+
+    // Fallback de último recurso o si no es foto (sendMessage)
+    if (!res || !res.ok) {
+      const sendUrl = `https://api.telegram.org/bot${targetToken}/sendMessage`;
+      res = await fetch(sendUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: targetChatId,
+          text: text,
+          parse_mode: 'Markdown',
+          reply_markup: body.reply_markup || undefined
+        })
+      });
+    }
 
     if (res.ok) {
       try {
@@ -320,7 +377,7 @@ export async function POST(request) {
       }
       return NextResponse.json({ success: true });
     } else {
-      const errorData = await res.json();
+      const errorData = await res.json().catch(() => ({ description: 'Error desconocido de Telegram' }));
       try {
         await appendDocument('telegram_alert_logs', {
           phone: obfuscatePhone(phone),
