@@ -3565,6 +3565,42 @@ export default function MesasPanel({ showToast }) {
     return () => window.removeEventListener('keydown', handleFilterShortcuts);
   }, [setFiltro, showToast]);
 
+  // Atajos de teclado para acciones del panel (Alt + K/C/F/M/A/G)
+  useEffect(() => {
+    const handleActionShortcuts = (e) => {
+      const activeEl = document.activeElement;
+      if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.isContentEditable)) {
+        return;
+      }
+
+      if (e.altKey && !e.shiftKey && !e.ctrlKey) {
+        const key = e.key.toLowerCase();
+        if (key === 'k') {
+          e.preventDefault();
+          toggleFullscreen();
+        } else if (key === 'c') {
+          e.preventDefault();
+          setMostrarCobroManual(true);
+        } else if (key === 'f') {
+          e.preventDefault();
+          setModalFila(true);
+        } else if (key === 'm') {
+          e.preventDefault();
+          setModalComanda(true);
+        } else if (key === 'a') {
+          e.preventDefault();
+          setModalAbrirCuenta(true);
+        } else if (key === 'g') {
+          e.preventDefault();
+          setModalGasto(true);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleActionShortcuts);
+    return () => window.removeEventListener('keydown', handleActionShortcuts);
+  }, [toggleFullscreen, setMostrarCobroManual, setModalFila, setModalComanda, setModalAbrirCuenta, setModalGasto]);
+
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
       document.documentElement.requestFullscreen().then(() => {
@@ -5345,6 +5381,10 @@ export default function MesasPanel({ showToast }) {
     }
   };
 
+  const handleReporteClick = () => {
+    showToast('Haz doble clic para enviar el reporte de cierre 🕒', 'info');
+  };
+
   const registrarPreTicketMesa = (mesaId) => {
     setMesas(prev => prev.map(m => m.id === mesaId ? { ...m, preTicketImpreso: true, preTicketImpresoAt: Date.now() } : m));
     showToast(`Pre-ticket registrado para Mesa ${mesaId} ✓`, 'success');
@@ -6654,15 +6694,24 @@ export default function MesasPanel({ showToast }) {
           height: 24,
           boxShadow: 'var(--shadow-sm)'
         }}>
-          <i className="ri-sort-asc" style={{ color: 'var(--bronze-light)', fontSize: 13 }} />
+          <i className="ri-sort-asc" style={{ color: filtroMesero ? '#f59e0b' : 'var(--bronze-light)', fontSize: 13 }} />
           <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Acomodo:</span>
           <select
-            value={ordenamiento}
-            onChange={e => setOrdenamiento(e.target.value)}
+            value={filtroMesero ? `mesero_${filtroMesero}` : `sort_${ordenamiento}`}
+            onChange={e => {
+              const val = e.target.value;
+              if (val.startsWith('sort_')) {
+                setOrdenamiento(val.substring(5));
+                setFiltroMesero('');
+              } else if (val.startsWith('mesero_')) {
+                const mes = val.substring(7);
+                setFiltroMesero(mes === 'todos' ? '' : mes);
+              }
+            }}
             style={{
               background: 'transparent',
               border: 'none',
-              color: 'var(--bronze-light)',
+              color: filtroMesero ? '#f59e0b' : 'var(--bronze-light)',
               fontSize: 10,
               fontWeight: 700,
               outline: 'none',
@@ -6671,59 +6720,30 @@ export default function MesasPanel({ showToast }) {
               fontFamily: 'var(--font-main)'
             }}
           >
-            <option value="numero" style={{ background: '#141418', color: '#f0f0f4' }}>🔢 Núm. Mesa</option>
-            <option value="carambola_primero" style={{ background: '#141418', color: '#f0f0f4' }}>🏆 Carambola primero</option>
-            <option value="pool_primero" style={{ background: '#141418', color: '#f0f0f4' }}>🎱 Pool primero</option>
-            <option value="snooker_primero" style={{ background: '#141418', color: '#f0f0f4' }}>🟢 Snooker primero</option>
-          </select>
-        </div>
-
-        {/* Filtrar por Mesero */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 6,
-          background: 'var(--bg-elevated)',
-          border: '1px solid var(--border-bronze)',
-          borderRadius: 8,
-          padding: '0 6px',
-          height: 24,
-          boxShadow: 'var(--shadow-sm)',
-          marginLeft: 6
-        }}>
-          <i className="ri-user-star-line" style={{ color: filtroMesero ? '#f59e0b' : 'var(--text-muted)', fontSize: 13 }} />
-          <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Mesero:</span>
-          <select
-            value={filtroMesero}
-            onChange={e => setFiltroMesero(e.target.value)}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              color: filtroMesero ? '#f59e0b' : 'var(--text-secondary)',
-              fontSize: 10,
-              fontWeight: 700,
-              outline: 'none',
-              cursor: 'pointer',
-              padding: '0 4px',
-              fontFamily: 'var(--font-main)'
-            }}
-          >
-            <option value="" style={{ background: '#141418', color: '#f0f0f4' }}>Todos</option>
-            {Array.from(new Set([
-              ...(meserosPresentes || []).map(m => m.nombre),
-              ...(mesas || []).flatMap(m => m.meseroNombres || []),
-              ...(mesas || []).map(m => m.meseroNombre).filter(Boolean)
-            ])).filter(Boolean).map(nombre => {
-              const countActivas = (mesas || []).filter(m => 
-                m.estado === 'ocupada' && 
-                (m.meseroNombre === nombre || (m.meseroNombres || []).includes(nombre))
-              ).length;
-              return (
-                <option key={nombre} value={nombre} style={{ background: '#141418', color: '#f0f0f4' }}>
-                  👤 {nombre} {countActivas > 0 ? `(${countActivas} activas)` : ''}
-                </option>
-              );
-            })}
+            <optgroup label="Acomodo de Mesas" style={{ background: '#141418', color: '#f0f0f4' }}>
+              <option value="sort_numero">🔢 Núm. Mesa</option>
+              <option value="sort_carambola_primero">🏆 Carambola primero</option>
+              <option value="sort_pool_primero">🎱 Pool primero</option>
+              <option value="sort_snooker_primero">🟢 Snooker primero</option>
+            </optgroup>
+            <optgroup label="Filtrar por Mesero" style={{ background: '#141418', color: '#f0f0f4' }}>
+              <option value="mesero_todos">👤 Todos los Meseros</option>
+              {Array.from(new Set([
+                ...(meserosPresentes || []).map(m => m.nombre),
+                ...(mesas || []).flatMap(m => m.meseroNombres || []),
+                ...(mesas || []).map(m => m.meseroNombre).filter(Boolean)
+              ])).filter(Boolean).map(nombre => {
+                const countActivas = (mesas || []).filter(m => 
+                  m.estado === 'ocupada' && 
+                  (m.meseroNombre === nombre || (m.meseroNombres || []).includes(nombre))
+                ).length;
+                return (
+                  <option key={nombre} value={`mesero_${nombre}`}>
+                    👤 {nombre} {countActivas > 0 ? `(${countActivas} activas)` : ''}
+                  </option>
+                );
+              })}
+            </optgroup>
           </select>
         </div>
 
@@ -6781,7 +6801,7 @@ export default function MesasPanel({ showToast }) {
             title={infoCuentasSolicitadas.total > 0 ? `Tienes ${infoCuentasSolicitadas.total} cuentas pendientes` : "Sin cobros pendientes"}
           >
             <i className="ri-wallet-3-line" style={{ animation: infoCuentasSolicitadas.total > 0 ? 'pulse 1.2s infinite' : 'none' }} />
-            <span>Cuentas Solicitadas</span>
+            <span className="responsive-btn-text">Cuentas Solicitadas</span>
             {infoCuentasSolicitadas.total > 0 && (
               <span className="badge" style={{
                 background: infoCuentasSolicitadas.tieneDirectas ? '#f59e0b' : '#ef4444',
@@ -6929,17 +6949,17 @@ export default function MesasPanel({ showToast }) {
           )}
         </div>
 
-        <button className="btn btn-secondary btn-sm" onClick={toggleFullscreen} title="Activar Modo Kiosco" style={{ fontSize: '10px', padding: '4px 8px' }}>
+        <button className="btn btn-secondary btn-sm" onClick={toggleFullscreen} title="Activar Modo Kiosco [Alt + K]" style={{ fontSize: '10px', padding: '4px 8px' }}>
           <i className={isFullscreen ? 'ri-fullscreen-exit-fill' : 'ri-fullscreen-fill'} style={{ marginRight: 4 }} />
-          {isFullscreen ? 'Salir' : 'Kiosco'}
+          <span className="responsive-btn-text">Kiosco</span>
         </button>
 
-        <button className="btn btn-primary btn-sm" onClick={() => setMostrarCobroManual(true)} style={{ fontSize: '10px', padding: '4px 8px' }}>
-          <i className="ri-add-circle-line" /> Cobro Manual
+        <button className="btn btn-primary btn-sm" onClick={() => setMostrarCobroManual(true)} title="Registrar Cobro Manual [Alt + C]" style={{ fontSize: '10px', padding: '4px 8px' }}>
+          <i className="ri-add-circle-line" /> <span className="responsive-btn-text">Cobro Manual</span>
         </button>
 
-        <button className="btn btn-secondary btn-sm" onClick={() => setModalFila(true)} style={{ fontSize: '10px', padding: '4px 8px' }}>
-          <i className="ri-qr-code-line" /> Fila Virtual
+        <button className="btn btn-secondary btn-sm" onClick={() => setModalFila(true)} title="Ver Fila Virtual [Alt + F]" style={{ fontSize: '10px', padding: '4px 8px' }}>
+          <i className="ri-qr-code-line" /> <span className="responsive-btn-text">Fila Virtual</span>
           {fila.length > 0 && (
             <span className="badge badge-bronze" style={{ marginLeft: 6, padding: '2px 6px', fontSize: 9 }}>
               {fila.length}
@@ -6947,16 +6967,16 @@ export default function MesasPanel({ showToast }) {
           )}
         </button>
 
-        <button className="btn btn-secondary btn-sm" onClick={() => setModalComanda(true)} style={{ fontSize: '10px', padding: '4px 8px' }}>
-          <i className="ri-cup-line" /> Comanda
+        <button className="btn btn-secondary btn-sm" onClick={() => setModalComanda(true)} title="Registrar Comanda [Alt + M]" style={{ fontSize: '10px', padding: '4px 8px' }}>
+          <i className="ri-cup-line" /> <span className="responsive-btn-text">Comanda</span>
         </button>
 
-        <button className="btn btn-secondary btn-sm" onClick={() => setModalAbrirCuenta(true)} style={{ fontSize: '10px', padding: '4px 8px' }}>
-          <i className="ri-folder-add-line" /> Abrir Cuenta
+        <button className="btn btn-secondary btn-sm" onClick={() => setModalAbrirCuenta(true)} title="Abrir Cuenta [Alt + A]" style={{ fontSize: '10px', padding: '4px 8px' }}>
+          <i className="ri-folder-add-line" /> <span className="responsive-btn-text">Abrir Cuenta</span>
         </button>
 
-        <button className="btn btn-danger btn-sm" onClick={() => setModalGasto(true)} style={{ fontSize: '10px', padding: '4px 8px' }}>
-          <i className="ri-wallet-3-line" style={{ marginRight: 4 }} /> Gasto
+        <button className="btn btn-danger btn-sm" onClick={() => setModalGasto(true)} title="Registrar Gasto [Alt + G]" style={{ fontSize: '10px', padding: '4px 8px' }}>
+          <i className="ri-wallet-3-line" style={{ marginRight: 4 }} /> <span className="responsive-btn-text">Gasto</span>
         </button>
 
 
@@ -6966,14 +6986,17 @@ export default function MesasPanel({ showToast }) {
         <button
           onClick={imprimirTodosLosQRs}
           className="btn btn-secondary btn-sm"
+          title="Imprimir códigos QR de todas las mesas"
           style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--bronze-light)', borderColor: 'var(--border-bronze)', fontSize: '10px', padding: '4px 8px' }}
         >
-          <i className="ri-qr-code-line" /> Imprimir todos los QRs
+          <i className="ri-qr-code-line" /> <span className="responsive-btn-text">Imprimir todos los QRs</span>
         </button>
 
         <button
-          onClick={enviarReporteCierre}
+          onDoubleClick={enviarReporteCierre}
+          onClick={handleReporteClick}
           className="btn btn-sm"
+          title="Enviar Reporte de Cierre a Telegram [Doble Clic]"
           style={{ 
             display: 'flex', 
             alignItems: 'center', 
@@ -6998,7 +7021,7 @@ export default function MesasPanel({ showToast }) {
             e.currentTarget.style.boxShadow = '0 0 8px rgba(57, 255, 20, 0.2)';
           }}
         >
-          <i className="ri-telegram-line" style={{ fontSize: '15px' }} /> Reporte de Cierre
+          <i className="ri-telegram-line" style={{ fontSize: '15px' }} /> <span className="responsive-btn-text">Reporte de Cierre</span>
         </button>
         </div>
       </div>

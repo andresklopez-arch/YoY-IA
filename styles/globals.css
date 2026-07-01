@@ -1549,5 +1549,12 @@ body.modal-open .topbar {
   }
 }
 
+/* Responsive text hiding for action buttons */
+@media (max-width: 1100px) {
+  .responsive-btn-text {
+    display: none !important;
+  }
+}
+
 
 
