@@ -554,7 +554,7 @@ function MeseroContent() {
 
   // Inicializar select con la primera opción disponible
   useEffect(() => {
-    if (showCapturarModal) {
+    if (showCapturarModal && !bloquearDestino) {
       const activeMesas = mesas.filter(m => m.estado === 'ocupada');
       const activeCuentas = cuentas.filter(c => 
         !activeMesas.some(m => m.cliente && m.cliente.toLowerCase() === c.cliente.toLowerCase())
@@ -568,7 +568,7 @@ function MeseroContent() {
         setCapturaMesaId('nueva_cuenta');
       }
     }
-  }, [showCapturarModal, mesas, cuentas]);
+  }, [showCapturarModal, mesas, cuentas, bloquearDestino]);
   
   // Alertas de asistencia activa para ventana emergente
   const [alertasAsistencia, setAlertasAsistencia] = useState([]);
