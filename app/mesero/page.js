@@ -1315,7 +1315,7 @@ function MeseroContent() {
         color: '#fff',
         fontFamily: 'system-ui, -apple-system, sans-serif'
       }}>
-        <div style={{
+        <div className="waiter-login-card" style={{
           background: 'rgba(25, 25, 30, 0.75)',
           backdropFilter: 'blur(16px)',
           border: '1px solid rgba(205, 127, 50, 0.25)',
@@ -1356,6 +1356,7 @@ function MeseroContent() {
               {activeWaiters.map(waiter => (
                 <button
                   key={waiter.id}
+                  className="waiter-login-btn"
                   onClick={async () => {
                     try {
                       await loginWithEmpleadoId(waiter);
@@ -1423,9 +1424,9 @@ function MeseroContent() {
     <div style={{ minHeight: '100vh', background: 'var(--bg-primary)', padding: '0 0 40px' }}>
 
       {/* ── HEADER ─────────────────────────────────── */}
-      <div style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border-bronze)', padding: '16px 20px', position: 'sticky', top: 0, zIndex: 10 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', maxWidth: 900, margin: '0 auto' }}>
-          <div>
+      <div className="waiter-header-box" style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border-bronze)', padding: '16px 20px', position: 'sticky', top: 0, zIndex: 10 }}>
+        <div className="waiter-header-flex" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', maxWidth: 900, margin: '0 auto' }}>
+          <div className="waiter-header-title-box">
             <h1 style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--bronze-light)', lineHeight: 1 }}>
               🎱 {displayTitle}
               {isOffline && (
@@ -1475,9 +1476,10 @@ function MeseroContent() {
               }
             </p>
           </div>
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <div className="waiter-header-buttons-row" style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
             {/* Botón Avisar a Mesero */}
             <button
+              className="waiter-header-button"
               onClick={() => setShowModalAvisarMesero(true)}
               style={{
                 background: 'linear-gradient(135deg, #f59e0b, #d97706)',
@@ -1503,6 +1505,7 @@ function MeseroContent() {
 
             {/* Botón Capturar Venta */}
             <button
+              className="waiter-header-button"
               onClick={() => setShowCapturarModal(true)}
               style={{
                 background: 'linear-gradient(135deg, var(--bronze), var(--bronze-light))',
@@ -1528,6 +1531,7 @@ function MeseroContent() {
 
             {/* Sonido ON - Siempre activo en Vista Mesero */}
             <div
+              className="waiter-header-badge"
               title="El sonido de alertas está activado de forma permanente para no omitir solicitudes"
               style={{ background: 'var(--bg-elevated)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 10, padding: '8px 12px', color: 'var(--success)', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, cursor: 'default', userSelect: 'none' }}
             >
@@ -1538,6 +1542,7 @@ function MeseroContent() {
             {/* Notificaciones Push Status */}
             {permissionStatus === 'granted' ? (
               <div
+                className="waiter-header-badge"
                 title="Notificaciones push del sistema activadas con éxito"
                 style={{
                   background: 'var(--bg-elevated)',
@@ -1558,6 +1563,7 @@ function MeseroContent() {
               </div>
             ) : permissionStatus === 'denied' ? (
               <div
+                className="waiter-header-badge"
                 title="Las notificaciones push están bloqueadas en este navegador. Revisa la configuración de tu navegador."
                 style={{
                   background: 'var(--bg-elevated)',
@@ -1578,6 +1584,7 @@ function MeseroContent() {
               </div>
             ) : (
               <button
+                className="waiter-header-button"
                 onClick={solicitarPermisoNotificaciones}
                 title="Haz clic para activar las notificaciones push en este dispositivo"
                 style={{
@@ -1603,6 +1610,7 @@ function MeseroContent() {
 
             {/* Botón Cerrar Sesión */}
             <button
+              className="waiter-header-button"
               onClick={handleLogout}
               title="Cerrar Sesión"
               style={{
@@ -1627,6 +1635,7 @@ function MeseroContent() {
 
             {/* Botón X — cerrar y volver a Mesas */}
             <button
+              className="waiter-header-button"
               onClick={() => {
                 window.location.href = '/';
               }}
@@ -1676,12 +1685,6 @@ function MeseroContent() {
             margin-top: 10px;
             text-align: left;
           }
-          @media (max-width: 768px) {
-            .waiter-dashboard-grid {
-              grid-template-columns: 1fr;
-              gap: 20px;
-            }
-          }
           .section-card {
             background: var(--bg-card);
             border: 1px solid var(--border);
@@ -1714,6 +1717,87 @@ function MeseroContent() {
             0% { border-color: #ef4444; box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
             70% { border-color: rgba(239, 68, 68, 0.5); box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
             100% { border-color: #ef4444; box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+          }
+
+          /* RESPONSIVE LAYOUT MOVIL: VISTA MESERO Y ACCESO */
+          @media (max-width: 600px) {
+            .waiter-login-card {
+              width: 100vw !important;
+              height: 100vh !important;
+              max-width: 100% !important;
+              max-height: 100% !important;
+              border-radius: 0 !important;
+              border: none !important;
+              padding: 40px 24px !important;
+              display: flex !important;
+              flex-direction: column !important;
+              justify-content: center !important;
+              box-shadow: none !important;
+              background: radial-gradient(circle at top, #201b15 0%, #0d0d0f 100%) !important;
+            }
+            .waiter-login-btn {
+              padding: 20px 24px !important;
+              font-size: 16px !important;
+              border-radius: 16px !important;
+            }
+          }
+
+          @media (max-width: 768px) {
+            .waiter-header-box {
+              padding: 12px 14px !important;
+            }
+            .waiter-header-flex {
+              flex-direction: column !important;
+              align-items: stretch !important;
+              gap: 12px !important;
+            }
+            .waiter-header-title-box {
+              text-align: center !important;
+              display: flex !important;
+              flex-direction: column !important;
+              align-items: center !important;
+            }
+            .waiter-header-buttons-row {
+              display: grid !important;
+              grid-template-columns: 1fr 1fr !important;
+              gap: 8px !important;
+              width: 100% !important;
+            }
+            .waiter-header-button {
+              padding: 14px 10px !important;
+              font-size: 14px !important;
+              justify-content: center !important;
+              width: 100% !important;
+              height: 48px !important;
+            }
+            .waiter-header-badges {
+              display: flex !important;
+              justify-content: space-between !important;
+              gap: 6px !important;
+              width: 100% !important;
+              margin-top: 4px;
+            }
+            .waiter-header-badge {
+              font-size: 11px !important;
+              padding: 8px 10px !important;
+              flex: 1 !important;
+              justify-content: center !important;
+              text-align: center !important;
+            }
+            .waiter-dashboard-grid {
+              grid-template-columns: 1fr !important;
+              padding: 0 !important;
+              margin-top: 16px !important;
+              gap: 20px !important;
+            }
+            .section-card {
+              border-radius: 16px !important;
+              padding: 16px !important;
+              max-height: none !important; /* Altura libre en móviles */
+            }
+            .scrollable-list {
+              max-height: 480px !important; /* Altura cómoda de scroll interno */
+            }
           }
         `}</style>
 

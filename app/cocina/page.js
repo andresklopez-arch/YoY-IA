@@ -809,12 +809,78 @@ function CocinaContent() {
         .radar-active {
           animation: transmittingRadar 1.5s infinite;
         }
+
+        /* RESPONSIVE LAYOUT MOVIL: PANTALLA COCINA */
+        @media (max-width: 768px) {
+          .kitchen-header-box {
+            padding: 12px 14px !important;
+          }
+          .kitchen-header-flex {
+            flex-direction: column !important;
+            align-items: stretch !important;
+            gap: 12px !important;
+          }
+          .kitchen-header-title-box {
+            text-align: center !important;
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: center !important;
+          }
+          .kitchen-header-buttons-row {
+            display: grid !important;
+            grid-template-columns: 1fr 1fr 48px !important;
+            gap: 8px !important;
+            width: 100% !important;
+          }
+          .kitchen-header-button {
+            padding: 14px 10px !important;
+            font-size: 14px !important;
+            justify-content: center !important;
+            width: 100% !important;
+            height: 48px !important;
+            box-sizing: border-box !important;
+          }
+          .kitchen-tabs-container {
+            flex-direction: column !important;
+            gap: 8px !important;
+            background: transparent !important;
+            border: none !important;
+            padding: 0 !important;
+            margin-bottom: 20px !important;
+          }
+          .kitchen-tab-button {
+            width: 100% !important;
+            padding: 14px 16px !important;
+            font-size: 14px !important;
+            border-radius: 12px !important;
+            border: 1px solid var(--border) !important;
+            background: var(--bg-card) !important;
+            justify-content: center !important;
+            box-sizing: border-box !important;
+          }
+          .kitchen-tab-button.active {
+            border-color: var(--border-bronze) !important;
+            background: var(--bronze-subtle) !important;
+            color: var(--bronze-light) !important;
+          }
+          .kitchen-panels-grid {
+            grid-template-columns: 1fr !important;
+            gap: 20px !important;
+          }
+          .comanda-card {
+            border-radius: 14px !important;
+            padding: 14px !important;
+          }
+          .comanda-item-row {
+            padding: 10px 14px !important;
+          }
+        }
       `}} />
       
       {/* ── HEADER ── */}
-      <div style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border-bronze)', padding: '16px 24px', position: 'sticky', top: 0, zIndex: 100 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', maxWidth: 1000, margin: '0 auto' }}>
-          <div>
+      <div className="kitchen-header-box" style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border-bronze)', padding: '16px 24px', position: 'sticky', top: 0, zIndex: 100 }}>
+        <div className="kitchen-header-flex" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', maxWidth: 1000, margin: '0 auto' }}>
+          <div className="kitchen-header-title-box">
             <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--bronze-light)', display: 'flex', alignItems: 'center', gap: 10 }}>
               🍳 Pantalla de Cocina {user?.name ? `· ${user.alias || user.name.split(' ')[0]}` : ''}
             </h1>
@@ -831,9 +897,10 @@ function CocinaContent() {
             </p>
           </div>
 
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <div className="kitchen-header-buttons-row" style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
             {/* Sonido Toggle */}
             <button
+              className="kitchen-header-button"
               onClick={() => setSonido(!sonido)}
               style={{
                 background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 10,
@@ -847,6 +914,7 @@ function CocinaContent() {
 
             {/* Botón Cerrar Sesión */}
             <button
+              className="kitchen-header-button"
               onClick={handleLogout}
               title="Cerrar Sesión"
               style={{
@@ -871,6 +939,7 @@ function CocinaContent() {
 
             {/* Volver a Inicio */}
             <button
+              className="kitchen-header-button"
               onClick={() => {
                 window.location.href = '/';
               }}
@@ -888,10 +957,10 @@ function CocinaContent() {
         </div>
       </div>
 
-      <div style={{ maxWidth: 1000, margin: '24px auto 0', padding: '0 16px' }}>
+      <div className="kitchen-content-wrapper" style={{ maxWidth: 1000, margin: '24px auto 0', padding: '0 16px' }}>
 
         {/* ── TABS NAVEGACIÓN INTERNA ── */}
-        <div style={{ display: 'flex', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 14, padding: 4, marginBottom: 24 }}>
+        <div className="kitchen-tabs-container" style={{ display: 'flex', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 14, padding: 4, marginBottom: 24 }}>
           {[
             { id: 'pedidos', label: 'Comandas Activas', icon: 'ri-restaurant-line', count: pedidos.length },
             { id: 'insumos', label: 'Checklist de Insumos', icon: 'ri-checkbox-list-line', count: insumos.filter(i => i.nivelActual < (i.nivelOptimo || 0)).length },
@@ -900,6 +969,7 @@ function CocinaContent() {
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
+              className={`kitchen-tab-button ${tab === t.id ? 'active' : ''}`}
               style={{
                 flex: 1, padding: '12px 16px', background: tab === t.id ? 'var(--bronze-subtle)' : 'none',
                 border: 'none', borderRadius: 10, color: tab === t.id ? 'var(--bronze-light)' : 'var(--text-secondary)',
@@ -923,7 +993,7 @@ function CocinaContent() {
 
         {/* ════════════════════════ TAB: PEDIDOS ════════════════════════ */}
         {tab === 'pedidos' && (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 20, alignItems: 'start' }}>
+          <div className="kitchen-panels-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 20, alignItems: 'start' }}>
             
             {/* Lado Izquierdo: Comandas Activas */}
             <div>
@@ -946,6 +1016,7 @@ function CocinaContent() {
                     return (
                       <div
                         key={pedido.id}
+                        className="comanda-card"
                         style={{
                           background: 'var(--bg-card)',
                           border: `1px solid ${esUrgente ? 'var(--danger)' : 'var(--border-bronze)'}`,
@@ -987,7 +1058,7 @@ function CocinaContent() {
                         {/* Contenido comanda */}
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, margin: '12px 0 16px' }}>
                           {pedido.items?.map((item, index) => (
-                            <div key={index} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.03)', borderRadius: 10, padding: '10px 14px' }}>
+                            <div key={index} className="comanda-item-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.03)', borderRadius: 10, padding: '10px 14px' }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                                 <span style={{ fontSize: 20 }}>{CAT_EMOJI[item.categoria] || '🛒'}</span>
                                 <span style={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>
