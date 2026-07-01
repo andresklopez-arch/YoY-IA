@@ -204,6 +204,9 @@ export default function CajaPanel({ showToast }) {
   const [hasMoreBitacora, setHasMoreBitacora] = useState(true);
   const [lastBitacoraDoc, setLastBitacoraDoc] = useState(null);
   const [loadingMoreBitacora, setLoadingMoreBitacora] = useState(false);
+  // Límite de bitácora para los filtros de resumen financiero (expandible bajo demanda)
+  const [limiteBitacoraResumen, setLimiteBitacoraResumen] = useState(500);
+  const [cargandoMasBitacoraResumen, setCargandoMasBitacoraResumen] = useState(false);
   const [colaImpresion, setColaImpresion] = useState([]);
   const [tabActivo, setTabActivo] = useState('caja'); 
 
@@ -3182,7 +3185,8 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
 
   // 8. Cálculos Financieros del Periodo Seleccionado
   const ahora = useMemo(() => Date.now(), []);
-  const diasFiltro = filtroGrafico === 'semana' ? 7 : filtroGrafico === 'mes' ? 30 : 365;
+  // diasFiltro deriva del filtro principal del Resumen Financiero para mantener coherencia
+  const diasFiltro = rfFiltro === '7d' ? 7 : rfFiltro === '15d' ? 15 : rfFiltro === '1m' ? 30 : rfFiltro === '6m' ? 180 : rfFiltro === '1a' ? 365 : rfFiltro === 'vida' ? 9999 : 7;
   const limiteFecha = ahora - diasFiltro * 24 * 60 * 60 * 1000;
   
   const totalGastosPeriodo = useMemo(() => {
@@ -6173,27 +6177,73 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
                         <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#2ecc71', display: 'inline-block', animation: 'pulse-green 1.5s infinite' }} />
                         En Vivo
                       </span>
-                    ) : (
-                      <span style={{ 
-                        fontSize: 9, 
-                        padding: '2px 6px',
-                        background: 'rgba(52, 152, 219, 0.15)',
-                        color: '#3498db',
-                        border: '1px solid rgba(52, 152, 219, 0.35)',
-                        borderRadius: 4,
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 3,
-                        fontWeight: 600
-                      }}>
-                        <i className="ri-database-2-line" style={{ fontSize: 9 }} />
-                        Bit. en vivo · {bitacora.length} reg.
+                    ) : ['Hoy', 'ultimo corte'].includes(rfFiltro) ? (
+                      <span className="badge badge-success" style={{ fontSize: 9, padding: '2px 6px', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                        <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#2ecc71', display: 'inline-block', animation: 'pulse-green 1.5s infinite' }} />
+                        En Vivo
                       </span>
-                    )}
+                    ) : (() => {
+                      // Calcular fecha más antigua en bitácora
+                      const fechaMasAntigua = bitacora.length > 0
+                        ? new Date(Math.min(...bitacora.map(e => new Date(e.fecha || 0).getTime()).filter(t => t > 0)))
+                        : null;
+                      const fechaStr = fechaMasAntigua
+                        ? fechaMasAntigua.toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })
+                        : '...';
+                      // Verificación cruzada vs resumen_diarios
+                      const totalBitacora = bitacora
+                        .filter(e => e.accion === 'Cierre Directo' || e.accion === 'Mesa a Cuenta')
+                        .reduce((s, e) => s + Math.abs(Number(e.monto) || 0), 0);
+                      const totalResumenes = resumenesDiariosList.reduce((s, d) => s + Number(d.rentasMesas || 0), 0);
+                      const diferencia = resumenesDiariosList.length > 0 ? Math.abs(totalBitacora - totalResumenes) : 0;
+                      const pctDif = resumenesDiariosList.length > 0 && totalResumenes > 0
+                        ? (diferencia / totalResumenes) * 100 : 0;
+                      const hayDiscrepancia = diferencia > 100 && pctDif > 2;
+                      return (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <span style={{
+                            fontSize: 9,
+                            padding: '2px 6px',
+                            background: 'rgba(52, 152, 219, 0.15)',
+                            color: '#3498db',
+                            border: '1px solid rgba(52, 152, 219, 0.35)',
+                            borderRadius: 4,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 3,
+                            fontWeight: 600
+                          }}>
+                            <i className="ri-database-2-line" style={{ fontSize: 9 }} />
+                            {bitacora.length} reg. · desde {fechaStr}
+                          </span>
+                          {hayDiscrepancia && (
+                            <span
+                              title={`Diferencia entre bitácora ($${totalBitacora.toLocaleString('es-MX',{maximumFractionDigits:0})}) y cortes archivados ($${totalResumenes.toLocaleString('es-MX',{maximumFractionDigits:0})}). Diferencia: $${diferencia.toLocaleString('es-MX',{maximumFractionDigits:0})} (${pctDif.toFixed(1)}%)`}
+                              style={{
+                                fontSize: 9,
+                                padding: '2px 5px',
+                                background: 'rgba(243,156,18,0.2)',
+                                color: '#f39c12',
+                                border: '1px solid rgba(243,156,18,0.4)',
+                                borderRadius: 4,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 2,
+                                fontWeight: 700,
+                                cursor: 'help'
+                              }}
+                            >
+                              <i className="ri-alert-line" style={{ fontSize: 9 }} />
+                              ∆${Math.round(diferencia/1000)}k
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                   
                   {/* Selector de Períodos */}
-                  <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', margin: '2px 0 6px 0' }}>
+                  <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', margin: '2px 0 6px 0', alignItems: 'center' }}>
                     {['Hoy', '7d', '15d', '1m', '6m', '1a', 'vida', 'ultimo corte'].map(filtro => (
                       <button
                         key={filtro}
@@ -6213,6 +6263,50 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
                         {filtro === 'ultimo corte' ? 'último corte' : filtro}
                       </button>
                     ))}
+                    {/* Botón paginación progresiva de bitácora (solo en filtros históricos) */}
+                    {!['Hoy', 'ultimo corte'].includes(rfFiltro) && bitacora.length >= limiteBitacoraResumen && (
+                      <button
+                        onClick={async () => {
+                          if (cargandoMasBitacoraResumen) return;
+                          setCargandoMasBitacoraResumen(true);
+                          const nuevoLimite = limiteBitacoraResumen + 500;
+                          try {
+                            const { query: fsQuery, collection: fsCol, orderBy: fsOB, limit: fsLim, getDocs: fsGet } =
+                              await import('firebase/firestore');
+                            // Usamos getDocs directo con el nuevo límite
+                            const { getDocs: rawGet, query: rawQuery, collection: rawCol, orderBy: rawOB, limit: rawLim, where: rawWhere } =
+                              await import('firebase/firestore');
+                            const salonId = user?.claims?.salonId || user?.salonId || null;
+                            const constraints = [rawOB('fecha', 'desc'), rawLim(nuevoLimite)];
+                            if (salonId) constraints.unshift(rawWhere('salonId', '==', salonId));
+                            const snap = await rawGet(rawQuery(rawCol(db, 'bitacora'), ...constraints));
+                            const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                            setBitacora(items);
+                            setLimiteBitacoraResumen(nuevoLimite);
+                          } catch (e) {
+                            console.error('Error cargando más bitácora:', e);
+                          } finally {
+                            setCargandoMasBitacoraResumen(false);
+                          }
+                        }}
+                        title={`Cargar hasta ${limiteBitacoraResumen + 500} registros`}
+                        style={{
+                          padding: '2px 7px',
+                          fontSize: '9.5px',
+                          fontWeight: 600,
+                          background: cargandoMasBitacoraResumen ? 'rgba(52,152,219,0.1)' : 'rgba(52,152,219,0.15)',
+                          color: '#3498db',
+                          border: '1px solid rgba(52,152,219,0.4)',
+                          borderRadius: '4px',
+                          cursor: cargandoMasBitacoraResumen ? 'not-allowed' : 'pointer',
+                          display: 'inline-flex', alignItems: 'center', gap: 3
+                        }}
+                      >
+                        {cargandoMasBitacoraResumen
+                          ? <><i className="ri-loader-4-line ri-spin" style={{ fontSize: 9 }} /> Cargando...</>
+                          : <><i className="ri-add-line" style={{ fontSize: 9 }} /> +500 reg.</>}
+                      </button>
+                    )}
                   </div>
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1.15fr 1fr', gap: '8px 16px', fontSize: 12.5 }}>
@@ -6562,37 +6656,6 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
     )}
     </div>
 
-      {/* SELECTOR DE PERIODO - Exclusivo Admin/Gerente */}
-      {!esCajero && (
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, alignItems: 'center', marginTop: -10 }}>
-          <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Filtro de Reportes:</span>
-          <div style={{ display: 'flex', background: 'var(--bg-elevated)', borderRadius: 10, padding: 2, border: '1px solid var(--border)' }}>
-            {[
-              { id: 'semana', label: 'Semana' },
-              { id: 'mes', label: 'Mes' },
-              { id: 'anio', label: 'Año' },
-            ].map(p => (
-              <button
-                key={p.id}
-                onClick={() => setFiltroGrafico(p.id)}
-                style={{
-                  background: filtroGrafico === p.id ? 'var(--bronze)' : 'transparent',
-                  color: filtroGrafico === p.id ? '#fff' : 'var(--text-secondary)',
-                  border: 'none',
-                  borderRadius: 8,
-                  padding: '4px 10px',
-                  fontSize: 10,
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  transition: 'all 0.15s'
-                }}
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* SECCIÓN: REPORTES UNIFICADOS (EXCLUSIVO ADMIN/GERENTE) */}
       {(user?.permisos ? user.permisos.caja_reportes !== false : !esCajero) && (
@@ -7589,7 +7652,7 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
                   <h4 style={{ margin: 0, fontSize: 11, fontWeight: 800, color: 'var(--bronze-light)' }}>
                     P&L Consolidado
                   </h4>
-                  <span style={{ fontSize: 8.5, color: 'var(--text-muted)', fontStyle: 'italic' }}>{filtroGrafico.toUpperCase()}</span>
+                  <span style={{ fontSize: 8.5, color: 'var(--text-muted)', fontStyle: 'italic' }}>{rfFiltro === 'ultimo corte' ? 'ÚLT.CORTE' : rfFiltro.toUpperCase()}</span>
                 </div>
 
                 <div className="table-wrapper" style={{ border: 'none' }}>
