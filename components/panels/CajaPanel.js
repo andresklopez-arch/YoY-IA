@@ -935,14 +935,13 @@ export default function CajaPanel({ showToast }) {
 
     const startStr = startDate.toISOString().split('T')[0];
 
-    const q = query(
-      collection(db, 'resumenes_diarios'),
-      where('fecha', '>=', startStr),
-      orderBy('fecha', 'asc')
-    );
+    const q = collection(db, 'resumenes_diarios');
 
     const unsub = onSnapshot(q, (snap) => {
-      const list = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const list = snap.docs
+        .map(doc => ({ id: doc.id, ...doc.data() }))
+        .filter(d => d.fecha && d.fecha >= startStr)
+        .sort((a, b) => (a.fecha || '').localeCompare(b.fecha || ''));
       setResumenesDiariosList(list);
     }, (err) => {
       console.error("Error al escuchar resumenes_diarios:", err);
@@ -1177,12 +1176,13 @@ export default function CajaPanel({ showToast }) {
     if (typeof navigator !== 'undefined' && !navigator.onLine) return false;
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 2500);
-      const response = await fetch('/icon.png', { method: 'HEAD', signal: controller.signal });
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      const response = await fetch('/logo-corto.png', { method: 'HEAD', signal: controller.signal });
       clearTimeout(timeoutId);
       return response.ok;
     } catch (err) {
-      return false;
+      // Fallback: si falla la petición por timeout/CORS pero navigator.onLine es true, confiar en el navegador
+      return typeof navigator !== 'undefined' ? navigator.onLine : false;
     }
   };
 
@@ -2129,6 +2129,7 @@ export default function CajaPanel({ showToast }) {
           cliente: 'Ninguno (Mesa Libre)',
           horas: '0',
           tipo: 'iot_luces',
+          motivo: 'Consumo eléctrico registrado estando libre (discrepancia IoT).'
         });
       }
     });
