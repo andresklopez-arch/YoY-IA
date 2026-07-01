@@ -1,6 +1,4 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/lib/firebase';
-import { doc, updateDoc } from 'firebase/firestore';
 import { getApps, initializeApp, cert } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
@@ -124,12 +122,16 @@ export async function POST(request) {
       .update(`${empleadoId}:${expires}`)
       .digest('hex');
 
-    // También actualizar en Firestore para compatibilidad con código cliente heredado
-    const docRef = doc(db, 'nomina_empleados', empleadoId);
-    await updateDoc(docRef, {
-      qrToken: token,
-      qrTokenExpires: expires
-    });
+    // Actualizar token en Firestore usando Admin SDK (tiene permisos completos en el servidor)
+    try {
+      await getFirestore().collection('nomina_empleados').doc(empleadoId).update({
+        qrToken: token,
+        qrTokenExpires: expires
+      });
+    } catch (updateErr) {
+      // Si la actualización falla, devolver el token igualmente (es secundario)
+      console.warn('Advertencia: No se pudo actualizar qrToken en Firestore:', updateErr.message);
+    }
 
     return NextResponse.json({ success: true, token, expires });
   } catch (error) {
