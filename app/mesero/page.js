@@ -28,6 +28,10 @@ const startsWithBoundary = (fullStr, subStr) => {
 // ═══════════════════════════════════════════════════════════
 function MeseroContent() {
   const { user, loading, logout, loginWithEmpleadoId } = useAuth();
+  
+  const [activeWaiters, setActiveWaiters] = useState([]);
+  const [loadingWaiters, setLoadingWaiters] = useState(false);
+  const [salonId, setSalonId] = useState('default_salon');
 
   const handleLogout = async () => {
     if (window.confirm('¿Estás seguro de que deseas cerrar sesión de mesero?')) {
@@ -41,10 +45,11 @@ function MeseroContent() {
 
     const urlParams = new URLSearchParams(window.location.search);
     const queryEmpleadoId = urlParams.get('empleadoId');
+    const querySalonId = urlParams.get('salonId') || (typeof window !== 'undefined' && localStorage.getItem('yoy_terminal_salon_id')) || 'default_salon';
+    setSalonId(querySalonId);
 
     const checkAndRecoverSession = async () => {
       // Si hay empleadoId en URL y NO hay sesión offline de empleado activa → hacer login de empleado
-      // Esto cubre: sin sesión, sesión Firebase Auth anónima, sesión expirada, etc.
       if (queryEmpleadoId && queryEmpleadoId !== 'sin_mesero' && queryEmpleadoId !== 'todos' && (!user || !user.offline)) {
         try {
           await loginWithEmpleadoId(queryEmpleadoId);
@@ -55,8 +60,19 @@ function MeseroContent() {
       }
 
       if (!user) {
-        try { sessionStorage.setItem('yoy_auth_redirect_reason', 'Acceso denegado: No hay una sesión activa de mesero.'); } catch (e) {}
-        window.location.href = '/';
+        // En lugar de redirigir forzosamente, cargamos el listado de meseros del salón para permitir el acceso interactivo
+        setLoadingWaiters(true);
+        try {
+          const res = await fetch(`/api/nomina/list-meseros?salonId=${querySalonId}`);
+          const data = await res.json();
+          if (data.success && data.meseros) {
+            setActiveWaiters(data.meseros);
+          }
+        } catch (e) {
+          console.error("Error fetching active waiters:", e);
+        } finally {
+          setLoadingWaiters(false);
+        }
         return;
       }
 
@@ -1286,6 +1302,122 @@ function MeseroContent() {
     if (!term) return list;
     return list.filter(c => c.cliente.toLowerCase().includes(term));
   };
+
+  if (!user) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        background: 'radial-gradient(circle at top, #201b15 0%, #0d0d0f 100%)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 16,
+        color: '#fff',
+        fontFamily: 'system-ui, -apple-system, sans-serif'
+      }}>
+        <div style={{
+          background: 'rgba(25, 25, 30, 0.75)',
+          backdropFilter: 'blur(16px)',
+          border: '1px solid rgba(205, 127, 50, 0.25)',
+          borderRadius: 24,
+          padding: 32,
+          maxWidth: 420,
+          width: '100%',
+          textAlign: 'center',
+          boxShadow: '0 20px 50px rgba(0,0,0,0.7), 0 0 30px rgba(205,127,50,0.05)'
+        }}>
+          <div style={{
+            width: 64, height: 64, borderRadius: '50%',
+            background: 'rgba(205,127,50,0.1)',
+            border: '1px solid rgba(205,127,50,0.3)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 28, color: '#c5a880', margin: '0 auto 20px'
+          }}>
+            🎱
+          </div>
+          <h2 style={{ fontSize: 22, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#fff', margin: '0 0 8px 0' }}>
+            Acceso a Meseros
+          </h2>
+          <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', margin: '0 0 28px 0', lineHeight: 1.5 }}>
+            Selecciona tu nombre de la lista para activar el control de comisiones y mesas asignadas en este dispositivo.
+          </p>
+
+          {loadingWaiters ? (
+            <div style={{ padding: '20px 0', color: '#c5a880' }}>
+              <i className="ri-loader-4-line" style={{ fontSize: 32, display: 'block', margin: '0 auto 10px', animation: 'spin 1s linear infinite' }} />
+              Cargando personal activo...
+            </div>
+          ) : activeWaiters.length === 0 ? (
+            <div style={{ padding: 20, background: 'rgba(239, 68, 68, 0.05)', borderRadius: 12, border: '1px solid rgba(239, 68, 68, 0.15)', color: '#ef4444', fontSize: 13 }}>
+              ❌ No se encontraron meseros activos registrados en este salón. Solicita asistencia en Caja.
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxHeight: '320px', overflowY: 'auto', paddingRight: 4 }}>
+              {activeWaiters.map(waiter => (
+                <button
+                  key={waiter.id}
+                  onClick={async () => {
+                    try {
+                      await loginWithEmpleadoId(waiter);
+                      showToast(`¡Hola ${waiter.nombre}! Sesión iniciada ✓`, 'success');
+                    } catch (err) {
+                      alert("Error al iniciar sesión: " + err.message);
+                    }
+                  }}
+                  style={{
+                    background: 'rgba(255,255,255,0.03)',
+                    border: '1px solid rgba(255,255,255,0.06)',
+                    borderRadius: 14,
+                    padding: '16px 20px',
+                    color: '#fff',
+                    fontSize: 14,
+                    fontWeight: 700,
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    transition: 'all 0.2s',
+                    outline: 'none'
+                  }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.background = 'rgba(205,127,50,0.08)';
+                    e.currentTarget.style.borderColor = 'rgba(205,127,50,0.3)';
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.background = 'rgba(255,255,255,0.03)';
+                    e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)';
+                  }}
+                >
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e' }} />
+                    {waiter.nombre} {waiter.apellido || ''}
+                  </span>
+                  <i className="ri-arrow-right-s-line" style={{ fontSize: 16, color: '#c5a880' }} />
+                </button>
+              ))}
+            </div>
+          )}
+          
+          <button
+            onClick={() => window.location.href = '/'}
+            style={{
+              marginTop: 24,
+              background: 'transparent',
+              border: 'none',
+              color: 'rgba(255,255,255,0.35)',
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: 'pointer',
+              textDecoration: 'underline'
+            }}
+          >
+            Volver al Menú Principal
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-primary)', padding: '0 0 40px' }}>

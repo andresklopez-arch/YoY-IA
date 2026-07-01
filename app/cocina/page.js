@@ -69,7 +69,19 @@ function CocinaContent() {
       }
 
       if (!user) {
-        try { sessionStorage.setItem('yoy_auth_redirect_reason', 'Acceso denegado: No hay una sesión activa de cocina/barra.'); } catch (e) {}
+        const querySalonId = urlParams.get('salonId') || (typeof window !== 'undefined' && localStorage.getItem('yoy_terminal_salon_id')) || 'default_salon';
+        try {
+          await loginWithEmpleadoId({
+            id: `cocina_general_${querySalonId}`,
+            nombre: 'Cocina General',
+            rol: 'cocina',
+            salonId: querySalonId,
+            permisos: { cocina: true }
+          });
+          return;
+        } catch (e) {
+          console.error("Error al iniciar sesión automática de cocina:", e);
+        }
         window.location.href = '/';
         return;
       }

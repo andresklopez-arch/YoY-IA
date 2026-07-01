@@ -2075,9 +2075,70 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
             ) : (
               /* PASO 1: LISTADO DE EMPLEADOS */
               <div style={{ flex: 1, overflowY: 'auto', padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
-                <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
-                  Selecciona tu código QR para registrar tu hora de entrada y activar tu sesión de trabajo en este dispositivo.
+                <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5, textAlign: 'center' }}>
+                  Escanee con su celular el código correspondiente para acceder a su área de trabajo móvil, o registre asistencia manualmente en la lista de abajo.
                 </p>
+
+                {/* 2 Códigos QR Dinámicos Globales destacados */}
+                <div style={{ display: 'flex', gap: 20, justifyContent: 'center', margin: '4px 0 16px', flexWrap: 'wrap' }}>
+                  {/* QR Acceso Meseros */}
+                  <div style={{
+                    background: 'var(--bg-elevated)',
+                    border: '1px solid var(--border-bronze)',
+                    borderRadius: 16,
+                    padding: 16,
+                    width: '230px',
+                    textAlign: 'center',
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center'
+                  }}>
+                    <span style={{ fontSize: 10.5, fontWeight: 800, color: 'var(--bronze-light)', textTransform: 'uppercase', display: 'block', marginBottom: 10, letterSpacing: '0.04em' }}>
+                      📱 Acceso Celular Meseros
+                    </span>
+                    <div style={{ background: '#fff', padding: 8, borderRadius: 10, display: 'inline-block', marginBottom: 10 }}>
+                      <QRCodeSVG
+                        value={typeof window !== 'undefined' ? `${window.location.origin}/mesero?salonId=${user?.salonId || 'default_salon'}` : `https://yoy-ia-billar.vercel.app/mesero?salonId=${user?.salonId || 'default_salon'}`}
+                        size={140}
+                        bgColor="#fff"
+                        fgColor="#000"
+                      />
+                    </div>
+                    <p style={{ fontSize: 10, color: 'var(--text-muted)', margin: 0, lineHeight: 1.3 }}>
+                      Abre el menú de meseros y permite seleccionar tu nombre.
+                    </p>
+                  </div>
+
+                  {/* QR Acceso Cocina */}
+                  <div style={{
+                    background: 'var(--bg-elevated)',
+                    border: '1px solid var(--border-bronze)',
+                    borderRadius: 16,
+                    padding: 16,
+                    width: '230px',
+                    textAlign: 'center',
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center'
+                  }}>
+                    <span style={{ fontSize: 10.5, fontWeight: 800, color: 'var(--bronze-light)', textTransform: 'uppercase', display: 'block', marginBottom: 10, letterSpacing: '0.04em' }}>
+                      🍳 Acceso Celular Cocina
+                    </span>
+                    <div style={{ background: '#fff', padding: 8, borderRadius: 10, display: 'inline-block', marginBottom: 10 }}>
+                      <QRCodeSVG
+                        value={typeof window !== 'undefined' ? `${window.location.origin}/cocina?salonId=${user?.salonId || 'default_salon'}` : `https://yoy-ia-billar.vercel.app/cocina?salonId=${user?.salonId || 'default_salon'}`}
+                        size={140}
+                        bgColor="#fff"
+                        fgColor="#000"
+                      />
+                    </div>
+                    <p style={{ fontSize: 10, color: 'var(--text-muted)', margin: 0, lineHeight: 1.3 }}>
+                      Abre la pantalla general de preparación de Cocina y Barra.
+                    </p>
+                  </div>
+                </div>
 
                 {/* Buscador */}
                 <div style={{ position: 'relative' }}>
@@ -2169,12 +2230,12 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
                             background: 'var(--bg-elevated)',
                             border: '1px solid var(--border)',
                             borderRadius: 12,
-                            padding: '10px 8px',
+                            padding: '12px 10px',
                             textAlign: 'center',
                             display: 'flex',
                             flexDirection: 'column',
                             alignItems: 'center',
-                            gap: 6,
+                            gap: 8,
                             cursor: 'pointer',
                             transition: 'all 0.18s ease',
                           }}
@@ -2187,7 +2248,7 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
                           }}>
                             <i className="ri-user-line" />
                           </div>
-                          <div style={{ width: '100%' }}>
+                          <div style={{ width: '100%', marginBottom: 4 }}>
                             <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                               {emp.nombre}
                             </div>
@@ -2195,63 +2256,6 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
                               {emp.rol || 'Mesero'}
                             </div>
                           </div>
-                          <button
-                            onClick={async (e) => {
-                              e.stopPropagation(); // Evitar registrar asistencia al hacer clic en ver QR
-                              
-                              try {
-                                const headers = { 'Content-Type': 'application/json' };
-                                if (auth.currentUser) {
-                                  const tokenJWT = await auth.currentUser.getIdToken();
-                                  headers['Authorization'] = `Bearer ${tokenJWT}`;
-                                }
-                                
-                                const currentSalonId = user?.salonId || 'default_salon';
-                                const signature = obfuscateStatic(JSON.stringify({
-                                  timestamp: Date.now(),
-                                  empleadoId: emp.id,
-                                  salonId: currentSalonId
-                                }));
-
-                                const res = await fetch('/api/nomina/generate-qr-token', {
-                                  method: 'POST',
-                                  headers,
-                                  body: JSON.stringify({ empleadoId: emp.id, salonId: currentSalonId, signature })
-                                });
-                                const data = await res.json();
-                                if (!res.ok || !data.success) {
-                                  throw new Error(data.error || 'Error en servidor');
-                                }
-                                setFocusedEmpleadoQR({
-                                  ...emp,
-                                  qrToken: data.token,
-                                  qrTokenExpires: data.expires
-                                });
-                              } catch (err) {
-                                console.error("Error al generar token QR:", err);
-                                showToast('Error al generar token QR: ' + err.message, 'error');
-                              }
-                            }}
-                            style={{
-                              marginTop: 2,
-                              width: '100%',
-                              background: 'rgba(205,127,50,0.08)',
-                              border: '1px solid rgba(205,127,50,0.15)',
-                              borderRadius: 6,
-                              color: 'var(--bronze-light)',
-                              padding: '4px 6px',
-                              fontSize: 9.5,
-                              fontWeight: 700,
-                              cursor: 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              gap: 3,
-                              transition: 'all 0.2s'
-                            }}
-                          >
-                            <i className="ri-qr-code-line" /> Acceso Móvil
-                          </button>
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
@@ -2267,24 +2271,23 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
                               }
                             }}
                             style={{
-                              marginTop: 4,
                               width: '100%',
                               background: 'rgba(34,197,94,0.08)',
                               border: '1px solid rgba(34,197,94,0.15)',
-                              borderRadius: 6,
+                              borderRadius: 8,
                               color: 'var(--success)',
-                              padding: '4px 6px',
-                              fontSize: 9.5,
+                              padding: '6px 8px',
+                              fontSize: 10,
                               fontWeight: 700,
                               cursor: 'pointer',
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center',
-                              gap: 3,
+                              gap: 4,
                               transition: 'all 0.2s'
                             }}
                           >
-                            <i className="ri-key-line" /> Acceso Manual
+                            <i className="ri-key-line" /> Asistencia
                           </button>
                         </div>
                       ))}
