@@ -1,6 +1,80 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/firebase';
 import { doc, getDoc, addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { adminDb } from '@/lib/firebase-admin';
+
+// Wrappers para usar Firebase Admin (evitar fallos de permisos en servidor) con fallback a Cliente SDK
+async function fetchDocument(collectionName, docId) {
+  if (adminDb) {
+    const snap = await adminDb.collection(collectionName).doc(docId).get();
+    return {
+      exists: () => snap.exists,
+      data: () => snap.data()
+    };
+  } else {
+    const snap = await getDoc(doc(db, collectionName, docId));
+    return snap;
+  }
+}
+
+async function fetchCollectionQuery(collectionName, constraints = []) {
+  if (adminDb) {
+    let ref = adminDb.collection(collectionName);
+    for (const c of constraints) {
+      if (c.type === 'where') {
+        ref = ref.where(c.field, c.op, c.value);
+      } else if (c.type === 'orderBy') {
+        ref = ref.orderBy(c.field, c.direction || 'asc');
+      } else if (c.type === 'limit') {
+        ref = ref.limit(c.limitVal);
+      }
+    }
+    const snap = await ref.get();
+    return {
+      empty: snap.empty,
+      size: snap.size,
+      forEach: (cb) => snap.forEach(cb),
+      docs: snap.docs.map(d => ({
+        data: () => d.data()
+      }))
+    };
+  } else {
+    let clientRef = collection(db, collectionName);
+    const clientConstraints = [];
+    constraints.forEach(c => {
+      if (c.type === 'where') {
+        clientConstraints.push(where(c.field, c.op, c.value));
+      }
+    });
+    const q = query(clientRef, ...clientConstraints);
+    const snap = await getDocs(q);
+    return snap;
+  }
+}
+
+async function saveDocument(collectionName, docId, data, options = {}) {
+  if (adminDb) {
+    await adminDb.collection(collectionName).doc(docId).set(data, options);
+  } else {
+    await setDoc(doc(db, collectionName, docId), data, options);
+  }
+}
+
+async function appendDocument(collectionName, data) {
+  if (adminDb) {
+    const docRef = await adminDb.collection(collectionName).add({
+      ...data,
+      createdAt: new Date()
+    });
+    return docRef;
+  } else {
+    const docRef = await addDoc(collection(db, collectionName), {
+      ...data,
+      createdAt: serverTimestamp()
+    });
+    return docRef;
+  }
+}
 
 function hashPhone(phone) {
   if (!phone) return '';
@@ -35,8 +109,7 @@ async function enqueueFailedAlert(body, errorMsg, resolvedChatId, resolvedToken)
     // Si no tenemos chatId pero tenemos el teléfono, buscar vinculación
     if (!finalChatId && phone) {
       const cleanPhone = phone.replace(/\D/g, '');
-      const vincRef = doc(db, 'telegram_vinculaciones', hashPhone(cleanPhone));
-      const vincSnap = await getDoc(vincRef);
+      const vincSnap = await fetchDocument('telegram_vinculaciones', hashPhone(cleanPhone));
       if (vincSnap.exists()) {
         finalChatId = vincSnap.data().chatId;
       }
@@ -47,7 +120,7 @@ async function enqueueFailedAlert(body, errorMsg, resolvedChatId, resolvedToken)
       return;
     }
 
-    await addDoc(collection(db, 'telegram_alert_pending'), {
+    await appendDocument('telegram_alert_pending', {
       token: finalToken,
       chatId: finalChatId,
       phone: phone || null,
@@ -55,7 +128,6 @@ async function enqueueFailedAlert(body, errorMsg, resolvedChatId, resolvedToken)
       mode: mode || 'custom',
       retries: 0,
       lastError: errorMsg,
-      createdAt: new Date(),
       nextRetryAt: new Date() // Intentar de inmediato en el próximo barrido
     });
   } catch (err) {
@@ -74,10 +146,16 @@ export async function POST(request) {
     // Obtener nombre de sucursal si no viene en el body
     if (!sucursalName) {
       try {
-        const sucRef = doc(db, 'config', 'sucursal');
-        const sucSnap = await getDoc(sucRef);
+        const salonId = body.salonId || 'default_salon';
+        const sucSnap = await fetchDocument('config', `sucursal_${salonId}`);
         if (sucSnap.exists() && sucSnap.data().nombre) {
           sucursalName = sucSnap.data().nombre;
+        } else {
+          // Fallback al sucursal global por compatibilidad
+          const globalSucSnap = await fetchDocument('config', 'sucursal');
+          if (globalSucSnap.exists() && globalSucSnap.data().nombre) {
+            sucursalName = globalSucSnap.data().nombre;
+          }
         }
       } catch (err) {
         console.error("Error al obtener sucursalName en send-alert:", err);
@@ -111,8 +189,7 @@ export async function POST(request) {
       const cleanPhone = phone.replace(/\D/g, '');
       
       // Buscar el chatId en la colección central de vinculaciones
-      const vincRef = doc(db, 'telegram_vinculaciones', hashPhone(cleanPhone));
-      const vincSnap = await getDoc(vincRef);
+      const vincSnap = await fetchDocument('telegram_vinculaciones', hashPhone(cleanPhone));
 
       if (vincSnap.exists()) {
         targetChatId = vincSnap.data().chatId;
@@ -146,59 +223,55 @@ export async function POST(request) {
 
         const dataCentral = await resCentral.json();
         if (resCentral.ok) {
-          try {
-            await addDoc(collection(db, 'telegram_alert_logs'), {
-              phone: obfuscatePhone(phone),
-              chatId: targetChatId || null,
-              text: text,
-              mode: mode || 'simplified',
-              status: 'sent_via_central',
-              createdAt: serverTimestamp()
-            });
-          } catch (logErr) {
-            console.error("Error al registrar bitácora de alertas (Case B):", logErr);
-          }
-          return NextResponse.json({ success: true, fromCentral: true });
-        } else {
-          try {
-            await addDoc(collection(db, 'telegram_alert_logs'), {
-              phone: obfuscatePhone(phone),
-              chatId: targetChatId || null,
-              text: text,
-              mode: mode || 'simplified',
-              status: 'failed',
-              error: dataCentral.error || 'Error central',
-              createdAt: serverTimestamp()
-            });
-          } catch (logErr) {
-            console.error("Error al registrar bitácora de alertas (Case B Failed):", logErr);
-          }
-          // Encolar alerta pendiente localmente
-          await enqueueFailedAlert(body, dataCentral.error || 'Error central', targetChatId, targetToken);
-
-          return NextResponse.json({ error: dataCentral.error || 'Error en el servidor central de SaaS' }, { status: resCentral.status });
-        }
-      } catch (errCentral) {
-        console.error('Error al contactar al servidor central de SaaS:', errCentral);
-        try {
-          await addDoc(collection(db, 'telegram_alert_logs'), {
-            phone: obfuscatePhone(phone),
-            chatId: targetChatId || null,
-            text: text,
-            mode: mode || 'simplified',
-            status: 'failed',
-            error: 'No se pudo conectar con el servidor central: ' + errCentral.message,
-            createdAt: serverTimestamp()
-          });
-        } catch (logErr) {
-          console.error("Error al registrar bitácora de alertas (Case B Exception):", logErr);
-        }
-        // Encolar alerta pendiente localmente
-        await enqueueFailedAlert(body, 'No se pudo conectar con el servidor central: ' + errCentral.message, targetChatId, targetToken);
-
-        return NextResponse.json({ error: 'No se pudo conectar con el servidor central de ALR SaaS: ' + errCentral.message }, { status: 502 });
+        await appendDocument('telegram_alert_logs', {
+          phone: obfuscatePhone(phone),
+          chatId: targetChatId || null,
+          text: text,
+          mode: mode || 'simplified',
+          status: 'sent_via_central'
+        });
+      } catch (logErr) {
+        console.error("Error al registrar bitácora de alertas (Case B):", logErr);
       }
+      return NextResponse.json({ success: true, fromCentral: true });
+    } else {
+      try {
+        await appendDocument('telegram_alert_logs', {
+          phone: obfuscatePhone(phone),
+          chatId: targetChatId || null,
+          text: text,
+          mode: mode || 'simplified',
+          status: 'failed',
+          error: dataCentral.error || 'Error central'
+        });
+      } catch (logErr) {
+        console.error("Error al registrar bitácora de alertas (Case B Failed):", logErr);
+      }
+      // Encolar alerta pendiente localmente
+      await enqueueFailedAlert(body, dataCentral.error || 'Error central', targetChatId, targetToken);
+
+      return NextResponse.json({ error: dataCentral.error || 'Error en el servidor central de SaaS' }, { status: resCentral.status });
     }
+  } catch (errCentral) {
+    console.error('Error al contactar al servidor central de SaaS:', errCentral);
+    try {
+      await appendDocument('telegram_alert_logs', {
+        phone: obfuscatePhone(phone),
+        chatId: targetChatId || null,
+        text: text,
+        mode: mode || 'simplified',
+        status: 'failed',
+        error: 'No se pudo conectar con el servidor central: ' + errCentral.message
+      });
+    } catch (logErr) {
+      console.error("Error al registrar bitácora de alertas (Case B Exception):", logErr);
+    }
+    // Encolar alerta pendiente localmente
+    await enqueueFailedAlert(body, 'No se pudo conectar con el servidor central: ' + errCentral.message, targetChatId, targetToken);
+
+    return NextResponse.json({ error: 'No se pudo conectar con el servidor central de ALR SaaS: ' + errCentral.message }, { status: 502 });
+  }
+}
 
     // Caso C: Modo Personalizado (Custom Bot)
     if (!targetToken) {
@@ -234,13 +307,12 @@ export async function POST(request) {
 
     if (res.ok) {
       try {
-        await addDoc(collection(db, 'telegram_alert_logs'), {
+        await appendDocument('telegram_alert_logs', {
           phone: obfuscatePhone(phone),
           chatId: targetChatId || null,
           text: text,
           mode: mode || 'custom',
-          status: 'sent',
-          createdAt: serverTimestamp()
+          status: 'sent'
         });
       } catch (logErr) {
         console.error("Error al registrar bitácora de alertas (Success):", logErr);
@@ -249,14 +321,13 @@ export async function POST(request) {
     } else {
       const errorData = await res.json();
       try {
-        await addDoc(collection(db, 'telegram_alert_logs'), {
+        await appendDocument('telegram_alert_logs', {
           phone: obfuscatePhone(phone),
           chatId: targetChatId || null,
           text: text,
           mode: mode || 'custom',
           status: 'failed',
-          error: errorData.description || 'Error de Telegram',
-          createdAt: serverTimestamp()
+          error: errorData.description || 'Error de Telegram'
         });
       } catch (logErr) {
         console.error("Error al registrar bitácora de alertas (Failed):", logErr);
@@ -269,14 +340,13 @@ export async function POST(request) {
   } catch (err) {
     console.error('Error en API send-alert:', err);
     try {
-      await addDoc(collection(db, 'telegram_alert_logs'), {
+      await appendDocument('telegram_alert_logs', {
         phone: obfuscatePhone(body.phone),
         chatId: targetChatId || body.chatId || null,
         text: body.text || '',
         mode: body.mode || 'unknown',
         status: 'failed',
-        error: err.message,
-        createdAt: serverTimestamp()
+        error: err.message
       });
     } catch (logErr) {
       console.error("Error al registrar bitácora de alertas (Catch):", logErr);

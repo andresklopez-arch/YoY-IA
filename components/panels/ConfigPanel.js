@@ -1337,22 +1337,99 @@ export default function ConfigPanel({ showToast }) {
       const testChartConfig = {
         type: 'bar',
         data: {
-          labels: ['Meta Diaria', 'Venta Realizada', 'Ocupación (%)'],
-          datasets: [{
-            data: [10000, 7500, 75],
-            backgroundColor: ['rgba(212, 175, 55, 0.5)', 'rgba(57, 255, 20, 0.7)', 'rgba(0, 191, 255, 0.6)'],
-            borderColor: ['#d4af37', '#39ff14', '#00bfff'],
-            borderWidth: 1
-          }]
+          labels: ['Métricas de Prueba'],
+          datasets: [
+            {
+              label: 'Meta Diaria ($)',
+              data: [10000],
+              backgroundColor: 'rgba(127, 0, 255, 0.5)',
+              borderColor: '#7F00FF',
+              borderWidth: 2,
+              yAxisID: 'y-sales'
+            },
+            {
+              label: 'Venta Realizada ($)',
+              data: [7500],
+              backgroundColor: 'rgba(0, 245, 160, 0.65)',
+              borderColor: '#00F5A0',
+              borderWidth: 2,
+              yAxisID: 'y-sales'
+            },
+            {
+              type: 'line',
+              label: 'Ocupación (%)',
+              data: [75],
+              borderColor: '#FFB800',
+              backgroundColor: 'rgba(255, 184, 0, 0.2)',
+              borderWidth: 3,
+              fill: false,
+              pointRadius: 8,
+              pointBackgroundColor: '#ffffff',
+              pointBorderColor: '#FFB800',
+              pointBorderWidth: 3,
+              yAxisID: 'y-occupancy'
+            }
+          ]
         },
         options: {
           title: {
             display: true,
             text: 'Prueba de Gráficos YoY Billar (Simulado)',
             fontColor: '#ffffff',
-            fontSize: 14
+            fontSize: 14,
+            fontStyle: 'bold',
+            fontFamily: "'Outfit', 'Inter', sans-serif"
           },
-          legend: { display: false }
+          legend: {
+            display: true,
+            labels: {
+              fontColor: '#a0aec0',
+              fontFamily: "'Outfit', 'Inter', sans-serif",
+              fontSize: 10,
+              boxWidth: 12
+            }
+          },
+          scales: {
+            yAxes: [
+              {
+                id: 'y-sales',
+                type: 'linear',
+                position: 'left',
+                ticks: {
+                  fontColor: '#00F5A0',
+                  fontFamily: "'Outfit', 'Inter', sans-serif",
+                  beginAtZero: true
+                },
+                gridLines: { color: 'rgba(255, 255, 255, 0.06)' }
+              },
+              {
+                id: 'y-occupancy',
+                type: 'linear',
+                position: 'right',
+                ticks: {
+                  fontColor: '#FFB800',
+                  fontFamily: "'Outfit', 'Inter', sans-serif",
+                  beginAtZero: true,
+                  max: 100
+                },
+                gridLines: { drawOnChartArea: false }
+              }
+            ]
+          },
+          plugins: {
+            datalabels: {
+              display: true,
+              align: 'top',
+              color: '#ffffff',
+              backgroundColor: 'rgba(18, 18, 18, 0.7)',
+              borderRadius: 4,
+              font: {
+                family: "'Outfit', 'Inter', sans-serif",
+                weight: 'bold',
+                size: 9
+              }
+            }
+          }
         }
       };
       const chartUrl = `https://quickchart.io/chart?c=${encodeURIComponent(JSON.stringify(testChartConfig))}&bkg=%23121212`;

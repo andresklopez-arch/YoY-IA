@@ -425,16 +425,28 @@ export async function GET(request) {
             {
               label: 'Ventas ($)',
               data: history.map(h => h.sales),
-              borderColor: '#39ff14',
-              backgroundColor: 'rgba(57, 255, 20, 0.1)',
+              borderColor: '#00F5A0',
+              backgroundColor: 'rgba(0, 245, 160, 0.08)',
+              borderWidth: 4,
+              pointRadius: 4,
+              pointBackgroundColor: '#ffffff',
+              pointBorderColor: '#00F5A0',
+              pointBorderWidth: 2,
+              lineTension: 0.35,
               fill: true,
               yAxisID: 'y-sales'
             },
             {
               label: 'Ocupación (%)',
               data: history.map(h => h.occupancy),
-              borderColor: '#d4af37',
-              backgroundColor: 'rgba(212, 175, 55, 0.1)',
+              borderColor: '#FFB800',
+              backgroundColor: 'rgba(255, 184, 0, 0.05)',
+              borderWidth: 4,
+              pointRadius: 4,
+              pointBackgroundColor: '#ffffff',
+              pointBorderColor: '#FFB800',
+              pointBorderWidth: 2,
+              lineTension: 0.35,
               fill: true,
               yAxisID: 'y-occupancy'
             }
@@ -443,9 +455,21 @@ export async function GET(request) {
         options: {
           title: {
             display: true,
-            text: 'Historial de Operación de Hoy (Cortes 1.5 hrs)',
+            text: `HISTORIAL DE HOY - ${branchName.toUpperCase()}`,
             fontColor: '#ffffff',
-            fontSize: 14
+            fontSize: 15,
+            fontStyle: 'bold',
+            fontFamily: "'Outfit', 'Inter', sans-serif",
+            padding: 15
+          },
+          legend: {
+            display: true,
+            labels: {
+              fontColor: '#a0aec0',
+              fontFamily: "'Outfit', 'Inter', sans-serif",
+              fontSize: 11,
+              boxWidth: 15
+            }
           },
           scales: {
             yAxes: [
@@ -453,19 +477,52 @@ export async function GET(request) {
                 id: 'y-sales',
                 type: 'linear',
                 position: 'left',
-                ticks: { fontColor: '#39ff14', beginAtZero: true },
-                scaleLabel: { display: true, labelString: 'Ventas ($)', fontColor: '#39ff14' }
+                ticks: { 
+                  fontColor: '#00F5A0', 
+                  fontFamily: "'Outfit', 'Inter', sans-serif",
+                  beginAtZero: true,
+                  callback: (val) => '$' + Number(val).toLocaleString('es-MX')
+                },
+                gridLines: { color: 'rgba(255, 255, 255, 0.06)' },
+                scaleLabel: { display: true, labelString: 'Ventas ($)', fontColor: '#00F5A0', fontFamily: "'Outfit', 'Inter', sans-serif", fontWeight: 'bold' }
               },
               {
                 id: 'y-occupancy',
                 type: 'linear',
                 position: 'right',
-                ticks: { fontColor: '#d4af37', beginAtZero: true, max: 100 },
+                ticks: { 
+                  fontColor: '#FFB800', 
+                  fontFamily: "'Outfit', 'Inter', sans-serif",
+                  beginAtZero: true, 
+                  max: 100,
+                  callback: (val) => val + '%'
+                },
                 gridLines: { drawOnChartArea: false },
-                scaleLabel: { display: true, labelString: 'Ocupación (%)', fontColor: '#d4af37' }
+                scaleLabel: { display: true, labelString: 'Ocupación (%)', fontColor: '#FFB800', fontFamily: "'Outfit', 'Inter', sans-serif", fontWeight: 'bold' }
               }
             ],
-            xAxes: [{ ticks: { fontColor: '#ffffff' } }]
+            xAxes: [{ 
+              ticks: { fontColor: '#a0aec0', fontFamily: "'Outfit', 'Inter', sans-serif" },
+              gridLines: { color: 'rgba(255, 255, 255, 0.04)' }
+            }]
+          },
+          plugins: {
+            datalabels: {
+              display: true,
+              align: 'top',
+              color: '#ffffff',
+              backgroundColor: 'rgba(18, 18, 18, 0.7)',
+              borderRadius: 4,
+              font: {
+                family: "'Outfit', 'Inter', sans-serif",
+                weight: 'bold',
+                size: 9
+              },
+              formatter: (value, context) => {
+                if (context.datasetIndex === 1) return value + '%';
+                return '$' + Number(value).toLocaleString('es-MX');
+              }
+            }
           }
         }
       };
@@ -473,25 +530,115 @@ export async function GET(request) {
       chartConfig = {
         type: 'bar',
         data: {
-          labels: ['Meta Diaria', 'Venta Realizada', 'Ocupación (%)'],
-          datasets: [{
-            data: [Math.round(metaDiaria), Math.round(montoVendido), Math.round(ocupacionPct)],
-            backgroundColor: ['rgba(212, 175, 55, 0.5)', 'rgba(57, 255, 20, 0.7)', 'rgba(0, 191, 255, 0.6)'],
-            borderColor: ['#d4af37', '#39ff14', '#00bfff'],
-            borderWidth: 1
-          }]
+          labels: ['Métricas Operativas'],
+          datasets: [
+            {
+              label: 'Meta Diaria ($)',
+              data: [Math.round(metaDiaria)],
+              backgroundColor: 'rgba(127, 0, 255, 0.5)',
+              borderColor: '#7F00FF',
+              borderWidth: 2,
+              yAxisID: 'y-sales'
+            },
+            {
+              label: 'Venta Realizada ($)',
+              data: [Math.round(montoVendido)],
+              backgroundColor: 'rgba(0, 245, 160, 0.65)',
+              borderColor: '#00F5A0',
+              borderWidth: 2,
+              yAxisID: 'y-sales'
+            },
+            {
+              type: 'line',
+              label: 'Ocupación (%)',
+              data: [Math.round(ocupacionPct)],
+              borderColor: '#FFB800',
+              backgroundColor: 'rgba(255, 184, 0, 0.2)',
+              borderWidth: 3,
+              fill: false,
+              pointRadius: 8,
+              pointBackgroundColor: '#ffffff',
+              pointBorderColor: '#FFB800',
+              pointBorderWidth: 3,
+              yAxisID: 'y-occupancy'
+            }
+          ]
         },
         options: {
           title: {
             display: true,
-            text: 'Rendimiento Operativo YoY Billar (Primer Corte)',
+            text: `RESUMEN OPERATIVO - ${branchName.toUpperCase()}`,
             fontColor: '#ffffff',
-            fontSize: 14
+            fontSize: 15,
+            fontStyle: 'bold',
+            fontFamily: "'Outfit', 'Inter', sans-serif",
+            padding: 15
           },
-          legend: { display: false },
+          legend: {
+            display: true,
+            labels: {
+              fontColor: '#a0aec0',
+              fontFamily: "'Outfit', 'Inter', sans-serif",
+              fontSize: 11,
+              boxWidth: 12
+            }
+          },
           scales: {
-            yAxes: [{ ticks: { beginAtZero: true, fontColor: '#ffffff' } }],
-            xAxes: [{ ticks: { fontColor: '#ffffff' } }]
+            yAxes: [
+              {
+                id: 'y-sales',
+                type: 'linear',
+                position: 'left',
+                ticks: {
+                  fontColor: '#00F5A0',
+                  fontFamily: "'Outfit', 'Inter', sans-serif",
+                  beginAtZero: true,
+                  callback: (val) => '$' + Number(val).toLocaleString('es-MX')
+                },
+                gridLines: { color: 'rgba(255, 255, 255, 0.06)' }
+              },
+              {
+                id: 'y-occupancy',
+                type: 'linear',
+                position: 'right',
+                ticks: {
+                  fontColor: '#FFB800',
+                  fontFamily: "'Outfit', 'Inter', sans-serif",
+                  beginAtZero: true,
+                  max: 100,
+                  callback: (val) => val + '%'
+                },
+                gridLines: { drawOnChartArea: false }
+              }
+            ],
+            xAxes: [
+              {
+                ticks: {
+                  fontColor: '#a0aec0',
+                  fontFamily: "'Outfit', 'Inter', sans-serif",
+                  fontSize: 12
+                },
+                gridLines: { display: false }
+              }
+            ]
+          },
+          plugins: {
+            datalabels: {
+              display: true,
+              align: 'top',
+              color: '#ffffff',
+              backgroundColor: 'rgba(18, 18, 18, 0.7)',
+              borderRadius: 4,
+              font: {
+                family: "'Outfit', 'Inter', sans-serif",
+                weight: 'bold',
+                size: 10
+              },
+              formatter: (value, context) => {
+                if (context.datasetIndex === 2) return value + '%';
+                return '$' + Number(value).toLocaleString('es-MX');
+              }
+            }
           }
         }
       };
