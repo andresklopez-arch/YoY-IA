@@ -3855,6 +3855,7 @@ export default function MesasPanel({ showToast }) {
     return unsub;
   }, []);
   const [fila, setFila] = useState([]);
+  const isInitialFilaLoadRef = useRef(true);
   const tick = useLiveTick();
 
   // Escuchar Fila de Espera en tiempo real desde Firestore
@@ -3863,6 +3864,37 @@ export default function MesasPanel({ showToast }) {
       collection(db, 'fila_espera'),
       where('estado', '==', 'espera')
     );
+    const playNotificationSound = () => {
+      try {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const oscillator = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+        oscillator.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(523.25, audioCtx.currentTime); // C5
+        gainNode.gain.setValueAtTime(0.15, audioCtx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+        oscillator.start(audioCtx.currentTime);
+        
+        const oscillator2 = audioCtx.createOscillator();
+        const gainNode2 = audioCtx.createGain();
+        oscillator2.connect(gainNode2);
+        gainNode2.connect(audioCtx.destination);
+        oscillator2.type = 'sine';
+        oscillator2.frequency.setValueAtTime(659.25, audioCtx.currentTime + 0.1); // E5
+        gainNode2.gain.setValueAtTime(0.15, audioCtx.currentTime + 0.1);
+        gainNode2.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+        oscillator2.start(audioCtx.currentTime + 0.1);
+        
+        oscillator.stop(audioCtx.currentTime + 0.25);
+        oscillator2.stop(audioCtx.currentTime + 0.4);
+      } catch (e) {
+        console.warn("Audio Context playback failed", e);
+      }
+    };
+
     const unsub = onSnapshot(q, snap => {
       const items = snap.docs.map(d => {
         const val = d.data();
@@ -3873,6 +3905,20 @@ export default function MesasPanel({ showToast }) {
       });
       // Ordenar por timestamp de registro ascendente (FIFO)
       items.sort((a, b) => (a.registro || 0) - (b.registro || 0));
+      
+      // Reproducir sonido e indicador de voz si es un registro nuevo
+      if (!isInitialFilaLoadRef.current) {
+        const hasAdded = snap.docChanges().some(change => change.type === 'added');
+        if (hasAdded) {
+          playNotificationSound();
+          setTimeout(() => {
+            decirPalabra("Nuevo cliente registrado en la fila de espera");
+          }, 450);
+        }
+      } else {
+        isInitialFilaLoadRef.current = false;
+      }
+
       setFila(items);
       try {
         localStorage.setItem('yoy_billar_fila', obfuscate(items));
@@ -8298,8 +8344,40 @@ function ModalFilaVirtual({ fila, setFila, mesas, onAssign, onClose, showToast, 
   const getEncodedSalonId = () => {
     return encodeURIComponent(obfuscateStatic(getActiveSalonId()));
   };
-  const [cliente, setCliente] = useState('');
-  const [contacto, setContacto] = useState('');
+  const [cliente, setClienteState] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return sessionStorage.getItem('yoy_fila_cliente') || '';
+    }
+    return '';
+  });
+  const [contacto, setContactoState] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return sessionStorage.getItem('yoy_fila_contacto') || '';
+    }
+    return '';
+  });
+
+  const setCliente = (val) => {
+    setClienteState(val);
+    if (typeof window !== 'undefined') {
+      if (val === '') {
+        sessionStorage.removeItem('yoy_fila_cliente');
+      } else {
+        sessionStorage.setItem('yoy_fila_cliente', val);
+      }
+    }
+  };
+
+  const setContacto = (val) => {
+    setContactoState(val);
+    if (typeof window !== 'undefined') {
+      if (val === '') {
+        sessionStorage.removeItem('yoy_fila_contacto');
+      } else {
+        sessionStorage.setItem('yoy_fila_contacto', val);
+      }
+    }
+  };
   const [tipo, setTipo] = useState('Carambola 3B');
   const [personas, setPersonas] = useState(2);
 
@@ -8548,6 +8626,11 @@ function ModalFilaVirtual({ fila, setFila, mesas, onAssign, onClose, showToast, 
             >
               <i className="ri-file-copy-line" /> Copiar Enlace
             </button>
+            <div style={{ width: '100%', marginTop: 2, padding: '4px 6px', background: 'var(--bg-elevated)', borderRadius: 6, border: '1px dashed var(--border)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <span style={{ fontSize: 9.5, color: 'var(--text-muted)', fontFamily: 'monospace' }}>
+                {typeof window !== 'undefined' ? `${window.location.host}/fila/registro?s=...` : 'yoy-ia-billar.vercel.app/fila/registro?s=...'}
+              </span>
+            </div>
             <p style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.3, margin: '8px 0', maxWidth: 180 }}>
               Los clientes pueden escanear este código QR para anotarse solos en la lista de espera desde su celular.
             </p>
