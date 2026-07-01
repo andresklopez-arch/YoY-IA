@@ -999,14 +999,27 @@ function MeseroContent() {
 
     try {
       const docRef = doc(db, 'mesa_pedidos', id);
+      
+      let isAlreadyAtendidoAdmin = false;
+      try {
+        const snap = await getDoc(docRef);
+        if (snap.exists()) {
+          isAlreadyAtendidoAdmin = snap.data().atendidoAdmin === true;
+        }
+      } catch (err) {
+        console.error("Error al obtener alerta en mesero para verificar atendidoAdmin:", err);
+      }
+
       const updateData = {
         atendidoMesero: true,
         updatedAt: serverTimestamp(),
       };
-      // Solo archivar si no es un pedido (ya que el pedido debe seguir en cocina/entrega)
+      // Solo archivar si no es un pedido y el admin también lo atendió
       if (tipo !== 'pedido') {
-        updateData.estado = 'atendido';
-        updateData.atendidoAt = serverTimestamp();
+        if (isAlreadyAtendidoAdmin) {
+          updateData.estado = 'atendido';
+          updateData.atendidoAt = serverTimestamp();
+        }
       } else {
         // Si el pedido está listo o en camino, el mesero lo entrega
         if (['listo', 'en_camino'].includes(estado)) {

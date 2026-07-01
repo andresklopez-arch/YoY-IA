@@ -3037,10 +3037,12 @@ export default function MesasPanel({ showToast }) {
       
       // Intentar calcular el tiempo de espera y liquidar cuenta si es de tipo cuenta
       let tiempoEsperaSegundos = null;
+      let isAlreadyAtendidoMesero = false;
       try {
         const snap = await getDoc(docRef);
         if (snap.exists()) {
           const alertData = snap.data();
+          isAlreadyAtendidoMesero = alertData.atendidoMesero === true;
           
           if (alertData.createdAt) {
             const startMs = alertData.createdAt.toDate ? alertData.createdAt.toDate().getTime() : alertData.createdAt.seconds * 1000;
@@ -3087,10 +3089,12 @@ export default function MesasPanel({ showToast }) {
       if (tiempoEsperaSegundos !== null) {
         updateData.tiempoEsperaSegundos = tiempoEsperaSegundos;
       }
-      // Solo archivar si no es un pedido (ya que el pedido debe seguir en cocina/entrega)
+      // Solo archivar si no es un pedido y el mesero también lo atendió
       if (finalTipo !== 'pedido') {
-        updateData.estado = 'atendido';
-        updateData.atendidoAt = serverTimestamp();
+        if (isAlreadyAtendidoMesero) {
+          updateData.estado = 'atendido';
+          updateData.atendidoAt = serverTimestamp();
+        }
       }
       await updateDoc(docRef, updateData);
       

@@ -2340,71 +2340,7 @@ function AppContent() {
         </div>
       )}
 
-      {/* ── VENTANA EMERGENTE ADMIN: ALERTA DE SERVICIO PENDIENTE ── */}
-      {alertasAsistencia.length > 0 && (
-        <div className="modal-overlay" style={{ zIndex: 1999, background: 'rgba(13,13,15,0.8)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}>
-          <div className="modal" style={{ maxWidth: 440, border: '2px solid var(--danger)', boxShadow: '0 0 30px rgba(239,68,68,0.25)', animation: 'scaleUpAlert 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)' }}>
-            <div className="modal-header" style={{ borderBottom: '1px solid rgba(239,68,68,0.15)', paddingBottom: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span className="modal-title" style={{ color: 'var(--danger)', display: 'flex', alignItems: 'center', gap: 8, fontSize: 16, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                🚨 Alerta de Servicio (Cliente)
-              </span>
-              <span style={{ fontSize: 10, background: 'rgba(239,68,68,0.12)', color: 'var(--danger)', padding: '1px 6px', borderRadius: 999, fontWeight: 800 }}>
-                {alertasAsistencia.length} PENDIENTE
-              </span>
-            </div>
-            <div className="modal-body" style={{ maxHeight: 300, overflowY: 'auto', padding: '12px 0' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {alertasAsistencia.map((alerta) => (
-                  <div key={alerta.id} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 12, padding: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <span style={{ fontSize: 26 }}>{alerta.icono || '🙋'}</span>
-                      <div style={{ textAlign: 'left' }}>
-                        <div style={{ fontSize: 14, fontWeight: 800, color: '#fff' }}>Mesa {alerta.mesaId}</div>
-                        <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
-                          {alerta.etiqueta} {alerta.tipo === 'cuenta' && alerta.totalAcumulado ? `($${alerta.totalAcumulado} MXN)` : alerta.tipo === 'pedido' && alerta.total ? `($${alerta.total} MXN)` : ''}
-                        </div>
-                        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>{alerta.cliente}</div>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => marcarAtendidoAdmin(alerta.id, alerta.tipo)}
-                      style={{
-                        background: 'rgba(34,197,94,0.12)',
-                        border: '1px solid rgba(34,197,94,0.3)',
-                        color: 'var(--success)',
-                        padding: '6px 12px',
-                        borderRadius: 8,
-                        fontWeight: 700,
-                        fontSize: 12,
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 4,
-                        transition: 'all 0.15s',
-                        flexShrink: 0
-                      }}
-                      onMouseEnter={e => { e.currentTarget.style.background = 'rgba(34,197,94,0.2)'; }}
-                      onMouseLeave={e => { e.currentTarget.style.background = 'rgba(34,197,94,0.12)'; }}
-                    >
-                      <i className="ri-check-line" /> Atendido
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="modal-footer" style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <button
-                onClick={() => setSonidoAdmin(!sonidoAdmin)}
-                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 11, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
-              >
-                <i className={sonidoAdmin ? 'ri-volume-up-line' : 'ri-volume-mute-line'} />
-                {sonidoAdmin ? 'Chime ON' : 'Silencio'}
-              </button>
-              <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>YoY IA Billar By Alfonso Iturbide</span>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* ── VENTANA EMERGENTE ADMIN ELIMINADA: ALERTA DE SERVICIO PENDIENTE (SOLO VISIBLE EN MESERO Y TARJETA DE MESA) ── */}
 
       {/* Modal de decisión al escanear QR con sesión activa */}
       {qrDecisionEmployee && (
