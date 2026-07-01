@@ -2437,6 +2437,8 @@ export default function MesasPanel({ showToast }) {
   const [mesas, setMesas] = useState([]);
   const [procesandoCierre, setProcesandoCierre] = useState(false);
   const [cobroExito, setCobroExito] = useState(null);
+  const [lastTotals, setLastTotals] = useState({});
+  const [pulseMesas, setPulseMesas] = useState({});
 
   const getEncodedSalonId = () => {
     return encodeURIComponent(obfuscateStatic(getActiveSalonId()));
@@ -4140,6 +4142,37 @@ export default function MesasPanel({ showToast }) {
     });
     return map;
   }, [mesas, cuentasActivas, unloadedConsumos]);
+
+  // ── Efecto de Pulsación de Consumos Nuevos ──
+  useEffect(() => {
+    const updatedPulses = { ...pulseMesas };
+    let hasChanges = false;
+    
+    Object.keys(consumosPorMesa).forEach(mId => {
+      const prevTotal = lastTotals[mId];
+      const newTotal = consumosPorMesa[mId];
+      
+      // Solo pulsar si ya teníamos un total registrado para esa mesa (evitar pulsar en la primera carga general)
+      // y si los nuevos consumos aumentaron.
+      if (prevTotal !== undefined && newTotal > prevTotal) {
+        updatedPulses[mId] = true;
+        hasChanges = true;
+        // Apagar la pulsación después de 4 segundos
+        setTimeout(() => {
+          setPulseMesas(prev => ({
+            ...prev,
+            [mId]: false
+          }));
+        }, 4000);
+      }
+    });
+
+    // Siempre sincronizar lastTotals
+    setLastTotals(consumosPorMesa);
+    if (hasChanges) {
+      setPulseMesas(updatedPulses);
+    }
+  }, [consumosPorMesa]);
 
   // ── Memorización de Cuentas Pendientes Solicitadas ──
   const infoCuentasSolicitadas = useMemo(() => {
@@ -6315,6 +6348,11 @@ export default function MesasPanel({ showToast }) {
           50% { border-color: rgba(197, 168, 128, 0.8); box-shadow: 0 0 15px rgba(197, 168, 128, 0.35); }
           100% { border-color: rgba(197, 168, 128, 0.4); box-shadow: 0 0 5px rgba(197, 168, 128, 0.15); }
         }
+        @keyframes pulseConsumptionGreen {
+          0% { border-color: rgba(34, 197, 94, 0.4); box-shadow: 0 0 5px rgba(34, 197, 94, 0.15); background: rgba(34, 197, 94, 0.02); }
+          50% { border-color: rgba(34, 197, 94, 0.95); box-shadow: 0 0 20px rgba(34, 197, 94, 0.45); background: rgba(34, 197, 94, 0.08); }
+          100% { border-color: rgba(34, 197, 94, 0.4); box-shadow: 0 0 5px rgba(34, 197, 94, 0.15); background: rgba(34, 197, 94, 0.02); }
+        }
         @keyframes pulseGlowAlert {
           0% { box-shadow: 0 4px 15px rgba(197, 168, 128, 0.15); border-color: rgba(197, 168, 128, 0.4); }
           50% { box-shadow: 0 4px 25px rgba(197, 168, 128, 0.3); border-color: rgba(197, 168, 128, 0.7); }
@@ -7068,7 +7106,12 @@ export default function MesasPanel({ showToast }) {
           const mesaNombreStr = mesa.nombre || `Mesa ${mesa.id}`;
           const isAssignedToQueue = mesa.estado === 'libre' && assignedFila.some(f => f.mesaAsignada && f.mesaAsignada.toLowerCase() === mesaNombreStr.toLowerCase());
 
-          const dynamicStyle = hasAlert ? {
+          const isPulsing = pulseMesas[mesa.id];
+          const dynamicStyle = isPulsing ? {
+            border: '1.5px solid #22c55e',
+            boxShadow: '0 0 15px rgba(34, 197, 94, 0.45)',
+            animation: 'pulseConsumptionGreen 1.2s infinite ease-in-out'
+          } : hasAlert ? {
             boxShadow: '0 0 12px rgba(245, 158, 11, 0.25)',
             border: '1.5px solid rgba(245, 158, 11, 0.5)'
           } : isPorCobrar ? {
@@ -7086,7 +7129,7 @@ export default function MesasPanel({ showToast }) {
           return (
             <div
               key={mesa.id}
-              className={`mesa-card ${mesa.estado} ${isPorCobrar ? 'por-cobrar' : ''} ${hasAlert ? 'has-alert' : ''} ${!animacionesActivas ? 'sin-animaciones' : ''}`}
+              className={`mesa-card ${mesa.estado} ${isPorCobrar ? 'por-cobrar' : ''} ${hasAlert ? 'has-alert' : ''} ${isPulsing ? 'pulse-consumption-active' : ''} ${!animacionesActivas ? 'sin-animaciones' : ''}`}
               onClick={() => abrirMesa(mesa)}
               style={mergedStyle}
             >
