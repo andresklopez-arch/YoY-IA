@@ -247,6 +247,7 @@ function MeseroContent() {
   const [capturaCarrito, setCapturaCarrito] = useState({}); // { prodId: cant }
   const [productosBar, setProductosBar] = useState([]);
   const [isClosing, setIsClosing] = useState(false);
+  const [bloquearDestino, setBloquearDestino] = useState(false);
 
   // Sincronización y estados de mesas/cuentas
   const [mesas, setMesas] = useState([]);
@@ -2639,7 +2640,7 @@ function MeseroContent() {
               <div style={{ textAlign: 'left' }}>
                 <div className="form-group" style={{ marginBottom: 16 }}>
                   <label className="form-label">Seleccionar Destino de Comanda</label>
-                  <select className="form-select" value={capturaMesaId} onChange={e => setCapturaMesaId(e.target.value)} style={{ width: '100%' }}>
+                  <select className="form-select" value={capturaMesaId} onChange={e => setCapturaMesaId(e.target.value)} style={{ width: '100%' }} disabled={bloquearDestino}>
                     {/* Mesas Ocupadas */}
                     {mesas.filter(m => {
                       if (m.estado !== 'ocupada') return false;
