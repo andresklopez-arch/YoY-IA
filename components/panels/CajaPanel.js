@@ -1381,6 +1381,16 @@ export default function CajaPanel({ showToast }) {
         end = new Date(endCustom + 'T23:59:59').toISOString();
       }
 
+      // Fallback de seguridad ante fechas inválidas
+      if (!start || isNaN(new Date(start).getTime())) {
+        const d = new Date();
+        d.setHours(0, 0, 0, 0);
+        start = d.toISOString();
+      }
+      if (!end || isNaN(new Date(end).getTime())) {
+        end = new Date().toISOString();
+      }
+
       const qBit = query(
         collection(db, 'bitacora'),
         where('fecha', '>=', start),
@@ -3233,30 +3243,42 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
 
   // 8. Cálculos Financieros del Periodo Seleccionado
   const ahora = useMemo(() => Date.now(), []);
-  // diasFiltro deriva del filtro principal del Resumen Financiero para mantener coherencia
-  const diasFiltro = rfFiltro === '7d' ? 7 : rfFiltro === '15d' ? 15 : rfFiltro === '1m' ? 30 : rfFiltro === '6m' ? 180 : rfFiltro === '1a' ? 365 : rfFiltro === 'vida' ? 9999 : 7;
-  const limiteFecha = ahora - diasFiltro * 24 * 60 * 60 * 1000;
+  
+  // Calcular limites de tiempo para finanzas (Resumen y P&L)
+  const { limiteFecha, limiteEndFecha, diasFiltro } = useMemo(() => {
+    if (rfFiltro === 'Personalizado') {
+      const start = fechaReporteInicio ? new Date(fechaReporteInicio + 'T00:00:00').getTime() : 0;
+      const end = fechaReporteFin ? new Date(fechaReporteFin + 'T23:59:59').getTime() : ahora;
+      const dias = Math.max(1, Math.round((end - start) / (24 * 60 * 60 * 1000)));
+      return { limiteFecha: start, limiteEndFecha: end, diasFiltro: dias };
+    }
+    const dias = rfFiltro === '7d' ? 7 : rfFiltro === '15d' ? 15 : rfFiltro === '1m' ? 30 : rfFiltro === '6m' ? 180 : rfFiltro === '1a' ? 365 : rfFiltro === 'vida' ? 9999 : 7;
+    return { limiteFecha: ahora - dias * 24 * 60 * 60 * 1000, limiteEndFecha: ahora, diasFiltro: dias };
+  }, [rfFiltro, fechaReporteInicio, fechaReporteFin, ahora]);
   
   const totalGastosPeriodo = useMemo(() => {
     return gastosList
       .filter(g => {
         const fechaG = g.fecha ? new Date(g.fecha).getTime() : 0;
-        return fechaG >= limiteFecha;
+        return fechaG >= limiteFecha && fechaG <= limiteEndFecha;
       })
       .reduce((sum, g) => sum + (Number(g.monto) || 0), 0);
-  }, [gastosList, limiteFecha]);
+  }, [gastosList, limiteFecha, limiteEndFecha]);
 
   const totalNominaPeriodo = useMemo(() => {
     return nominaPagosList
       .filter(p => {
         const fechaP = p.fecha ? new Date(p.fecha).getTime() : 0;
-        return fechaP >= limiteFecha;
+        return fechaP >= limiteFecha && fechaP <= limiteEndFecha;
       })
       .reduce((sum, p) => sum + (Number(p.total || p.totalNeto) || 0), 0);
-  }, [nominaPagosList, limiteFecha]);
+  }, [nominaPagosList, limiteFecha, limiteEndFecha]);
 
   const finanzas = useMemo(() => {
-    const eventosPeriodo = bitacora.filter(e => e.fecha && new Date(e.fecha).getTime() >= limiteFecha);
+    const eventosPeriodo = bitacora.filter(e => {
+      const t = e.fecha ? new Date(e.fecha).getTime() : 0;
+      return t >= limiteFecha && t <= limiteEndFecha;
+    });
     
     // Rentas de mesas de billar: suma de cierres en el periodo
     const sumMesas = eventosPeriodo
@@ -3266,7 +3288,10 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
 
     // Ventas de barra
     const sumBar = cobros
-      .filter(c => c.tipo === 'bar' && c.monto > 0 && (c.id > 1000000 ? c.id : ahora) >= limiteFecha)
+      .filter(c => {
+        const cTime = c.id > 1000000 ? c.id : ahora;
+        return c.tipo === 'bar' && c.monto > 0 && cTime >= limiteFecha && cTime <= limiteEndFecha;
+      })
       .reduce((s, c) => s + Number(c.monto), 0);
     const ventasBar = sumBar > 0 ? sumBar : (totalHoy * 0.35 * (diasFiltro / 1));
 
@@ -3277,7 +3302,10 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
         const rawTorneos = localStorage.getItem('yoy_billar_torneos');
         if (rawTorneos) {
           const torneos = deobfuscate(rawTorneos) || [];
-          const torneosPeriodo = torneos.filter(t => new Date(t.fechaInicio).getTime() >= limiteFecha);
+          const torneosPeriodo = torneos.filter(t => {
+            const tTime = new Date(t.fechaInicio).getTime();
+            return tTime >= limiteFecha && tTime <= limiteEndFecha;
+          });
           inscripcionesTorneo = torneosPeriodo.reduce((s, t) => {
             const cost = parseFloat(t.inscripcion?.replace('$', '') || 0);
             return s + (cost * (t.jugadores || 0));
@@ -3314,7 +3342,7 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
       utilidadNeta,
       margenUtilidad
     };
-  }, [bitacora, cobros, totalGastosPeriodo, totalNominaPeriodo, limiteFecha, totalHoy, diasFiltro, ahora]);
+  }, [bitacora, cobros, totalGastosPeriodo, totalNominaPeriodo, limiteFecha, limiteEndFecha, totalHoy, diasFiltro, ahora]);
 
   const datosHoy = useMemo(() => {
     const hoyStart = new Date();
@@ -6755,13 +6783,23 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
         <div className="card" style={{ padding: 14, background: 'linear-gradient(135deg, rgba(205, 127, 50, 0.05), rgba(0,0,0,0.15))', border: '1px solid var(--border-bronze)', marginBottom: 12 }}>
           {/* Header */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, borderBottom: '1px solid var(--border)', paddingBottom: 10 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <i className="ri-bar-chart-box-line" style={{ color: 'var(--bronze-light)', fontSize: 18 }} />
-              <h3 className="card-title" style={{ margin: 0, fontSize: 13, fontWeight: 800 }}>REPORTES FINANCIEROS Y OPERATIVOS</h3>
-              {mostrarSyncBadge && (
-                <span className="badge badge-success animate-fade-in" style={{ fontSize: 9, padding: '2px 6px', display: 'inline-flex', alignItems: 'center', gap: 3, transition: 'all 0.3s ease' }}>
-                  <i className="ri-checkbox-circle-line" />
-                  ✓ Sincronizado
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <i className="ri-bar-chart-box-line" style={{ color: 'var(--bronze-light)', fontSize: 18 }} />
+                <h3 className="card-title" style={{ margin: 0, fontSize: 13, fontWeight: 800 }}>REPORTES FINANCIEROS Y OPERATIVOS</h3>
+                {mostrarSyncBadge && (
+                  <span className="badge badge-success animate-fade-in" style={{ fontSize: 9, padding: '2px 6px', display: 'inline-flex', alignItems: 'center', gap: 3, transition: 'all 0.3s ease' }}>
+                    <i className="ri-checkbox-circle-line" />
+                    ✓ Sincronizado
+                  </span>
+                )}
+              </div>
+              {datosReporte && (
+                <span style={{ fontSize: 9.5, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 4, paddingLeft: 26, fontWeight: 500 }}>
+                  <i className="ri-calendar-line" style={{ fontSize: 10, color: 'var(--bronze-light)' }} />
+                  {new Date(datosReporte.start).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })}
+                  <span style={{ color: 'var(--text-muted)' }}>al</span>
+                  {new Date(datosReporte.end).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })}
                 </span>
               )}
             </div>
@@ -7746,7 +7784,29 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
               </div>
 
               {/* Columna 2: P&L Table */}
-              <div style={{ background: 'rgba(0,0,0,0.15)', border: '1px solid var(--border)', borderRadius: 12, padding: 10 }}>
+              <div style={{ 
+                background: 'rgba(0,0,0,0.15)', 
+                border: '1px solid var(--border)', 
+                borderRadius: 12, 
+                padding: 10,
+                position: 'relative',
+                transition: 'all 0.3s ease',
+                opacity: reporteCargando ? 0.6 : 1
+              }}>
+                {reporteCargando && (
+                  <div style={{
+                    position: 'absolute',
+                    top: 0, left: 0, right: 0, bottom: 0,
+                    background: 'rgba(0,0,0,0.2)',
+                    borderRadius: 12,
+                    display: 'flex',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    zIndex: 10
+                  }}>
+                    <i className="ri-loader-4-line ri-spin" style={{ color: 'var(--bronze-light)', fontSize: 18 }} />
+                  </div>
+                )}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                   <h4 style={{ margin: 0, fontSize: 11, fontWeight: 800, color: 'var(--bronze-light)' }}>
                     P&L Consolidado
