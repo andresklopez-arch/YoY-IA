@@ -11,6 +11,68 @@ import {
   orderBy, 
   limit 
 } from 'firebase/firestore';
+import { adminDb } from '@/lib/firebase-admin';
+
+// Wrappers para usar Firebase Admin (evitar fallos de permisos en servidor) con fallback a Cliente SDK
+async function fetchDocument(collectionName, docId) {
+  if (adminDb) {
+    const snap = await adminDb.collection(collectionName).doc(docId).get();
+    return {
+      exists: () => snap.exists,
+      data: () => snap.data()
+    };
+  } else {
+    const snap = await getDoc(doc(db, collectionName, docId));
+    return snap;
+  }
+}
+
+async function fetchCollectionQuery(collectionName, constraints = []) {
+  if (adminDb) {
+    let ref = adminDb.collection(collectionName);
+    for (const c of constraints) {
+      if (c.type === 'where') {
+        ref = ref.where(c.field, c.op, c.value);
+      } else if (c.type === 'orderBy') {
+        ref = ref.orderBy(c.field, c.direction || 'asc');
+      } else if (c.type === 'limit') {
+        ref = ref.limit(c.limitVal);
+      }
+    }
+    const snap = await ref.get();
+    return {
+      empty: snap.empty,
+      size: snap.size,
+      forEach: (cb) => snap.forEach(cb),
+      docs: snap.docs.map(d => ({
+        data: () => d.data()
+      }))
+    };
+  } else {
+    let clientRef = collection(db, collectionName);
+    const clientConstraints = [];
+    constraints.forEach(c => {
+      if (c.type === 'where') {
+        clientConstraints.push(where(c.field, c.op, c.value));
+      } else if (c.type === 'orderBy') {
+        clientConstraints.push(orderBy(c.field, c.direction || 'asc'));
+      } else if (c.type === 'limit') {
+        clientConstraints.push(limit(c.limitVal));
+      }
+    });
+    const q = query(clientRef, ...clientConstraints);
+    const snap = await getDocs(q);
+    return snap;
+  }
+}
+
+async function updateDocument(collectionName, docId, data) {
+  if (adminDb) {
+    await adminDb.collection(collectionName).doc(docId).update(data);
+  } else {
+    await updateDoc(doc(db, collectionName, docId), data);
+  }
+}
 
 // Helper de fecha de negocio (zona horaria CDMX, corte a las 6:00 AM)
 const getBusinessDate = () => {
@@ -27,12 +89,11 @@ const getBusinessDate = () => {
 };
 
 // Helper para enviar a Telegram resolviendo los modos Simplificado/Custom
-const sendTelegramAlert = async (text, tgData) => {
+const sendTelegramAlert = async (text, tgData, salonId) => {
   try {
     let branchName = 'Sucursal';
     try {
-      const sucRef = doc(db, 'config', 'sucursal');
-      const sucSnap = await getDoc(sucRef);
+      const sucSnap = await fetchDocument('config', `sucursal_${salonId || 'default_salon'}`);
       if (sucSnap.exists() && sucSnap.data().nombre) {
         branchName = sucSnap.data().nombre;
       }
@@ -102,7 +163,7 @@ export async function POST(request) {
     // 1. Obtener la sucursal del empleado para cargar su configuración correspondiente
     let empSalonId = 'default_salon';
     try {
-      const empSnap = await getDoc(doc(db, 'nomina_empleados', empleadoId));
+      const empSnap = await fetchDocument('nomina_empleados', empleadoId);
       if (empSnap.exists()) {
         empSalonId = empSnap.data().salonId || 'default_salon';
       }
@@ -110,8 +171,7 @@ export async function POST(request) {
       console.error("Error al cargar empleado para salonId:", err);
     }
 
-    const tgRef = doc(db, 'config', `telegram_${empSalonId}`);
-    const tgSnap = await getDoc(tgRef);
+    const tgSnap = await fetchDocument('config', `telegram_${empSalonId}`);
     if (!tgSnap.exists()) {
       return NextResponse.json({ success: true, message: 'Sin configuración de Telegram' });
     }
@@ -126,12 +186,10 @@ export async function POST(request) {
     const currentDevice = dispositivo || 'Terminal Local';
 
     // 2. Consultar registros de hoy para calcular personal activo
-    const qLogs = query(
-      collection(db, 'nomina_asistencia_log'),
-      where('salonId', '==', empSalonId),
-      where('fecha', '==', fechaHoy)
-    );
-    const logsSnap = await getDocs(qLogs);
+    const logsSnap = await fetchCollectionQuery('nomina_asistencia_log', [
+      { type: 'where', field: 'salonId', op: '==', value: empSalonId },
+      { type: 'where', field: 'fecha', op: '==', value: fechaHoy }
+    ]);
     const logs = logsSnap.docs.map(d => d.data());
 
     // Agrupar por empleado para saber su estado actual
@@ -172,17 +230,16 @@ export async function POST(request) {
                            `📱 *Dispositivo:* \`${currentDevice}\`\n` +
                            `📅 *Hora de Entrada:* ${nowStr}`;
           
-          await sendTelegramAlert(alertMsg, tgData);
+          await sendTelegramAlert(alertMsg, tgData, empSalonId);
 
           // Si está activado, enviar el resumen de la jornada anterior (corte anterior)
           if (tgData.notifyPrevShiftSummary) {
             try {
-              const qCortes = query(
-                collection(db, 'cortes_caja'),
-                orderBy('fecha', 'desc'),
-                limit(1)
-              );
-              const cortesSnap = await getDocs(qCortes);
+              const cortesSnap = await fetchCollectionQuery('cortes_caja', [
+                { type: 'where', field: 'salonId', op: '==', value: empSalonId },
+                { type: 'orderBy', field: 'fecha', direction: 'desc' },
+                { type: 'limit', limitVal: 1 }
+              ]);
               if (!cortesSnap.empty) {
                 const lastCorteDoc = cortesSnap.docs[0];
                 const lastCorte = lastCorteDoc.data();
@@ -191,8 +248,7 @@ export async function POST(request) {
                   // Obtener inventarios críticos para adjuntarlos al reporte
                   let criticalInventoryText = '• Todos los insumos se encuentran en niveles óptimos ✅';
                   try {
-                    const invRef = doc(db, 'config', 'inventario');
-                    const invSnap = await getDoc(invRef);
+                    const invSnap = await fetchDocument('config', `inventario_${empSalonId}`);
                     if (invSnap.exists() && Array.isArray(invSnap.data().productos)) {
                       const criticals = invSnap.data().productos.filter(p => (p.stock || 0) <= (p.stockMinimo || 0));
                       if (criticals.length > 0) {
@@ -218,8 +274,8 @@ export async function POST(request) {
                                     `🤖 *Análisis IA del Negocio:*\n_${lastCorte.resumenIA || 'Sin resumen disponible.'}_\n\n` +
                                     `⚠️ *Alertas de Inventario Crítico:*\n${criticalInventoryText}`;
 
-                  await sendTelegramAlert(reportMsg, tgData);
-                  await updateDoc(doc(db, 'cortes_caja', lastCorteDoc.id), {
+                  await sendTelegramAlert(reportMsg, tgData, empSalonId);
+                  await updateDocument('cortes_caja', lastCorteDoc.id, {
                     reporteEnviadoTelegram: true
                   });
                 }
@@ -235,7 +291,7 @@ export async function POST(request) {
                            `👤 *Empleado:* ${nombre} (${rol || 'Staff'})\n` +
                            `📱 *Dispositivo:* \`${currentDevice}\`\n` +
                            `📅 *Hora:* ${nowStr}`;
-          await sendTelegramAlert(alertMsg, tgData);
+          await sendTelegramAlert(alertMsg, tgData, empSalonId);
         }
       } else if (tipo === 'salida') {
         if (activeCount === 0) {
@@ -246,7 +302,7 @@ export async function POST(request) {
                            `📱 *Dispositivo:* \`${currentDevice}\`\n` +
                            `📅 *Hora:* ${nowStr}\n\n` +
                            `⚠️ *La sucursal se encuentra vacía (sin personal activo).*`;
-          await sendTelegramAlert(alertMsg, tgData);
+          await sendTelegramAlert(alertMsg, tgData, empSalonId);
         } else {
           // D: Salida de personal regular
           const alertMsg = `✈️ *[YoY Billar]*\n\n` +
@@ -254,7 +310,7 @@ export async function POST(request) {
                            `👤 *Empleado:* ${nombre} (${rol || 'Staff'})\n` +
                            `📱 *Dispositivo:* \`${currentDevice}\`\n` +
                            `📅 *Hora:* ${nowStr}`;
-          await sendTelegramAlert(alertMsg, tgData);
+          await sendTelegramAlert(alertMsg, tgData, empSalonId);
         }
       }
     }

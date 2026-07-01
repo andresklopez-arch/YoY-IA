@@ -4,6 +4,80 @@ import { doc, getDoc, getDocs, addDoc, setDoc, collection, query, where, serverT
 import crypto from 'crypto';
 import { deobfuscateWithKey } from '@/lib/crypto';
 import { getBusinessDate } from '@/lib/date-utils';
+import { adminDb } from '@/lib/firebase-admin';
+
+// Wrappers para usar Firebase Admin (evitar fallos de permisos en servidor) con fallback a Cliente SDK
+async function fetchDocument(collectionName, docId) {
+  if (adminDb) {
+    const snap = await adminDb.collection(collectionName).doc(docId).get();
+    return {
+      exists: () => snap.exists,
+      data: () => snap.data()
+    };
+  } else {
+    const snap = await getDoc(doc(db, collectionName, docId));
+    return snap;
+  }
+}
+
+async function fetchCollectionQuery(collectionName, constraints = []) {
+  if (adminDb) {
+    let ref = adminDb.collection(collectionName);
+    for (const c of constraints) {
+      if (c.type === 'where') {
+        ref = ref.where(c.field, c.op, c.value);
+      } else if (c.type === 'orderBy') {
+        ref = ref.orderBy(c.field, c.direction || 'asc');
+      } else if (c.type === 'limit') {
+        ref = ref.limit(c.limitVal);
+      }
+    }
+    const snap = await ref.get();
+    return {
+      empty: snap.empty,
+      size: snap.size,
+      forEach: (cb) => snap.forEach(cb),
+      docs: snap.docs.map(d => ({
+        data: () => d.data()
+      }))
+    };
+  } else {
+    let clientRef = collection(db, collectionName);
+    const clientConstraints = [];
+    constraints.forEach(c => {
+      if (c.type === 'where') {
+        clientConstraints.push(where(c.field, c.op, c.value));
+      }
+    });
+    const q = query(clientRef, ...clientConstraints);
+    const snap = await getDocs(q);
+    return snap;
+  }
+}
+
+async function saveDocument(collectionName, docId, data, options = {}) {
+  if (adminDb) {
+    await adminDb.collection(collectionName).doc(docId).set(data, options);
+  } else {
+    await setDoc(doc(db, collectionName, docId), data, options);
+  }
+}
+
+async function appendDocument(collectionName, data) {
+  if (adminDb) {
+    const docRef = await adminDb.collection(collectionName).add({
+      ...data,
+      createdAt: new Date()
+    });
+    return docRef;
+  } else {
+    const docRef = await addDoc(collection(db, collectionName), {
+      ...data,
+      createdAt: serverTimestamp()
+    });
+    return docRef;
+  }
+}
 
 const SECRET = process.env.QR_SECRET || 'yoy_billar_secret_key_2026_io';
 
@@ -58,30 +132,26 @@ export async function POST(request) {
     }
 
     // 3. Protección Anti-Replay: Verificar si el token ya fue consumido
-    const tokenRef = doc(db, 'used_qr_tokens', token);
-    const tokenSnap = await getDoc(tokenRef);
+    const tokenSnap = await fetchDocument('used_qr_tokens', token);
     if (tokenSnap.exists()) {
       return NextResponse.json({ success: false, error: 'Este código QR ya ha sido utilizado para registrar asistencia.' }, { status: 401 });
     }
 
     // 4. Obtener datos del empleado
-    const empRef = doc(db, 'nomina_empleados', empleadoId);
-    const empSnap = await getDoc(empRef);
+    const empSnap = await fetchDocument('nomina_empleados', empleadoId);
     if (!empSnap.exists()) {
       return NextResponse.json({ success: false, error: 'Empleado no encontrado' }, { status: 404 });
     }
-    const emp = { id: empSnap.id, ...empSnap.data() };
+    const emp = { id: empleadoId, ...empSnap.data() };
     const fechaHoy = getBusinessDate();
 
     const finalCoordenadas = coordenadas || { lat: null, lng: null, precision: null, status: 'No requerido' };
 
     // 8. Determinar tipo de registro (Entrada o Salida)
-    const qLogs = query(
-      collection(db, 'nomina_asistencia_log'),
-      where('empleadoId', '==', emp.id),
-      where('fecha', '==', fechaHoy)
-    );
-    const logsSnap = await getDocs(qLogs);
+    const logsSnap = await fetchCollectionQuery('nomina_asistencia_log', [
+      { type: 'where', field: 'empleadoId', op: '==', value: emp.id },
+      { type: 'where', field: 'fecha', op: '==', value: fechaHoy }
+    ]);
     let tipoRegistro = 'entrada';
     if (!logsSnap.empty) {
       const logsList = logsSnap.docs
@@ -103,19 +173,17 @@ export async function POST(request) {
     }
 
     // 9. Registrar token como consumido para evitar re-uso
-    await setDoc(tokenRef, {
+    await saveDocument('used_qr_tokens', token, {
       empleadoId,
-      usedAt: serverTimestamp(),
+      usedAt: new Date(),
       expiresAt: Number(expires)
     });
 
     // Detección de Celular Inusual y Alerta por Telegram (sin bloquear)
     try {
-      const qAllLogs = query(
-        collection(db, 'nomina_asistencia_log'),
-        where('empleadoId', '==', emp.id)
-      );
-      const allLogsSnap = await getDocs(qAllLogs);
+      const allLogsSnap = await fetchCollectionQuery('nomina_asistencia_log', [
+        { type: 'where', field: 'empleadoId', op: '==', value: emp.id }
+      ]);
       const allLogs = allLogsSnap.docs.map(d => d.data());
       const phoneLogs = allLogs.filter(l => l.dispositivo && l.dispositivo !== 'PC/Terminal');
 
@@ -140,8 +208,7 @@ export async function POST(request) {
 
       if (isCelularInusual) {
         const empSalonId = emp.salonId || 'default_salon';
-        const tgRef = doc(db, 'config', `telegram_${empSalonId}`);
-        const tgSnap = await getDoc(tgRef);
+        const tgSnap = await fetchDocument('config', `telegram_${empSalonId}`);
         if (tgSnap.exists()) {
           const tgData = tgSnap.data();
           const isSimplified = tgData.mode === 'simplified' || (!tgData.botToken && tgData.chatId);
@@ -151,8 +218,7 @@ export async function POST(request) {
             // Obtener nombre de sucursal
             let branchName = 'Sucursal';
             try {
-              const sucRef = doc(db, 'config', `sucursal_${empSalonId}`);
-              const sucSnap = await getDoc(sucRef);
+              const sucSnap = await fetchDocument('config', `sucursal_${empSalonId}`);
               if (sucSnap.exists() && sucSnap.data().nombre) {
                 branchName = sucSnap.data().nombre;
               }
@@ -182,8 +248,7 @@ export async function POST(request) {
                 // Servidor central: resolver y enviar directamente
                 const cleanPhone = (tgData.phone || '').replace(/\D/g, '');
                 if (cleanPhone) {
-                  const vincRef = doc(db, 'telegram_vinculaciones', cleanPhone);
-                  const vincSnap = await getDoc(vincRef);
+                  const vincSnap = await fetchDocument('telegram_vinculaciones', cleanPhone);
                   if (vincSnap.exists()) {
                     const resolvedChatId = vincSnap.data().chatId;
                     fetch(`https://api.telegram.org/bot${officialBotToken}/sendMessage`, {
@@ -232,7 +297,7 @@ export async function POST(request) {
     }
 
     // 10. Registrar log de asistencia en Firestore
-    await addDoc(collection(db, 'nomina_asistencia_log'), {
+    await appendDocument('nomina_asistencia_log', {
       salonId: emp.salonId || null,
       empleadoId: emp.id,
       nombre: `${emp.nombre} ${emp.apellido || ''}`.trim(),
@@ -240,8 +305,7 @@ export async function POST(request) {
       fecha: fechaHoy,
       tipo: tipoRegistro,
       coordenadas: finalCoordenadas,
-      dispositivo: dispositivo || 'Móvil',
-      createdAt: serverTimestamp()
+      dispositivo: dispositivo || 'Móvil'
     });
 
     // Disparar alertas de asistencia y de transición de jornada a Telegram
@@ -269,26 +333,23 @@ export async function POST(request) {
 
     // 11. Registrar asistencia diaria legacy (solo Entrada)
     if (tipoRegistro === 'entrada') {
-      const qAsist = query(
-        collection(db, 'nomina_asistencia'),
-        where('empleadoId', '==', emp.id),
-        where('fecha', '==', fechaHoy)
-      );
-      const snapAsist = await getDocs(qAsist);
+      const snapAsist = await fetchCollectionQuery('nomina_asistencia', [
+        { type: 'where', field: 'empleadoId', op: '==', value: emp.id },
+        { type: 'where', field: 'fecha', op: '==', value: fechaHoy }
+      ]);
       if (snapAsist.empty) {
-        await addDoc(collection(db, 'nomina_asistencia'), {
+        await appendDocument('nomina_asistencia', {
           salonId: emp.salonId || null,
           empleadoId: emp.id,
           fecha: fechaHoy,
           estado: 'presente',
-          coordenadas: finalCoordenadas,
-          createdAt: serverTimestamp()
+          coordenadas: finalCoordenadas
         });
       }
     }
 
     // 12. Registrar bitácora general de actividades
-    await addDoc(collection(db, 'bitacora'), {
+    await appendDocument('bitacora', {
       salonId: emp.salonId || null,
       fecha: new Date().toISOString(),
       accion: `Fichaje QR ${tipoRegistro === 'entrada' ? 'Entrada' : 'Salida'}`,

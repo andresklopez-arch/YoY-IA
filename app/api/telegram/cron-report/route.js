@@ -1,6 +1,84 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/firebase';
 import { doc, getDoc, setDoc, getDocs, collection, query, where, orderBy, limit, addDoc, serverTimestamp } from 'firebase/firestore';
+import { adminDb } from '@/lib/firebase-admin';
+
+// Wrappers para usar Firebase Admin (evitar fallos de permisos en servidor) con fallback a Cliente SDK
+async function fetchDocument(collectionName, docId) {
+  if (adminDb) {
+    const snap = await adminDb.collection(collectionName).doc(docId).get();
+    return {
+      exists: () => snap.exists,
+      data: () => snap.data()
+    };
+  } else {
+    const snap = await getDoc(doc(db, collectionName, docId));
+    return snap;
+  }
+}
+
+async function fetchCollectionQuery(collectionName, constraints = []) {
+  if (adminDb) {
+    let ref = adminDb.collection(collectionName);
+    for (const c of constraints) {
+      if (c.type === 'where') {
+        ref = ref.where(c.field, c.op, c.value);
+      } else if (c.type === 'orderBy') {
+        ref = ref.orderBy(c.field, c.direction || 'asc');
+      } else if (c.type === 'limit') {
+        ref = ref.limit(c.limitVal);
+      }
+    }
+    const snap = await ref.get();
+    return {
+      empty: snap.empty,
+      size: snap.size,
+      forEach: (cb) => snap.forEach(cb),
+      docs: snap.docs.map(d => ({
+        data: () => d.data()
+      }))
+    };
+  } else {
+    let clientRef = collection(db, collectionName);
+    const clientConstraints = [];
+    constraints.forEach(c => {
+      if (c.type === 'where') {
+        clientConstraints.push(where(c.field, c.op, c.value));
+      } else if (c.type === 'orderBy') {
+        clientConstraints.push(orderBy(c.field, c.direction || 'asc'));
+      } else if (c.type === 'limit') {
+        clientConstraints.push(limit(c.limitVal));
+      }
+    });
+    const q = query(clientRef, ...clientConstraints);
+    const snap = await getDocs(q);
+    return snap;
+  }
+}
+
+async function saveDocument(collectionName, docId, data, options = {}) {
+  if (adminDb) {
+    await adminDb.collection(collectionName).doc(docId).set(data, options);
+  } else {
+    await setDoc(doc(db, collectionName, docId), data, options);
+  }
+}
+
+async function appendDocument(collectionName, data) {
+  if (adminDb) {
+    const docRef = await adminDb.collection(collectionName).add({
+      ...data,
+      createdAt: new Date()
+    });
+    return docRef;
+  } else {
+    const docRef = await addDoc(collection(db, collectionName), {
+      ...data,
+      createdAt: serverTimestamp()
+    });
+    return docRef;
+  }
+}
 
 function hashPhone(phone) {
   if (!phone) return '';
@@ -47,7 +125,7 @@ export async function GET(request) {
     const salonId = searchParams.get('salonId') || 'default_salon';
 
     // 1. Cargar la configuración de Telegram
-    const tgSnap = await getDoc(doc(db, 'config', `telegram_${salonId}`));
+    const tgSnap = await fetchDocument('config', `telegram_${salonId}`);
     if (!tgSnap.exists()) {
       return NextResponse.json({ 
         success: false, 
@@ -67,8 +145,7 @@ export async function GET(request) {
       return NextResponse.json({ success: false, error: 'Reporte periódico de Telegram desactivado en la configuración' });
     }
 
-    const stateRef = doc(db, 'config', `telegram_report_state_${salonId}`);
-    const stateSnap = await getDoc(stateRef);
+    const stateSnap = await fetchDocument('config', `telegram_report_state_${salonId}`);
     const now = Date.now();
     const mxDateStr = new Date().toLocaleString('sv-SE', { timeZone: 'America/Mexico_City' }).split(' ')[0];
 
@@ -109,7 +186,7 @@ export async function GET(request) {
     let activeMesas = 0;
     let totalMesas = 0;
     let mesasEstado = [];
-    const mesasSnap = await getDoc(doc(db, 'config', `mesas_estado_${salonId}`));
+    const mesasSnap = await fetchDocument('config', `mesas_estado_${salonId}`);
     if (mesasSnap.exists()) {
       mesasEstado = mesasSnap.data().mesas || [];
       totalMesas = mesasEstado.length;
@@ -118,13 +195,11 @@ export async function GET(request) {
     const ocupacionPct = totalMesas > 0 ? Math.round((activeMesas / totalMesas) * 100) : 0;
 
     // Métrica 2: Monto Vendido Hoy (Bitácora de cobros)
-    const qBitacora = query(
-      collection(db, 'bitacora'),
-      where('salonId', '==', salonId),
-      where('fecha', '>=', mxDateStr + 'T00:00:00'),
-      where('fecha', '<=', mxDateStr + 'T23:59:59.999Z')
-    );
-    const snapBitacora = await getDocs(qBitacora);
+    const snapBitacora = await fetchCollectionQuery('bitacora', [
+      { type: 'where', field: 'salonId', op: '==', value: salonId },
+      { type: 'where', field: 'fecha', op: '>=', value: mxDateStr + 'T00:00:00' },
+      { type: 'where', field: 'fecha', op: '<=', value: mxDateStr + 'T23:59:59.999Z' }
+    ]);
     let montoVendido = 0;
     snapBitacora.forEach(d => {
       const e = d.data();
@@ -138,7 +213,7 @@ export async function GET(request) {
 
     // Métrica 3: Meta de Ingresos Diaria
     let metaMensual = 100000;
-    const sucursalSnap = await getDoc(doc(db, 'config', `sucursal_${salonId}`));
+    const sucursalSnap = await fetchDocument('config', `sucursal_${salonId}`);
     if (sucursalSnap.exists()) {
       metaMensual = Number(sucursalSnap.data().metaMensual) || 100000;
     }
@@ -146,12 +221,10 @@ export async function GET(request) {
     const avanceMetaPct = metaDiaria > 0 ? Math.round((montoVendido / metaDiaria) * 100) : 0;
 
     // Métrica 4: Trabajadores en Turno
-    const qAsist = query(
-      collection(db, 'nomina_asistencia_log'),
-      where('salonId', '==', salonId),
-      where('fecha', '==', mxDateStr)
-    );
-    const snapAsist = await getDocs(qAsist);
+    const snapAsist = await fetchCollectionQuery('nomina_asistencia_log', [
+      { type: 'where', field: 'salonId', op: '==', value: salonId },
+      { type: 'where', field: 'fecha', op: '==', value: mxDateStr }
+    ]);
     const lastStatusByWorker = {};
     snapAsist.forEach(d => {
       const data = d.data();
@@ -166,18 +239,16 @@ export async function GET(request) {
     const presentWorkersNames = presentWorkers.map(w => w.name).join(', ') || 'Ninguno';
 
     // Métrica 5: Clientes en Fila de Espera
-    const qFila = query(
-      collection(db, 'fila_espera'),
-      where('salonId', '==', salonId),
-      where('estado', '==', 'espera')
-    );
-    const snapFila = await getDocs(qFila);
+    const snapFila = await fetchCollectionQuery('fila_espera', [
+      { type: 'where', field: 'salonId', op: '==', value: salonId },
+      { type: 'where', field: 'estado', op: '==', value: 'espera' }
+    ]);
     const clientesEsperaCount = snapFila.size;
 
     // Métrica 6: Mesa con Mayor Consumo Actual (Renta acumulada + consumos)
     let mesaMayorConsumoNombre = 'Ninguna';
     let mesaMayorConsumoTotal = 0;
-    const cuentasSnap = await getDoc(doc(db, 'config', `cuentas_estado_${salonId}`));
+    const cuentasSnap = await fetchDocument('config', `cuentas_estado_${salonId}`);
     if (cuentasSnap.exists()) {
       const listCuentas = cuentasSnap.data().cuentas || [];
       listCuentas.forEach(c => {
@@ -199,13 +270,11 @@ export async function GET(request) {
     }
 
     // Métrica 7: Gastos del Día
-    const qGastos = query(
-      collection(db, 'gastos'),
-      where('salonId', '==', salonId),
-      where('fecha', '>=', mxDateStr + 'T00:00:00'),
-      where('fecha', '<=', mxDateStr + 'T23:59:59.999Z')
-    );
-    const snapGastos = await getDocs(qGastos);
+    const snapGastos = await fetchCollectionQuery('gastos', [
+      { type: 'where', field: 'salonId', op: '==', value: salonId },
+      { type: 'where', field: 'fecha', op: '>=', value: mxDateStr + 'T00:00:00' },
+      { type: 'where', field: 'fecha', op: '<=', value: mxDateStr + 'T23:59:59.999Z' }
+    ]);
     let totalGastos = 0;
     snapGastos.forEach(d => {
       const data = d.data();
@@ -215,13 +284,11 @@ export async function GET(request) {
     });
 
     // Métrica 8: Comandas Cocina Pendientes
-    const qComandas = query(
-      collection(db, 'mesa_pedidos'),
-      where('salonId', '==', salonId),
-      where('tipo', '==', 'pedido'),
-      where('estado', '==', 'pendiente')
-    );
-    const snapComandas = await getDocs(qComandas);
+    const snapComandas = await fetchCollectionQuery('mesa_pedidos', [
+      { type: 'where', field: 'salonId', op: '==', value: salonId },
+      { type: 'where', field: 'tipo', op: '==', value: 'pedido' },
+      { type: 'where', field: 'estado', op: '==', value: 'pendiente' }
+    ]);
     const comandasPendientesCount = snapComandas.size;
 
     // Métrica 9: Alertas y Desviaciones
@@ -280,13 +347,11 @@ export async function GET(request) {
     const desviacionesStr = desviaciones.length > 0 ? desviaciones.join('\n') : 'Ninguna desviación detectada. Operación estable.';
 
     // Métrica 10: Último Corte de Caja
-    const qCortes = query(
-      collection(db, 'cortes_caja'),
-      where('salonId', '==', salonId),
-      orderBy('fecha', 'desc'),
-      limit(1)
-    );
-    const snapCortes = await getDocs(qCortes);
+    const snapCortes = await fetchCollectionQuery('cortes_caja', [
+      { type: 'where', field: 'salonId', op: '==', value: salonId },
+      { type: 'orderBy', field: 'fecha', direction: 'desc' },
+      { type: 'limit', limitVal: 1 }
+    ]);
     let corteCajaStatus = 'Sin cortes de caja recientes';
     if (!snapCortes.empty) {
       const c = snapCortes.docs[0].data();
@@ -462,21 +527,20 @@ export async function GET(request) {
 
     if (res.ok) {
       // Guardar el estado del reporte enviado
-      await setDoc(stateRef, { 
+      await saveDocument('config', `telegram_report_state_${salonId}`, { 
         lastSentAt: now,
         currentDate: currentDate,
         history: history
       }, { merge: true });
 
       try {
-        await addDoc(collection(db, 'telegram_alert_logs'), {
+        await appendDocument('telegram_alert_logs', {
           salonId: salonId,
           phone: obfuscatePhone(tgConfig.phone),
           chatId: targetChatId || null,
           text: 'Reporte Periódico de Operación (Corte)',
           mode: tgConfig.mode || 'simplified',
-          status: 'sent',
-          createdAt: serverTimestamp()
+          status: 'sent'
         });
       } catch (logErr) {
         console.error("Error al registrar bitácora de reporte (Success):", logErr);
@@ -488,15 +552,14 @@ export async function GET(request) {
       const errMsg = errData.description || 'Error al enviar a Telegram';
 
       try {
-        await addDoc(collection(db, 'telegram_alert_logs'), {
+        await appendDocument('telegram_alert_logs', {
           salonId: salonId,
           phone: obfuscatePhone(tgConfig.phone),
           chatId: targetChatId || null,
           text: 'Reporte Periódico de Operación (Corte)',
           mode: tgConfig.mode || 'simplified',
           status: 'failed',
-          error: errMsg,
-          createdAt: serverTimestamp()
+          error: errMsg
         });
       } catch (logErr) {
         console.error("Error al registrar bitácora de reporte (Failed):", logErr);
@@ -508,15 +571,14 @@ export async function GET(request) {
   } catch (err) {
     console.error("Error en API cron-report:", err);
     try {
-      await addDoc(collection(db, 'telegram_alert_logs'), {
+      await appendDocument('telegram_alert_logs', {
         salonId: salonId || 'default_salon',
         phone: tgConfig?.phone ? obfuscatePhone(tgConfig.phone) : null,
         chatId: targetChatId || null,
         text: 'Reporte Periódico de Operación (Corte)',
         mode: tgConfig?.mode || 'simplified',
         status: 'failed',
-        error: err.message,
-        createdAt: serverTimestamp()
+        error: err.message
       });
     } catch (logErr) {
       console.error("Error al registrar bitácora de reporte (Catch):", logErr);
