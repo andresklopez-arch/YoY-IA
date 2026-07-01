@@ -115,7 +115,8 @@ async function getShortChartUrl(chartConfig) {
   } catch (err) {
     console.warn("Fallo al acortar URL en QuickChart, usando URL larga:", err);
   }
-  return `https://quickchart.io/chart?c=${encodeURIComponent(JSON.stringify(chartConfig))}&bkg=%23121212`;
+  const configStr = typeof chartConfig === 'string' ? chartConfig : JSON.stringify(chartConfig);
+  return `https://quickchart.io/chart?c=${encodeURIComponent(configStr)}&bkg=%23121212`;
 }
 
 export async function GET(request) {
@@ -193,6 +194,22 @@ export async function GET(request) {
       activeMesas = mesasEstado.filter(m => m.estado === 'ocupada').length;
     }
     const ocupacionPct = totalMesas > 0 ? Math.round((activeMesas / totalMesas) * 100) : 0;
+
+    let poolOcupadas = 0;
+    let carambolaOcupadas = 0;
+    let mesasLibres = 0;
+    mesasEstado.forEach(m => {
+      if (m.estado === 'ocupada') {
+        const t = (m.tipo || '').toLowerCase();
+        if (t.includes('pool')) {
+          poolOcupadas++;
+        } else {
+          carambolaOcupadas++;
+        }
+      } else {
+        mesasLibres++;
+      }
+    });
 
     // Métrica 2: Monto Vendido Hoy (Bitácora de cobros)
     const snapBitacoraRaw = await fetchCollectionQuery('bitacora', [
@@ -383,11 +400,19 @@ export async function GET(request) {
 
     // 3. Ensamblar y enviar el reporte por Telegram
     const branchName = sucursalSnap.exists() ? (sucursalSnap.data().nombre || 'YoY Billar') : 'YoY Billar';
+    
+    let metaEmoji = '🔴';
+    if (avanceMetaPct >= 80) {
+      metaEmoji = '🟢';
+    } else if (avanceMetaPct >= 40) {
+      metaEmoji = '🟡';
+    }
+
     const reportText = `📊 *REPORTE DE OPERACIÓN - ${branchName.toUpperCase()}* 📊\n` +
       `🕒 *Hora:* ${new Date().toLocaleString('es-MX', { timeZone: 'America/Mexico_City', hour12: true })}\n\n` +
       `1️⃣ *Ocupación Actual:* ${ocupacionPct}% (${activeMesas}/${totalMesas} mesas ocupadas)\n` +
       `2️⃣ *Monto Vendido Hoy:* $${montoVendido.toLocaleString('es-MX')} MXN\n` +
-      `3️⃣ *Avance de Meta:* Meta mensual: $${metaMensual.toLocaleString('es-MX')} MXN (Meta diaria: $${Math.round(metaDiaria).toLocaleString('es-MX')} MXN). Avance hoy: *${avanceMetaPct}%*\n` +
+      `3️⃣ *Avance de Meta:* Meta mensual: $${metaMensual.toLocaleString('es-MX')} MXN (Meta diaria: $${Math.round(metaDiaria).toLocaleString('es-MX')} MXN). Avance hoy: ${metaEmoji} *${avanceMetaPct}%*\n` +
       `4️⃣ *Trabajadores en Turno:* ${presentWorkersCount} activo(s) (${presentWorkersNames})\n` +
       `5️⃣ *Clientes en Espera:* ${clientesEsperaCount} en fila\n` +
       `6️⃣ *Mayor Renta Activa:* ${mesaMayorConsumoNombre} ($${Math.round(mesaMayorConsumoTotal).toLocaleString('es-MX')} MXN)\n` +
@@ -414,235 +439,78 @@ export async function GET(request) {
       return NextResponse.json({ success: false, error: 'No se pudo resolver el Chat ID de Telegram' }, { status: 400 });
     }
 
-    // 4. Configurar el gráfico de QuickChart (Líneas para historial o barras para primer corte)
-    let chartConfig;
-    if (history.length > 1) {
-      chartConfig = {
-        type: 'line',
-        data: {
-          labels: history.map(h => h.time),
-          datasets: [
-            {
-              label: 'Ventas ($)',
-              data: history.map(h => h.sales),
-              borderColor: '#00F5A0',
-              backgroundColor: 'rgba(0, 245, 160, 0.08)',
-              borderWidth: 4,
-              pointRadius: 4,
-              pointBackgroundColor: '#ffffff',
-              pointBorderColor: '#00F5A0',
-              pointBorderWidth: 2,
-              lineTension: 0.35,
-              fill: true,
-              yAxisID: 'y-sales'
-            },
-            {
-              label: 'Ocupación (%)',
-              data: history.map(h => h.occupancy),
-              borderColor: '#FFB800',
-              backgroundColor: 'rgba(255, 184, 0, 0.05)',
-              borderWidth: 4,
-              pointRadius: 4,
-              pointBackgroundColor: '#ffffff',
-              pointBorderColor: '#FFB800',
-              pointBorderWidth: 2,
-              lineTension: 0.35,
-              fill: true,
-              yAxisID: 'y-occupancy'
-            }
-          ]
-        },
-        options: {
-          title: {
-            display: true,
-            text: `HISTORIAL DE HOY - ${branchName.toUpperCase()}`,
-            fontColor: '#ffffff',
-            fontSize: 15,
-            fontStyle: 'bold',
-            fontFamily: "'Outfit', 'Inter', sans-serif",
-            padding: 15
-          },
-          legend: {
-            display: true,
-            labels: {
-              fontColor: '#a0aec0',
-              fontFamily: "'Outfit', 'Inter', sans-serif",
-              fontSize: 11,
-              boxWidth: 15
-            }
-          },
-          scales: {
-            yAxes: [
-              {
-                id: 'y-sales',
-                type: 'linear',
-                position: 'left',
-                ticks: { 
-                  fontColor: '#00F5A0', 
-                  fontFamily: "'Outfit', 'Inter', sans-serif",
-                  beginAtZero: true,
-                  callback: (val) => '$' + Number(val).toLocaleString('es-MX')
-                },
-                gridLines: { color: 'rgba(255, 255, 255, 0.06)' },
-                scaleLabel: { display: true, labelString: 'Ventas ($)', fontColor: '#00F5A0', fontFamily: "'Outfit', 'Inter', sans-serif", fontWeight: 'bold' }
-              },
-              {
-                id: 'y-occupancy',
-                type: 'linear',
-                position: 'right',
-                ticks: { 
-                  fontColor: '#FFB800', 
-                  fontFamily: "'Outfit', 'Inter', sans-serif",
-                  beginAtZero: true, 
-                  max: 100,
-                  callback: (val) => val + '%'
-                },
-                gridLines: { drawOnChartArea: false },
-                scaleLabel: { display: true, labelString: 'Ocupación (%)', fontColor: '#FFB800', fontFamily: "'Outfit', 'Inter', sans-serif", fontWeight: 'bold' }
-              }
+    // 4. Configurar el gráfico de QuickChart (Doble dona con texturas)
+    const ventaMetaValue = Math.min(Math.round(montoVendido), Math.round(metaDiaria));
+    const restoMetaValue = Math.max(0, Math.round(metaDiaria - montoVendido));
+    const excedenteMetaValue = Math.max(0, Math.round(montoVendido - metaDiaria));
+
+    chartConfig = `{
+      type: 'doughnut',
+      data: {
+        labels: ['Meta Alcanzada', 'Faltante Meta', 'Excedente Ventas', 'Pool Ocupada', 'Carambola Ocupada', 'Mesa Libre'],
+        datasets: [
+          {
+            data: [${ventaMetaValue}, ${restoMetaValue}, ${excedenteMetaValue}],
+            backgroundColor: [
+              pattern.draw('diagonal', '#00F5A0'), 
+              pattern.draw('square', '#7F00FF'),
+              pattern.draw('zigzag', '#39ff14')
             ],
-            xAxes: [{ 
-              ticks: { fontColor: '#a0aec0', fontFamily: "'Outfit', 'Inter', sans-serif" },
-              gridLines: { color: 'rgba(255, 255, 255, 0.04)' }
-            }]
+            label: 'Avance Ventas ($)'
           },
-          plugins: {
-            datalabels: {
-              display: true,
-              align: 'top',
-              color: '#ffffff',
-              backgroundColor: 'rgba(18, 18, 18, 0.7)',
-              borderRadius: 4,
-              font: {
-                family: "'Outfit', 'Inter', sans-serif",
-                weight: 'bold',
-                size: 9
-              },
-              formatter: (value, context) => {
-                if (context.datasetIndex === 1) return value + '%';
+          {
+            data: [${poolOcupadas}, ${carambolaOcupadas}, ${mesasLibres}],
+            backgroundColor: [
+              pattern.draw('zigzag-vertical', '#FFB800'), 
+              pattern.draw('vertical-line', '#FF007F'), 
+              '#2A2F3D'
+            ],
+            label: 'Ocupación Mesas'
+          }
+        ]
+      },
+      options: {
+        title: {
+          display: true,
+          text: 'DESEMPEÑO Y OCUPACIÓN HOY',
+          fontColor: '#ffffff',
+          fontSize: 15,
+          fontStyle: 'bold',
+          fontFamily: "'Outfit', 'Inter', sans-serif",
+          padding: 15
+        },
+        legend: {
+          display: true,
+          position: 'bottom',
+          labels: {
+            fontColor: '#a0aec0',
+            fontFamily: "'Outfit', 'Inter', sans-serif",
+            fontSize: 10,
+            boxWidth: 12
+          }
+        },
+        plugins: {
+          datalabels: {
+            display: true,
+            color: '#ffffff',
+            backgroundColor: 'rgba(18, 18, 18, 0.85)',
+            borderRadius: 4,
+            font: {
+              family: "'Outfit', 'Inter', sans-serif",
+              weight: 'bold',
+              size: 9
+            },
+            formatter: (value, context) => {
+              if (value === 0) return null;
+              if (context.datasetIndex === 0) {
                 return '$' + Number(value).toLocaleString('es-MX');
               }
+              return value + (value === 1 ? ' mesa' : ' mesas');
             }
           }
         }
-      };
-    } else {
-      chartConfig = {
-        type: 'bar',
-        data: {
-          labels: ['Métricas Operativas'],
-          datasets: [
-            {
-              label: 'Meta Diaria ($)',
-              data: [Math.round(metaDiaria)],
-              backgroundColor: 'rgba(127, 0, 255, 0.5)',
-              borderColor: '#7F00FF',
-              borderWidth: 2,
-              yAxisID: 'y-sales'
-            },
-            {
-              label: 'Venta Realizada ($)',
-              data: [Math.round(montoVendido)],
-              backgroundColor: 'rgba(0, 245, 160, 0.65)',
-              borderColor: '#00F5A0',
-              borderWidth: 2,
-              yAxisID: 'y-sales'
-            },
-            {
-              type: 'line',
-              label: 'Ocupación (%)',
-              data: [Math.round(ocupacionPct)],
-              borderColor: '#FFB800',
-              backgroundColor: 'rgba(255, 184, 0, 0.2)',
-              borderWidth: 3,
-              fill: false,
-              pointRadius: 8,
-              pointBackgroundColor: '#ffffff',
-              pointBorderColor: '#FFB800',
-              pointBorderWidth: 3,
-              yAxisID: 'y-occupancy'
-            }
-          ]
-        },
-        options: {
-          title: {
-            display: true,
-            text: `RESUMEN OPERATIVO - ${branchName.toUpperCase()}`,
-            fontColor: '#ffffff',
-            fontSize: 15,
-            fontStyle: 'bold',
-            fontFamily: "'Outfit', 'Inter', sans-serif",
-            padding: 15
-          },
-          legend: {
-            display: true,
-            labels: {
-              fontColor: '#a0aec0',
-              fontFamily: "'Outfit', 'Inter', sans-serif",
-              fontSize: 11,
-              boxWidth: 12
-            }
-          },
-          scales: {
-            yAxes: [
-              {
-                id: 'y-sales',
-                type: 'linear',
-                position: 'left',
-                ticks: {
-                  fontColor: '#00F5A0',
-                  fontFamily: "'Outfit', 'Inter', sans-serif",
-                  beginAtZero: true,
-                  callback: (val) => '$' + Number(val).toLocaleString('es-MX')
-                },
-                gridLines: { color: 'rgba(255, 255, 255, 0.06)' }
-              },
-              {
-                id: 'y-occupancy',
-                type: 'linear',
-                position: 'right',
-                ticks: {
-                  fontColor: '#FFB800',
-                  fontFamily: "'Outfit', 'Inter', sans-serif",
-                  beginAtZero: true,
-                  max: 100,
-                  callback: (val) => val + '%'
-                },
-                gridLines: { drawOnChartArea: false }
-              }
-            ],
-            xAxes: [
-              {
-                ticks: {
-                  fontColor: '#a0aec0',
-                  fontFamily: "'Outfit', 'Inter', sans-serif",
-                  fontSize: 12
-                },
-                gridLines: { display: false }
-              }
-            ]
-          },
-          plugins: {
-            datalabels: {
-              display: true,
-              align: 'top',
-              color: '#ffffff',
-              backgroundColor: 'rgba(18, 18, 18, 0.7)',
-              borderRadius: 4,
-              font: {
-                family: "'Outfit', 'Inter', sans-serif",
-                weight: 'bold',
-                size: 10
-              },
-              formatter: (value, context) => {
-                if (context.datasetIndex === 2) return value + '%';
-                return '$' + Number(value).toLocaleString('es-MX');
-              }
-            }
-          }
-        }
-      };
-    }
+      }
+    }`;
     const chartUrl = await getShortChartUrl(chartConfig);
 
     const photoUrl = `https://api.telegram.org/bot${botToken}/sendPhoto`;
