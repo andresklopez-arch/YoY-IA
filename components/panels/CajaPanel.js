@@ -1331,11 +1331,12 @@ export default function CajaPanel({ showToast }) {
       let start = '';
       let end = new Date().toISOString();
       
-      if (p === 'Hoy') {
+      const pKey = String(p || '').toLowerCase();
+      if (pKey === 'hoy') {
         const d = new Date();
         d.setHours(0, 0, 0, 0);
         start = d.toISOString();
-      } else if (p === 'Ayer') {
+      } else if (pKey === 'ayer') {
         const dS = new Date();
         dS.setDate(dS.getDate() - 1);
         dS.setHours(0, 0, 0, 0);
@@ -1345,32 +1346,32 @@ export default function CajaPanel({ showToast }) {
         dE.setDate(dE.getDate() - 1);
         dE.setHours(23, 59, 59, 999);
         end = dE.toISOString();
-      } else if (p === '7d') {
+      } else if (pKey === '7d') {
         const d = new Date();
         d.setDate(d.getDate() - 7);
         d.setHours(0, 0, 0, 0);
         start = d.toISOString();
-      } else if (p === '15d') {
+      } else if (pKey === '15d') {
         const d = new Date();
         d.setDate(d.getDate() - 15);
         d.setHours(0, 0, 0, 0);
         start = d.toISOString();
-      } else if (p === '30d') {
+      } else if (pKey === '30d') {
         const d = new Date();
         d.setDate(d.getDate() - 30);
         d.setHours(0, 0, 0, 0);
         start = d.toISOString();
-      } else if (p === '6m') {
+      } else if (pKey === '6m') {
         const d = new Date();
         d.setMonth(d.getMonth() - 6);
         d.setHours(0, 0, 0, 0);
         start = d.toISOString();
-      } else if (p === '1a') {
+      } else if (pKey === '1a') {
         const d = new Date();
         d.setFullYear(d.getFullYear() - 1);
         d.setHours(0, 0, 0, 0);
         start = d.toISOString();
-      } else if (p === 'Personalizado') {
+      } else if (pKey === 'personalizado') {
         if (!startCustom || !endCustom) {
           showToast("Seleccione ambas fechas", "warning");
           setReporteCargando(false);
