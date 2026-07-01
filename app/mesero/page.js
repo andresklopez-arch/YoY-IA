@@ -2639,8 +2639,38 @@ function MeseroContent() {
               {/* Lado Izquierdo: Configuración y Productos */}
               <div style={{ textAlign: 'left' }}>
                 <div className="form-group" style={{ marginBottom: 16 }}>
-                  <label className="form-label">Seleccionar Destino de Comanda</label>
-                  <select className="form-select" value={capturaMesaId} onChange={e => setCapturaMesaId(e.target.value)} style={{ width: '100%' }} disabled={bloquearDestino}>
+                  <label className="form-label">
+                    {bloquearDestino ? 'Destino de Comanda (Asignación Fija)' : 'Seleccionar Destino de Comanda'}
+                  </label>
+                  {bloquearDestino ? (
+                    <div style={{
+                      background: 'rgba(194, 155, 56, 0.08)',
+                      border: '2px solid var(--border-bronze, #C29B38)',
+                      borderRadius: 12,
+                      padding: '12px 16px',
+                      color: 'var(--bronze-light)',
+                      fontWeight: 'bold',
+                      fontSize: 15,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10
+                    }}>
+                      {capturaMesaId.startsWith('mesa_') ? (
+                        <>
+                          <i className="ri-billiards-line" style={{ fontSize: 18 }} />
+                          <span>Mesa {capturaMesaId.replace('mesa_', '')}</span>
+                        </>
+                      ) : (
+                        <>
+                          <i className="ri-user-line" style={{ fontSize: 18 }} />
+                          <span>
+                            {cuentas.find(c => c.id === parseFloat(capturaMesaId.replace('cuenta_', '')))?.cliente || 'Cuenta Directa'}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  ) : (
+                    <select className="form-select" value={capturaMesaId} onChange={e => setCapturaMesaId(e.target.value)} style={{ width: '100%' }}>
                     {/* Mesas Ocupadas */}
                     {mesas.filter(m => {
                       if (m.estado !== 'ocupada') return false;
@@ -2665,6 +2695,7 @@ function MeseroContent() {
                       ➕ Abrir nueva cuenta sin mesa...
                     </option>
                   </select>
+                  )}
                 </div>
 
                 {capturaMesaId === 'nueva_cuenta' && (
