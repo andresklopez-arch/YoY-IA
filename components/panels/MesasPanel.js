@@ -8292,6 +8292,9 @@ function ModalNuevaMesa({ mesas, onClose, onConfirm }) {
 
 // ── MODAL FILA VIRTUAL ───────────────────────────────────
 function ModalFilaVirtual({ fila, setFila, mesas, onAssign, onClose, showToast, imprimirComprobanteEspera, imprimirQRRegistroVirtual }) {
+  const getEncodedSalonId = () => {
+    return encodeURIComponent(obfuscateStatic(getActiveSalonId()));
+  };
   const [cliente, setCliente] = useState('');
   const [contacto, setContacto] = useState('');
   const [tipo, setTipo] = useState('Carambola 3B');
