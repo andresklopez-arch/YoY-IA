@@ -698,7 +698,7 @@ export default function ConfigPanel({ showToast }) {
       unsubExtras();
       unsubIaAlerts();
     };
-  }, []);
+  }, [user?.salonId]);
 
   // --- Guardar borradores automáticamente al cambiar de estado ---
   useEffect(() => {

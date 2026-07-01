@@ -235,13 +235,13 @@ export async function POST(request) {
           // Si está activado, enviar el resumen de la jornada anterior (corte anterior)
           if (tgData.notifyPrevShiftSummary) {
             try {
-              const cortesSnap = await fetchCollectionQuery('cortes_caja', [
-                { type: 'where', field: 'salonId', op: '==', value: empSalonId },
+              const cortesSnapRaw = await fetchCollectionQuery('cortes_caja', [
                 { type: 'orderBy', field: 'fecha', direction: 'desc' },
-                { type: 'limit', limitVal: 1 }
+                { type: 'limit', limitVal: 30 }
               ]);
-              if (!cortesSnap.empty) {
-                const lastCorteDoc = cortesSnap.docs[0];
+              const cortesSnap = cortesSnapRaw.docs.filter(d => d.data().salonId === empSalonId);
+              if (cortesSnap.length > 0) {
+                const lastCorteDoc = cortesSnap[0];
                 const lastCorte = lastCorteDoc.data();
 
                 if (!lastCorte.reporteEnviadoTelegram) {

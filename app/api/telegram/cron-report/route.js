@@ -195,11 +195,11 @@ export async function GET(request) {
     const ocupacionPct = totalMesas > 0 ? Math.round((activeMesas / totalMesas) * 100) : 0;
 
     // Métrica 2: Monto Vendido Hoy (Bitácora de cobros)
-    const snapBitacora = await fetchCollectionQuery('bitacora', [
-      { type: 'where', field: 'salonId', op: '==', value: salonId },
+    const snapBitacoraRaw = await fetchCollectionQuery('bitacora', [
       { type: 'where', field: 'fecha', op: '>=', value: mxDateStr + 'T00:00:00' },
       { type: 'where', field: 'fecha', op: '<=', value: mxDateStr + 'T23:59:59.999Z' }
     ]);
+    const snapBitacora = snapBitacoraRaw.docs.filter(d => d.data().salonId === salonId);
     let montoVendido = 0;
     snapBitacora.forEach(d => {
       const e = d.data();
@@ -270,11 +270,11 @@ export async function GET(request) {
     }
 
     // Métrica 7: Gastos del Día
-    const snapGastos = await fetchCollectionQuery('gastos', [
-      { type: 'where', field: 'salonId', op: '==', value: salonId },
+    const snapGastosRaw = await fetchCollectionQuery('gastos', [
       { type: 'where', field: 'fecha', op: '>=', value: mxDateStr + 'T00:00:00' },
       { type: 'where', field: 'fecha', op: '<=', value: mxDateStr + 'T23:59:59.999Z' }
     ]);
+    const snapGastos = snapGastosRaw.docs.filter(d => d.data().salonId === salonId);
     let totalGastos = 0;
     snapGastos.forEach(d => {
       const data = d.data();
@@ -347,14 +347,14 @@ export async function GET(request) {
     const desviacionesStr = desviaciones.length > 0 ? desviaciones.join('\n') : 'Ninguna desviación detectada. Operación estable.';
 
     // Métrica 10: Último Corte de Caja
-    const snapCortes = await fetchCollectionQuery('cortes_caja', [
-      { type: 'where', field: 'salonId', op: '==', value: salonId },
+    const snapCortesRaw = await fetchCollectionQuery('cortes_caja', [
       { type: 'orderBy', field: 'fecha', direction: 'desc' },
-      { type: 'limit', limitVal: 1 }
+      { type: 'limit', limitVal: 30 }
     ]);
+    const snapCortes = snapCortesRaw.docs.filter(d => d.data().salonId === salonId);
     let corteCajaStatus = 'Sin cortes de caja recientes';
-    if (!snapCortes.empty) {
-      const c = snapCortes.docs[0].data();
+    if (snapCortes.length > 0) {
+      const c = snapCortes[0].data();
       const diff = Number(c.diferencia || 0);
       corteCajaStatus = diff === 0 ? 'Caja cuadrada ✓' : `Descuadre de $${diff.toFixed(2)} MXN`;
     }
