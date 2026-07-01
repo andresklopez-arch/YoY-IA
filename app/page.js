@@ -1376,18 +1376,18 @@ function AppContent() {
                                rolLower.includes('cocinero');
 
       if (esMeseroOKitchen) {
-        // NO hacemos loginWithEmpleadoId aquí para evitar race conditions con Firebase Auth.
-        // La página de destino (/mesero o /cocina) hará el login usando el empleadoId de la URL.
-        showToast(tipoRegistro === 'login_only' ? `Redirigiendo a ${emp.nombre}... ✓` : `Asistencia de ${emp.nombre} registrada ✓`, 'success');
+        // Loguear al empleado en el dispositivo escaneador enviando el objeto de datos completo
+        // Esto evita que el cliente deba consultar Firestore, eludiendo problemas de permisos (permission-denied)
+        await loginWithEmpleadoId(emp);
+        showToast(tipoRegistro === 'login_only' ? `Sesión iniciada como ${emp.nombre} ✓` : `Asistencia registrada e inicio de sesión exitoso como ${emp.nombre} ✓`, 'success');
 
-        await new Promise((resolve) => setTimeout(resolve, 600));
+        await new Promise((resolve) => setTimeout(resolve, 500));
 
-        // Redireccionar con empleadoId en URL — el destino lo usará para hacer login
-        const empIdParam = encodeURIComponent(emp.id || emp.uid || '');
+        // Redireccionar de inmediato a su área de trabajo
         if (rolLower.includes('mesero')) {
-          window.location.href = empIdParam ? `/mesero?empleadoId=${empIdParam}` : '/mesero';
+          window.location.href = '/mesero';
         } else {
-          window.location.href = empIdParam ? `/cocina?empleadoId=${empIdParam}` : '/cocina';
+          window.location.href = '/cocina';
         }
       } else {
         // Personal de soporte: no inician sesión. Mostrar pantalla visual de éxito
