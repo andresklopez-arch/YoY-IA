@@ -306,7 +306,8 @@ export default function ConfigPanel({ showToast }) {
     discrepancyThreshold: 100,
     reportInterval: 4,
     reportHour: 9,
-    reportIncludeCharts: false
+    reportIncludeCharts: false,
+    reportIncludePdf: false
   });
   const [savingTelegram, setSavingTelegram] = useState(false);
   const [pendingAlerts, setPendingAlerts] = useState([]);
@@ -562,6 +563,7 @@ export default function ConfigPanel({ showToast }) {
           reportInterval: d.reportInterval !== undefined ? Number(d.reportInterval) : 4,
           reportHour: d.reportHour !== undefined ? Number(d.reportHour) : 9,
           reportIncludeCharts: d.reportIncludeCharts !== undefined ? d.reportIncludeCharts : false,
+          reportIncludePdf: d.reportIncludePdf !== undefined ? d.reportIncludePdf : false,
         });
       }
     }).catch(err => console.error("Error al cargar configuración de Telegram:", err));
@@ -2880,6 +2882,24 @@ export default function ConfigPanel({ showToast }) {
                         }}
                       >
                         <div style={{ width: 14, height: 14, borderRadius: '50%', background: '#fff', position: 'absolute', top: 2, left: telegramConfig.reportIncludeCharts ? 22 : 2, transition: 'left 0.2s' }} />
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 4, borderTop: '1px solid var(--border)', paddingTop: 8 }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 10.5, fontWeight: 'bold' }}>Incluir Reporte PDF Ejecutivo</div>
+                        <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>Envía un documento PDF con diseño formal y resumen detallado</div>
+                      </div>
+                      <div
+                        onClick={() => setTelegramConfig(p => ({ ...p, reportIncludePdf: !p.reportIncludePdf }))}
+                        style={{
+                          width: 38, height: 20, borderRadius: 10, cursor: 'pointer', transition: 'all 0.2s',
+                          background: telegramConfig.reportIncludePdf ? 'var(--bronze)' : 'var(--bg-elevated)',
+                          border: `1px solid ${telegramConfig.reportIncludePdf ? 'var(--bronze)' : 'var(--border)'}`,
+                          position: 'relative',
+                        }}
+                      >
+                        <div style={{ width: 14, height: 14, borderRadius: '50%', background: '#fff', position: 'absolute', top: 2, left: telegramConfig.reportIncludePdf ? 22 : 2, transition: 'left 0.2s' }} />
                       </div>
                     </div>
                   </div>

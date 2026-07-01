@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@/lib/firebase';
 import { doc, getDoc, setDoc, getDocs, collection, query, where, orderBy, limit, addDoc, serverTimestamp } from 'firebase/firestore';
 import { adminDb } from '@/lib/firebase-admin';
+import PDFDocument from 'pdfkit';
 
 // Wrappers para usar Firebase Admin (evitar fallos de permisos en servidor) con fallback a Cliente SDK
 async function fetchDocument(collectionName, docId) {
@@ -117,6 +118,164 @@ async function getShortChartUrl(chartConfig) {
   }
   const configStr = typeof chartConfig === 'string' ? chartConfig : JSON.stringify(chartConfig);
   return `https://quickchart.io/chart?c=${encodeURIComponent(configStr)}&w=500&h=320&bkg=%23121212`;
+}
+
+function generatePdfReport(params) {
+  const {
+    branchName,
+    mxDateStr,
+    ocupacionPct,
+    activeMesas,
+    totalMesas,
+    montoVendido,
+    metaMensual,
+    metaDiaria,
+    avanceMetaPct,
+    presentWorkersNames,
+    clientesEsperaCount,
+    mesaMayorConsumoNombre,
+    mesaMayorConsumoTotal,
+    totalGastos,
+    comandasPendientesCount,
+    corteCajaStatus,
+    desviacionesStr
+  } = params;
+
+  return new Promise((resolve, reject) => {
+    try {
+      const doc = new PDFDocument({ margin: 45, size: 'A4' });
+      const chunks = [];
+      doc.on('data', chunk => chunks.push(chunk));
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', err => reject(err));
+
+      // --- 1. HEADER (Fondo y Título) ---
+      doc.rect(45, 45, 10, 75).fill('#C29B38');
+
+      doc.fillColor('#1A202C')
+         .fontSize(22)
+         .font('Helvetica-Bold')
+         .text('REPORTE EJECUTIVO DE OPERACIÓN', 70, 50);
+
+      doc.fillColor('#718096')
+         .fontSize(10)
+         .font('Helvetica')
+         .text(`SUCURSAL: ${branchName.toUpperCase()}`, 70, 75)
+         .text(`FECHA DE EMISIÓN: ${mxDateStr} | GENERADO POR YoY IA SYSTEM`, 70, 90);
+
+      doc.moveTo(45, 135).lineTo(550, 135).strokeColor('#E2E8F0').lineWidth(1).stroke();
+
+      // --- 2. SECCIÓN 1: RESUMEN DE VENTAS Y METAS ---
+      doc.fillColor('#1A202C')
+         .fontSize(13)
+         .font('Helvetica-Bold')
+         .text('1. RENDIMIENTO FINANCIERO Y METAS', 45, 155);
+
+      doc.rect(45, 175, 240, 65).fill('#F7FAFC');
+      doc.fillColor('#C29B38')
+         .fontSize(11)
+         .font('Helvetica-Bold')
+         .text('Monto Vendido Hoy', 60, 185);
+      doc.fillColor('#1A202C')
+         .fontSize(18)
+         .font('Helvetica-Bold')
+         .text(`$${montoVendido.toLocaleString('es-MX')} MXN`, 60, 205);
+
+      doc.rect(305, 175, 245, 65).fill('#F7FAFC');
+      doc.fillColor('#4A5568')
+         .fontSize(11)
+         .font('Helvetica-Bold')
+         .text('Meta Diaria Establecida', 320, 185);
+      doc.fillColor('#1A202C')
+         .fontSize(18)
+         .font('Helvetica-Bold')
+         .text(`$${Math.round(metaDiaria).toLocaleString('es-MX')} MXN`, 320, 205);
+
+      doc.fillColor('#4A5568')
+         .fontSize(10)
+         .font('Helvetica-Bold')
+         .text(`Avance de Meta Diaria: ${avanceMetaPct}%`, 45, 260);
+
+      doc.rect(45, 275, 505, 12).fill('#EDF2F7');
+      const progressWidth = Math.min(505, Math.max(0, (avanceMetaPct / 100) * 505));
+      if (progressWidth > 0) {
+        doc.rect(45, 275, progressWidth, 12).fill('#C29B38');
+      }
+
+      // --- 3. SECCIÓN 2: OPERACIÓN Y ASISTENCIA ---
+      doc.fillColor('#1A202C')
+         .fontSize(13)
+         .font('Helvetica-Bold')
+         .text('2. ESTADO DE OPERACIÓN Y ASISTENCIA', 45, 310);
+
+      const yStart = 335;
+      const rowHeight = 22;
+
+      doc.rect(45, yStart, 505, 20).fill('#EDF2F7');
+      doc.fillColor('#4A5568')
+         .fontSize(9.5)
+         .font('Helvetica-Bold')
+         .text('INDICADOR', 55, yStart + 6)
+         .text('ESTADO / DETALLE', 250, yStart + 6);
+
+      const items = [
+        { label: 'Ocupación de Mesas', value: `${ocupacionPct}% (${activeMesas} de ${totalMesas} mesas ocupadas)` },
+        { label: 'Trabajadores en Turno', value: presentWorkersNames },
+        { label: 'Clientes en Espera', value: `${clientesEsperaCount} cliente(s) en fila` },
+        { label: 'Mayor Renta Activa', value: `${mesaMayorConsumoNombre} ($${Math.round(mesaMayorConsumoTotal).toLocaleString('es-MX')} MXN)` },
+        { label: 'Gastos de la Jornada', value: `$${totalGastos.toLocaleString('es-MX')} MXN` },
+        { label: 'Pedidos Cocina Pendientes', value: `${comandasPendientesCount} comanda(s)` },
+        { label: 'Cierre / Corte de Caja', value: corteCajaStatus }
+      ];
+
+      items.forEach((item, index) => {
+        const y = yStart + 20 + (index * rowHeight);
+        if (index % 2 === 1) {
+          doc.rect(45, y, 505, rowHeight).fill('#F7FAFC');
+        }
+        doc.fillColor('#2D3748')
+           .fontSize(9)
+           .font('Helvetica')
+           .text(item.label, 55, y + 6);
+
+        doc.fillColor('#1A202C')
+           .fontSize(9)
+           .font('Helvetica-Bold')
+           .text(String(item.value), 250, y + 6);
+      });
+
+      // --- 4. SECCIÓN 3: DESVIACIONES OPERATIVAS ---
+      const yDesv = yStart + 20 + (items.length * rowHeight) + 25;
+      doc.fillColor('#1A202C')
+         .fontSize(13)
+         .font('Helvetica-Bold')
+         .text('3. DESVIACIONES Y ALERTAS IA', 45, yDesv);
+
+      doc.rect(45, yDesv + 15, 505, 80).fill('#FFF5F5');
+      doc.rect(45, yDesv + 15, 4, 80).fill('#E53E3E');
+
+      const lines = desviacionesStr.split('\n');
+      let offsetText = yDesv + 25;
+      lines.forEach(line => {
+        doc.fillColor('#C53030')
+           .fontSize(9.5)
+           .font('Helvetica-Bold')
+           .text(line, 60, offsetText);
+        offsetText += 16;
+      });
+
+      // --- 5. PIE DE PÁGINA ---
+      doc.fillColor('#A0AEC0')
+         .fontSize(8)
+         .font('Helvetica')
+         .text('Este documento es confidencial y para uso exclusivo del administrador del establecimiento.', 45, 740, { align: 'center', width: 505 })
+         .text('Soporte y Auditoría Inteligente por YoY IA Billar System.', 45, 755, { align: 'center', width: 505 });
+
+      doc.end();
+    } catch (err) {
+      reject(err);
+    }
+  });
 }
 
 export async function GET(request) {
@@ -781,6 +940,48 @@ export async function GET(request) {
         currentDate: currentDate,
         history: history
       }, { merge: true });
+
+      // Generar y enviar el PDF Ejecutivo si está habilitado
+      if (tgConfig.reportIncludePdf) {
+        try {
+          console.log("Generando reporte ejecutivo en PDF...");
+          const pdfBuffer = await generatePdfReport({
+            branchName,
+            mxDateStr,
+            ocupacionPct,
+            activeMesas,
+            totalMesas,
+            montoVendido,
+            metaMensual,
+            metaDiaria,
+            avanceMetaPct,
+            presentWorkersNames,
+            clientesEsperaCount,
+            mesaMayorConsumoNombre,
+            mesaMayorConsumoTotal,
+            totalGastos,
+            comandasPendientesCount,
+            corteCajaStatus,
+            desviacionesStr
+          });
+
+          console.log("Enviando reporte PDF a Telegram...");
+          const docUrl = `https://api.telegram.org/bot${botToken}/sendDocument`;
+          const formData = new FormData();
+          formData.append('chat_id', String(targetChatId));
+          const blob = new Blob([pdfBuffer], { type: 'application/pdf' });
+          formData.append('document', blob, `Reporte_Ejecutivo_${branchName.replace(/\s+/g, '_')}_${mxDateStr}.pdf`);
+          formData.append('caption', '📄 *Reporte Ejecutivo de Operación en PDF*');
+          formData.append('parse_mode', 'Markdown');
+
+          await fetch(docUrl, {
+            method: 'POST',
+            body: formData
+          });
+        } catch (pdfErr) {
+          console.error("Fallo al generar o enviar reporte PDF:", pdfErr);
+        }
+      }
 
       try {
         await appendDocument('telegram_alert_logs', {
