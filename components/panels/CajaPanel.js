@@ -249,6 +249,7 @@ export default function CajaPanel({ showToast }) {
   const [detalleTransaccionesLastDoc, setDetalleTransaccionesLastDoc] = useState(null);
   const [detalleTransaccionesHasMore, setDetalleTransaccionesHasMore] = useState(true);
   const [conciliacionFile, setConciliacionFile] = useState(null);
+  const [mostrarSyncBadge, setMostrarSyncBadge] = useState(false);
   const [conciliacionLoading, setConciliacionLoading] = useState(false);
   const [conciliacionReport, setConciliacionReport] = useState(null);
   const [conciliacionError, setConciliacionError] = useState(null);
@@ -1298,6 +1299,8 @@ export default function CajaPanel({ showToast }) {
       if (now - cached.timestamp < cacheTTL) {
         setDatosReporte(cached.datos);
         setReporteCargando(false);
+        setMostrarSyncBadge(true);
+        setTimeout(() => setMostrarSyncBadge(false), 3000);
         return;
       }
     }
@@ -1312,6 +1315,8 @@ export default function CajaPanel({ showToast }) {
             cacheReporteRef.current[cacheKey] = localCached;
             setDatosReporte(localCached.datos);
             setReporteCargando(false);
+            setMostrarSyncBadge(true);
+            setTimeout(() => setMostrarSyncBadge(false), 3000);
             return;
           }
         }
@@ -1795,6 +1800,8 @@ export default function CajaPanel({ showToast }) {
       }
 
       setDatosReporte(dataToSave);
+      setMostrarSyncBadge(true);
+      setTimeout(() => setMostrarSyncBadge(false), 3000);
 
     } catch (err) {
       console.error("Error al generar reporte de período:", err);
@@ -1836,7 +1843,8 @@ export default function CajaPanel({ showToast }) {
       '6m': '6M',
       '1a': '1A',
       'vida': '1A',          // El reporte no tiene 'vida', usamos 1A como el más amplio
-      'ultimo corte': 'Hoy'  // Último corte es siempre de hoy en adelante
+      'ultimo corte': 'Hoy',  // Último corte es siempre de hoy en adelante
+      'Personalizado': 'Personalizado'
     };
     const p = mapa[rfFiltro];
     if (p && p !== periodoReporte) {
@@ -1844,6 +1852,14 @@ export default function CajaPanel({ showToast }) {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rfFiltro]);
+
+  // Auto-cargar reporte personalizado cuando cambian las fechas
+  useEffect(() => {
+    if (periodoReporte === 'Personalizado' && fechaReporteInicio && fechaReporteFin) {
+      cargarDatosReporte('Personalizado', fechaReporteInicio, fechaReporteFin);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fechaReporteInicio, fechaReporteFin, periodoReporte]);
 
   const exportarReporte = async (formato) => {
     if (!datosReporte) return;
@@ -3654,29 +3670,41 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
       };
     }
 
-    // Case 3: Filtros históricos (7d, 15d, 1m, 6m, 1a, vida)
+    // Case 3: Filtros históricos (7d, 15d, 1m, 6m, 1a, vida, Personalizado)
     // ── Lee SIEMPRE desde bitácora en tiempo real. NO depende de cortes de caja. ──
     // Los registros de resumenes_diarios son un complemento para reportes avanzados
     // pero NUNCA son la fuente de verdad para el Resumen Financiero Unificado.
     const nowMs = Date.now();
-    let limitDays = 7;
-    if (rfFiltro === '15d') limitDays = 15;
-    else if (rfFiltro === '1m') limitDays = 30;
-    else if (rfFiltro === '6m') limitDays = 180;
-    else if (rfFiltro === '1a') limitDays = 365;
-    else if (rfFiltro === 'vida') limitDays = 9999;
-    const limitMs = nowMs - limitDays * 24 * 60 * 60 * 1000;
+    let limitMs = 0;
+    let limitEndMs = nowMs;
+
+    if (rfFiltro === 'Personalizado') {
+      limitMs = fechaReporteInicio ? new Date(fechaReporteInicio + 'T00:00:00').getTime() : 0;
+      limitEndMs = fechaReporteFin ? new Date(fechaReporteFin + 'T23:59:59').getTime() : nowMs;
+    } else {
+      let limitDays = 7;
+      if (rfFiltro === '15d') limitDays = 15;
+      else if (rfFiltro === '1m') limitDays = 30;
+      else if (rfFiltro === '6m') limitDays = 180;
+      else if (rfFiltro === '1a') limitDays = 365;
+      else if (rfFiltro === 'vida') limitDays = 9999;
+      limitMs = nowMs - limitDays * 24 * 60 * 60 * 1000;
+    }
 
     // Filtrar bitácora por el período seleccionado
     const eventosPeriodo = bitacora.filter(e => {
       if (!e.fecha) return false;
-      return new Date(e.fecha).getTime() >= limitMs;
+      const t = new Date(e.fecha).getTime();
+      return t >= limitMs && t <= limitEndMs;
     });
     const listMesasPeriodo = eventosPeriodo.filter(e => e.accion === 'Cierre Directo' || e.accion === 'Mesa a Cuenta');
     const rentasMesas = listMesasPeriodo.reduce((s, e) => s + Math.abs(Number(e.monto) || 0), 0);
 
     // Cobros de barra en el período
-    const listBarPeriodo = cobros.filter(c => c.tipo === 'bar' && c.monto > 0 && (c.id > 1000000 ? c.id : nowMs) >= limitMs);
+    const listBarPeriodo = cobros.filter(c => {
+      const cTime = c.id > 1000000 ? c.id : nowMs;
+      return c.tipo === 'bar' && c.monto > 0 && cTime >= limitMs && cTime <= limitEndMs;
+    });
     const ventasBar = listBarPeriodo.reduce((s, c) => s + Number(c.monto), 0);
 
     // Torneos en el período
@@ -3686,7 +3714,10 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
         const rawTorneos = localStorage.getItem('yoy_billar_torneos');
         if (rawTorneos) {
           const torneos = deobfuscate(rawTorneos) || [];
-          const torneosPer = torneos.filter(t => new Date(t.fechaInicio).getTime() >= limitMs);
+          const torneosPer = torneos.filter(t => {
+            const tTime = new Date(t.fechaInicio).getTime();
+            return tTime >= limitMs && tTime <= limitEndMs;
+          });
           inscripcionesTorneo = torneosPer.reduce((s, t) => {
             const cost = parseFloat(t.inscripcion?.replace('$', '') || 0);
             return s + (cost * (t.jugadores || 0));
@@ -3696,9 +3727,15 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
     }
 
     // Gastos y nómina filtrados por período
-    const listGastos = gastosList.filter(g => g.fecha && new Date(g.fecha).getTime() >= limitMs);
+    const listGastos = gastosList.filter(g => {
+      const gTime = g.fecha ? new Date(g.fecha).getTime() : 0;
+      return gTime >= limitMs && gTime <= limitEndMs;
+    });
     const gastosG = listGastos.reduce((s, g) => s + (Number(g.monto) || 0), 0);
-    const listNomina = nominaPagosList.filter(p => p.fecha && new Date(p.fecha).getTime() >= limitMs);
+    const listNomina = nominaPagosList.filter(p => {
+      const pTime = p.fecha ? new Date(p.fecha).getTime() : 0;
+      return pTime >= limitMs && pTime <= limitEndMs;
+    });
     const nominaS = listNomina.reduce((s, p) => s + (Number(p.total || p.totalNeto) || 0), 0);
 
     // Desglose por método de pago
@@ -3763,7 +3800,7 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
       nominaSUsadasFallback: false,
       limiteMs: limitMs
     };
-  }, [rfFiltro, datosHoy, bitacora, cobros, gastosList, nominaPagosList]);
+  }, [rfFiltro, datosHoy, bitacora, cobros, gastosList, nominaPagosList, fechaReporteInicio, fechaReporteFin]);
 
   const totalMontoMetodo = useMemo(() => {
     if (!rfModalDetalleMetodo) return 0;
@@ -6275,7 +6312,7 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
                   
                   {/* Selector de Períodos */}
                   <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', margin: '2px 0 6px 0', alignItems: 'center' }}>
-                    {['Hoy', '7d', '15d', '1m', '6m', '1a', 'vida', 'ultimo corte'].map(filtro => (
+                    {['Hoy', '7d', '15d', '1m', '6m', '1a', 'vida', 'ultimo corte', 'Personalizado'].map(filtro => (
                       <button
                         key={filtro}
                         onClick={() => setRfFiltro(filtro)}
@@ -6291,7 +6328,7 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
                           transition: 'all 0.2s ease'
                         }}
                       >
-                        {filtro === 'ultimo corte' ? 'último corte' : filtro}
+                        {filtro === 'ultimo corte' ? 'último corte' : filtro === 'Personalizado' ? 'personalizado' : filtro}
                       </button>
                     ))}
                     {/* Botón paginación progresiva de bitácora (solo en filtros históricos) */}
@@ -6339,6 +6376,30 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
                       </button>
                     )}
                   </div>
+
+                  {/* Selector de Fecha Personalizado para Resumen Unificado */}
+                  {rfFiltro === 'Personalizado' && (
+                    <div style={{ display: 'flex', gap: 8, margin: '2px 0 6px 0', alignItems: 'center', flexWrap: 'wrap' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <span style={{ fontSize: 9, color: 'var(--text-secondary)' }}>Desde:</span>
+                        <input
+                          type="date"
+                          value={fechaReporteInicio}
+                          onChange={e => setFechaReporteInicio(e.target.value)}
+                          style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 4, color: '#fff', fontSize: 9.5, padding: '2px 4px', height: 20 }}
+                        />
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <span style={{ fontSize: 9, color: 'var(--text-secondary)' }}>Hasta:</span>
+                        <input
+                          type="date"
+                          value={fechaReporteFin}
+                          onChange={e => setFechaReporteFin(e.target.value)}
+                          style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 4, color: '#fff', fontSize: 9.5, padding: '2px 4px', height: 20 }}
+                        />
+                      </div>
+                    </div>
+                  )}
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1.15fr 1fr', gap: '8px 16px', fontSize: 12.5 }}>
                     {/* Columna Izquierda: Métodos de Pago */}
@@ -6696,6 +6757,12 @@ ${c.resumenIA.slice(0, 400)}${c.resumenIA.length > 400 ? '...' : ''}`;
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <i className="ri-bar-chart-box-line" style={{ color: 'var(--bronze-light)', fontSize: 18 }} />
               <h3 className="card-title" style={{ margin: 0, fontSize: 13, fontWeight: 800 }}>REPORTES FINANCIEROS Y OPERATIVOS</h3>
+              {mostrarSyncBadge && (
+                <span className="badge badge-success animate-fade-in" style={{ fontSize: 9, padding: '2px 6px', display: 'inline-flex', alignItems: 'center', gap: 3, transition: 'all 0.3s ease' }}>
+                  <i className="ri-checkbox-circle-line" />
+                  ✓ Sincronizado
+                </span>
+              )}
             </div>
             
             {/* Period Filters */}
