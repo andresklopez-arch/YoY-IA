@@ -599,7 +599,6 @@ export async function GET(request) {
     const comandasPendientesCount = snapComandas.size;
 
     // Métrica 9: Alertas y Desviaciones
-    const desviaciones = [];
     const mesasSinAtender = [];
     if (cuentasSnap.exists()) {
       const listCuentas = cuentasSnap.data().cuentas || [];
@@ -645,18 +644,199 @@ export async function GET(request) {
       return `${tables.slice(0, 3).join(', ')}... (+${tables.length - 3} más)`;
     };
 
-    if (mesasSinAtender.length > 0) {
-      desviaciones.push(`🔔 Mesas sin atención (>15m): ${formatTableList(mesasSinAtender)}`);
+    // --- EVALUAR CONFIGURACIÓN DE ALERTAS IA ---
+    let iaAlerts = { activeIds: [], states: {}, telegramAlerts: {} };
+    try {
+      const iaAlertsSnap = await fetchDocument('config', 'ia_alertas');
+      if (iaAlertsSnap.exists()) {
+        iaAlerts = iaAlertsSnap.data();
+      }
+    } catch (err) {
+      console.error("Error al cargar config/ia_alertas:", err);
     }
-    if (mesasExcesivas.length > 0) {
-      desviaciones.push(`⏱️ Tiempo excesivo juego (>4h): ${formatTableList(mesasExcesivas)}`);
+
+    const isAlertEnabled = (id) => {
+      return (iaAlerts.activeIds || []).includes(id) && 
+             iaAlerts.states?.[id] !== false && 
+             iaAlerts.telegramAlerts?.[id] === true;
+    };
+
+    const desviaciones = [];
+
+    // 1. Stock Bajo
+    let stockBajoAlert = null;
+    if (isAlertEnabled('stockBajo')) {
+      try {
+        const invSnap = await fetchDocument('config', 'inventario');
+        if (invSnap.exists()) {
+          const products = invSnap.data().productos || [];
+          const lowStockProducts = products.filter(p => p.stock < (p.stockOptimo || 0));
+          if (lowStockProducts.length > 0) {
+            stockBajoAlert = `⚠️ Stock Bajo: ${lowStockProducts.slice(0, 3).map(p => `${p.nombre} (${p.stock}/${p.stockOptimo})`).join(', ')}${lowStockProducts.length > 3 ? ` (+${lowStockProducts.length - 3} más)` : ''}`;
+          }
+        }
+      } catch (err) {
+        console.error("Error al evaluar stockBajo:", err);
+      }
     }
-    if (demoradasCount > 0) {
-      desviaciones.push(`🍳 Pedidos demorados cocina (>20m): ${demoradasCount}`);
+
+    // 2. Alta Ocupación
+    let altaOcupacionAlert = null;
+    if (isAlertEnabled('altaOcupacion') && ocupacionPct >= 70) {
+      altaOcupacionAlert = `📈 Alta Ocupación: Ocupación al ${ocupacionPct}% (${activeMesas}/${totalMesas} mesas)`;
     }
-    if (presentWorkersCount === 0 && activeMesas > 0) {
-      desviaciones.push(`👥 Alerta: Billar operando sin personal fichado hoy.`);
+
+    // 3. Cliente no Atendido
+    let clienteNoAtendidoAlert = null;
+    if (isAlertEnabled('clienteNoAtendido') && mesasSinAtender.length > 0) {
+      clienteNoAtendidoAlert = `🔔 Mesas sin atender (>15m): ${formatTableList(mesasSinAtender)}`;
     }
+
+    // 4. Producto en Alto Consumo
+    let altoConsumoAlert = null;
+    if (isAlertEnabled('altoConsumo')) {
+      try {
+        const invSnap = await fetchDocument('config', 'inventario');
+        if (invSnap.exists()) {
+          const products = invSnap.data().productos || [];
+          const criticalProds = products.filter(p => p.stock <= (p.stockMinimo || 0) && p.stock > 0);
+          if (criticalProds.length > 0) {
+            altoConsumoAlert = `🔥 Alto Consumo: ${criticalProds.slice(0, 3).map(p => p.nombre).join(', ')}`;
+          }
+        }
+      } catch (err) {}
+    }
+
+    // 5. Mesa sin Consumo
+    let mesaSinConsumoAlert = null;
+    if (isAlertEnabled('mesaSinConsumo')) {
+      const mesasSinConsumo = [];
+      if (cuentasSnap.exists()) {
+        const listCuentas = cuentasSnap.data().cuentas || [];
+        mesasEstado.forEach(m => {
+          if (m.estado !== 'ocupada' || !m.inicio) return;
+          const elapsedHrs = (Date.now() - m.inicio) / 3600000;
+          if (elapsedHrs > 2) {
+            const cuenta = listCuentas.find(c => c.mesaId === m.id);
+            const totalConsumos = cuenta ? (cuenta.consumos || []).reduce((sum, item) => sum + (item.precio * item.cantidad), 0) : 0;
+            if (totalConsumos < 100) {
+              mesasSinConsumo.push(m.nombre || `Mesa ${m.id}`);
+            }
+          }
+        });
+      }
+      if (mesasSinConsumo.length > 0) {
+        mesaSinConsumoAlert = `⚠️ Mesa sin consumo (>2h, <$100): ${formatTableList(mesasSinConsumo)}`;
+      }
+    }
+
+    // 6. Descuadre de Caja
+    let descuadreCajaAlert = null;
+    if (isAlertEnabled('descuadreCaja') && corteCajaStatus.includes('🔴')) {
+      descuadreCajaAlert = `🔴 Descuadre de Caja: Detectado en el último corte de caja.`;
+    }
+
+    // 7. Comanda sin Mesa
+    let comandaSinMesaAlert = null;
+    if (isAlertEnabled('comandaSinMesa')) {
+      const comandasSinMesa = [];
+      snapComandas.forEach(d => {
+        const s = d.data();
+        const mesa = mesasEstado.find(m => m.id === s.mesaId);
+        if (mesa && mesa.estado !== 'ocupada') {
+          comandasSinMesa.push(mesa.nombre || `Mesa ${mesa.id}`);
+        }
+      });
+      if (comandasSinMesa.length > 0) {
+        comandaSinMesaAlert = `⚠️ Comanda en Mesa Libre: ${formatTableList(comandasSinMesa)}`;
+      }
+    }
+
+    // 8. Tiempo Excesivo
+    let tiempoExcesivoAlert = null;
+    if (isAlertEnabled('tiempoExcesivo') && mesasExcesivas.length > 0) {
+      tiempoExcesivoAlert = `⏱️ Tiempo excesivo juego (>4h): ${formatTableList(mesasExcesivas)}`;
+    }
+
+    // 9. Insumo Crítico Bajo
+    let insumoCriticoAlert = null;
+    if (isAlertEnabled('insumoCritico')) {
+      try {
+        const invSnap = await fetchDocument('config', 'inventario');
+        if (invSnap.exists()) {
+          const products = invSnap.data().productos || [];
+          const criticalProds = products.filter(p => p.stock <= (p.stockMinimo || 0));
+          if (criticalProds.length > 0) {
+            insumoCriticoAlert = `🚨 Insumo Crítico Bajo: ${criticalProds.slice(0, 3).map(p => `${p.nombre} (${p.stock}/${p.stockMinimo})`).join(', ')}`;
+          }
+        }
+      } catch (err) {}
+    }
+
+    // 10. Comanda Demorada
+    let comandaDemoradaAlert = null;
+    if (isAlertEnabled('comandaDemorada') && demoradasCount > 0) {
+      comandaDemoradaAlert = `🍳 Pedidos demorados cocina (>20m): ${demoradasCount}`;
+    }
+
+    // 11. Sin Personal Activo
+    let sinPersonalActivoAlert = null;
+    if (isAlertEnabled('sinPersonalActivo') && presentWorkersCount === 0 && activeMesas > 0) {
+      sinPersonalActivoAlert = `👥 Alerta: Billar operando sin personal fichado hoy.`;
+    }
+
+    // 12. Exceso de Cortesías
+    let excesoCortesiasAlert = null;
+    if (isAlertEnabled('excesoCortesias')) {
+      let totalCortesias = 0;
+      snapBitacora.forEach(d => {
+        const e = d.data();
+        if (e.accion && (e.accion.includes('Cortesía') || e.accion.includes('Descuento'))) {
+          totalCortesias += Number(e.monto || 0);
+        }
+      });
+      if (totalCortesias > 300) {
+        excesoCortesiasAlert = `💸 Exceso de Cortesías/Descuentos: Total hoy de $${totalCortesias} MXN (Límite sugerido $300)`;
+      }
+    }
+
+    // 13. Recomendación de Tarifa
+    let tarifaDinamicaRecomendadaAlert = null;
+    if (isAlertEnabled('tarifaDinamicaRecomendada') && ocupacionPct >= 80) {
+      tarifaDinamicaRecomendadaAlert = `💡 Recomendación IA: Tarifa dinámica sugerida por alta ocupación (${ocupacionPct}%).`;
+    }
+
+    // Consolidar alertas
+    if (stockBajoAlert) desviaciones.push(stockBajoAlert);
+    if (altaOcupacionAlert) desviaciones.push(altaOcupacionAlert);
+    if (clienteNoAtendidoAlert) desviaciones.push(clienteNoAtendidoAlert);
+    if (altoConsumoAlert) desviaciones.push(altoConsumoAlert);
+    if (mesaSinConsumoAlert) desviaciones.push(mesaSinConsumoAlert);
+    if (descuadreCajaAlert) desviaciones.push(descuadreCajaAlert);
+    if (comandaSinMesaAlert) desviaciones.push(comandaSinMesaAlert);
+    if (tiempoExcesivoAlert) desviaciones.push(tiempoExcesivoAlert);
+    if (insumoCriticoAlert) desviaciones.push(insumoCriticoAlert);
+    if (comandaDemoradaAlert) desviaciones.push(comandaDemoradaAlert);
+    if (sinPersonalActivoAlert) desviaciones.push(sinPersonalActivoAlert);
+    if (excesoCortesiasAlert) desviaciones.push(excesoCortesiasAlert);
+    if (tarifaDinamicaRecomendadaAlert) desviaciones.push(tarifaDinamicaRecomendadaAlert);
+
+    // Fallback para mantener reportes informados si no hay configuraciones específicas activas
+    if (desviaciones.length === 0) {
+      if (mesasSinAtender.length > 0) {
+        desviaciones.push(`🔔 Mesas sin atención (>15m): ${formatTableList(mesasSinAtender)}`);
+      }
+      if (mesasExcesivas.length > 0) {
+        desviaciones.push(`⏱️ Tiempo excesivo juego (>4h): ${formatTableList(mesasExcesivas)}`);
+      }
+      if (demoradasCount > 0) {
+        desviaciones.push(`🍳 Pedidos demorados cocina (>20m): ${demoradasCount}`);
+      }
+      if (presentWorkersCount === 0 && activeMesas > 0) {
+        desviaciones.push(`👥 Alerta: Billar operando sin personal fichado hoy.`);
+      }
+    }
+
     const desviacionesStr = desviaciones.length > 0 ? desviaciones.join('\n') : 'Ninguna desviación detectada. Operación estable.';
 
     // Métrica 10: Último Corte de Caja
