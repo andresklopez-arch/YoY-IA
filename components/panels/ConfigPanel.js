@@ -2575,6 +2575,449 @@ export default function ConfigPanel({ showToast }) {
                 </button>
               </form>
             </div>
+            </div>
+
+            {/* COLUMNA 2 */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div className="card" style={{ padding: '12px 14px' }}>
+              <div className="card-header" style={{ marginBottom: 12 }}>
+                <h3 className="card-title"><i className="ri-robot-line" style={{ marginRight: 6 }} />Alertas IA</h3>
+              </div>
+              
+              {/* Menú seleccionable de alertas disponibles */}
+              {ALERTAS_DEFINITIONS.filter(def => !iaAlerts.activeIds.includes(def.id)).length > 0 && (
+                <div style={{ marginBottom: 14 }}>
+                  <select
+                    onChange={(e) => {
+                      const id = e.target.value;
+                      if (id) {
+                        handleAgregarAlerta(id);
+                        e.target.value = '';
+                      }
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      borderRadius: 8,
+                      background: 'var(--bg-elevated)',
+                      border: '1px solid var(--border)',
+                      color: '#fff',
+                      fontSize: 12,
+                      cursor: 'pointer',
+                      outline: 'none'
+                    }}
+                  >
+                    <option value="">➕ Añadir Nueva Alerta IA...</option>
+                    {ALERTAS_DEFINITIONS.filter(def => !iaAlerts.activeIds.includes(def.id)).map(def => (
+                      <option key={def.id} value={def.id}>
+                        {def.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: '350px', overflowY: 'auto', paddingRight: 4 }}>
+                {iaAlerts.activeIds.map((id, i) => {
+                  const def = ALERTAS_DEFINITIONS.find(d => d.id === id);
+                  if (!def) return null;
+                  const isEnabled = iaAlerts.states[id] !== false;
+                  return (
+                    <div key={id} style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      padding: '10px 0',
+                      borderBottom: i < iaAlerts.activeIds.length - 1 ? '1px solid var(--border)' : 'none'
+                    }}>
+                      <div style={{ flex: 1, paddingRight: 10 }}>
+                        <div style={{ fontSize: 13, fontWeight: 700 }}>{def.label}</div>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, lineHeight: 1.3 }}>{def.sub}</div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        {/* Switch */}
+                        <div
+                          onClick={() => handleToggleAlerta(id)}
+                          style={{
+                            width: 40,
+                            height: 20,
+                            borderRadius: 10,
+                            cursor: 'pointer',
+                            transition: 'all 0.2s',
+                            background: isEnabled ? 'var(--bronze)' : 'var(--bg-elevated)',
+                            border: `1px solid ${isEnabled ? 'var(--bronze)' : 'var(--border)'}`,
+                            position: 'relative'
+                          }}
+                        >
+                          <div style={{
+                            width: 14,
+                            height: 14,
+                            borderRadius: '50%',
+                            background: '#fff',
+                            position: 'absolute',
+                            top: 2,
+                            left: isEnabled ? 24 : 2,
+                            transition: 'left 0.2s'
+                          }} />
+                        </div>
+                        {/* Telegram Alert Toggle */}
+                        <button
+                          onClick={() => handleToggleTelegramAlerta(id)}
+                          title={iaAlerts.telegramAlerts && iaAlerts.telegramAlerts[id] ? "Desactivar alertas por Telegram" : "Habilitar alertas por Telegram"}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: iaAlerts.telegramAlerts && iaAlerts.telegramAlerts[id] ? '#0088cc' : 'var(--text-muted)',
+                            cursor: 'pointer',
+                            padding: 4,
+                            display: 'flex',
+                            alignItems: 'center',
+                            transition: 'color 0.2s',
+                          }}
+                          onMouseEnter={(e) => {
+                            if (!(iaAlerts.telegramAlerts && iaAlerts.telegramAlerts[id])) {
+                              e.currentTarget.style.color = '#0088cc';
+                            }
+                          }}
+                          onMouseLeave={(e) => {
+                            if (!(iaAlerts.telegramAlerts && iaAlerts.telegramAlerts[id])) {
+                              e.currentTarget.style.color = 'var(--text-muted)';
+                            }
+                          }}
+                        >
+                          <i className="ri-telegram-line" style={{ fontSize: 16 }} />
+                        </button>
+                        {/* Quitar de la pantalla */}
+                        <button
+                          onClick={() => handleQuitarAlerta(id)}
+                          title="Remover de la pantalla"
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: 'var(--text-muted)',
+                            cursor: 'pointer',
+                            padding: 4,
+                            display: 'flex',
+                            alignItems: 'center',
+                            transition: 'color 0.2s'
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.color = 'var(--danger)'}
+                          onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-muted)'}
+                        >
+                          <i className="ri-delete-bin-line" style={{ fontSize: 14 }} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            {(!user?.permisos || user.permisos.config_mesas !== false) && (
+              <>
+                <div className="card" style={{ padding: '12px 14px' }}>
+                  <div className="card-header" style={{ marginBottom: 12 }}>
+                    <h3 className="card-title"><i className="ri-qr-code-line" style={{ marginRight: 6 }} />Impresión de QRs por Mesa</h3>
+                  </div>
+                  <p style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 10, lineHeight: 1.4 }}>
+                    Genera y descarga códigos QR para pegar en las mesas. Permite a los clientes pedir servicio o recargar tiempo en su celular.
+                  </p>
+                  <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                    <button
+                      className="btn btn-primary"
+                      onClick={() => imprimirQRs(null)}
+                      style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '8px 10px', fontSize: '11px' }}
+                    >
+                      <i className="ri-printer-line" /> Imprimir Todos
+                    </button>
+                    <button
+                      className="btn btn-secondary"
+                      onClick={descargarTodosLosQRsZIP}
+                      style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '8px 10px', fontSize: '11px' }}
+                    >
+                      <i className="ri-download-2-line" /> ZIP
+                    </button>
+                  </div>
+                  
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 260, overflowY: 'auto' }}>
+                    {/* QR de Fila Virtual - Autoservicio */}
+                    <div style={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      justifyContent: 'space-between', 
+                      padding: '6px 10px', 
+                      background: 'rgba(197, 168, 128, 0.08)', 
+                      border: '1.5px solid rgba(197, 168, 128, 0.3)', 
+                      borderRadius: 10,
+                      marginBottom: 2
+                    }}>
+                      <div 
+                        style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}
+                        onClick={() => setPreviewQr({
+                          title: 'Fila Virtual (Autoservicio)',
+                          value: typeof window !== 'undefined' ? `${window.location.origin}/fila/registro` : 'https://yoy-ia-billar.vercel.app/fila/registro',
+                          filename: 'fila_de_espera.png'
+                        })}
+                        title="Previsualizar QR"
+                      >
+                        <img 
+                          src={`https://api.qrserver.com/v1/create-qr-code/?size=60x60&data=${encodeURIComponent(typeof window !== 'undefined' ? `${window.location.origin}/fila/registro` : 'https://yoy-ia-billar.vercel.app/fila/registro')}`} 
+                          width="32" 
+                          height="32" 
+                          style={{ borderRadius: 6, background: '#fff', padding: 2, border: '1px solid var(--border)' }} 
+                          alt="QR Fila Virtual" 
+                        />
+                        <div>
+                          <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--bronze-light)' }}>Fila Virtual</span>
+                          <div style={{ fontSize: 10, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <span>Registro por QR</span>
+                            <i className="ri-eye-line" style={{ fontSize: 10 }} />
+                          </div>
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: 4 }}>
+                        <button
+                          className="btn btn-secondary btn-sm"
+                          onClick={() => descargarQR('fila')}
+                          style={{ fontSize: 10, padding: '4px 6px', display: 'flex', alignItems: 'center', gap: 2 }}
+                        >
+                          <i className="ri-download-2-line" />
+                        </button>
+                        <button
+                          className="btn btn-secondary btn-sm"
+                          onClick={imprimirQRRegistroVirtual}
+                          style={{ fontSize: 10, padding: '4px 6px', display: 'flex', alignItems: 'center', gap: 2 }}
+                        >
+                          <i className="ri-printer-line" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* QRs de Mesas */}
+                    {mesas.map(m => (
+                      <div key={m.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 10 }}>
+                        <div 
+                          style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}
+                          onClick={() => setPreviewQr({
+                            title: m.nombre,
+                            value: typeof window !== 'undefined' ? `${window.location.origin}/mesa/${m.id}?s=${getEncodedSalonId()}` : `https://yoy-ia-billar.vercel.app/mesa/${m.id}?s=${getEncodedSalonId()}`,
+                            filename: getTableFilename(m),
+                            mesaId: m.id
+                          })}
+                          title="Previsualizar QR"
+                        >
+                          <img src={`https://api.qrserver.com/v1/create-qr-code/?size=60x60&data=${encodeURIComponent(typeof window !== 'undefined' ? `${window.location.origin}/mesa/${m.id}?s=${getEncodedSalonId()}` : `https://yoy-ia-billar.vercel.app/mesa/${m.id}?s=${getEncodedSalonId()}`)}`} width="32" height="32" style={{ borderRadius: 6, background: '#fff', padding: 2, border: '1px solid var(--border)' }} alt="QR Mesa" />
+                          <div>
+                            <span style={{ fontSize: 12, fontWeight: 700 }}>{m.nombre}</span>
+                            <div style={{ fontSize: 10, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                              <span>Mesa ID: {m.id}</span>
+                              <i className="ri-eye-line" style={{ fontSize: 10 }} />
+                            </div>
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: 4 }}>
+                          <button
+                            className="btn btn-secondary btn-sm"
+                            onClick={() => descargarQR('mesa', m.id)}
+                            style={{ fontSize: 10, padding: '4px 6px', display: 'flex', alignItems: 'center', gap: 2 }}
+                          >
+                            <i className="ri-download-2-line" />
+                          </button>
+                          <button
+                            className="btn btn-secondary btn-sm"
+                            onClick={() => imprimirQRs(m.id)}
+                            style={{ fontSize: 10, padding: '4px 6px', display: 'flex', alignItems: 'center', gap: 2 }}
+                          >
+                            <i className="ri-printer-line" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="card" style={{ padding: '12px 14px' }}>
+                  <div className="card-header" style={{ marginBottom: 12 }}>
+                    <h3 className="card-title"><i className="ri-hand-coin-line" style={{ marginRight: 6 }} />Cortesías por Turno</h3>
+                    <span className="badge badge-secondary" style={{ fontSize: '9px', padding: '2px 6px' }}>Anti-Fraude</span>
+                  </div>
+                  <p style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 10, lineHeight: 1.4 }}>
+                    Cortesías ($0) que puede otorgar un mesero por turno sin PIN. Al superar este límite, se solicitará el PIN del admin.
+                  </p>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div className="form-group" style={{ flex: 1, margin: 0, gap: 4 }}>
+                      <input
+                        type="number"
+                        className="form-input"
+                        min={0}
+                        max={20}
+                        value={maxCortesiasPorTurno}
+                        onChange={e => setMaxCortesiasPorTurno(Number(e.target.value) || 0)}
+                        style={{ width: 80, textAlign: 'center', fontSize: 16, fontWeight: 700, padding: '6px 10px' }}
+                      />
+                      <p style={{ fontSize: 9, color: 'var(--text-muted)', margin: 0 }}>0 = siempre requiere PIN</p>
+                    </div>
+                    <button
+                      className="btn btn-primary"
+                      style={{ flexShrink: 0, padding: '8px 12px', fontSize: '11px' }}
+                      disabled={savingLimiteCortesias}
+                      onClick={async () => {
+                        setSavingLimiteCortesias(true);
+                        try {
+                          const { db } = await import('@/lib/firebase');
+                          const { doc, setDoc, serverTimestamp } = await import('firebase/firestore');
+                          await setDoc(doc(db, 'config', 'operacion'), {
+                            maxCortesiasPorTurno: maxCortesiasPorTurno,
+                            updatedAt: serverTimestamp()
+                          }, { merge: true });
+                          showToast(`Límite guardado: ${maxCortesiasPorTurno} por turno`, 'success');
+                        } catch (e) {
+                          console.error(e);
+                          showToast('Error al guardar el límite', 'danger');
+                        } finally {
+                          setSavingLimiteCortesias(false);
+                        }
+                      }}
+                    >
+                      <i className="ri-save-line" /> {savingLimiteCortesias ? '...' : 'Guardar'}
+                    </button>
+                  </div>
+                  <div style={{ marginTop: 10, background: 'rgba(249,115,22,0.08)', border: '1px solid rgba(249,115,22,0.2)', borderRadius: 10, padding: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#f97316', fontSize: 11, fontWeight: 700, lineHeight: 1.3 }}>
+                      <i className="ri-information-line" />
+                      <span>{maxCortesiasPorTurno === 0 ? 'Requiere PIN del admin siempre' : `Hasta ${maxCortesiasPorTurno} cortesías sin PIN`}</span>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+            {(!user?.permisos || user.permisos.config_mesas !== false) && (
+              <div className="card" style={{ padding: '12px 14px' }}>
+                <div className="card-header" style={{ marginBottom: 12 }}>
+                  <h3 className="card-title"><i className="ri-grid-line" style={{ marginRight: 6 }} />Configuración de Mesas</h3>
+                </div>
+                <form onSubmit={handleSaveMesa} style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 12, background: 'var(--bg-elevated)', padding: '10px 12px', borderRadius: 12, border: '1px solid var(--border)' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '70px 1fr', gap: 10 }}>
+                    <div className="form-group" style={{ gap: 4 }}>
+                      <label className="form-label">Número</label>
+                      <input
+                        type="number"
+                        className="form-input"
+                        placeholder="Auto"
+                        value={nuevaMesa.id || ''}
+                        onChange={e => setNuevaMesa(p => ({ ...p, id: e.target.value }))}
+                        disabled={editingMesaId !== null}
+                        style={{ padding: '6px 10px', fontSize: '13px', height: 32 }}
+                      />
+                    </div>
+                    <div className="form-group" style={{ gap: 4 }}>
+                      <label className="form-label">Nombre (Opcional)</label>
+                      <input
+                        className="form-input"
+                        placeholder={editingMesaId !== null ? "Ej: Mesa 1" : "Opcional (Ej: Mesa VIP)"}
+                        value={nuevaMesa.nombre}
+                        onChange={e => setNuevaMesa(p => ({ ...p, nombre: e.target.value }))}
+                        style={{ padding: '6px 10px', fontSize: '13px', height: 32 }}
+                      />
+                    </div>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 10 }}>
+                    <div className="form-group" style={{ gap: 4 }}>
+                      <label className="form-label">Tarifa por Hora ($)</label>
+                      <input
+                        type="number"
+                        className="form-input"
+                        placeholder="Ej: 60"
+                        min={0}
+                        value={nuevaMesa.tarifa || ''}
+                        onChange={e => setNuevaMesa(p => ({ ...p, tarifa: e.target.value }))}
+                        required
+                        style={{ padding: '6px 10px', fontSize: '13px', height: 32 }}
+                      />
+                    </div>
+                    <div className="form-group" style={{ gap: 4 }}>
+                      <label className="form-label">Modalidad</label>
+                      <select
+                        className="form-select"
+                        value={nuevaMesa.tipo}
+                        onChange={e => setNuevaMesa(p => ({ ...p, tipo: e.target.value }))}
+                        style={{ padding: '6px 10px', fontSize: '13px', background: 'var(--bg-elevated)', color: '#fff', border: '1px solid var(--border)', borderRadius: 6, height: 32 }}
+                      >
+                        <option value="Pool">Pool</option>
+                        <option value="Carambola">Carambola</option>
+                        <option value="Snooker">Snooker</option>
+                        <option value="Dominó">Dominó</option>
+                        <option value="Consumo">Consumo Mín.</option>
+                        <option value="Otro">Otro Tipo</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {nuevaMesa.tipo === 'Otro' && (
+                    <div className="form-group animate-fadeIn" style={{ gap: 4 }}>
+                      <label className="form-label">Especificar Tipo</label>
+                      <input
+                        className="form-input"
+                        placeholder="Ej: Futbolito, Ping Pong"
+                        value={customMesaTipo}
+                        onChange={e => setCustomMesaTipo(e.target.value)}
+                        required
+                        style={{ padding: '6px 10px', fontSize: '13px', height: 32 }}
+                      />
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                    {editingMesaId !== null && (
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        style={{ flex: 1, padding: '4px 8px', fontSize: '11px' }}
+                        onClick={() => {
+                          setEditingMesaId(null);
+                          setNuevaMesa({ id: '', nombre: '', tarifa: '', tipo: 'Pool' });
+                          setCustomMesaTipo('');
+                          setShowCustomTipoInput(false);
+                          clearMesaDraft();
+                        }}
+                      >
+                        Cancelar
+                      </button>
+                    )}
+                    <button
+                      type="submit"
+                      className="btn btn-primary btn-sm"
+                      style={{ flex: 2, padding: '4px 8px', fontSize: '11px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}
+                    >
+                      <i className={editingMesaId !== null ? "ri-save-line" : "ri-add-line"} />
+                      {editingMesaId !== null ? 'Guardar Cambios' : 'Agregar Mesa'}
+                    </button>
+                  </div>
+                </form>
+
+                {/* Listado de Mesas */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 220, overflowY: 'auto' }}>
+                  {mesas.map(m => (
+                    <div key={m.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)', borderRadius: 10 }}>
+                      <div>
+                        <div style={{ fontSize: 12, fontWeight: 700 }}>{m.nombre} <span style={{ fontSize: 10, color: 'var(--bronze-light)' }}>({m.tipo})</span></div>
+                        <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Tarifa: ${m.tarifa}/hr</div>
+                      </div>
+                      <div style={{ display: 'flex', gap: 4 }}>
+                        <button className="btn btn-secondary btn-icon sm" style={{ width: 26, height: 26, minWidth: 26, padding: 0 }} onClick={() => handleEditMesa(m)}>
+                          <i className="ri-pencil-line" />
+                        </button>
+                        <button className="btn btn-secondary btn-icon sm" style={{ width: 26, height: 26, minWidth: 26, padding: 0, color: '#ef4444' }} onClick={() => handleDeleteMesa(m.id)}>
+                          <i className="ri-delete-bin-line" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            </div>
+
+            {/* COLUMNA 3 */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div className="card" style={{ padding: '12px 14px' }}>
               <div className="card-header" style={{ marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <h3 className="card-title">
@@ -3139,449 +3582,6 @@ export default function ConfigPanel({ showToast }) {
                 </div>
               </div>
             </div>
-            </div>
-
-            {/* COLUMNA 2 */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div className="card" style={{ padding: '12px 14px' }}>
-              <div className="card-header" style={{ marginBottom: 12 }}>
-                <h3 className="card-title"><i className="ri-robot-line" style={{ marginRight: 6 }} />Alertas IA</h3>
-              </div>
-              
-              {/* Menú seleccionable de alertas disponibles */}
-              {ALERTAS_DEFINITIONS.filter(def => !iaAlerts.activeIds.includes(def.id)).length > 0 && (
-                <div style={{ marginBottom: 14 }}>
-                  <select
-                    onChange={(e) => {
-                      const id = e.target.value;
-                      if (id) {
-                        handleAgregarAlerta(id);
-                        e.target.value = '';
-                      }
-                    }}
-                    style={{
-                      width: '100%',
-                      padding: '8px 12px',
-                      borderRadius: 8,
-                      background: 'var(--bg-elevated)',
-                      border: '1px solid var(--border)',
-                      color: '#fff',
-                      fontSize: 12,
-                      cursor: 'pointer',
-                      outline: 'none'
-                    }}
-                  >
-                    <option value="">➕ Añadir Nueva Alerta IA...</option>
-                    {ALERTAS_DEFINITIONS.filter(def => !iaAlerts.activeIds.includes(def.id)).map(def => (
-                      <option key={def.id} value={def.id}>
-                        {def.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: '350px', overflowY: 'auto', paddingRight: 4 }}>
-                {iaAlerts.activeIds.map((id, i) => {
-                  const def = ALERTAS_DEFINITIONS.find(d => d.id === id);
-                  if (!def) return null;
-                  const isEnabled = iaAlerts.states[id] !== false;
-                  return (
-                    <div key={id} style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      padding: '10px 0',
-                      borderBottom: i < iaAlerts.activeIds.length - 1 ? '1px solid var(--border)' : 'none'
-                    }}>
-                      <div style={{ flex: 1, paddingRight: 10 }}>
-                        <div style={{ fontSize: 13, fontWeight: 700 }}>{def.label}</div>
-                        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, lineHeight: 1.3 }}>{def.sub}</div>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        {/* Switch */}
-                        <div
-                          onClick={() => handleToggleAlerta(id)}
-                          style={{
-                            width: 40,
-                            height: 20,
-                            borderRadius: 10,
-                            cursor: 'pointer',
-                            transition: 'all 0.2s',
-                            background: isEnabled ? 'var(--bronze)' : 'var(--bg-elevated)',
-                            border: `1px solid ${isEnabled ? 'var(--bronze)' : 'var(--border)'}`,
-                            position: 'relative'
-                          }}
-                        >
-                          <div style={{
-                            width: 14,
-                            height: 14,
-                            borderRadius: '50%',
-                            background: '#fff',
-                            position: 'absolute',
-                            top: 2,
-                            left: isEnabled ? 24 : 2,
-                            transition: 'left 0.2s'
-                          }} />
-                        </div>
-                        {/* Telegram Alert Toggle */}
-                        <button
-                          onClick={() => handleToggleTelegramAlerta(id)}
-                          title={iaAlerts.telegramAlerts && iaAlerts.telegramAlerts[id] ? "Desactivar alertas por Telegram" : "Habilitar alertas por Telegram"}
-                          style={{
-                            background: 'none',
-                            border: 'none',
-                            color: iaAlerts.telegramAlerts && iaAlerts.telegramAlerts[id] ? '#0088cc' : 'var(--text-muted)',
-                            cursor: 'pointer',
-                            padding: 4,
-                            display: 'flex',
-                            alignItems: 'center',
-                            transition: 'color 0.2s',
-                          }}
-                          onMouseEnter={(e) => {
-                            if (!(iaAlerts.telegramAlerts && iaAlerts.telegramAlerts[id])) {
-                              e.currentTarget.style.color = '#0088cc';
-                            }
-                          }}
-                          onMouseLeave={(e) => {
-                            if (!(iaAlerts.telegramAlerts && iaAlerts.telegramAlerts[id])) {
-                              e.currentTarget.style.color = 'var(--text-muted)';
-                            }
-                          }}
-                        >
-                          <i className="ri-telegram-line" style={{ fontSize: 16 }} />
-                        </button>
-                        {/* Quitar de la pantalla */}
-                        <button
-                          onClick={() => handleQuitarAlerta(id)}
-                          title="Remover de la pantalla"
-                          style={{
-                            background: 'none',
-                            border: 'none',
-                            color: 'var(--text-muted)',
-                            cursor: 'pointer',
-                            padding: 4,
-                            display: 'flex',
-                            alignItems: 'center',
-                            transition: 'color 0.2s'
-                          }}
-                          onMouseEnter={(e) => e.currentTarget.style.color = 'var(--danger)'}
-                          onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-muted)'}
-                        >
-                          <i className="ri-delete-bin-line" style={{ fontSize: 14 }} />
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-            {(!user?.permisos || user.permisos.config_mesas !== false) && (
-              <>
-                <div className="card" style={{ padding: '12px 14px' }}>
-                  <div className="card-header" style={{ marginBottom: 12 }}>
-                    <h3 className="card-title"><i className="ri-qr-code-line" style={{ marginRight: 6 }} />Impresión de QRs por Mesa</h3>
-                  </div>
-                  <p style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 10, lineHeight: 1.4 }}>
-                    Genera y descarga códigos QR para pegar en las mesas. Permite a los clientes pedir servicio o recargar tiempo en su celular.
-                  </p>
-                  <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-                    <button
-                      className="btn btn-primary"
-                      onClick={() => imprimirQRs(null)}
-                      style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '8px 10px', fontSize: '11px' }}
-                    >
-                      <i className="ri-printer-line" /> Imprimir Todos
-                    </button>
-                    <button
-                      className="btn btn-secondary"
-                      onClick={descargarTodosLosQRsZIP}
-                      style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '8px 10px', fontSize: '11px' }}
-                    >
-                      <i className="ri-download-2-line" /> ZIP
-                    </button>
-                  </div>
-                  
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 260, overflowY: 'auto' }}>
-                    {/* QR de Fila Virtual - Autoservicio */}
-                    <div style={{ 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      justifyContent: 'space-between', 
-                      padding: '6px 10px', 
-                      background: 'rgba(197, 168, 128, 0.08)', 
-                      border: '1.5px solid rgba(197, 168, 128, 0.3)', 
-                      borderRadius: 10,
-                      marginBottom: 2
-                    }}>
-                      <div 
-                        style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}
-                        onClick={() => setPreviewQr({
-                          title: 'Fila Virtual (Autoservicio)',
-                          value: typeof window !== 'undefined' ? `${window.location.origin}/fila/registro` : 'https://yoy-ia-billar.vercel.app/fila/registro',
-                          filename: 'fila_de_espera.png'
-                        })}
-                        title="Previsualizar QR"
-                      >
-                        <img 
-                          src={`https://api.qrserver.com/v1/create-qr-code/?size=60x60&data=${encodeURIComponent(typeof window !== 'undefined' ? `${window.location.origin}/fila/registro` : 'https://yoy-ia-billar.vercel.app/fila/registro')}`} 
-                          width="32" 
-                          height="32" 
-                          style={{ borderRadius: 6, background: '#fff', padding: 2, border: '1px solid var(--border)' }} 
-                          alt="QR Fila Virtual" 
-                        />
-                        <div>
-                          <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--bronze-light)' }}>Fila Virtual</span>
-                          <div style={{ fontSize: 10, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
-                            <span>Registro por QR</span>
-                            <i className="ri-eye-line" style={{ fontSize: 10 }} />
-                          </div>
-                        </div>
-                      </div>
-                      <div style={{ display: 'flex', gap: 4 }}>
-                        <button
-                          className="btn btn-secondary btn-sm"
-                          onClick={() => descargarQR('fila')}
-                          style={{ fontSize: 10, padding: '4px 6px', display: 'flex', alignItems: 'center', gap: 2 }}
-                        >
-                          <i className="ri-download-2-line" />
-                        </button>
-                        <button
-                          className="btn btn-secondary btn-sm"
-                          onClick={imprimirQRRegistroVirtual}
-                          style={{ fontSize: 10, padding: '4px 6px', display: 'flex', alignItems: 'center', gap: 2 }}
-                        >
-                          <i className="ri-printer-line" />
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* QRs de Mesas */}
-                    {mesas.map(m => (
-                      <div key={m.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 10 }}>
-                        <div 
-                          style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}
-                          onClick={() => setPreviewQr({
-                            title: m.nombre,
-                            value: typeof window !== 'undefined' ? `${window.location.origin}/mesa/${m.id}?s=${getEncodedSalonId()}` : `https://yoy-ia-billar.vercel.app/mesa/${m.id}?s=${getEncodedSalonId()}`,
-                            filename: getTableFilename(m),
-                            mesaId: m.id
-                          })}
-                          title="Previsualizar QR"
-                        >
-                          <img src={`https://api.qrserver.com/v1/create-qr-code/?size=60x60&data=${encodeURIComponent(typeof window !== 'undefined' ? `${window.location.origin}/mesa/${m.id}?s=${getEncodedSalonId()}` : `https://yoy-ia-billar.vercel.app/mesa/${m.id}?s=${getEncodedSalonId()}`)}`} width="32" height="32" style={{ borderRadius: 6, background: '#fff', padding: 2, border: '1px solid var(--border)' }} alt="QR Mesa" />
-                          <div>
-                            <span style={{ fontSize: 12, fontWeight: 700 }}>{m.nombre}</span>
-                            <div style={{ fontSize: 10, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
-                              <span>Mesa ID: {m.id}</span>
-                              <i className="ri-eye-line" style={{ fontSize: 10 }} />
-                            </div>
-                          </div>
-                        </div>
-                        <div style={{ display: 'flex', gap: 4 }}>
-                          <button
-                            className="btn btn-secondary btn-sm"
-                            onClick={() => descargarQR('mesa', m.id)}
-                            style={{ fontSize: 10, padding: '4px 6px', display: 'flex', alignItems: 'center', gap: 2 }}
-                          >
-                            <i className="ri-download-2-line" />
-                          </button>
-                          <button
-                            className="btn btn-secondary btn-sm"
-                            onClick={() => imprimirQRs(m.id)}
-                            style={{ fontSize: 10, padding: '4px 6px', display: 'flex', alignItems: 'center', gap: 2 }}
-                          >
-                            <i className="ri-printer-line" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <div className="card" style={{ padding: '12px 14px' }}>
-                  <div className="card-header" style={{ marginBottom: 12 }}>
-                    <h3 className="card-title"><i className="ri-hand-coin-line" style={{ marginRight: 6 }} />Cortesías por Turno</h3>
-                    <span className="badge badge-secondary" style={{ fontSize: '9px', padding: '2px 6px' }}>Anti-Fraude</span>
-                  </div>
-                  <p style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 10, lineHeight: 1.4 }}>
-                    Cortesías ($0) que puede otorgar un mesero por turno sin PIN. Al superar este límite, se solicitará el PIN del admin.
-                  </p>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div className="form-group" style={{ flex: 1, margin: 0, gap: 4 }}>
-                      <input
-                        type="number"
-                        className="form-input"
-                        min={0}
-                        max={20}
-                        value={maxCortesiasPorTurno}
-                        onChange={e => setMaxCortesiasPorTurno(Number(e.target.value) || 0)}
-                        style={{ width: 80, textAlign: 'center', fontSize: 16, fontWeight: 700, padding: '6px 10px' }}
-                      />
-                      <p style={{ fontSize: 9, color: 'var(--text-muted)', margin: 0 }}>0 = siempre requiere PIN</p>
-                    </div>
-                    <button
-                      className="btn btn-primary"
-                      style={{ flexShrink: 0, padding: '8px 12px', fontSize: '11px' }}
-                      disabled={savingLimiteCortesias}
-                      onClick={async () => {
-                        setSavingLimiteCortesias(true);
-                        try {
-                          const { db } = await import('@/lib/firebase');
-                          const { doc, setDoc, serverTimestamp } = await import('firebase/firestore');
-                          await setDoc(doc(db, 'config', 'operacion'), {
-                            maxCortesiasPorTurno: maxCortesiasPorTurno,
-                            updatedAt: serverTimestamp()
-                          }, { merge: true });
-                          showToast(`Límite guardado: ${maxCortesiasPorTurno} por turno`, 'success');
-                        } catch (e) {
-                          console.error(e);
-                          showToast('Error al guardar el límite', 'danger');
-                        } finally {
-                          setSavingLimiteCortesias(false);
-                        }
-                      }}
-                    >
-                      <i className="ri-save-line" /> {savingLimiteCortesias ? '...' : 'Guardar'}
-                    </button>
-                  </div>
-                  <div style={{ marginTop: 10, background: 'rgba(249,115,22,0.08)', border: '1px solid rgba(249,115,22,0.2)', borderRadius: 10, padding: 8 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#f97316', fontSize: 11, fontWeight: 700, lineHeight: 1.3 }}>
-                      <i className="ri-information-line" />
-                      <span>{maxCortesiasPorTurno === 0 ? 'Requiere PIN del admin siempre' : `Hasta ${maxCortesiasPorTurno} cortesías sin PIN`}</span>
-                    </div>
-                  </div>
-                </div>
-              </>
-            )}
-            {(!user?.permisos || user.permisos.config_mesas !== false) && (
-              <div className="card" style={{ padding: '12px 14px' }}>
-                <div className="card-header" style={{ marginBottom: 12 }}>
-                  <h3 className="card-title"><i className="ri-grid-line" style={{ marginRight: 6 }} />Configuración de Mesas</h3>
-                </div>
-                <form onSubmit={handleSaveMesa} style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 12, background: 'var(--bg-elevated)', padding: '10px 12px', borderRadius: 12, border: '1px solid var(--border)' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '70px 1fr', gap: 10 }}>
-                    <div className="form-group" style={{ gap: 4 }}>
-                      <label className="form-label">Número</label>
-                      <input
-                        type="number"
-                        className="form-input"
-                        placeholder="Auto"
-                        value={nuevaMesa.id || ''}
-                        onChange={e => setNuevaMesa(p => ({ ...p, id: e.target.value }))}
-                        disabled={editingMesaId !== null}
-                        style={{ padding: '6px 10px', fontSize: '13px', height: 32 }}
-                      />
-                    </div>
-                    <div className="form-group" style={{ gap: 4 }}>
-                      <label className="form-label">Nombre (Opcional)</label>
-                      <input
-                        className="form-input"
-                        placeholder={editingMesaId !== null ? "Ej: Mesa 1" : "Opcional (Ej: Mesa VIP)"}
-                        value={nuevaMesa.nombre}
-                        onChange={e => setNuevaMesa(p => ({ ...p, nombre: e.target.value }))}
-                        style={{ padding: '6px 10px', fontSize: '13px', height: 32 }}
-                      />
-                    </div>
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 10 }}>
-                    <div className="form-group" style={{ gap: 4 }}>
-                      <label className="form-label">Tarifa por Hora ($)</label>
-                      <input
-                        type="number"
-                        className="form-input"
-                        placeholder="Ej: 60"
-                        min={0}
-                        value={nuevaMesa.tarifa || ''}
-                        onChange={e => setNuevaMesa(p => ({ ...p, tarifa: e.target.value }))}
-                        required
-                        style={{ padding: '6px 10px', fontSize: '13px', height: 32 }}
-                      />
-                    </div>
-                    <div className="form-group" style={{ gap: 4 }}>
-                      <label className="form-label">Modalidad</label>
-                      <select
-                        className="form-select"
-                        value={nuevaMesa.tipo}
-                        onChange={e => setNuevaMesa(p => ({ ...p, tipo: e.target.value }))}
-                        style={{ padding: '6px 10px', fontSize: '13px', background: 'var(--bg-elevated)', color: '#fff', border: '1px solid var(--border)', borderRadius: 6, height: 32 }}
-                      >
-                        <option value="Pool">Pool</option>
-                        <option value="Carambola">Carambola</option>
-                        <option value="Snooker">Snooker</option>
-                        <option value="Dominó">Dominó</option>
-                        <option value="Consumo">Consumo Mín.</option>
-                        <option value="Otro">Otro Tipo</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  {nuevaMesa.tipo === 'Otro' && (
-                    <div className="form-group animate-fadeIn" style={{ gap: 4 }}>
-                      <label className="form-label">Especificar Tipo</label>
-                      <input
-                        className="form-input"
-                        placeholder="Ej: Futbolito, Ping Pong"
-                        value={customMesaTipo}
-                        onChange={e => setCustomMesaTipo(e.target.value)}
-                        required
-                        style={{ padding: '6px 10px', fontSize: '13px', height: 32 }}
-                      />
-                    </div>
-                  )}
-
-                  <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                    {editingMesaId !== null && (
-                      <button
-                        type="button"
-                        className="btn btn-secondary btn-sm"
-                        style={{ flex: 1, padding: '4px 8px', fontSize: '11px' }}
-                        onClick={() => {
-                          setEditingMesaId(null);
-                          setNuevaMesa({ id: '', nombre: '', tarifa: '', tipo: 'Pool' });
-                          setCustomMesaTipo('');
-                          setShowCustomTipoInput(false);
-                          clearMesaDraft();
-                        }}
-                      >
-                        Cancelar
-                      </button>
-                    )}
-                    <button
-                      type="submit"
-                      className="btn btn-primary btn-sm"
-                      style={{ flex: 2, padding: '4px 8px', fontSize: '11px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}
-                    >
-                      <i className={editingMesaId !== null ? "ri-save-line" : "ri-add-line"} />
-                      {editingMesaId !== null ? 'Guardar Cambios' : 'Agregar Mesa'}
-                    </button>
-                  </div>
-                </form>
-
-                {/* Listado de Mesas */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 220, overflowY: 'auto' }}>
-                  {mesas.map(m => (
-                    <div key={m.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)', borderRadius: 10 }}>
-                      <div>
-                        <div style={{ fontSize: 12, fontWeight: 700 }}>{m.nombre} <span style={{ fontSize: 10, color: 'var(--bronze-light)' }}>({m.tipo})</span></div>
-                        <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Tarifa: ${m.tarifa}/hr</div>
-                      </div>
-                      <div style={{ display: 'flex', gap: 4 }}>
-                        <button className="btn btn-secondary btn-icon sm" style={{ width: 26, height: 26, minWidth: 26, padding: 0 }} onClick={() => handleEditMesa(m)}>
-                          <i className="ri-pencil-line" />
-                        </button>
-                        <button className="btn btn-secondary btn-icon sm" style={{ width: 26, height: 26, minWidth: 26, padding: 0, color: '#ef4444' }} onClick={() => handleDeleteMesa(m.id)}>
-                          <i className="ri-delete-bin-line" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-            </div>
-
-            {/* COLUMNA 3 */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {(!user?.permisos || user.permisos.config_usuarios !== false) && (
               <div className="card" style={{ padding: '12px 14px' }}>
                 <div className="card-header" style={{ marginBottom: 12 }}>
