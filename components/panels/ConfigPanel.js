@@ -305,7 +305,8 @@ export default function ConfigPanel({ showToast }) {
     notifyPeriodicReport: true,
     discrepancyThreshold: 100,
     reportInterval: 4,
-    reportHour: 9
+    reportHour: 9,
+    reportIncludeCharts: false
   });
   const [savingTelegram, setSavingTelegram] = useState(false);
   const [pendingAlerts, setPendingAlerts] = useState([]);
@@ -560,6 +561,7 @@ export default function ConfigPanel({ showToast }) {
           discrepancyThreshold: d.discrepancyThreshold !== undefined ? Number(d.discrepancyThreshold) : 100,
           reportInterval: d.reportInterval !== undefined ? Number(d.reportInterval) : 4,
           reportHour: d.reportHour !== undefined ? Number(d.reportHour) : 9,
+          reportIncludeCharts: d.reportIncludeCharts !== undefined ? d.reportIncludeCharts : false,
         });
       }
     }).catch(err => console.error("Error al cargar configuración de Telegram:", err));
@@ -1150,6 +1152,11 @@ export default function ConfigPanel({ showToast }) {
         ...telegramConfig,
         updatedAt: serverTimestamp()
       });
+      const salonId = getActiveSalonId();
+      await setDoc(doc(db, 'config', `telegram_${salonId}`), {
+        ...telegramConfig,
+        updatedAt: serverTimestamp()
+      });
       if (telegramConfig.enabled) {
         showToast('Configuración de Telegram guardada y activada correctamente ✓', 'success');
       } else {
@@ -1257,6 +1264,7 @@ export default function ConfigPanel({ showToast }) {
           updatedAt: serverTimestamp()
         };
         await setDoc(doc(db, 'config', `telegram_${salonId}`), activeConfig);
+        await setDoc(doc(db, 'config', 'telegram'), activeConfig);
         showToast('Configuración de Telegram guardada y activada de forma automática ✓', 'success');
         
         // Disparar prueba automática
@@ -2823,37 +2831,57 @@ export default function ConfigPanel({ showToast }) {
                 </div>
 
                 {telegramConfig.notifyPeriodicReport && (
-                  <div style={{ display: 'flex', gap: 10, marginTop: 4, background: 'var(--bg-elevated)', padding: 10, borderRadius: 8, border: '1px dashed var(--border)' }}>
-                    <div className="form-group" style={{ flex: 1, gap: 4 }}>
-                      <label className="form-label" style={{ fontSize: 10 }}>Frecuencia de Envío</label>
-                      <select
-                        className="form-select"
-                        value={telegramConfig.reportInterval !== undefined ? telegramConfig.reportInterval : 4}
-                        onChange={e => setTelegramConfig(p => ({ ...p, reportInterval: Number(e.target.value) }))}
-                        style={{ fontSize: 11, padding: '4px 8px', height: 30, background: 'var(--bg-card)', border: '1px solid var(--border)', color: '#fff', borderRadius: 6 }}
-                      >
-                        <option value="2">Cada 2 horas</option>
-                        <option value="4">Cada 4 horas</option>
-                        <option value="8">Cada 8 horas</option>
-                        <option value="12">Cada 12 horas</option>
-                        <option value="24">Cada 24 horas (Diario)</option>
-                      </select>
-                    </div>
-                    {(telegramConfig.reportInterval === 24) && (
-                      <div className="form-group" style={{ width: '100px', gap: 4 }}>
-                        <label className="form-label" style={{ fontSize: 10 }}>Hora de Envío</label>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 4, background: 'var(--bg-elevated)', padding: 10, borderRadius: 8, border: '1px dashed var(--border)' }}>
+                    <div style={{ display: 'flex', gap: 10 }}>
+                      <div className="form-group" style={{ flex: 1, gap: 4 }}>
+                        <label className="form-label" style={{ fontSize: 10 }}>Frecuencia de Envío</label>
                         <select
                           className="form-select"
-                          value={telegramConfig.reportHour !== undefined ? telegramConfig.reportHour : 9}
-                          onChange={e => setTelegramConfig(p => ({ ...p, reportHour: Number(e.target.value) }))}
+                          value={telegramConfig.reportInterval !== undefined ? telegramConfig.reportInterval : 4}
+                          onChange={e => setTelegramConfig(p => ({ ...p, reportInterval: Number(e.target.value) }))}
                           style={{ fontSize: 11, padding: '4px 8px', height: 30, background: 'var(--bg-card)', border: '1px solid var(--border)', color: '#fff', borderRadius: 6 }}
                         >
-                          {Array.from({ length: 24 }).map((_, h) => (
-                            <option key={h} value={h}>{String(h).padStart(2, '0')}:00h</option>
-                          ))}
+                          <option value="2">Cada 2 horas</option>
+                          <option value="4">Cada 4 horas</option>
+                          <option value="8">Cada 8 horas</option>
+                          <option value="12">Cada 12 horas</option>
+                          <option value="24">Cada 24 horas (Diario)</option>
                         </select>
                       </div>
-                    )}
+                      {(telegramConfig.reportInterval === 24) && (
+                        <div className="form-group" style={{ width: '100px', gap: 4 }}>
+                          <label className="form-label" style={{ fontSize: 10 }}>Hora de Envío</label>
+                          <select
+                            className="form-select"
+                            value={telegramConfig.reportHour !== undefined ? telegramConfig.reportHour : 9}
+                            onChange={e => setTelegramConfig(p => ({ ...p, reportHour: Number(e.target.value) }))}
+                            style={{ fontSize: 11, padding: '4px 8px', height: 30, background: 'var(--bg-card)', border: '1px solid var(--border)', color: '#fff', borderRadius: 6 }}
+                          >
+                            {Array.from({ length: 24 }).map((_, h) => (
+                              <option key={h} value={h}>{String(h).padStart(2, '0')}:00h</option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 10.5, fontWeight: 'bold' }}>Incluir Gráfica de Operación</div>
+                        <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>Adjunta una imagen del rendimiento a las alertas periódicas</div>
+                      </div>
+                      <div
+                        onClick={() => setTelegramConfig(p => ({ ...p, reportIncludeCharts: !p.reportIncludeCharts }))}
+                        style={{
+                          width: 38, height: 20, borderRadius: 10, cursor: 'pointer', transition: 'all 0.2s',
+                          background: telegramConfig.reportIncludeCharts ? 'var(--bronze)' : 'var(--bg-elevated)',
+                          border: `1px solid ${telegramConfig.reportIncludeCharts ? 'var(--bronze)' : 'var(--border)'}`,
+                          position: 'relative',
+                        }}
+                      >
+                        <div style={{ width: 14, height: 14, borderRadius: '50%', background: '#fff', position: 'absolute', top: 2, left: telegramConfig.reportIncludeCharts ? 22 : 2, transition: 'left 0.2s' }} />
+                      </div>
+                    </div>
                   </div>
                 )}
 
