@@ -1140,7 +1140,11 @@ export default function ConfigPanel({ showToast }) {
         ...telegramConfig,
         updatedAt: serverTimestamp()
       });
-      showToast('Configuración de Telegram guardada correctamente ✓', 'success');
+      if (telegramConfig.enabled) {
+        showToast('Configuración de Telegram guardada y activada correctamente ✓', 'success');
+      } else {
+        showToast('Configuración de Telegram guardada, pero las alertas están APAGADAS (activa el switch azul arriba y vuelve a guardar) ⚠️', 'warning');
+      }
     } catch (err) {
       console.error("Error al guardar configuración de Telegram:", err);
       showToast('Error al guardar configuración de Telegram: ' + err.message, 'danger');
@@ -1283,6 +1287,10 @@ export default function ConfigPanel({ showToast }) {
   };
 
   const handleSendPeriodicReportNow = async () => {
+    if (!telegramConfig.enabled) {
+      showToast('Por favor, activa el switch "ALERTAS TELEGRAM" (azul) arriba y haz clic en "Guardar Telegram" antes de enviar el reporte', 'warning');
+      return;
+    }
     try {
       const res = await fetch('/api/telegram/cron-report?force=true');
       const data = await res.json();

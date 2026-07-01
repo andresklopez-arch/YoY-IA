@@ -50,14 +50,14 @@ export async function GET(request) {
     if (!tgSnap.exists()) {
       return NextResponse.json({ 
         success: false, 
-        error: 'Telegram no está configurado. Por favor, ve a la pestaña "Configuración" en el panel de Administración, ingresa los datos de Telegram (ej. Modo Simplificado y tu teléfono) y haz clic en "Guardar".' 
+        error: 'Telegram no está configurado. Ve a Configuración, ACTIVA EL SWITCH principal "ALERTAS TELEGRAM" (azul), ingresa tu teléfono y haz clic en "GUARDAR TELEGRAM".' 
       }, { status: 404 });
     }
     const tgConfig = tgSnap.data();
     if (!tgConfig.enabled) {
       return NextResponse.json({ 
         success: false, 
-        error: 'Las alertas de Telegram están desactivadas. Actívalas seleccionando "Habilitar Alertas" en la pestaña "Configuración" del panel de Administración y guarda los cambios.' 
+        error: 'Las alertas de Telegram están apagadas en el sistema. Activa el switch principal "ALERTAS TELEGRAM" (azul) en Configuración y haz clic en "GUARDAR TELEGRAM" para activarlas.' 
       });
     }
 
