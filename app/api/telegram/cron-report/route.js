@@ -218,12 +218,23 @@ export async function GET(request) {
     ]);
     const snapBitacora = snapBitacoraRaw.docs.filter(d => d.data().salonId === salonId);
     let montoVendido = 0;
+    let rentaIngresos = 0;
+    let barraIngresos = 0;
+    let otrosIngresos = 0;
     snapBitacora.forEach(d => {
       const e = d.data();
       const acc = e.accion;
-      if (acc === 'Cierre Directo' || acc === 'Mesa a Cuenta' || acc === 'Cobro Manual' || acc === 'Venta Barra' || acc === 'Cobro Barra' || acc === 'Clientes - Suscripción' || acc === 'Torneos - Registro') {
-        if (e.monto && Number(e.monto) > 0) {
-          montoVendido += Number(e.monto);
+      const m = Number(e.monto || 0);
+      if (m > 0) {
+        if (acc === 'Cierre Directo' || acc === 'Mesa a Cuenta' || acc === 'Cobro Manual' || acc === 'Venta Barra' || acc === 'Cobro Barra' || acc === 'Clientes - Suscripción' || acc === 'Torneos - Registro') {
+          montoVendido += m;
+          if (acc === 'Cierre Directo' || acc === 'Mesa a Cuenta' || acc === 'Cobro Manual') {
+            rentaIngresos += m;
+          } else if (acc === 'Venta Barra' || acc === 'Cobro Barra') {
+            barraIngresos += m;
+          } else {
+            otrosIngresos += m;
+          }
         }
       }
     });
@@ -420,9 +431,10 @@ export async function GET(request) {
       `8️⃣ *Pedidos Cocina:* ${comandasPendientesCount} comandas pendientes\n` +
       `9️⃣ *Corte de Caja:* ${corteCajaStatus}\n` +
       `🔟 *Desviaciones Operativas:*\n${desviacionesStr}\n\n` +
-      `🎨 *Guía Visual de Gráfica (Dona Doble):*\n` +
-      `• *Anillo Exterior (Ventas):* 🟢 Realizado (Lineal) | 🟣 Restante (Cuadros) | ❇️ Excedente (Zigzag)\n` +
-      `• *Anillo Interior (Mesas):* 🟡 Pool (Zigzag V.) | 🔴 Carambola (L. Vert.) | ⚫ Libre\n\n` +
+      `🎨 *Guía Visual de Gráfica (Triple Dona):*\n` +
+      `• *Anillo Exterior (Meta):* 🟢 Realizado (Lineal) | 🟣 Restante (Cuadros) | ❇️ Excedente (Zigzag)\n` +
+      `• *Anillo Medio (Mesas):* 🟡 Pool (Zigzag V.) | 🔴 Carambola (L. Vert.) | ⚫ Libre\n` +
+      `• *Anillo Interior (Venta):* 🔵 Renta (Lineal Inv.) | 🟠 Barra (Zigzag) | 🟡 Otros (Cuadros)\n\n` +
       `🔗 *Acceder al Sistema:* [YoY IA Billar](https://yoy-ia-billar.vercel.app)`;
 
     // Resolver chatId si no está disponible directamente
@@ -450,7 +462,7 @@ export async function GET(request) {
     chartConfig = `{
       type: 'doughnut',
       data: {
-        labels: ['Meta Alcanzada', 'Faltante Meta', 'Excedente Ventas', 'Pool Ocupada', 'Carambola Ocupada', 'Mesa Libre'],
+        labels: ['Meta Alcanzada', 'Faltante Meta', 'Excedente Ventas', 'Pool Ocupada', 'Carambola Ocupada', 'Mesa Libre', 'Ingresos Renta', 'Ingresos Barra', 'Otros Ingresos'],
         datasets: [
           {
             data: [${ventaMetaValue}, ${restoMetaValue}, ${excedenteMetaValue}],
@@ -469,13 +481,22 @@ export async function GET(request) {
               '#2A2F3D'
             ],
             label: 'Ocupación Mesas'
+          },
+          {
+            data: [${Math.round(rentaIngresos)}, ${Math.round(barraIngresos)}, ${Math.round(otrosIngresos)}],
+            backgroundColor: [
+              pattern.draw('diagonal-right-left', '#00BFFF'), 
+              pattern.draw('zigzag', '#FF7F50'), 
+              pattern.draw('square', '#FFD700')
+            ],
+            label: 'Desglose Ventas ($)'
           }
         ]
       },
       options: {
         title: {
           display: true,
-          text: 'DESEMPEÑO Y OCUPACIÓN HOY',
+          text: 'DESEMPEÑO Y OPERACIÓN HOY',
           fontColor: '#ffffff',
           fontSize: 15,
           fontStyle: 'bold',
@@ -488,8 +509,8 @@ export async function GET(request) {
           labels: {
             fontColor: '#a0aec0',
             fontFamily: "'Outfit', 'Inter', sans-serif",
-            fontSize: 10,
-            boxWidth: 12
+            fontSize: 9,
+            boxWidth: 10
           }
         },
         plugins: {
@@ -501,11 +522,11 @@ export async function GET(request) {
             font: {
               family: "'Outfit', 'Inter', sans-serif",
               weight: 'bold',
-              size: 9
+              size: 8
             },
             formatter: (value, context) => {
               if (value === 0) return null;
-              if (context.datasetIndex === 0) {
+              if (context.datasetIndex === 0 || context.datasetIndex === 2) {
                 return '$' + Number(value).toLocaleString('es-MX');
               }
               return value + (value === 1 ? ' mesa' : ' mesas');
