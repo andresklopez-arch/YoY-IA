@@ -278,7 +278,8 @@ export async function GET(request) {
     // Métrica 4: Trabajadores en Turno
     const snapAsist = await fetchCollectionQuery('nomina_asistencia_log', [
       { type: 'where', field: 'salonId', op: '==', value: salonId },
-      { type: 'where', field: 'fecha', op: '==', value: mxDateStr }
+      { type: 'orderBy', field: 'createdAt', direction: 'desc' },
+      { type: 'limit', limitVal: 500 }
     ]);
     const lastStatusByWorker = {};
     snapAsist.forEach(d => {
@@ -289,9 +290,35 @@ export async function GET(request) {
         lastStatusByWorker[empId] = { tipo: data.tipo, name: data.nombre, time };
       }
     });
-    const presentWorkers = Object.values(lastStatusByWorker).filter(w => w.tipo === 'entrada');
-    const presentWorkersCount = presentWorkers.length;
-    const presentWorkersNames = presentWorkers.map(w => w.name).join(', ') || 'Ninguno';
+
+    const activeSet = new Set();
+    const activeNames = [];
+
+    // 1. Trabajadores con entrada activa ('entrada')
+    Object.values(lastStatusByWorker).forEach(w => {
+      if (w.tipo === 'entrada') {
+        const cleanName = (w.name || '').trim();
+        if (cleanName && !activeSet.has(cleanName.toLowerCase())) {
+          activeSet.add(cleanName.toLowerCase());
+          activeNames.push(cleanName);
+        }
+      }
+    });
+
+    // 2. Operadores activos hoy en la bitácora
+    snapBitacora.forEach(d => {
+      const e = d.data();
+      const op = (e.operador || '').trim();
+      if (op && op.toLowerCase() !== 'sistema' && op.toLowerCase() !== 'sistema (auto-protección)') {
+        if (!activeSet.has(op.toLowerCase())) {
+          activeSet.add(op.toLowerCase());
+          activeNames.push(op);
+        }
+      }
+    });
+
+    const presentWorkersCount = activeNames.length;
+    const presentWorkersNames = activeNames.join(', ') || 'Ninguno';
 
     // Métrica 5: Clientes en Fila de Espera
     const snapFila = await fetchCollectionQuery('fila_espera', [
@@ -387,11 +414,17 @@ export async function GET(request) {
       }
     });
 
+    const formatTableList = (tables) => {
+      if (tables.length === 0) return '';
+      if (tables.length <= 3) return tables.join(', ');
+      return `${tables.slice(0, 3).join(', ')}... (+${tables.length - 3} más)`;
+    };
+
     if (mesasSinAtender.length > 0) {
-      desviaciones.push(`🔔 Mesas sin atención (>15m): ${mesasSinAtender.join(', ')}`);
+      desviaciones.push(`🔔 Mesas sin atención (>15m): ${formatTableList(mesasSinAtender)}`);
     }
     if (mesasExcesivas.length > 0) {
-      desviaciones.push(`⏱️ Tiempo excesivo juego (>4h): ${mesasExcesivas.join(', ')}`);
+      desviaciones.push(`⏱️ Tiempo excesivo juego (>4h): ${formatTableList(mesasExcesivas)}`);
     }
     if (demoradasCount > 0) {
       desviaciones.push(`🍳 Pedidos demorados cocina (>20m): ${demoradasCount}`);
@@ -498,6 +531,18 @@ export async function GET(request) {
     const restoMetaValue = Math.max(0, Math.round(metaDiaria - montoVendido));
     const excedenteMetaValue = Math.max(0, Math.round(montoVendido - metaDiaria));
 
+    const hasIngresos = (rentaIngresos + barraIngresos + otrosIngresos) > 0;
+    const innerData = hasIngresos 
+      ? `[${Math.round(rentaIngresos)}, ${Math.round(barraIngresos)}, ${Math.round(otrosIngresos)}]`
+      : `[0.001, 0.001, 0.001]`;
+    const innerColors = hasIngresos
+      ? `[
+          pattern.draw('diagonal-right-left', '#00BFFF'), 
+          pattern.draw('zigzag', '#FF7F50'), 
+          pattern.draw('square', '#FFD700')
+        ]`
+      : `['#2A2F3D', '#2A2F3D', '#2A2F3D']`;
+
     chartConfig = `{
       type: 'doughnut',
       data: {
@@ -526,12 +571,8 @@ export async function GET(request) {
             label: 'Ocupación Mesas'
           },
           {
-            data: [${Math.round(rentaIngresos)}, ${Math.round(barraIngresos)}, ${Math.round(otrosIngresos)}],
-            backgroundColor: [
-              pattern.draw('diagonal-right-left', '#00BFFF'), 
-              pattern.draw('zigzag', '#FF7F50'), 
-              pattern.draw('square', '#FFD700')
-            ],
+            data: ${innerData},
+            backgroundColor: ${innerColors},
             borderColor: '#121212',
             borderWidth: 3,
             label: 'Desglose Ventas ($)'
@@ -570,7 +611,7 @@ export async function GET(request) {
               size: 8
             },
             formatter: (value, context) => {
-              if (value === 0) return null;
+              if (value === 0 || value < 0.1) return null;
               if (context.datasetIndex === 0 || context.datasetIndex === 2) {
                 return '$' + Number(value).toLocaleString('es-MX');
               }
@@ -593,10 +634,23 @@ export async function GET(request) {
         parse_mode: 'Markdown'
       })
     });
-
-    // Fallback si falla sendPhoto (ej. problemas con QuickChart)
+ 
+    // Fallback inteligente si falla sendPhoto conjunto (ej. caption > 1024 caracteres o problemas con QuickChart)
     if (!res.ok) {
-      console.warn("sendPhoto falló o no se pudo entregar, intentando con sendMessage normal...");
+      console.warn("sendPhoto falló o no se pudo entregar, intentando envío por separado (foto + texto)...");
+      
+      const shortCaption = `📊 *REPORTE DE OPERACIÓN - ${branchName.toUpperCase()}*\n(Ver desglose detallado en el siguiente mensaje)`;
+      await fetch(photoUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: targetChatId,
+          photo: chartUrl,
+          caption: shortCaption,
+          parse_mode: 'Markdown'
+        })
+      });
+
       const sendUrl = `https://api.telegram.org/bot${botToken}/sendMessage`;
       res = await fetch(sendUrl, {
         method: 'POST',
