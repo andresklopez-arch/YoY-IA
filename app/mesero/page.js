@@ -2135,6 +2135,7 @@ function MeseroContent() {
                             className="btn btn-sm"
                             onClick={() => {
                               setCapturaMesaId(c.mesaId ? `mesa_${c.mesaId}` : `cuenta_${c.id}`);
+                              setBloquearDestino(true);
                               setShowCapturarModal(true);
                             }}
                             style={{
@@ -2388,6 +2389,7 @@ function MeseroContent() {
                             className="btn btn-sm"
                             onClick={() => {
                               setCapturaMesaId(c.mesaId ? `mesa_${c.mesaId}` : `cuenta_${c.id}`);
+                              setBloquearDestino(true);
                               setShowCapturarModal(true);
                             }}
                             style={{
