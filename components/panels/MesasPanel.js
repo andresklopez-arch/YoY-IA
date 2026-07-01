@@ -358,6 +358,56 @@ const playErrorSound = () => {
   }
 };
 
+const playCoinSound = () => {
+  try {
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContext) return;
+    const ctx = new AudioContext();
+
+    // Tono 1: Agudo (C6)
+    const osc1 = ctx.createOscillator();
+    const gain1 = ctx.createGain();
+    osc1.type = 'sine';
+    osc1.frequency.setValueAtTime(1046.50, ctx.currentTime); // C6
+    gain1.gain.setValueAtTime(0.06, ctx.currentTime);
+    gain1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);
+    osc1.connect(gain1);
+    gain1.connect(ctx.destination);
+    osc1.start();
+    osc1.stop(ctx.currentTime + 0.1);
+
+    // Tono 2: Más agudo (E6) con ligero retardo
+    setTimeout(() => {
+      const osc2 = ctx.createOscillator();
+      const gain2 = ctx.createGain();
+      osc2.type = 'sine';
+      osc2.frequency.setValueAtTime(1318.51, ctx.currentTime); // E6
+      gain2.gain.setValueAtTime(0.06, ctx.currentTime);
+      gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
+      osc2.connect(gain2);
+      gain2.connect(ctx.destination);
+      osc2.start();
+      osc2.stop(ctx.currentTime + 0.25);
+    }, 80);
+
+    // Ruido metálico/monedas complementario
+    setTimeout(() => {
+      const osc3 = ctx.createOscillator();
+      const gain3 = ctx.createGain();
+      osc3.type = 'triangle';
+      osc3.frequency.setValueAtTime(2000, ctx.currentTime);
+      gain3.gain.setValueAtTime(0.02, ctx.currentTime);
+      gain3.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+      osc3.connect(gain3);
+      gain3.connect(ctx.destination);
+      osc3.start();
+      osc3.stop(ctx.currentTime + 0.15);
+    }, 40);
+  } catch (e) {
+    console.error("Error al reproducir sonido de monedas:", e);
+  }
+};
+
 const matchesTableType = (waitlistType, tableType) => {
   if (!waitlistType || !tableType) return false;
   const wt = waitlistType.toLowerCase();
@@ -1243,9 +1293,15 @@ function ModalCerrarMesa({ mesa, cuentasActivas, clientesRegistrados = [], regis
                 <div style={{ fontWeight: 'bold', color: 'var(--bronze-light)', marginBottom: 4 }}>Detalle de Consumos:</div>
                 <ul style={{ margin: 0, paddingLeft: 14, color: 'var(--text-muted)' }}>
                   {!mesa.socios && <li>Tiempo de juego: ${Math.round(costoTiempo).toLocaleString('es-MX')}</li>}
-                  {(cuentaAsociada?.consumos || []).map((item, idx) => (
-                    <li key={idx}>{item.cantidad}x {item.producto} (${Math.round(item.precio * item.cantidad).toLocaleString('es-MX')})</li>
-                  ))}
+                  {(cuentaAsociada?.consumos || []).map((item, idx) => {
+                    const isRecent = typeof item.id === 'number' && Math.abs(Date.now() - item.id) < 2 * 60 * 1000;
+                    return (
+                      <li key={idx} style={{ color: isRecent ? '#4ade80' : 'inherit', fontWeight: isRecent ? 600 : 'inherit' }}>
+                        {item.cantidad}x {item.producto} (${Math.round(item.precio * item.cantidad).toLocaleString('es-MX')})
+                        {isRecent && <span style={{ color: '#4ade80', fontSize: 8, fontWeight: 700, marginLeft: 4 }}>[NUEVO]</span>}
+                      </li>
+                    );
+                  })}
                 </ul>
               </div>
             )}
@@ -3296,6 +3352,7 @@ export default function MesasPanel({ showToast }) {
           nuevasCuentas.push(nuevaCuenta);
         }
 
+        let finalStockList = [];
         // Escribir las cuentas actualizadas
         transaction.set(cuentasRef, {
           cuentas: nuevasCuentas,
@@ -3310,6 +3367,7 @@ export default function MesasPanel({ showToast }) {
           }
           return p;
         });
+        finalStockList = stockTransaccion;
 
         // Escribir el inventario actualizado
         transaction.update(invRef, {
@@ -3340,9 +3398,23 @@ export default function MesasPanel({ showToast }) {
         // Actualizar el caché de stock y cuentas local después de confirmarse la transacción
         localStorage.setItem('yoy_billar_stock', obfuscate(stockTransaccion));
         localStorage.setItem('yoy_billar_cuentas', obfuscate(nuevasCuentas));
+        
+        // Exponer la lista para verificación post-transacción
+        pedidoDoc._finalStockList = stockTransaccion;
       });
 
       showToast(`Pedido de ${mesaId ? `Mesa ${mesaId}` : clienteName} cargado a la cuenta ✓`, 'success');
+      
+      // Verificar stock crítico post-transacción
+      if (pedidoDoc._finalStockList) {
+        orderItems.forEach(item => {
+          const finalProd = pedidoDoc._finalStockList.find(p => p.id === item.productoId);
+          if (finalProd && finalProd.stock <= 3) {
+            showToast(`⚠️ Stock crítico: ${finalProd.nombre} tiene solo ${finalProd.stock} unidades en inventario.`, 'warning');
+          }
+        });
+      }
+
       registrarEvento('Pedido a Cuenta', `Pedido de ${orderItems.map(i=>`${i.cantidad}x ${i.nombre}`).join(', ')} cargado a la cuenta de ${clienteName}`, totalPedido);
     } catch (err) {
       console.error("Error al procesar la transacción de descuento de stock y cuentas:", err);
@@ -4171,6 +4243,7 @@ export default function MesasPanel({ showToast }) {
     setLastTotals(consumosPorMesa);
     if (hasChanges) {
       setPulseMesas(updatedPulses);
+      playCoinSound();
     }
   }, [consumosPorMesa]);
 
@@ -9136,7 +9209,21 @@ function ModalCuentasActivas({
                     ) : (
                       consumosList.map(item => (
                         <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12 }}>
-                          <span style={{ flex: 1 }}>{item.cantidad}x {item.producto} <span style={{ color: 'var(--text-muted)' }}>(${item.precio})</span></span>
+                          <span style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span>{item.cantidad}x {item.producto} <span style={{ color: 'var(--text-muted)' }}>(${item.precio})</span></span>
+                            {typeof item.id === 'number' && Math.abs(Date.now() - item.id) < 2 * 60 * 1000 && (
+                              <span style={{
+                                backgroundColor: 'rgba(34, 197, 94, 0.15)',
+                                color: '#4ade80',
+                                border: '1px solid rgba(34, 197, 94, 0.3)',
+                                borderRadius: 4,
+                                padding: '1px 4px',
+                                fontSize: 8,
+                                fontWeight: 700,
+                                letterSpacing: '0.05em'
+                              }}>NUEVO</span>
+                            )}
+                          </span>
                           <span style={{ fontWeight: 700, marginRight: 10 }}>${item.precio * item.cantidad} MXN</span>
                           <button
                             className="btn btn-secondary btn-icon sm"
