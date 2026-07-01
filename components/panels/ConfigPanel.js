@@ -735,7 +735,7 @@ export default function ConfigPanel({ showToast }) {
     return () => unsubLogs();
   }, []);
 
-  // --- Autopurgado automático de logs antiguos (> 30 logs) ---
+  // --- Autopurgado automático de logs antiguos (> 30 logs) y depuración de logs de Telegram (> 10 días) ---
   useEffect(() => {
     getDocs(query(collection(db, 'app_crash_logs'), orderBy('createdAt', 'desc'))).then(snap => {
       if (snap.size > 30) {
@@ -751,6 +751,20 @@ export default function ConfigPanel({ showToast }) {
         }).catch(err => console.error("Error al autopurgar logs antiguos:", err));
       }
     }).catch(err => console.error("Error al verificar tamaño de logs para purgar:", err));
+
+    // Depuración automática de logs de Telegram (> 10 días)
+    const tenDaysAgo = new Date();
+    tenDaysAgo.setDate(tenDaysAgo.getDate() - 10);
+    const qOldLogs = query(collection(db, 'telegram_alert_logs'), where('createdAt', '<', tenDaysAgo));
+    getDocs(qOldLogs).then(snap => {
+      if (!snap.empty) {
+        const batch = writeBatch(db);
+        snap.docs.forEach(d => batch.delete(d.ref));
+        batch.commit().then(() => {
+          console.log(`[YoY Prune] Se depuraron ${snap.size} logs de Telegram con antigüedad mayor a 10 días.`);
+        }).catch(err => console.error("Error al ejecutar batch de depuración de Telegram:", err));
+      }
+    }).catch(err => console.error("Error al autodepurar logs de Telegram:", err));
   }, []);
 
   const handleClearCrashLogs = async () => {
@@ -1161,6 +1175,48 @@ export default function ConfigPanel({ showToast }) {
     }
   };
 
+  const handleClearTelegramLogs = async () => {
+    if (!window.confirm("¿Seguro que deseas limpiar todo el historial de envíos de Telegram?")) return;
+    try {
+      const snap = await getDocs(collection(db, 'telegram_alert_logs'));
+      if (!snap.empty) {
+        const batch = writeBatch(db);
+        snap.docs.forEach(d => batch.delete(d.ref));
+        await batch.commit();
+        showToast('Historial de Telegram limpiado ✓', 'success');
+      } else {
+        showToast('No hay registros para limpiar', 'info');
+      }
+    } catch (err) {
+      showToast('Error al limpiar historial: ' + err.message, 'danger');
+    }
+  };
+
+  const handleRetryIndividualLog = async (log) => {
+    try {
+      showToast('Reintentando envío...', 'info');
+      const res = await fetch('/api/telegram/send-alert', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mode: log.mode || 'custom',
+          phone: log.phone || null,
+          chatId: log.chatId || null,
+          text: log.text || '',
+          token: log.mode === 'custom' ? telegramConfig.botToken : null
+        })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showToast('Reenvío exitoso ✓', 'success');
+      } else {
+        showToast(`Error al reintentar: ${data.error}`, 'danger');
+      }
+    } catch (err) {
+      showToast(`Error de red: ${err.message}`, 'danger');
+    }
+  };
+
   const handleTestTelegram = async () => {
     if (telegramConfig.mode === 'custom' && (!telegramConfig.botToken || !telegramConfig.chatId)) {
       showToast('Ingresa el Token y Chat ID para enviar un mensaje de prueba', 'warning');
@@ -1171,7 +1227,34 @@ export default function ConfigPanel({ showToast }) {
       return;
     }
     try {
-      const text = `🔔 *YoY Billar - Prueba de Notificaciones*\n\nSi estás viendo este mensaje, la integración con Telegram se ha configurado correctamente en modo ${telegramConfig.mode === 'simplified' ? 'Simplificado (Bot Oficial)' : 'Personalizado'}.`;
+      showToast('Generando reporte y gráfica de prueba...', 'info');
+      
+      const testChartConfig = {
+        type: 'bar',
+        data: {
+          labels: ['Meta Diaria', 'Venta Realizada', 'Ocupación (%)'],
+          datasets: [{
+            data: [10000, 7500, 75],
+            backgroundColor: ['rgba(212, 175, 55, 0.5)', 'rgba(57, 255, 20, 0.7)', 'rgba(0, 191, 255, 0.6)'],
+            borderColor: ['#d4af37', '#39ff14', '#00bfff'],
+            borderWidth: 1
+          }]
+        },
+        options: {
+          title: {
+            display: true,
+            text: 'Prueba de Gráficos YoY Billar (Simulado)',
+            fontColor: '#ffffff',
+            fontSize: 14
+          },
+          legend: { display: false }
+        }
+      };
+      const chartUrl = `https://quickchart.io/chart?c=${encodeURIComponent(JSON.stringify(testChartConfig))}&bkg=%23121212`;
+      
+      // Inline Markdown image trick in Telegram using zero-width space
+      const text = `[\u200B](${chartUrl})🔔 *YoY Billar - Prueba de Notificaciones*\n\nSi estás viendo este mensaje, la integración con Telegram se ha configurado correctamente en modo *${telegramConfig.mode === 'simplified' ? 'Simplificado (Bot Oficial)' : 'Personalizado'}*.\n\nEste reporte de prueba incluye una gráfica simulada de rendimiento para confirmar el correcto renderizado de imágenes en tu dispositivo.`;
+
       const res = await fetch('/api/telegram/send-alert', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1184,7 +1267,7 @@ export default function ConfigPanel({ showToast }) {
         })
       });
       if (res.ok) {
-        showToast('Mensaje de prueba enviado con éxito ✓', 'success');
+        showToast('Reporte de prueba enviado con éxito ✓', 'success');
       } else {
         const data = await res.json();
         throw new Error(data.error || 'Error de Telegram');
@@ -2666,9 +2749,22 @@ export default function ConfigPanel({ showToast }) {
 
               {/* Bitácora de Envíos de Telegram (Sugerencia 3) */}
               <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid var(--border)' }}>
-                <div style={{ fontSize: 11, fontWeight: '600', color: 'var(--text-primary)', marginBottom: 8 }}>
-                  <i className="ri-history-line" style={{ marginRight: 4, color: 'var(--bronze)' }} />
-                  Historial de Envíos Telegram
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <div style={{ fontSize: 11, fontWeight: '600', color: 'var(--text-primary)' }}>
+                    <i className="ri-history-line" style={{ marginRight: 4, color: 'var(--bronze)' }} />
+                    Historial de Envíos Telegram
+                  </div>
+                  {telegramLogs.length > 0 && (
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={handleClearTelegramLogs}
+                      style={{ fontSize: 9.5, padding: '2px 6px', height: 22, color: 'var(--danger)' }}
+                      title="Limpiar historial completo (Autodepuración automática a los 10 días)"
+                    >
+                      <i className="ri-delete-bin-line" /> Limpiar
+                    </button>
+                  )}
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 180, overflowY: 'auto', paddingRight: 4 }}>
                   {telegramLogs.length === 0 ? (
@@ -2693,9 +2789,31 @@ export default function ConfigPanel({ showToast }) {
                           gap: 2
                         }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ fontWeight: 700, color: log.status === 'sent' ? 'var(--success)' : 'var(--danger)' }}>
-                              {log.status === 'sent' ? '✓ ENVIADO' : '✗ FALLADO'}
-                            </span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <span style={{ fontWeight: 700, color: log.status === 'sent' ? 'var(--success)' : 'var(--danger)' }}>
+                                {log.status === 'sent' ? '✓ ENVIADO' : '✗ FALLADO'}
+                              </span>
+                              {log.status !== 'sent' && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleRetryIndividualLog(log)}
+                                  style={{
+                                    background: 'transparent',
+                                    border: 'none',
+                                    color: 'var(--bronze-light)',
+                                    cursor: 'pointer',
+                                    fontSize: 10,
+                                    padding: '2px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center'
+                                  }}
+                                  title="Reintentar este envío"
+                                >
+                                  <i className="ri-refresh-line" />
+                                </button>
+                              )}
+                            </div>
                             <span style={{ color: 'var(--text-muted)', fontSize: 8.5 }}>{date}</span>
                           </div>
                           {log.error && (
