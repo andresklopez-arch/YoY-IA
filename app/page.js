@@ -17,6 +17,24 @@ import { db } from '@/lib/firebase';
 import { obfuscateWithKey, hashPasswordSecure } from '@/lib/crypto';
 import { getBusinessDate } from '@/lib/date-utils';
 
+const playConfirmSound = () => {
+  if (typeof window === 'undefined') return;
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.frequency.value = 880; // A5 note
+    gain.gain.setValueAtTime(0.15, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.18);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.18);
+  } catch (e) {
+    console.warn("AudioContext failed:", e);
+  }
+};
+
 // ── ERROR BOUNDARY: captura crashes en paneles sin matar la app ──
 class ErrorBoundary extends Component {
   constructor(props) {
@@ -1284,7 +1302,13 @@ function AppContent() {
         localStorage.removeItem('yoy_ia_session');
       }
 
-      let geoData = { lat: null, lng: null, precision: null, status: 'No requerido' };
+      // Sonido y vibración de confirmación al elegir la acción
+      playConfirmSound();
+      if (typeof navigator !== 'undefined' && navigator.vibrate) {
+        navigator.vibrate([50, 30, 50]);
+      }
+
+      let geoData = window.lastScannedGeo || { lat: null, lng: null, precision: null, status: 'No requerido' };
 
       // Obtener el tipo de dispositivo que escanea con detalle de modelo
       const ua = navigator.userAgent;
@@ -1387,6 +1411,30 @@ function AppContent() {
     try {
       setIsProcessingQR(true);
       setFichajeError(null);
+
+      // Solicitar ubicación en segundo plano de forma permisiva y poco estricta para locales de billar grandes
+      if (typeof navigator !== 'undefined' && navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            window.lastScannedGeo = {
+              lat: position.coords.latitude,
+              lng: position.coords.longitude,
+              precision: position.coords.accuracy,
+              status: 'Obtenido'
+            };
+          },
+          (error) => {
+            console.warn("Geolocalización permisiva fallida o denegada:", error.message);
+            window.lastScannedGeo = {
+              lat: null,
+              lng: null,
+              precision: null,
+              status: `Omitido: ${error.message}`
+            };
+          },
+          { enableHighAccuracy: false, timeout: 8000 } // Rápida y permisiva, no bloquea ni exige GPS ultra-preciso
+        );
+      }
 
       // Llamar al endpoint en modo preCheck para obtener datos de forma segura sin consulta directa del cliente a Firestore
       const res = await fetch('/api/nomina/verify-attendance', {
@@ -2384,11 +2432,15 @@ function AppContent() {
             @media (max-width: 600px) {
               .responsive-card-overlay {
                 padding: 0 !important;
+                display: flex !important;
+                align-items: stretch !important;
+                justify-content: stretch !important;
               }
               .responsive-card-container {
-                width: 100% !important;
-                height: 100% !important;
+                width: 100vw !important;
+                height: 100vh !important;
                 max-width: 100% !important;
+                max-height: 100% !important;
                 border-radius: 0 !important;
                 border: none !important;
                 display: flex !important;
@@ -2396,10 +2448,16 @@ function AppContent() {
                 justify-content: center !important;
                 padding: 32px 24px !important;
                 box-shadow: none !important;
+                box-sizing: border-box !important;
               }
               .responsive-card-button {
                 padding: 18px 20px !important;
                 font-size: 15px !important;
+                transition: transform 0.1s ease !important;
+              }
+              .responsive-card-button:active {
+                transform: scale(0.97) !important;
+                filter: brightness(0.9) !important;
               }
             }
           `}} />
