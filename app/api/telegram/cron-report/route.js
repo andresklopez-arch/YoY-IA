@@ -624,34 +624,86 @@ export async function GET(request) {
     }`;
     const chartUrl = await getShortChartUrl(chartConfig);
 
-    const photoUrl = `https://api.telegram.org/bot${botToken}/sendPhoto`;
-    let res = await fetch(photoUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: targetChatId,
-        photo: chartUrl,
-        caption: reportText,
-        parse_mode: 'Markdown'
-      })
-    });
- 
-    // Fallback inteligente si falla sendPhoto conjunto (ej. caption > 1024 caracteres o problemas con QuickChart)
-    if (!res.ok) {
-      console.warn("sendPhoto falló o no se pudo entregar, intentando envío por separado (foto + texto)...");
-      
-      const shortCaption = `📊 *REPORTE DE OPERACIÓN - ${branchName.toUpperCase()}*\n(Ver desglose detallado en el siguiente mensaje)`;
-      await fetch(photoUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: targetChatId,
-          photo: chartUrl,
-          caption: shortCaption,
-          parse_mode: 'Markdown'
-        })
-      });
+    // Descargar el gráfico de QuickChart a un buffer en el servidor
+    let imageBuffer = null;
+    try {
+      console.log("Descargando gráfico de QuickChart:", chartUrl);
+      const imgRes = await fetch(chartUrl);
+      if (imgRes.ok) {
+        imageBuffer = await imgRes.arrayBuffer();
+        console.log("Gráfico descargado con éxito. Tamaño:", imageBuffer.byteLength, "bytes");
+      } else {
+        console.warn("Fallo al descargar gráfico, status:", imgRes.status);
+      }
+    } catch (err) {
+      console.error("Error al descargar gráfico de QuickChart:", err);
+    }
 
+    let res = null;
+    const photoUrl = `https://api.telegram.org/bot${botToken}/sendPhoto`;
+
+    if (imageBuffer) {
+      // 1. Intentar enviar foto con caption completo (límite 1024 caracteres)
+      try {
+        const formData = new FormData();
+        formData.append('chat_id', String(targetChatId));
+        
+        const blob = new Blob([imageBuffer], { type: 'image/png' });
+        formData.append('photo', blob, 'chart.png');
+        formData.append('caption', reportText);
+        formData.append('parse_mode', 'Markdown');
+
+        res = await fetch(photoUrl, {
+          method: 'POST',
+          body: formData
+        });
+
+        if (!res.ok) {
+          const errText = await res.text();
+          console.warn("Fallo al enviar foto con caption completo:", errText);
+        }
+      } catch (err) {
+        console.error("Excepción al enviar foto con caption completo:", err);
+      }
+
+      // 2. Fallback si falló el envío conjunto (ej. por caption > 1024 caracteres o formato markdown inválido)
+      if (!res || !res.ok) {
+        try {
+          console.warn("Intentando envío por separado (foto + texto)...");
+          const shortCaption = `📊 *REPORTE DE OPERACIÓN - ${branchName.toUpperCase()}*\n(Ver desglose detallado en el siguiente mensaje)`;
+          
+          const formDataSep = new FormData();
+          formDataSep.append('chat_id', String(targetChatId));
+          const blobSep = new Blob([imageBuffer], { type: 'image/png' });
+          formDataSep.append('photo', blobSep, 'chart.png');
+          formDataSep.append('caption', shortCaption);
+          formDataSep.append('parse_mode', 'Markdown');
+
+          await fetch(photoUrl, {
+            method: 'POST',
+            body: formDataSep
+          });
+
+          // Enviar el reporte de texto largo
+          const sendUrl = `https://api.telegram.org/bot${botToken}/sendMessage`;
+          res = await fetch(sendUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              chat_id: targetChatId,
+              text: reportText,
+              parse_mode: 'Markdown'
+            })
+          });
+        } catch (err) {
+          console.error("Excepción en fallback por separado:", err);
+        }
+      }
+    }
+
+    // 3. Fallback de último recurso (solo texto) si todo lo anterior falló o no se pudo generar la imagen
+    if (!res || !res.ok) {
+      console.warn("Intentando fallback final de solo texto...");
       const sendUrl = `https://api.telegram.org/bot${botToken}/sendMessage`;
       res = await fetch(sendUrl, {
         method: 'POST',
