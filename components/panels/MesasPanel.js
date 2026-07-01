@@ -5761,6 +5761,15 @@ export default function MesasPanel({ showToast }) {
     const host = typeof window !== 'undefined' ? window.location.origin : 'https://yoy-ia-billar.vercel.app';
     const registroUrl = `${host}/fila/registro?s=${getEncodedSalonId()}`;
 
+    // Extraer el SVG del QR renderizado localmente para impresión offline nativa de alta calidad
+    let qrHtml = '';
+    if (typeof document !== 'undefined') {
+      const svgEl = document.querySelector('#qr-container-fila-virtual svg');
+      if (svgEl) {
+        qrHtml = svgEl.outerHTML;
+      }
+    }
+
     const htmlContent = `
       <html><head><title>Fila Virtual - YoY IA Billar Club</title>
       <style>
@@ -5770,6 +5779,7 @@ export default function MesasPanel({ showToast }) {
         .header h2 { margin: 0; font-size: 18px; font-weight: bold; }
         .header p { margin: 2px 0; font-size: 11px; }
         .qr-container { margin: 15px auto; width: 180px; height: 180px; display: flex; justify-content: center; align-items: center; }
+        .qr-container svg { width: 180px; height: 180px; }
         .footer { margin-top: 15px; font-size: 10px; color: #555; }
       </style>
       </head>
@@ -5782,7 +5792,9 @@ export default function MesasPanel({ showToast }) {
         <div class="divider"></div>
         
         <p style="font-size: 11px; font-weight: bold; margin-bottom: 5px;">ESCANEA PARA REGISTRARTE:</p>
-        <div id="qrcode-container" class="qr-container" style="margin: 0 auto;"></div>
+        <div class="qr-container">
+          ${qrHtml || `<p>Error al generar QR local</p>`}
+        </div>
         
         <p style="font-size: 11px; font-weight: bold; margin-top: 10px;">INSTRUCCIONES:</p>
         <div style="text-align: left; font-size: 11px; padding: 0 5px;">
@@ -5798,20 +5810,11 @@ export default function MesasPanel({ showToast }) {
           <p>YoY IA Billar Club</p>
         </div>
         
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
         <script>
           window.onload = () => {
-            new QRCode(document.getElementById('qrcode-container'), {
-              text: "${registroUrl}",
-              width: 180,
-              height: 180,
-              colorDark: "#000000",
-              colorLight: "#ffffff",
-              correctLevel: QRCode.CorrectLevel.H
-            });
             setTimeout(() => {
               window.print();
-            }, 600);
+            }, 300);
           };
         </script>
       </body>
@@ -8525,13 +8528,26 @@ function ModalFilaVirtual({ fila, setFila, mesas, onAssign, onClose, showToast, 
           {/* Panel Derecho: QR Autoservicio */}
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, textAlign: 'center', borderLeft: '1px solid var(--border)', paddingLeft: 20 }}>
             <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--bronze-light)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Registro Autoservicio (QR)</span>
-            <div style={{ background: '#fff', padding: 8, borderRadius: 10, display: 'inline-block', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', marginTop: 8 }}>
-              <img 
-                src={`https://api.qrserver.com/v1/create-qr-code/?size=130x130&data=${encodeURIComponent(typeof window !== 'undefined' ? `${window.location.origin}/fila/registro?s=${getEncodedSalonId()}` : `https://yoy-ia-billar.vercel.app/fila/registro?s=${getEncodedSalonId()}`)}`} 
-                alt="QR Registro"
-                style={{ width: 130, height: 130, display: 'block' }}
+            <div id="qr-container-fila-virtual" style={{ background: '#fff', padding: 8, borderRadius: 10, display: 'inline-block', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', marginTop: 8 }}>
+              <QRCodeSVG 
+                value={typeof window !== 'undefined' ? `${window.location.origin}/fila/registro?s=${getEncodedSalonId()}` : `https://yoy-ia-billar.vercel.app/fila/registro?s=${getEncodedSalonId()}`}
+                size={130}
+                bgColor="#ffffff"
+                fgColor="#0a0a0f"
+                level="H"
               />
             </div>
+            <button
+              className="btn btn-secondary btn-xs"
+              onClick={() => {
+                const link = typeof window !== 'undefined' ? `${window.location.origin}/fila/registro?s=${getEncodedSalonId()}` : `https://yoy-ia-billar.vercel.app/fila/registro?s=${getEncodedSalonId()}`;
+                navigator.clipboard.writeText(link);
+                showToast("Enlace de fila virtual copiado al portapapeles", "success");
+              }}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 8px', fontSize: 10, borderRadius: 6, border: '1px solid var(--border)', cursor: 'pointer', transition: 'background 0.2s' }}
+            >
+              <i className="ri-file-copy-line" /> Copiar Enlace
+            </button>
             <p style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.3, margin: '8px 0', maxWidth: 180 }}>
               Los clientes pueden escanear este código QR para anotarse solos en la lista de espera desde su celular.
             </p>
