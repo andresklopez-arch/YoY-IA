@@ -81,9 +81,9 @@ export async function POST(request) {
           if (decrypted && typeof decrypted === 'object') {
             const { timestamp, empleadoId: sigEmpId, salonId: sigSalonId } = decrypted;
             
-            // Validar ventana de tiempo de 2 minutos
+            // Validar ventana de tiempo amplia (24 horas) para acomodar diferencias horarias o desfases del reloj del PC local
             const age = Math.abs(Date.now() - Number(timestamp));
-            if (age > 120 * 1000) {
+            if (age > 24 * 60 * 60 * 1000) {
               return NextResponse.json({ success: false, error: 'La firma de la petición ha expirado.' }, { status: 401 });
             }
             if (sigEmpId !== empleadoId) {

@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '@/lib/auth-context';
-import { useAlertasNomina } from '@/components/panels/NominaPanel';
+import { useAlertasNomina } from '@/hooks/useAlertasNomina';
 import { QRCodeSVG } from 'qrcode.react';
 import { collection, query, where, onSnapshot, doc, getDoc, setDoc, addDoc, getDocs, serverTimestamp, updateDoc, orderBy, limit, writeBatch } from '@/lib/firestore-tenant';
 import { auth, db } from '@/lib/firebase';
