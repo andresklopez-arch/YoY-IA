@@ -2168,86 +2168,97 @@ function MeseroContent() {
             </div>
             <div className="modal-body" style={{ maxHeight: 360, overflowY: 'auto', padding: '16px 0' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                 {alertasAsistenciaParaMi.map((alerta) => {
-                  const listoAt = alerta.cocinaAtendidoAt?.toDate 
-                    ? alerta.cocinaAtendidoAt.toDate().getTime() 
-                    : (alerta.cocinaAtendidoAt || 0);
-                  const esDemorado = alerta.tipo === 'pedido' && alerta.estado === 'listo' && listoAt && (Date.now() - listoAt) > 5 * 60 * 1000;
-
-                  return (
-                    <div 
-                      key={alerta.id} 
-                      style={{ 
-                        background: esDemorado ? 'rgba(239, 68, 68, 0.08)' : 'rgba(255,255,255,0.03)', 
-                        border: esDemorado ? '1px solid #ef4444' : '1px solid rgba(255,255,255,0.06)', 
-                        boxShadow: esDemorado ? '0 0 10px rgba(239, 68, 68, 0.15)' : 'none',
-                        animation: esDemorado ? 'pulse-border 2s infinite' : 'none',
-                        borderRadius: 14, 
-                        padding: 16, 
-                        display: 'flex', 
-                        justifyContent: 'space-between', 
-                        alignItems: 'center', 
-                        gap: 12 
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        <div style={{ fontSize: 32 }}>{alerta.icono || '🙋'}</div>
-                        <div style={{ textAlign: 'left' }}>
-                          <div style={{ fontSize: 16, fontWeight: 800, color: '#fff' }}>
-                            Mesa {alerta.mesaId}
-                          </div>
-                          <div style={{ fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600, marginTop: 2 }}>
-                            Solicitud: <span style={{ color: alerta.estado === 'listo' ? 'var(--success)' : 'var(--bronze-light)' }}>
-                              {alerta.estado === 'listo' ? '🍳 ¡LISTO PARA SERVIR! ' : ''}
-                              {alerta.etiqueta} {alerta.tipo === 'cuenta' && alerta.totalAcumulado ? `($${alerta.totalAcumulado} MXN)` : alerta.tipo === 'pedido' && alerta.total ? `($${alerta.total} MXN)` : ''}
-                            </span>
-                            {esDemorado && (
-                              <span style={{ fontSize: 9, background: 'rgba(239, 68, 68, 0.2)', color: '#ef4444', border: '1px solid #ef4444', borderRadius: 4, padding: '1px 4px', marginLeft: 6, fontWeight: 800, textTransform: 'uppercase' }}>
-                                ⚠️ Demorado
-                              </span>
-                            )}
-                          </div>
-                        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-                          {alerta.cliente} · {alerta.createdAt?.toDate ? new Date(alerta.createdAt.toDate()).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'Ahora'}
-                        </div>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => marcarAtendido(alerta.id, alerta.tipo, alerta.estado)}
-                      disabled={loadingAlertaId === alerta.id}
-                      style={{
-                        background: (alerta.tipo === 'pedido' && alerta.estado === 'listo') 
-                          ? 'rgba(34,197,94,0.25)' 
-                          : 'rgba(34,197,94,0.15)',
-                        border: (alerta.tipo === 'pedido' && alerta.estado === 'listo')
-                          ? '1px solid rgba(34,197,94,0.6)'
-                          : '1px solid rgba(34,197,94,0.4)',
-                        color: 'var(--success)',
-                        padding: '8px 16px',
-                        borderRadius: 10,
-                        fontWeight: 700,
-                        fontSize: 13,
-                        cursor: (loadingAlertaId === alerta.id) ? 'not-allowed' : 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 6,
-                        transition: 'all 0.15s',
-                        flexShrink: 0,
-                        opacity: (loadingAlertaId === alerta.id) ? 0.6 : 1
-                      }}
-                      onMouseEnter={e => { if (loadingAlertaId !== alerta.id) e.currentTarget.style.background = 'rgba(34,197,94,0.35)'; }}
-                      onMouseLeave={e => { if (loadingAlertaId !== alerta.id) e.currentTarget.style.background = (alerta.tipo === 'pedido' && alerta.estado === 'listo') ? 'rgba(34,197,94,0.25)' : 'rgba(34,197,94,0.15)'; }}
-                    >
-                      {loadingAlertaId === alerta.id ? (
-                        <i className="ri-loader-4-line ri-spin" />
-                      ) : (
-                        <i className={alerta.tipo === 'pedido' && alerta.estado === 'listo' ? 'ri-check-double-line' : 'ri-check-line'} />
-                      )}
-                      {loadingAlertaId === alerta.id ? 'Entregando...' : (alerta.tipo === 'pedido' && alerta.estado === 'listo' ? 'Entregar' : 'Atendido')}
-                    </button>
-                  </div>
-                );
-              })}
+                 {(() => {
+                   const sorted = [...alertasAsistenciaParaMi].sort((a, b) => {
+                     if (a.tipo === 'cuenta' && b.tipo !== 'cuenta') return -1;
+                     if (a.tipo !== 'cuenta' && b.tipo === 'cuenta') return 1;
+                     const tA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : (a.createdAt || 0);
+                     const tB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : (b.createdAt || 0);
+                     return tB - tA;
+                   });
+                   
+                   return sorted.map((alerta) => {
+                     const listoAt = alerta.cocinaAtendidoAt?.toDate 
+                       ? alerta.cocinaAtendidoAt.toDate().getTime() 
+                       : (alerta.cocinaAtendidoAt || 0);
+                     const esDemorado = alerta.tipo === 'pedido' && alerta.estado === 'listo' && listoAt && (Date.now() - listoAt) > 5 * 60 * 1000;
+                     const esCuentaUrgente = alerta.tipo === 'cuenta';
+  
+                     return (
+                       <div 
+                         key={alerta.id} 
+                         style={{ 
+                           background: esDemorado ? 'rgba(239, 68, 68, 0.08)' : esCuentaUrgente ? 'rgba(34, 197, 94, 0.08)' : 'rgba(255,255,255,0.03)', 
+                           border: esDemorado ? '1px solid #ef4444' : esCuentaUrgente ? '1.5px solid #22c55e' : '1px solid rgba(255,255,255,0.06)', 
+                           boxShadow: esDemorado ? '0 0 10px rgba(239, 68, 68, 0.15)' : esCuentaUrgente ? '0 0 12px rgba(34, 197, 94, 0.2)' : 'none',
+                           animation: esDemorado ? 'pulse-border 2s infinite' : esCuentaUrgente ? 'pulseBorderGold 2s infinite ease-in-out' : 'none',
+                           borderRadius: 14, 
+                           padding: 16, 
+                           display: 'flex', 
+                           justifyContent: 'space-between', 
+                           alignItems: 'center', 
+                           gap: 12 
+                         }}
+                       >
+                         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                           <div style={{ fontSize: 32 }}>{alerta.icono || '🙋'}</div>
+                           <div style={{ textAlign: 'left' }}>
+                             <div style={{ fontSize: 16, fontWeight: 800, color: '#fff' }}>
+                               Mesa {alerta.mesaId}
+                             </div>
+                             <div style={{ fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600, marginTop: 2 }}>
+                               Solicitud: <span style={{ color: alerta.estado === 'listo' ? 'var(--success)' : esCuentaUrgente ? '#4ade80' : 'var(--bronze-light)' }}>
+                                 {alerta.estado === 'listo' ? '🍳 ¡LISTO PARA SERVIR! ' : ''}
+                                 {alerta.etiqueta} {alerta.tipo === 'cuenta' && alerta.totalAcumulado ? `($${alerta.totalAcumulado} MXN)` : alerta.tipo === 'pedido' && alerta.total ? `($${alerta.total} MXN)` : ''}
+                               </span>
+                               {esDemorado && (
+                                 <span style={{ fontSize: 9, background: 'rgba(239, 68, 68, 0.2)', color: '#ef4444', border: '1px solid #ef4444', borderRadius: 4, padding: '1px 4px', marginLeft: 6, fontWeight: 800, textTransform: 'uppercase' }}>
+                                   ⚠️ Demorado
+                                 </span>
+                               )}
+                             </div>
+                           <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                             {alerta.cliente} · {alerta.createdAt?.toDate ? new Date(alerta.createdAt.toDate()).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'Ahora'}
+                           </div>
+                         </div>
+                       </div>
+                       <button
+                         onClick={() => marcarAtendido(alerta.id, alerta.tipo, alerta.estado)}
+                         disabled={loadingAlertaId === alerta.id}
+                         style={{
+                           background: (alerta.tipo === 'pedido' && alerta.estado === 'listo') 
+                             ? 'rgba(34,197,94,0.25)' 
+                             : 'rgba(34,197,94,0.15)',
+                           border: (alerta.tipo === 'pedido' && alerta.estado === 'listo')
+                             ? '1px solid rgba(34,197,94,0.6)'
+                             : '1px solid rgba(34,197,94,0.4)',
+                           color: 'var(--success)',
+                           padding: '8px 16px',
+                           borderRadius: 10,
+                           fontWeight: 700,
+                           fontSize: 13,
+                           cursor: (loadingAlertaId === alerta.id) ? 'not-allowed' : 'pointer',
+                           display: 'flex',
+                           alignItems: 'center',
+                           gap: 6,
+                           transition: 'all 0.15s',
+                           flexShrink: 0,
+                           opacity: (loadingAlertaId === alerta.id) ? 0.6 : 1
+                         }}
+                         onMouseEnter={e => { if (loadingAlertaId !== alerta.id) e.currentTarget.style.background = 'rgba(34,197,94,0.35)'; }}
+                         onMouseLeave={e => { if (loadingAlertaId !== alerta.id) e.currentTarget.style.background = (alerta.tipo === 'pedido' && alerta.estado === 'listo') ? 'rgba(34,197,94,0.25)' : 'rgba(34,197,94,0.15)'; }}
+                       >
+                         {loadingAlertaId === alerta.id ? (
+                           <i className="ri-loader-4-line ri-spin" />
+                         ) : (
+                           <i className={alerta.tipo === 'pedido' && alerta.estado === 'listo' ? 'ri-check-double-line' : 'ri-check-line'} />
+                         )}
+                         {loadingAlertaId === alerta.id ? 'Entregando...' : (alerta.tipo === 'pedido' && alerta.estado === 'listo' ? 'Entregar' : 'Atendido')}
+                       </button>
+                     </div>
+                   );
+                 });
+               })()}
               </div>
             </div>
             <div className="modal-footer" style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

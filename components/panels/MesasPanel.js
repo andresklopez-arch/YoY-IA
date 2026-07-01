@@ -3383,8 +3383,9 @@ export default function MesasPanel({ showToast }) {
           unloadedMap[mIdNum] += data.total || 0;
         }
  
-        // Solo incluir alertas que no hayan sido atendidas por el admin
-        if ((mesaId || mesaId === 0 || mesaId === '0') && !data.atendidoAdmin) {
+        // Incluir alertas que no hayan sido atendidas por el admin, o que sigan pendientes por el mesero
+        const showInCaja = !data.atendidoAdmin || (data.atendidoAdmin && !data.atendidoMesero && data.tipo !== 'pedido');
+        if ((mesaId || mesaId === 0 || mesaId === '0') && showInCaja) {
           if (!alertsMap[mesaId]) {
             alertsMap[mesaId] = [];
           }
@@ -7278,6 +7279,14 @@ export default function MesasPanel({ showToast }) {
                         textColor = '#60a5fa';
                       }
 
+                      // Si ya fue atendido por Caja pero sgue pendiente por el mesero
+                      if (alerta.atendidoAdmin) {
+                        alertBg = 'rgba(255, 255, 255, 0.02)';
+                        alertBorder = 'rgba(255, 255, 255, 0.08)';
+                        textColor = 'var(--text-muted)';
+                        label = `Mesero pendiente...`;
+                      }
+
                       return (
                         <div key={alerta.id} style={{
                           display: 'flex',
@@ -7292,13 +7301,18 @@ export default function MesasPanel({ showToast }) {
                           borderRadius: 8,
                           padding: '6px 8px',
                           width: '100%',
-                          boxShadow: '0 2px 4px rgba(0,0,0,0.15)'
+                          boxShadow: '0 2px 4px rgba(0,0,0,0.15)',
+                          opacity: alerta.atendidoAdmin ? 0.7 : 1
                         }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            <span style={{ fontSize: 13, animation: alerta.tipo !== 'pedido' ? 'pulse 1.2s infinite' : 'none' }}>{icon}</span>
+                            <span style={{ fontSize: 13, animation: (alerta.tipo !== 'pedido' && !alerta.atendidoAdmin) ? 'pulse 1.2s infinite' : 'none' }}>{alerta.atendidoAdmin ? '⏳' : icon}</span>
                             <span>{label}</span>
                           </div>
-                          {alerta.tipo === 'pedido' ? (
+                          {alerta.atendidoAdmin ? (
+                            <span style={{ fontSize: 10, paddingRight: 4, opacity: 0.6 }} title="Atendido en caja, pendiente en meseros.">
+                              ⏳
+                            </span>
+                          ) : alerta.tipo === 'pedido' ? (
                             <button
                               onClick={(e) => { e.stopPropagation(); cargarPedidoACuenta(mesa.id, alerta); }}
                               title="Cargar a la cuenta de la mesa y descontar inventario"

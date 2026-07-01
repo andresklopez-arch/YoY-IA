@@ -1493,6 +1493,32 @@ function AppContent() {
     );
     const unsub = onSnapshot(q, snap => {
       const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      
+      // Auto-limpieza de alertas huérfanas de asistencia/cuenta mayores a 30 minutos
+      const ahoraMs = Date.now();
+      items.forEach(async (alerta) => {
+        if (alerta.tipo !== 'pedido') {
+          const creadoMs = alerta.createdAt?.toDate ? alerta.createdAt.toDate().getTime() : (alerta.createdAt?.seconds ? alerta.createdAt.seconds * 1000 : ahoraMs);
+          const diffMins = (ahoraMs - creadoMs) / 60000;
+          if (diffMins > 30) {
+            try {
+              const docRef = doc(db, 'mesa_pedidos', alerta.id);
+              await updateDoc(docRef, {
+                estado: 'atendido',
+                atendidoAdmin: true,
+                atendidoMesero: true,
+                autoCleaned: true,
+                atendidoAt: serverTimestamp(),
+                updatedAt: serverTimestamp()
+              });
+              console.log(`Auto-limpieza de alerta huérfana ${alerta.id} de la mesa ${alerta.mesaId} (>30 min).`);
+            } catch (e) {
+              console.error("Error en auto-limpieza de alerta:", e);
+            }
+          }
+        }
+      });
+
       // Filtrar sólo las que no han sido atendidas por el administrador
       const filtered = items.filter(alerta => !alerta.atendidoAdmin);
       setAlertasAsistencia(filtered);
