@@ -32,8 +32,8 @@ echo  [Omitido] Validando compilacion local (npm run build) para optimizar veloc
 echo  Compilacion local omitida (Vercel compilara en la nube).
 echo.
 
-echo  Desplegando reglas de seguridad de Firestore...
-call npx firebase deploy --only firestore:rules
+echo  Desplegando reglas e indices de Firestore...
+call npx firebase deploy --only firestore:rules,firestore:indexes
 echo.
 
 git add .

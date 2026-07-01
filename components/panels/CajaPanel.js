@@ -1233,32 +1233,28 @@ export default function CajaPanel({ showToast }) {
     }
   };
 
-  // Helper de reintentos para consultas de Firestore con backoff exponencial, timeout de 8s, detección offline y telemetría de latencia (Sugerencias 2 y 3)
+  // Helper de reintentos para consultas de Firestore con backoff exponencial, timeout de 12s, detección offline y telemetría de latencia
   const getDocsWithRetry = async (qRef, maxRetries = 3, initialDelay = 1000) => {
-    const isOnline = await checkRealInternet();
+    // Verificar conexión una sola vez antes de intentar la consulta
+    const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
     if (!isOnline) {
-      throw new Error('Dispositivo sin conexión a Internet o portal cautivo detectado');
+      throw new Error('Dispositivo sin conexión a Internet');
     }
     let attempt = 0;
     const startTime = Date.now();
     while (true) {
-      const isOnlineLoop = await checkRealInternet();
-      if (!isOnlineLoop) {
-        throw new Error('Dispositivo sin conexión a Internet o portal cautivo detectado');
-      }
       try {
-        // Envoltura con timeout de 8 segundos
+        // Envoltura con timeout de 12 segundos (generoso para conexiones lentas)
         const queryPromise = getDocs(qRef);
         const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Timeout de consulta de base de datos (8s)')), 8000)
+          setTimeout(() => reject(new Error('Timeout de consulta de base de datos (12s)')), 12000)
         );
         const res = await Promise.race([queryPromise, timeoutPromise]);
         
         // Medir latencia
         const duration = Date.now() - startTime;
-        if (duration > 4000) {
+        if (duration > 5000) {
           console.warn(`Latencia alta detectada en Firestore: ${duration}ms`);
-          showToast(`Conexión lenta detectada (${Math.round(duration/1000)}s). Sugerimos revisar tu red.`, "warning");
         }
         return res;
       } catch (err) {
