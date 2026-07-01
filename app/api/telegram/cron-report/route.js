@@ -276,43 +276,37 @@ export async function GET(request) {
     const avanceMetaPct = metaDiaria > 0 ? Math.round((montoVendido / metaDiaria) * 100) : 0;
 
     // Métrica 4: Trabajadores en Turno
-    const snapAsistRaw = await fetchCollectionQuery('nomina_asistencia_log', [
+    // 1. Obtener empleados del salón
+    const snapEmpleadosRaw = await fetchCollectionQuery('nomina_empleados', [
       { type: 'where', field: 'salonId', op: '==', value: salonId }
     ]);
+    const listEmpleados = snapEmpleadosRaw.docs.map(d => ({ id: d.id, ...d.data() }));
+
+    // 2. Obtener asistencia de hoy
+    const snapAsistRaw = await fetchCollectionQuery('nomina_asistencia', [
+      { type: 'where', field: 'salonId', op: '==', value: salonId },
+      { type: 'where', field: 'fecha', op: '==', value: mxDateStr }
+    ]);
     
-    // Convertir a datos y ordenar en memoria por createdAt desc para evitar requerir un índice compuesto
-    const asistDocs = snapAsistRaw.docs.map(d => d.data());
-    asistDocs.sort((a, b) => {
-      const tA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : (a.createdAt || 0);
-      const tB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : (b.createdAt || 0);
-      return tB - tA;
-    });
-    const limitedAsistDocs = asistDocs.slice(0, 500);
-
-    const lastStatusByWorker = {};
-    limitedAsistDocs.forEach(data => {
-      const empId = data.empleadoId;
-      const time = data.createdAt?.toDate ? data.createdAt.toDate().getTime() : 0;
-      if (!lastStatusByWorker[empId] || time > lastStatusByWorker[empId].time) {
-        lastStatusByWorker[empId] = { tipo: data.tipo, name: data.nombre, time };
-      }
-    });
-
     const activeSet = new Set();
     const activeNames = [];
 
-    // 1. Trabajadores con entrada activa ('entrada')
-    Object.values(lastStatusByWorker).forEach(w => {
-      if (w.tipo === 'entrada') {
-        const cleanName = (w.name || '').trim();
-        if (cleanName && !activeSet.has(cleanName.toLowerCase())) {
-          activeSet.add(cleanName.toLowerCase());
-          activeNames.push(cleanName);
+    // Agregar trabajadores que pasaron lista hoy (estado presente o tardanza)
+    snapAsistRaw.forEach(d => {
+      const data = d.data();
+      if (data.estado === 'presente' || data.estado === 'tardanza') {
+        const emp = listEmpleados.find(e => e.id === data.empleadoId);
+        if (emp) {
+          const fullName = `${emp.nombre} ${emp.apellido || ''}`.trim();
+          if (!activeSet.has(fullName.toLowerCase())) {
+            activeSet.add(fullName.toLowerCase());
+            activeNames.push(fullName);
+          }
         }
       }
     });
 
-    // 2. Operadores activos hoy en la bitácora
+    // 3. Agregar operadores activos hoy en la bitácora
     snapBitacora.forEach(d => {
       const e = d.data();
       const op = (e.operador || '').trim();
