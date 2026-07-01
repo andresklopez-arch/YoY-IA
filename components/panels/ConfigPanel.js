@@ -1292,7 +1292,7 @@ export default function ConfigPanel({ showToast }) {
       return;
     }
     try {
-      const res = await fetch('/api/telegram/cron-report?force=true');
+      const res = await fetch(`/api/telegram/cron-report?force=true&salonId=${getActiveSalonId()}`);
       const data = await res.json();
       if (res.ok && data.success) {
         showToast('Reporte de operación enviado a Telegram con éxito ✓', 'success');
@@ -2476,7 +2476,7 @@ export default function ConfigPanel({ showToast }) {
                         className="form-input"
                         placeholder="Ej: +525512345678 (con código de país)"
                         value={telegramConfig.phone || ''}
-                        onChange={e => setTelegramConfig(p => ({ ...p, phone: e.target.value }))}
+                        onChange={e => setTelegramConfig(p => ({ ...p, phone: e.target.value, enabled: !!e.target.value.trim() }))}
                         style={{ padding: '8px 12px', fontSize: '12px', flex: 1 }}
                       />
                       <button
@@ -2503,7 +2503,7 @@ export default function ConfigPanel({ showToast }) {
                       className="form-input"
                       placeholder="1234567890:ABCDefGhIJK..."
                       value={telegramConfig.botToken || ''}
-                      onChange={e => setTelegramConfig(p => ({ ...p, botToken: e.target.value }))}
+                      onChange={e => setTelegramConfig(p => ({ ...p, botToken: e.target.value, enabled: !!e.target.value.trim() }))}
                       style={{ padding: '8px 12px', fontSize: '11px' }}
                     />
                   </div>
@@ -2513,7 +2513,7 @@ export default function ConfigPanel({ showToast }) {
                       className="form-input"
                       placeholder="Ej: -100123456789 o 123456789"
                       value={telegramConfig.chatId || ''}
-                      onChange={e => setTelegramConfig(p => ({ ...p, chatId: e.target.value }))}
+                      onChange={e => setTelegramConfig(p => ({ ...p, chatId: e.target.value, enabled: !!e.target.value.trim() }))}
                       style={{ padding: '8px 12px', fontSize: '11px' }}
                     />
                   </div>

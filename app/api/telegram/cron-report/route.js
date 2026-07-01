@@ -44,9 +44,10 @@ export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
     const force = searchParams.get('force') === 'true';
+    const salonId = searchParams.get('salonId') || 'default_salon';
 
     // 1. Cargar la configuración de Telegram
-    const tgSnap = await getDoc(doc(db, 'config', 'telegram'));
+    const tgSnap = await getDoc(doc(db, 'config', `telegram_${salonId}`));
     if (!tgSnap.exists()) {
       return NextResponse.json({ 
         success: false, 
@@ -66,7 +67,7 @@ export async function GET(request) {
       return NextResponse.json({ success: false, error: 'Reporte periódico de Telegram desactivado en la configuración' });
     }
 
-    const stateRef = doc(db, 'config', 'telegram_report_state');
+    const stateRef = doc(db, 'config', `telegram_report_state_${salonId}`);
     const stateSnap = await getDoc(stateRef);
     const now = Date.now();
     const mxDateStr = new Date().toLocaleString('sv-SE', { timeZone: 'America/Mexico_City' }).split(' ')[0];
@@ -108,7 +109,7 @@ export async function GET(request) {
     let activeMesas = 0;
     let totalMesas = 0;
     let mesasEstado = [];
-    const mesasSnap = await getDoc(doc(db, 'config', 'mesas_estado'));
+    const mesasSnap = await getDoc(doc(db, 'config', `mesas_estado_${salonId}`));
     if (mesasSnap.exists()) {
       mesasEstado = mesasSnap.data().mesas || [];
       totalMesas = mesasEstado.length;
@@ -119,6 +120,7 @@ export async function GET(request) {
     // Métrica 2: Monto Vendido Hoy (Bitácora de cobros)
     const qBitacora = query(
       collection(db, 'bitacora'),
+      where('salonId', '==', salonId),
       where('fecha', '>=', mxDateStr + 'T00:00:00'),
       where('fecha', '<=', mxDateStr + 'T23:59:59.999Z')
     );
@@ -136,7 +138,7 @@ export async function GET(request) {
 
     // Métrica 3: Meta de Ingresos Diaria
     let metaMensual = 100000;
-    const sucursalSnap = await getDoc(doc(db, 'config', 'sucursal'));
+    const sucursalSnap = await getDoc(doc(db, 'config', `sucursal_${salonId}`));
     if (sucursalSnap.exists()) {
       metaMensual = Number(sucursalSnap.data().metaMensual) || 100000;
     }
@@ -146,6 +148,7 @@ export async function GET(request) {
     // Métrica 4: Trabajadores en Turno
     const qAsist = query(
       collection(db, 'nomina_asistencia_log'),
+      where('salonId', '==', salonId),
       where('fecha', '==', mxDateStr)
     );
     const snapAsist = await getDocs(qAsist);
@@ -163,14 +166,18 @@ export async function GET(request) {
     const presentWorkersNames = presentWorkers.map(w => w.name).join(', ') || 'Ninguno';
 
     // Métrica 5: Clientes en Fila de Espera
-    const qFila = query(collection(db, 'fila_espera'), where('estado', '==', 'espera'));
+    const qFila = query(
+      collection(db, 'fila_espera'),
+      where('salonId', '==', salonId),
+      where('estado', '==', 'espera')
+    );
     const snapFila = await getDocs(qFila);
     const clientesEsperaCount = snapFila.size;
 
     // Métrica 6: Mesa con Mayor Consumo Actual (Renta acumulada + consumos)
     let mesaMayorConsumoNombre = 'Ninguna';
     let mesaMayorConsumoTotal = 0;
-    const cuentasSnap = await getDoc(doc(db, 'config', 'cuentas_estado'));
+    const cuentasSnap = await getDoc(doc(db, 'config', `cuentas_estado_${salonId}`));
     if (cuentasSnap.exists()) {
       const listCuentas = cuentasSnap.data().cuentas || [];
       listCuentas.forEach(c => {
@@ -194,6 +201,7 @@ export async function GET(request) {
     // Métrica 7: Gastos del Día
     const qGastos = query(
       collection(db, 'gastos'),
+      where('salonId', '==', salonId),
       where('fecha', '>=', mxDateStr + 'T00:00:00'),
       where('fecha', '<=', mxDateStr + 'T23:59:59.999Z')
     );
@@ -209,6 +217,7 @@ export async function GET(request) {
     // Métrica 8: Comandas Cocina Pendientes
     const qComandas = query(
       collection(db, 'mesa_pedidos'),
+      where('salonId', '==', salonId),
       where('tipo', '==', 'pedido'),
       where('estado', '==', 'pendiente')
     );
@@ -273,6 +282,7 @@ export async function GET(request) {
     // Métrica 10: Último Corte de Caja
     const qCortes = query(
       collection(db, 'cortes_caja'),
+      where('salonId', '==', salonId),
       orderBy('fecha', 'desc'),
       limit(1)
     );
@@ -460,6 +470,7 @@ export async function GET(request) {
 
       try {
         await addDoc(collection(db, 'telegram_alert_logs'), {
+          salonId: salonId,
           phone: obfuscatePhone(tgConfig.phone),
           chatId: targetChatId || null,
           text: 'Reporte Periódico de Operación (Corte)',
@@ -478,6 +489,7 @@ export async function GET(request) {
 
       try {
         await addDoc(collection(db, 'telegram_alert_logs'), {
+          salonId: salonId,
           phone: obfuscatePhone(tgConfig.phone),
           chatId: targetChatId || null,
           text: 'Reporte Periódico de Operación (Corte)',
@@ -497,6 +509,7 @@ export async function GET(request) {
     console.error("Error en API cron-report:", err);
     try {
       await addDoc(collection(db, 'telegram_alert_logs'), {
+        salonId: salonId || 'default_salon',
         phone: tgConfig?.phone ? obfuscatePhone(tgConfig.phone) : null,
         chatId: targetChatId || null,
         text: 'Reporte Periódico de Operación (Corte)',

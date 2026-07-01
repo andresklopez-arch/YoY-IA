@@ -5369,7 +5369,7 @@ export default function MesasPanel({ showToast }) {
   const enviarReporteCierre = async () => {
     try {
       showToast('Enviando reporte de cierre a Telegram...', 'info');
-      const res = await fetch('/api/telegram/cron-report?force=true');
+      const res = await fetch(`/api/telegram/cron-report?force=true&salonId=${getActiveSalonId()}`);
       const data = await res.json();
       if (res.ok && data.success) {
         showToast('Reporte de cierre enviado a Telegram con éxito ✓', 'success');

@@ -99,8 +99,18 @@ export async function POST(request) {
       return NextResponse.json({ success: false, error: 'Parámetros incompletos' }, { status: 400 });
     }
 
-    // 1. Obtener configuración de Telegram
-    const tgRef = doc(db, 'config', 'telegram');
+    // 1. Obtener la sucursal del empleado para cargar su configuración correspondiente
+    let empSalonId = 'default_salon';
+    try {
+      const empSnap = await getDoc(doc(db, 'nomina_empleados', empleadoId));
+      if (empSnap.exists()) {
+        empSalonId = empSnap.data().salonId || 'default_salon';
+      }
+    } catch (err) {
+      console.error("Error al cargar empleado para salonId:", err);
+    }
+
+    const tgRef = doc(db, 'config', `telegram_${empSalonId}`);
     const tgSnap = await getDoc(tgRef);
     if (!tgSnap.exists()) {
       return NextResponse.json({ success: true, message: 'Sin configuración de Telegram' });
@@ -118,6 +128,7 @@ export async function POST(request) {
     // 2. Consultar registros de hoy para calcular personal activo
     const qLogs = query(
       collection(db, 'nomina_asistencia_log'),
+      where('salonId', '==', empSalonId),
       where('fecha', '==', fechaHoy)
     );
     const logsSnap = await getDocs(qLogs);

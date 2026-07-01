@@ -139,7 +139,8 @@ export async function POST(request) {
                                currentDevice !== mostFrequentPhone;
 
       if (isCelularInusual) {
-        const tgRef = doc(db, 'config', 'telegram');
+        const empSalonId = emp.salonId || 'default_salon';
+        const tgRef = doc(db, 'config', `telegram_${empSalonId}`);
         const tgSnap = await getDoc(tgRef);
         if (tgSnap.exists()) {
           const tgData = tgSnap.data();
@@ -150,7 +151,7 @@ export async function POST(request) {
             // Obtener nombre de sucursal
             let branchName = 'Sucursal';
             try {
-              const sucRef = doc(db, 'config', 'sucursal');
+              const sucRef = doc(db, 'config', `sucursal_${empSalonId}`);
               const sucSnap = await getDoc(sucRef);
               if (sucSnap.exists() && sucSnap.data().nombre) {
                 branchName = sucSnap.data().nombre;
