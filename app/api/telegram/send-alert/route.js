@@ -223,18 +223,19 @@ export async function POST(request) {
 
         const dataCentral = await resCentral.json();
         if (resCentral.ok) {
-        await appendDocument('telegram_alert_logs', {
-          phone: obfuscatePhone(phone),
-          chatId: targetChatId || null,
-          text: text,
-          mode: mode || 'simplified',
-          status: 'sent_via_central'
-        });
-      } catch (logErr) {
-        console.error("Error al registrar bitácora de alertas (Case B):", logErr);
-      }
-      return NextResponse.json({ success: true, fromCentral: true });
-    } else {
+          try {
+            await appendDocument('telegram_alert_logs', {
+              phone: obfuscatePhone(phone),
+              chatId: targetChatId || null,
+              text: text,
+              mode: mode || 'simplified',
+              status: 'sent_via_central'
+            });
+          } catch (logErr) {
+            console.error("Error al registrar bitácora de alertas (Case B):", logErr);
+          }
+          return NextResponse.json({ success: true, fromCentral: true });
+        } else {
       try {
         await appendDocument('telegram_alert_logs', {
           phone: obfuscatePhone(phone),
