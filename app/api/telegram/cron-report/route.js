@@ -106,7 +106,7 @@ async function getShortChartUrl(chartConfig) {
     const res = await fetch('https://quickchart.io/chart/create', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chart: chartConfig, bkg: '#121212' })
+      body: JSON.stringify({ chart: chartConfig, width: 500, height: 320, bkg: '#121212' })
     });
     if (res.ok) {
       const data = await res.json();
@@ -116,7 +116,7 @@ async function getShortChartUrl(chartConfig) {
     console.warn("Fallo al acortar URL en QuickChart, usando URL larga:", err);
   }
   const configStr = typeof chartConfig === 'string' ? chartConfig : JSON.stringify(chartConfig);
-  return `https://quickchart.io/chart?c=${encodeURIComponent(configStr)}&bkg=%23121212`;
+  return `https://quickchart.io/chart?c=${encodeURIComponent(configStr)}&w=500&h=320&bkg=%23121212`;
 }
 
 export async function GET(request) {
@@ -420,6 +420,9 @@ export async function GET(request) {
       `8️⃣ *Pedidos Cocina:* ${comandasPendientesCount} comandas pendientes\n` +
       `9️⃣ *Corte de Caja:* ${corteCajaStatus}\n` +
       `🔟 *Desviaciones Operativas:*\n${desviacionesStr}\n\n` +
+      `🎨 *Guía Visual de Gráfica (Dona Doble):*\n` +
+      `• *Anillo Exterior (Ventas):* 🟢 Realizado (Lineal) | 🟣 Restante (Cuadros) | ❇️ Excedente (Zigzag)\n` +
+      `• *Anillo Interior (Mesas):* 🟡 Pool (Zigzag V.) | 🔴 Carambola (L. Vert.) | ⚫ Libre\n\n` +
       `🔗 *Acceder al Sistema:* [YoY IA Billar](https://yoy-ia-billar.vercel.app)`;
 
     // Resolver chatId si no está disponible directamente

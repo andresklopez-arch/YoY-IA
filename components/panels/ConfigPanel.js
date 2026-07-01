@@ -1432,9 +1432,9 @@ export default function ConfigPanel({ showToast }) {
           }
         }
       };
-      const chartUrl = `https://quickchart.io/chart?c=${encodeURIComponent(JSON.stringify(testChartConfig))}&bkg=%23121212`;
+      const chartUrl = `https://quickchart.io/chart?c=${encodeURIComponent(JSON.stringify(testChartConfig))}&w=500&h=320&bkg=%23121212`;
       
-      const text = `🔔 *YoY Billar - Prueba de Notificaciones*\n\nSi estás viendo este mensaje, la integración con Telegram se ha configurado correctamente en modo *${configToUse.mode === 'simplified' ? 'Simplificado (Bot Oficial)' : 'Personalizado'}*.\n\nEste reporte de prueba incluye una gráfica simulada de rendimiento para confirmar el correcto renderizado de imágenes en tu dispositivo.`;
+      const text = `🔔 *YoY Billar - Prueba de Notificaciones*\n\nSi estás viendo este mensaje, la integración con Telegram se ha configurado correctamente en modo *${configToUse.mode === 'simplified' ? 'Simplificado (Bot Oficial)' : 'Personalizado'}*.\n\nEste reporte de prueba incluye una gráfica simulada de doble dona con texturas para confirmar el correcto renderizado:\n\n🎨 *Guía Visual de Gráfica (Dona Doble):*\n• *Anillo Exterior (Ventas):* 🟢 Realizado (Lineal) | 🟣 Restante (Cuadros) | ❇️ Excedente (Zigzag)\n• *Anillo Interior (Mesas):* 🟡 Pool (Zigzag V.) | 🔴 Carambola (L. Vert.) | ⚫ Libre`;
 
       const res = await fetch('/api/telegram/send-alert', {
         method: 'POST',
