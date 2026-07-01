@@ -3565,6 +3565,19 @@ export default function MesasPanel({ showToast }) {
     return () => window.removeEventListener('keydown', handleFilterShortcuts);
   }, [setFiltro, showToast]);
 
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().then(() => {
+        setIsFullscreen(true);
+      }).catch((err) => {
+        showToast('Error al activar modo kiosco', 'error');
+      });
+    } else {
+      document.exitFullscreen();
+      setIsFullscreen(false);
+    }
+  };
+
   // Atajos de teclado para acciones del panel (Alt + K/C/F/M/A/G)
   useEffect(() => {
     const handleActionShortcuts = (e) => {
@@ -3600,19 +3613,6 @@ export default function MesasPanel({ showToast }) {
     window.addEventListener('keydown', handleActionShortcuts);
     return () => window.removeEventListener('keydown', handleActionShortcuts);
   }, [toggleFullscreen, setMostrarCobroManual, setModalFila, setModalComanda, setModalAbrirCuenta, setModalGasto]);
-
-  const toggleFullscreen = () => {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().then(() => {
-        setIsFullscreen(true);
-      }).catch((err) => {
-        showToast('Error al activar modo kiosco', 'error');
-      });
-    } else {
-      document.exitFullscreen();
-      setIsFullscreen(false);
-    }
-  };
 
   const registrarCobroManual = (pagaConParam = 0, cambioParam = 0) => {
     if (!nuevoMonto || !nuevaDesc) {
