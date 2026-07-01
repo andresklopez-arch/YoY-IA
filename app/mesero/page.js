@@ -53,6 +53,7 @@ function MeseroContent() {
       }
 
       if (!user) {
+        try { sessionStorage.setItem('yoy_auth_redirect_reason', 'Acceso denegado: No hay una sesión activa de mesero.'); } catch (e) {}
         window.location.href = '/';
         return;
       }
@@ -68,6 +69,7 @@ function MeseroContent() {
         user.isFreeAccess === true;
 
       if (!isAuthorized) {
+        try { sessionStorage.setItem('yoy_auth_redirect_reason', `Rol '${user.role}' no autorizado para la vista de mesero.`); } catch (e) {}
         window.location.href = '/';
       }
     };

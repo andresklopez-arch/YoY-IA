@@ -31,6 +31,19 @@ export default function LoginScreen({ showToast }) {
   const [usersList, setUsersList] = useState([]);
   const [selectedEmail, setSelectedEmail] = useState('');
   const [manualEmail, setManualEmail] = useState(false);
+  const [redirectReason, setRedirectReason] = useState(null);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const reason = sessionStorage.getItem('yoy_auth_redirect_reason');
+        if (reason) {
+          setRedirectReason(reason);
+          sessionStorage.removeItem('yoy_auth_redirect_reason');
+        }
+      } catch (e) {}
+    }
+  }, []);
 
   // Lockout States
   const [intentosRestantes, setIntentosRestantes] = useState(3);
@@ -325,6 +338,20 @@ export default function LoginScreen({ showToast }) {
           boxShadow: 'var(--shadow-lg), 0 0 40px rgba(205,127,50,0.08)',
         }}>
           <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {redirectReason && (
+              <div style={{
+                background: 'rgba(239, 68, 68, 0.1)',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+                padding: '10px 14px',
+                borderRadius: 10,
+                fontSize: 13,
+                color: 'rgb(248, 113, 113)',
+                textAlign: 'center',
+                lineHeight: '1.4'
+              }}>
+                ⚠️ {redirectReason}
+              </div>
+            )}
             {usersList.length > 0 && !manualEmail ? (
               <div className="form-group">
                 <label className="form-label">Selecciona tu Usuario</label>
