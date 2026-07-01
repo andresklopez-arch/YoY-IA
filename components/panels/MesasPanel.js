@@ -3459,8 +3459,8 @@ export default function MesasPanel({ showToast }) {
           unloadedMap[mIdNum] += data.total || 0;
         }
  
-        // Incluir alertas que no hayan sido atendidas por el admin, o que sigan pendientes por el mesero (y que no estén archivadas)
-        const showInCaja = (data.estado !== 'atendido') && (!data.atendidoAdmin || (data.atendidoAdmin && !data.atendidoMesero && data.tipo !== 'pedido'));
+        // Incluir alertas que no hayan sido atendidas por el admin, o que sigan pendientes por el mesero (y que no estén archivadas, excluyendo pedidos que se autocargan)
+        const showInCaja = (data.estado !== 'atendido') && (data.tipo !== 'pedido') && (!data.atendidoAdmin || (data.atendidoAdmin && !data.atendidoMesero));
         if ((mesaId || mesaId === 0 || mesaId === '0') && showInCaja) {
           if (!alertsMap[mesaId]) {
             alertsMap[mesaId] = [];
