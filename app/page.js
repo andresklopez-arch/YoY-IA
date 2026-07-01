@@ -1268,7 +1268,7 @@ function AppContent() {
     }
   }, [user, isProcessingQR]);
 
-  const procesarLoginQR = async (params, isRetry = false) => {
+  const procesarLoginQR = async (params, isRetry = false, accion = 'auto') => {
     if (!params || (isRetry && isProcessingQR)) return;
     try {
       setIsProcessingQR(true);
@@ -1319,13 +1319,14 @@ function AppContent() {
       };
       const obfuscatedPayload = obfuscateWithKey(params.token, rawPayload);
 
-      // 2. Llamar a la API del servidor para validar de forma segura
+      // 2. Llamar a la API del servidor para registrar la asistencia
       const res = await fetch('/api/nomina/verify-attendance', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           token: params.token,
-          payload: obfuscatedPayload
+          payload: obfuscatedPayload,
+          accion
         })
       });
 
@@ -1355,9 +1356,9 @@ function AppContent() {
                                rolLower.includes('cocinero');
 
       if (esMeseroOKitchen) {
-        // Loguear al empleado en el dispositivo escaneador
-        await loginWithEmpleadoId(emp.id);
-        showToast(`Sesión iniciada como ${emp.nombre} ✓`, 'success');
+        // Loguear al empleado en el dispositivo escaneador enviando el objeto de datos completo
+        await loginWithEmpleadoId(emp);
+        showToast(tipoRegistro === 'login_only' ? `Sesión iniciada como ${emp.nombre} ✓` : `Asistencia registrada e inicio de sesión exitoso como ${emp.nombre} ✓`, 'success');
 
         // Redireccionar de inmediato a su área de trabajo
         if (rolLower.includes('mesero')) {
@@ -1370,10 +1371,10 @@ function AppContent() {
         setFichajeSoporteExitoso({
           nombre: `${emp.nombre} ${emp.apellido || ''}`.trim(),
           rol: emp.rol || 'Soporte',
-          tipo: tipoRegistro
+          tipo: tipoRegistro === 'login_only' ? 'Conexión' : tipoRegistro
         });
         setIsProcessingQR(false);
-        showToast(`Asistencia de ${emp.nombre} registrada ✅`, 'success');
+        showToast(tipoRegistro === 'login_only' ? `Conexión de ${emp.nombre} exitosa ✅` : `Asistencia de ${emp.nombre} registrada ✅`, 'success');
       }
     } catch (err) {
       console.error(err);
@@ -1384,45 +1385,37 @@ function AppContent() {
 
   const checkAsistenciaAndDecide = async (params) => {
     try {
-      const scanId = params.scanId;
-      const empDoc = await getDoc(doc(db, 'nomina_empleados', scanId));
-      
-      if (empDoc.exists()) {
-        const empData = empDoc.data();
-        const fechaHoy = getBusinessDate();
-        
-        // Buscar logs de asistencia de hoy para este empleado
-        const q = query(
-          collection(db, 'nomina_asistencia_log'),
-          where('empleadoId', '==', scanId),
-          where('fecha', '==', fechaHoy)
-        );
-        const snap = await getDocs(q);
-        const logs = snap.docs.map(d => d.data());
-        const statusLogs = logs.filter(l => l.tipo === 'entrada' || l.tipo === 'salida');
+      setIsProcessingQR(true);
+      setFichajeError(null);
 
-        // Ordenar desc por fecha
-        statusLogs.sort((a, b) => {
-          const tA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : (a.createdAt || 0);
-          const tB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : (b.createdAt || 0);
-          return tB - tA;
-        });
+      // Llamar al endpoint en modo preCheck para obtener datos de forma segura sin consulta directa del cliente a Firestore
+      const res = await fetch('/api/nomina/verify-attendance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token: params.token,
+          payload: obfuscateWithKey(params.token, {
+            empleadoId: params.scanId,
+            expires: params.expires || Date.now()
+          }),
+          preCheck: true
+        })
+      });
 
-        const isCurrentlyCheckedIn = statusLogs.length > 0 && statusLogs[0].tipo === 'entrada';
-
-        if (isCurrentlyCheckedIn) {
-          // Mostrar pantalla de decisión
-          setQrDecisionEmployee({ id: scanId, ...empData, params });
-        } else {
-          // Si no está de turno o es su entrada inicial, registrar normal
-          procesarLoginQR(params);
-        }
-      } else {
-        procesarLoginQR(params);
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Error al validar código QR');
       }
+
+      const { emp, isCurrentlyCheckedIn } = data;
+      setIsProcessingQR(false);
+
+      // Siempre abrimos el modal de decisión de acciones (Entrada, Salida, Cargar App) para dar control total
+      setQrDecisionEmployee({ id: params.scanId, ...emp, params, isCurrentlyCheckedIn });
     } catch (err) {
-      console.error("Error al verificar asistencia previa:", err);
-      procesarLoginQR(params); // Fallback
+      console.error("Error al verificar asistencia previa con preCheck:", err);
+      setFichajeError('Error al registrar asistencia con QR: ' + err.message);
+      setIsProcessingQR(false);
     }
   };
 
@@ -2400,33 +2393,86 @@ function AppContent() {
           >
             <i className="ri-shield-user-line" style={{ fontSize: 48, color: 'var(--bronze-light)', display: 'block', marginBottom: 16 }} />
             <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 800, textTransform: 'uppercase', color: 'var(--text)', marginBottom: 8 }}>
-              Turno Activo Detectado
+              Acceso de Empleado
             </h2>
-            <p style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 24, lineHeight: 1.5 }}>
-              Hola <strong>{qrDecisionEmployee.nombre}</strong>. Ya tienes un turno registrado como <strong>PRESENTE</strong> hoy. ¿Qué deseas hacer?
+            <p style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 10, lineHeight: 1.5 }}>
+              Hola <strong>{qrDecisionEmployee.nombre} {qrDecisionEmployee.apellido || ''}</strong>.
+            </p>
+            <p style={{ fontSize: 11.5, color: 'var(--text-secondary)', marginBottom: 24 }}>
+              Estado del turno de hoy: {qrDecisionEmployee.isCurrentlyCheckedIn ? (
+                <span style={{ color: 'var(--success)', fontWeight: 700, background: 'rgba(34,197,94,0.1)', padding: '2px 6px', borderRadius: 4 }}>PRESENTE (Turno Activo)</span>
+              ) : (
+                <span style={{ color: 'var(--text-muted)', fontWeight: 700, background: 'rgba(255,255,255,0.05)', padding: '2px 6px', borderRadius: 4 }}>AUSENTE (Sin Fichar)</span>
+              )}
             </p>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {/* Opción 1: Solo recuperar pantalla */}
+              {/* Opción 1: Registrar Entrada */}
               <button
                 onClick={async () => {
-                  try {
-                    await loginWithEmpleadoId(qrDecisionEmployee.id);
-                    showToast('Pantalla recuperada con éxito ✓', 'success');
-                    
-                    // Redireccionar según el rol
-                    const rolLower = (qrDecisionEmployee.rol || '').toLowerCase();
-                    if (rolLower.includes('mesero')) {
-                      window.location.href = '/mesero';
-                    } else {
-                      window.location.href = '/cocina';
-                    }
-                  } catch (err) {
-                    console.error("Error al recuperar pantalla:", err);
-                    alert("Error: " + err.message);
-                  } finally {
-                    setQrDecisionEmployee(null);
-                  }
+                  const params = qrDecisionEmployee.params;
+                  setQrDecisionEmployee(null);
+                  procesarLoginQR(params, false, 'entrada');
+                }}
+                style={{
+                  background: 'linear-gradient(135deg, #22c55e, #16a34a)',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 10,
+                  padding: '14px 20px',
+                  fontWeight: 700,
+                  fontSize: 14,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                  transition: 'transform 0.2s',
+                  boxShadow: '0 4px 12px rgba(34,197,94,0.3)'
+                }}
+                onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-1px)'; }}
+                onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; }}
+              >
+                <i className="ri-login-box-line" />
+                Registrar Entrada de Turno
+              </button>
+
+              {/* Opción 2: Registrar Salida */}
+              <button
+                onClick={async () => {
+                  const params = qrDecisionEmployee.params;
+                  setQrDecisionEmployee(null);
+                  procesarLoginQR(params, false, 'salida');
+                }}
+                style={{
+                  background: 'linear-gradient(135deg, #ef4444, #dc2626)',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 10,
+                  padding: '14px 20px',
+                  fontWeight: 700,
+                  fontSize: 14,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                  transition: 'transform 0.2s',
+                  boxShadow: '0 4px 12px rgba(239,68,68,0.3)'
+                }}
+                onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-1px)'; }}
+                onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; }}
+              >
+                <i className="ri-logout-box-line" />
+                Registrar Salida de Turno
+              </button>
+
+              {/* Opción 3: Solo Cargar App / Iniciar Sesión */}
+              <button
+                onClick={async () => {
+                  const params = qrDecisionEmployee.params;
+                  setQrDecisionEmployee(null);
+                  procesarLoginQR(params, false, 'login_only');
                 }}
                 style={{
                   background: 'linear-gradient(135deg, var(--bronze), var(--bronze-light))',
@@ -2448,36 +2494,7 @@ function AppContent() {
                 onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; }}
               >
                 <i className="ri-external-link-line" />
-                Recuperar mi Pantalla
-              </button>
-
-              {/* Opción 2: Registrar Salida (Pase de lista normal) */}
-              <button
-                onClick={() => {
-                  const params = qrDecisionEmployee.params;
-                  setQrDecisionEmployee(null);
-                  procesarLoginQR(params);
-                }}
-                style={{
-                  background: 'rgba(239, 68, 68, 0.1)',
-                  color: '#ef4444',
-                  border: '1px solid rgba(239, 68, 68, 0.3)',
-                  borderRadius: 10,
-                  padding: '12px 20px',
-                  fontWeight: 600,
-                  fontSize: 13,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 8,
-                  transition: 'background 0.2s'
-                }}
-                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239, 68, 68, 0.18)'; }}
-                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'; }}
-              >
-                <i className="ri-logout-box-line" />
-                Registrar Salida de Turno
+                Cargar App (Reconectar / Iniciar Sesión)
               </button>
 
               {/* Opción Cancelar / Cerrar */}
@@ -2492,7 +2509,7 @@ function AppContent() {
                   cursor: 'pointer'
                 }}
               >
-                Cancelar
+                Cerrar Ventana
               </button>
             </div>
           </div>

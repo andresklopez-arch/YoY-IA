@@ -98,7 +98,7 @@ const getDistanceInMeters = (lat1, lon1, lat2, lon2) => {
 
 export async function POST(request) {
   try {
-    const { token, payload } = await request.json();
+    const { token, payload, preCheck, accion } = await request.json();
 
     if (!token || !payload) {
       return NextResponse.json({ success: false, error: 'Parámetros incompletos o payload inválido' }, { status: 400 });
@@ -131,12 +131,6 @@ export async function POST(request) {
       return NextResponse.json({ success: false, error: 'El código QR ha expirado' }, { status: 401 });
     }
 
-    // 3. Protección Anti-Replay: Verificar si el token ya fue consumido
-    const tokenSnap = await fetchDocument('used_qr_tokens', token);
-    if (tokenSnap.exists()) {
-      return NextResponse.json({ success: false, error: 'Este código QR ya ha sido utilizado para registrar asistencia.' }, { status: 401 });
-    }
-
     // 4. Obtener datos del empleado
     const empSnap = await fetchDocument('nomina_empleados', empleadoId);
     if (!empSnap.exists()) {
@@ -145,14 +139,15 @@ export async function POST(request) {
     const emp = { id: empleadoId, ...empSnap.data() };
     const fechaHoy = getBusinessDate();
 
-    const finalCoordenadas = coordenadas || { lat: null, lng: null, precision: null, status: 'No requerido' };
-
-    // 8. Determinar tipo de registro (Entrada o Salida)
+    // 3. Obtener logs de asistencia de hoy para saber si está actualmente de turno
     const logsSnap = await fetchCollectionQuery('nomina_asistencia_log', [
       { type: 'where', field: 'empleadoId', op: '==', value: emp.id },
       { type: 'where', field: 'fecha', op: '==', value: fechaHoy }
     ]);
-    let tipoRegistro = 'entrada';
+    
+    let isCurrentlyCheckedIn = false;
+    let autoTipoRegistro = 'entrada';
+    
     if (!logsSnap.empty) {
       const logsList = logsSnap.docs
         .map(d => ({ id: d.id, ...d.data() }))
@@ -165,19 +160,51 @@ export async function POST(request) {
           return tB - tA;
         });
         const lastLog = logsList[0];
-
-
-
-        tipoRegistro = lastLog.tipo === 'entrada' ? 'salida' : 'entrada';
+        isCurrentlyCheckedIn = lastLog.tipo === 'entrada';
+        autoTipoRegistro = isCurrentlyCheckedIn ? 'salida' : 'entrada';
       }
     }
 
-    // 9. Registrar token como consumido para evitar re-uso
+    // Si es preCheck, solo retornamos los datos del empleado y su estado actual sin consumir el token
+    if (preCheck) {
+      return NextResponse.json({
+        success: true,
+        emp,
+        isCurrentlyCheckedIn
+      });
+    }
+
+    // Protección Anti-Replay: Verificar si el token ya fue consumido (solo para acciones de fichaje/cambio)
+    const tokenSnap = await fetchDocument('used_qr_tokens', token);
+    if (tokenSnap.exists()) {
+      return NextResponse.json({ success: false, error: 'Este código QR ya ha sido utilizado para registrar asistencia.' }, { status: 401 });
+    }
+
+    // Registrar token como consumido para evitar re-uso
     await saveDocument('used_qr_tokens', token, {
       empleadoId,
       usedAt: new Date(),
       expiresAt: Number(expires)
     });
+
+    const finalCoordenadas = coordenadas || { lat: null, lng: null, precision: null, status: 'No requerido' };
+
+    // Determinar tipo de registro final según el parámetro de la petición o auto-detección
+    let tipoRegistro = autoTipoRegistro;
+    if (accion === 'entrada' || accion === 'salida') {
+      tipoRegistro = accion;
+    } else if (accion === 'login_only') {
+      tipoRegistro = 'login_only';
+    }
+
+    // Si la acción es únicamente iniciar sesión en el celular
+    if (tipoRegistro === 'login_only') {
+      return NextResponse.json({
+        success: true,
+        tipoRegistro: 'login_only',
+        emp
+      });
+    }
 
     // Detección de Celular Inusual y Alerta por Telegram (sin bloquear)
     try {
