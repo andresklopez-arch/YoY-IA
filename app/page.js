@@ -1384,6 +1384,9 @@ function AppContent() {
         await loginWithEmpleadoId(emp);
         showToast(tipoRegistro === 'login_only' ? `Sesión iniciada como ${emp.nombre} ✓` : `Asistencia registrada e inicio de sesión exitoso como ${emp.nombre} ✓`, 'success');
 
+        // Esperar 500ms para que Firebase Auth procese el signOut anterior y no pise la sesión offline recién guardada
+        await new Promise((resolve) => setTimeout(resolve, 500));
+
         // Redireccionar de inmediato a su área de trabajo
         if (rolLower.includes('mesero')) {
           window.location.href = '/mesero';
