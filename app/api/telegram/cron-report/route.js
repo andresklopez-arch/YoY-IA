@@ -278,12 +278,10 @@ function generatePdfReport(params) {
   });
 }
 
-export async function GET(request) {
+async function procesarReporteParaSalon(salonId, force) {
+  let tgConfig = null;
+  let targetChatId = null;
   try {
-    const { searchParams } = new URL(request.url);
-    const force = searchParams.get('force') === 'true';
-    const salonId = searchParams.get('salonId') || 'default_salon';
-
     // 1. Cargar la configuración de Telegram
     const tgSnap = await fetchDocument('config', `telegram_${salonId}`);
     if (!tgSnap.exists()) {
@@ -1214,5 +1212,68 @@ export async function GET(request) {
       console.error("Error al registrar bitácora de reporte (Catch):", logErr);
     }
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+  }
+}
+
+export async function GET(request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const force = searchParams.get('force') === 'true';
+    const querySalonId = searchParams.get('salonId');
+
+    if (querySalonId) {
+      // Caso A: Procesar un único salón provisto en la Query String (manual o específico)
+      return await procesarReporteParaSalon(querySalonId, force);
+    } else {
+      // Caso B: Procesar todos los salones configurados (Cron automático global de Vercel)
+      const salonesList = [];
+      try {
+        if (adminDb) {
+          const configDocs = await adminDb.collection('config').get();
+          configDocs.forEach(docSnap => {
+            if (docSnap.id.startsWith('telegram_')) {
+              const sId = docSnap.id.replace('telegram_', '');
+              salonesList.push(sId);
+            }
+          });
+        } else {
+          const configDocs = await getDocs(collection(db, 'config'));
+          configDocs.forEach(docSnap => {
+            if (docSnap.id.startsWith('telegram_')) {
+              const sId = docSnap.id.replace('telegram_', '');
+              salonesList.push(sId);
+            }
+          });
+        }
+      } catch (err) {
+        console.error("Error obteniendo salones para reportes periódicos:", err);
+      }
+
+      // Si la lista está vacía, fallback a default_salon
+      if (salonesList.length === 0) {
+        salonesList.push('default_salon');
+      }
+
+      const resultados = [];
+      for (const sId of salonesList) {
+        try {
+          const response = await procesarReporteParaSalon(sId, force);
+          const data = await response.json();
+          resultados.push({ salonId: sId, ...data });
+        } catch (err) {
+          resultados.push({ salonId: sId, success: false, error: err.message });
+        }
+      }
+
+      return NextResponse.json({
+        success: true,
+        cronRun: true,
+        totalProcesados: salonesList.length,
+        resultados
+      });
+    }
+  } catch (globalErr) {
+    console.error("Error global en endpoint de reportes:", globalErr);
+    return NextResponse.json({ success: false, error: globalErr.message }, { status: 500 });
   }
 }
