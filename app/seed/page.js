@@ -72,11 +72,29 @@ export default function SeedPage() {
         createdAt: new Date().toISOString()
       });
 
+      // 2b. Crear configuración de Telegram por defecto
+      setStatus('Creando configuración de Telegram por defecto...');
+      await setDoc(doc(db, 'config', 'telegram'), {
+        enabled: false,
+        mode: 'simplified',
+        botToken: '',
+        chatId: '',
+        phone: '',
+        notifyStatements: true,
+        notifyPayments: true,
+        notifyPrevShiftSummary: true,
+        notifyAttendance: true,
+        notifyDisruptiveAlerts: true,
+        notifyPeriodicReport: true,
+        discrepancyThreshold: 100,
+        checkInboundIntervalMs: 300000
+      });
+
       // 3. Inicializando base de datos en limpio
       setStatus('Inicializando base de datos en limpio...');
 
       setIsAlreadySeeded(true);
-      setStatus(`¡Sembrado completado exitosamente! Ya puedes iniciar sesión con admin1111@${clientDomain} y la contraseña que ingresaste.`);
+      setStatus(`¡Sembrado completado exitosamente! Ya puedes iniciar sesión con masteradmin@${clientDomain} y la contraseña que ingresaste.`);
     } catch (error) {
       console.error(error);
       if (error.code === 'auth/email-already-in-use') {

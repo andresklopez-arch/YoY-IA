@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/firebase';
-import { doc, getDoc, setDoc, getDocs, collection, query, where, orderBy, limit } from 'firebase/firestore';
+import { doc, getDoc, setDoc, getDocs, collection, query, where, orderBy, limit, addDoc, serverTimestamp } from 'firebase/firestore';
 
 function hashPhone(phone) {
   if (!phone) return '';
@@ -440,14 +440,57 @@ export async function GET(request) {
         currentDate: currentDate,
         history: history
       }, { merge: true });
+
+      try {
+        await addDoc(collection(db, 'telegram_alert_logs'), {
+          phone: obfuscatePhone(tgConfig.phone),
+          chatId: targetChatId || null,
+          text: 'Reporte Periódico de Operación (Corte)',
+          mode: tgConfig.mode || 'simplified',
+          status: 'sent',
+          createdAt: serverTimestamp()
+        });
+      } catch (logErr) {
+        console.error("Error al registrar bitácora de reporte (Success):", logErr);
+      }
+
       return NextResponse.json({ success: true, text: reportText });
     } else {
       const errData = await res.json();
-      return NextResponse.json({ success: false, error: errData.description || 'Error al enviar a Telegram' }, { status: 500 });
+      const errMsg = errData.description || 'Error al enviar a Telegram';
+
+      try {
+        await addDoc(collection(db, 'telegram_alert_logs'), {
+          phone: obfuscatePhone(tgConfig.phone),
+          chatId: targetChatId || null,
+          text: 'Reporte Periódico de Operación (Corte)',
+          mode: tgConfig.mode || 'simplified',
+          status: 'failed',
+          error: errMsg,
+          createdAt: serverTimestamp()
+        });
+      } catch (logErr) {
+        console.error("Error al registrar bitácora de reporte (Failed):", logErr);
+      }
+
+      return NextResponse.json({ success: false, error: errMsg }, { status: 500 });
     }
 
   } catch (err) {
     console.error("Error en API cron-report:", err);
+    try {
+      await addDoc(collection(db, 'telegram_alert_logs'), {
+        phone: tgConfig?.phone ? obfuscatePhone(tgConfig.phone) : null,
+        chatId: targetChatId || null,
+        text: 'Reporte Periódico de Operación (Corte)',
+        mode: tgConfig?.mode || 'simplified',
+        status: 'failed',
+        error: err.message,
+        createdAt: serverTimestamp()
+      });
+    } catch (logErr) {
+      console.error("Error al registrar bitácora de reporte (Catch):", logErr);
+    }
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
   }
 }

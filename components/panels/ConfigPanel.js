@@ -308,6 +308,7 @@ export default function ConfigPanel({ showToast }) {
   const [savingTelegram, setSavingTelegram] = useState(false);
   const [pendingAlerts, setPendingAlerts] = useState([]);
   const [loadingPending, setLoadingPending] = useState(false);
+  const [telegramLogs, setTelegramLogs] = useState([]);
 
   // --- Estados de Registro de Errores (Crashes) ---
   const [crashLogs, setCrashLogs] = useState([]);
@@ -657,6 +658,16 @@ export default function ConfigPanel({ showToast }) {
       setPendingAlerts(list);
     }, err => console.error("Error al escuchar alertas de Telegram pendientes:", err));
 
+    // Escuchar bitácora de envíos de Telegram en tiempo real
+    const qLogs = query(collection(db, 'telegram_alert_logs'), orderBy('createdAt', 'desc'), limit(15));
+    const unsubLogs = onSnapshot(qLogs, snap => {
+      const list = [];
+      snap.forEach(doc => {
+        list.push({ id: doc.id, ...doc.data() });
+      });
+      setTelegramLogs(list);
+    }, err => console.error("Error al escuchar bitácora de Telegram:", err));
+
     // Escuchar extras de renta en tiempo real
     const unsubExtras = onSnapshot(doc(db, 'config', 'renta_extras'), snap => {
       if (snap.exists()) {
@@ -676,6 +687,7 @@ export default function ConfigPanel({ showToast }) {
     return () => {
       unsubMesas();
       unsubPending();
+      unsubLogs();
       unsubExtras();
       unsubIaAlerts();
     };
@@ -1119,6 +1131,33 @@ export default function ConfigPanel({ showToast }) {
       showToast('Error al guardar configuración de Telegram: ' + err.message, 'danger');
     } finally {
       setSavingTelegram(false);
+    }
+  };
+
+  const checkPhoneLinking = async () => {
+    if (!telegramConfig.phone) {
+      showToast('Ingresa un número de de teléfono primero', 'warning');
+      return;
+    }
+    const cleanPhone = telegramConfig.phone.replace(/\D/g, '');
+    let hash = 0;
+    for (let i = 0; i < cleanPhone.length; i++) {
+      const char = cleanPhone.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash;
+    }
+    const hashed = Math.abs(hash).toString(16);
+    try {
+      showToast('Verificando vinculación en el servidor central...', 'info');
+      const docRef = doc(db, 'telegram_vinculaciones', hashed);
+      const snap = await getDoc(docRef);
+      if (snap.exists()) {
+        showToast(`¡Número vinculado correctamente! (Chat ID: ${snap.data().chatId}) ✓`, 'success');
+      } else {
+        showToast(`El número +${cleanPhone} no está vinculado con @YoYBillarBot. Abre Telegram, busca @YoYBillarBot y presiona Iniciar.`, 'warning');
+      }
+    } catch (err) {
+      showToast('Error al verificar vinculación: ' + err.message, 'danger');
     }
   };
 
@@ -2337,13 +2376,23 @@ export default function ConfigPanel({ showToast }) {
 
                   <div className="form-group" style={{ gap: 4 }}>
                     <label className="form-label">Número de Teléfono (Telegram)</label>
-                    <input
-                      className="form-input"
-                      placeholder="Ej: +525512345678 (con código de país)"
-                      value={telegramConfig.phone || ''}
-                      onChange={e => setTelegramConfig(p => ({ ...p, phone: e.target.value }))}
-                      style={{ padding: '8px 12px', fontSize: '12px' }}
-                    />
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <input
+                        className="form-input"
+                        placeholder="Ej: +525512345678 (con código de país)"
+                        value={telegramConfig.phone || ''}
+                        onChange={e => setTelegramConfig(p => ({ ...p, phone: e.target.value }))}
+                        style={{ padding: '8px 12px', fontSize: '12px', flex: 1 }}
+                      />
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={checkPhoneLinking}
+                        style={{ height: 36, fontSize: 10, padding: '0 12px', whiteSpace: 'nowrap' }}
+                      >
+                        Verificar
+                      </button>
+                    </div>
                     <span style={{ fontSize: 9.5, color: 'var(--text-muted)' }}>
                       Ingresa el mismo número con el que compartiste contacto en el Bot Central de YoY.
                     </span>
@@ -2613,6 +2662,55 @@ export default function ConfigPanel({ showToast }) {
                     })}
                   </div>
                 )}
+              </div>
+
+              {/* Bitácora de Envíos de Telegram (Sugerencia 3) */}
+              <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid var(--border)' }}>
+                <div style={{ fontSize: 11, fontWeight: '600', color: 'var(--text-primary)', marginBottom: 8 }}>
+                  <i className="ri-history-line" style={{ marginRight: 4, color: 'var(--bronze)' }} />
+                  Historial de Envíos Telegram
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 180, overflowY: 'auto', paddingRight: 4 }}>
+                  {telegramLogs.length === 0 ? (
+                    <div style={{ fontSize: 9.5, color: 'var(--text-muted)', textAlign: 'center', padding: '10px 0', background: 'var(--bg-elevated)', borderRadius: 6 }}>
+                      Sin registros de envíos de Telegram
+                    </div>
+                  ) : (
+                    telegramLogs.map(log => {
+                      const date = log.createdAt?.seconds 
+                        ? new Date(log.createdAt.seconds * 1000).toLocaleString('es-MX', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) 
+                        : (log.createdAt ? new Date(log.createdAt).toLocaleTimeString() : 'Reciente');
+                      
+                      return (
+                        <div key={log.id} style={{ 
+                          background: 'var(--bg-elevated)', 
+                          border: '1px solid var(--border)', 
+                          borderRadius: 6, 
+                          padding: '6px 8px', 
+                          fontSize: 9.5,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 2
+                        }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontWeight: 700, color: log.status === 'sent' ? 'var(--success)' : 'var(--danger)' }}>
+                              {log.status === 'sent' ? '✓ ENVIADO' : '✗ FALLADO'}
+                            </span>
+                            <span style={{ color: 'var(--text-muted)', fontSize: 8.5 }}>{date}</span>
+                          </div>
+                          {log.error && (
+                            <div style={{ color: '#fca5a5', fontSize: 8.5, fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                              Error: {log.error}
+                            </div>
+                          )}
+                          <div style={{ color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {log.text}
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
               </div>
             </div>
             </div>
