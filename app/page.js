@@ -1295,12 +1295,8 @@ function AppContent() {
       // Forzar un retraso artificial de 1 segundo para permitir que React pinte la pantalla de carga
       await new Promise((resolve) => setTimeout(resolve, 1000));
 
-      // Sugerencia 1: Limpieza explícita inmediata de la sesión previa en localStorage, Firebase y Contexto
-      if (user) {
-        await logout();
-      } else {
-        localStorage.removeItem('yoy_ia_session');
-      }
+      // Limpiar sesión local sin disparar signOut de Firebase (evita race condition con onAuthStateChanged)
+      try { localStorage.removeItem('yoy_ia_session'); } catch (e) {}
 
       // Sonido y vibración de confirmación al elegir la acción
       playConfirmSound();
@@ -1380,14 +1376,13 @@ function AppContent() {
                                rolLower.includes('cocinero');
 
       if (esMeseroOKitchen) {
-        // Loguear al empleado en el dispositivo escaneador enviando el objeto de datos completo
-        await loginWithEmpleadoId(emp);
-        showToast(tipoRegistro === 'login_only' ? `Sesión iniciada como ${emp.nombre} ✓` : `Asistencia registrada e inicio de sesión exitoso como ${emp.nombre} ✓`, 'success');
+        // NO hacemos loginWithEmpleadoId aquí para evitar race conditions con Firebase Auth.
+        // La página de destino (/mesero o /cocina) hará el login usando el empleadoId de la URL.
+        showToast(tipoRegistro === 'login_only' ? `Redirigiendo a ${emp.nombre}... ✓` : `Asistencia de ${emp.nombre} registrada ✓`, 'success');
 
-        // Esperar 500ms para que Firebase Auth procese el signOut anterior y no pise la sesión offline recién guardada
-        await new Promise((resolve) => setTimeout(resolve, 500));
+        await new Promise((resolve) => setTimeout(resolve, 600));
 
-        // Redireccionar de inmediato a su área de trabajo (con empleadoId como respaldo en URL)
+        // Redireccionar con empleadoId en URL — el destino lo usará para hacer login
         const empIdParam = encodeURIComponent(emp.id || emp.uid || '');
         if (rolLower.includes('mesero')) {
           window.location.href = empIdParam ? `/mesero?empleadoId=${empIdParam}` : '/mesero';

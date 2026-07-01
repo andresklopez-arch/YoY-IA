@@ -43,7 +43,9 @@ function MeseroContent() {
     const queryEmpleadoId = urlParams.get('empleadoId');
 
     const checkAndRecoverSession = async () => {
-      if (queryEmpleadoId && queryEmpleadoId !== 'sin_mesero' && queryEmpleadoId !== 'todos' && !user) {
+      // Si hay empleadoId en URL y NO hay sesión offline de empleado activa → hacer login de empleado
+      // Esto cubre: sin sesión, sesión Firebase Auth anónima, sesión expirada, etc.
+      if (queryEmpleadoId && queryEmpleadoId !== 'sin_mesero' && queryEmpleadoId !== 'todos' && (!user || !user.offline)) {
         try {
           await loginWithEmpleadoId(queryEmpleadoId);
           return;

@@ -58,7 +58,8 @@ function CocinaContent() {
 
     const checkAndRecoverSession = async () => {
       // Recuperación de sesión desde URL si localStorage fue limpiado por race condition
-      if (queryEmpleadoId && queryEmpleadoId !== 'sin_cocina' && !user) {
+      // También sobrescribe sesiones anónimas de Firebase Auth que no correspondan al empleado
+      if (queryEmpleadoId && queryEmpleadoId !== 'sin_cocina' && (!user || !user.offline)) {
         try {
           await loginWithEmpleadoId(queryEmpleadoId);
           return;
