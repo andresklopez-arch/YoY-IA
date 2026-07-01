@@ -6379,29 +6379,30 @@ export default function MesasPanel({ showToast }) {
           marginBottom: 16,
           border: '1px solid var(--border-bronze)',
           borderRadius: 12,
-          padding: '10px 14px',
+          padding: '8px 12px',
           display: 'flex',
-          flexWrap: 'wrap',
-          alignItems: 'center',
-          gap: 8,
+          flexDirection: 'column',
+          gap: 6,
           boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5), var(--shadow-sm)'
         }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', width: '100%' }}>
         {/* Cuentas Activas (Protagonista verde brillante con animación de pulso al inicio) */}
         <button
           className="btn btn-pulse-green btn-sm"
           style={{
-            padding: '6px 14px',
-            fontSize: 11,
+            padding: '4px 8px',
+            fontSize: '10px',
             fontWeight: 800,
             letterSpacing: '0.05em',
             display: 'flex',
             alignItems: 'center',
-            gap: 6
+            gap: 6,
+            height: 24
           }}
           onClick={() => setModalCuentas(true)}
         >
-          <i className="ri-folder-open-line" style={{ fontSize: 13 }} />
-          <span>ACTIVAS: <strong style={{ fontSize: 12 }}>{cuentasActivas.length} CLS</strong></span>
+          <i className="ri-folder-open-line" style={{ fontSize: 11 }} />
+          <span>ACTIVAS: <strong style={{ fontSize: '10px' }}>{cuentasActivas.length} CLS</strong></span>
         </button>
 
         {/* Cápsula Segmentada Unificada (Sin espacios intermedios y con ligeros códigos de color) */}
@@ -6420,13 +6421,13 @@ export default function MesasPanel({ showToast }) {
             className={filtro === 'todas' ? 'filter-active-pill' : ''}
             title="Ver Todas las Mesas [Alt + Shift + T]"
             style={{
-              padding: '6px 12px',
+              padding: '4px 8px',
               fontSize: 10,
               fontWeight: 700,
               display: 'flex',
               alignItems: 'center',
               gap: 6,
-              height: 28,
+              height: 24,
               border: 'none',
               borderRight: '1px solid var(--border-bronze)',
               background: filtro === 'todas' ? 'rgba(245, 158, 11, 0.15)' : 'rgba(245, 158, 11, 0.02)',
@@ -6461,13 +6462,13 @@ export default function MesasPanel({ showToast }) {
             className={filtro === 'libre' ? 'filter-active-pill' : ''}
             title="Ver Mesas Libres [Alt + Shift + L]"
             style={{
-              padding: '6px 12px',
+              padding: '4px 8px',
               fontSize: 10,
               fontWeight: 700,
               display: 'flex',
               alignItems: 'center',
               gap: 6,
-              height: 28,
+              height: 24,
               border: 'none',
               borderRight: '1px solid var(--border-bronze)',
               background: filtro === 'libre' ? 'rgba(34, 197, 94, 0.15)' : 'rgba(34, 197, 94, 0.02)',
@@ -6500,13 +6501,13 @@ export default function MesasPanel({ showToast }) {
             className={filtro === 'ocupada' ? 'filter-active-pill' : ''}
             title="Ver Mesas Ocupadas [Alt + Shift + O]"
             style={{
-              padding: '6px 12px',
+              padding: '4px 8px',
               fontSize: 10,
               fontWeight: 700,
               display: 'flex',
               alignItems: 'center',
               gap: 6,
-              height: 28,
+              height: 24,
               border: 'none',
               borderRight: '1px solid var(--border-bronze)',
               background: filtro === 'ocupada' ? 'rgba(255, 255, 255, 0.15)' : 'rgba(255, 255, 255, 0.02)',
@@ -6539,13 +6540,13 @@ export default function MesasPanel({ showToast }) {
             className={filtro === 'reservada' ? 'filter-active-pill' : ''}
             title="Ver Mesas Reservadas [Alt + Shift + R]"
             style={{
-              padding: '6px 12px',
+              padding: '4px 8px',
               fontSize: 10,
               fontWeight: 700,
               display: 'flex',
               alignItems: 'center',
               gap: 6,
-              height: 28,
+              height: 24,
               borderRight: '1px solid var(--border-bronze)',
               background: filtro === 'reservada' ? 'rgba(227, 168, 105, 0.15)' : 'rgba(227, 168, 105, 0.02)',
               color: 'var(--bronze-light)',
@@ -6608,13 +6609,13 @@ export default function MesasPanel({ showToast }) {
             className={filtro === 'manten' ? 'filter-active-pill' : ''}
             title="Ver Mesas en Mantenimiento [Alt + Shift + M]"
             style={{
-              padding: '6px 12px',
+              padding: '4px 8px',
               fontSize: 10,
               fontWeight: 700,
               display: 'flex',
               alignItems: 'center',
               gap: 6,
-              height: 28,
+              height: 24,
               border: 'none',
               background: filtro === 'manten' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(239, 68, 68, 0.02)',
               color: '#ef4444',
@@ -6649,8 +6650,8 @@ export default function MesasPanel({ showToast }) {
           background: 'var(--bg-elevated)',
           border: '1px solid var(--border-bronze)',
           borderRadius: 8,
-          padding: '0 10px',
-          height: 28,
+          padding: '0 6px',
+          height: 24,
           boxShadow: 'var(--shadow-sm)'
         }}>
           <i className="ri-sort-asc" style={{ color: 'var(--bronze-light)', fontSize: 13 }} />
@@ -6685,8 +6686,8 @@ export default function MesasPanel({ showToast }) {
           background: 'var(--bg-elevated)',
           border: '1px solid var(--border-bronze)',
           borderRadius: 8,
-          padding: '0 10px',
-          height: 28,
+          padding: '0 6px',
+          height: 24,
           boxShadow: 'var(--shadow-sm)',
           marginLeft: 6
         }}>
@@ -6731,24 +6732,26 @@ export default function MesasPanel({ showToast }) {
             onClick={() => setShowTransferModal(true)}
             className="btn btn-secondary btn-sm"
             style={{
-              height: 28,
-              fontSize: 10,
+              height: 24,
+              fontSize: 9,
               fontWeight: 700,
               display: 'flex',
               alignItems: 'center',
               gap: 6,
               marginLeft: 6,
               borderColor: 'var(--border-bronze)',
-              color: 'var(--bronze-light)'
+              color: 'var(--bronze-light)',
+              padding: '4px 6px'
             }}
           >
             <i className="ri-swap-line" /> Traspasar Zonas
           </button>
         )}
+        </div>
 
-        {/* Separador vertical */}
-        <div style={{ width: 1, height: 18, background: 'var(--border-bronze)', opacity: 0.3, margin: '0 4px' }} />
+        <div style={{ width: '100%', height: 1, background: 'var(--border-bronze)', opacity: 0.15, margin: '2px 0' }} />
 
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', width: '100%' }}>
         {/* Botones de Acción */}
         <div 
           style={{ position: 'relative', display: 'inline-block' }}
@@ -6771,7 +6774,9 @@ export default function MesasPanel({ showToast }) {
                     : `pulseAlertSolicitada ${infoCuentasSolicitadas.antiguedadMaxMs > 5 * 60 * 1000 ? '0.8s' : (infoCuentasSolicitadas.antiguedadMaxMs > 2 * 60 * 1000 ? '1.2s' : '1.8s')} infinite ease-in-out`)
                 : 'none',
               transition: 'all 0.2s ease',
-              height: '100%'
+              height: '100%',
+              fontSize: '10px',
+              padding: '4px 8px'
             }}
             title={infoCuentasSolicitadas.total > 0 ? `Tienes ${infoCuentasSolicitadas.total} cuentas pendientes` : "Sin cobros pendientes"}
           >
@@ -6924,16 +6929,16 @@ export default function MesasPanel({ showToast }) {
           )}
         </div>
 
-        <button className="btn btn-secondary btn-sm" onClick={toggleFullscreen} title="Activar Modo Kiosco">
+        <button className="btn btn-secondary btn-sm" onClick={toggleFullscreen} title="Activar Modo Kiosco" style={{ fontSize: '10px', padding: '4px 8px' }}>
           <i className={isFullscreen ? 'ri-fullscreen-exit-fill' : 'ri-fullscreen-fill'} style={{ marginRight: 4 }} />
           {isFullscreen ? 'Salir' : 'Kiosco'}
         </button>
 
-        <button className="btn btn-primary btn-sm" onClick={() => setMostrarCobroManual(true)}>
+        <button className="btn btn-primary btn-sm" onClick={() => setMostrarCobroManual(true)} style={{ fontSize: '10px', padding: '4px 8px' }}>
           <i className="ri-add-circle-line" /> Cobro Manual
         </button>
 
-        <button className="btn btn-secondary btn-sm" onClick={() => setModalFila(true)}>
+        <button className="btn btn-secondary btn-sm" onClick={() => setModalFila(true)} style={{ fontSize: '10px', padding: '4px 8px' }}>
           <i className="ri-qr-code-line" /> Fila Virtual
           {fila.length > 0 && (
             <span className="badge badge-bronze" style={{ marginLeft: 6, padding: '2px 6px', fontSize: 9 }}>
@@ -6942,15 +6947,15 @@ export default function MesasPanel({ showToast }) {
           )}
         </button>
 
-        <button className="btn btn-secondary btn-sm" onClick={() => setModalComanda(true)}>
+        <button className="btn btn-secondary btn-sm" onClick={() => setModalComanda(true)} style={{ fontSize: '10px', padding: '4px 8px' }}>
           <i className="ri-cup-line" /> Comanda
         </button>
 
-        <button className="btn btn-secondary btn-sm" onClick={() => setModalAbrirCuenta(true)}>
+        <button className="btn btn-secondary btn-sm" onClick={() => setModalAbrirCuenta(true)} style={{ fontSize: '10px', padding: '4px 8px' }}>
           <i className="ri-folder-add-line" /> Abrir Cuenta
         </button>
 
-        <button className="btn btn-danger btn-sm" onClick={() => setModalGasto(true)}>
+        <button className="btn btn-danger btn-sm" onClick={() => setModalGasto(true)} style={{ fontSize: '10px', padding: '4px 8px' }}>
           <i className="ri-wallet-3-line" style={{ marginRight: 4 }} /> Gasto
         </button>
 
@@ -6961,7 +6966,7 @@ export default function MesasPanel({ showToast }) {
         <button
           onClick={imprimirTodosLosQRs}
           className="btn btn-secondary btn-sm"
-          style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--bronze-light)', borderColor: 'var(--border-bronze)' }}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--bronze-light)', borderColor: 'var(--border-bronze)', fontSize: '10px', padding: '4px 8px' }}
         >
           <i className="ri-qr-code-line" /> Imprimir todos los QRs
         </button>
@@ -6980,7 +6985,9 @@ export default function MesasPanel({ showToast }) {
             textShadow: '0 0 2px rgba(57, 255, 20, 0.2)',
             fontWeight: '600',
             cursor: 'pointer',
-            transition: 'all 0.2s ease-in-out'
+            transition: 'all 0.2s ease-in-out',
+            fontSize: '10px',
+            padding: '4px 8px'
           }}
           onMouseEnter={(e) => {
             e.currentTarget.style.backgroundColor = 'rgba(57, 255, 20, 0.15)';
@@ -6993,6 +7000,7 @@ export default function MesasPanel({ showToast }) {
         >
           <i className="ri-telegram-line" style={{ fontSize: '15px' }} /> Reporte de Cierre
         </button>
+        </div>
       </div>
 
 
