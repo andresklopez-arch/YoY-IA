@@ -1387,11 +1387,12 @@ function AppContent() {
         // Esperar 500ms para que Firebase Auth procese el signOut anterior y no pise la sesión offline recién guardada
         await new Promise((resolve) => setTimeout(resolve, 500));
 
-        // Redireccionar de inmediato a su área de trabajo
+        // Redireccionar de inmediato a su área de trabajo (con empleadoId como respaldo en URL)
+        const empIdParam = encodeURIComponent(emp.id || emp.uid || '');
         if (rolLower.includes('mesero')) {
-          window.location.href = '/mesero';
+          window.location.href = empIdParam ? `/mesero?empleadoId=${empIdParam}` : '/mesero';
         } else {
-          window.location.href = '/cocina';
+          window.location.href = empIdParam ? `/cocina?empleadoId=${empIdParam}` : '/cocina';
         }
       } else {
         // Personal de soporte: no inician sesión. Mostrar pantalla visual de éxito

@@ -41,7 +41,7 @@ const DEFAULT_INSUMOS = [
 ];
 
 function CocinaContent() {
-  const { user, loading, logout } = useAuth();
+  const { user, loading, logout, loginWithEmpleadoId } = useAuth();
 
   const handleLogout = async () => {
     if (window.confirm('¿Estás seguro de que deseas cerrar sesión de cocina/barra?')) {
@@ -52,28 +52,46 @@ function CocinaContent() {
 
   useEffect(() => {
     if (loading) return;
-    if (!user) {
-      try { sessionStorage.setItem('yoy_auth_redirect_reason', 'Acceso denegado: No hay una sesión activa de cocina/barra.'); } catch (e) {}
-      window.location.href = '/';
-      return;
-    }
-    const rolLower = (user.role || '').toLowerCase();
-    const isAuthorized = 
-      rolLower.includes('admin') || 
-      rolLower.includes('cajero') || 
-      rolLower.includes('caja') || 
-      rolLower.includes('gerente') || 
-      rolLower.includes('tecnico') || 
-      rolLower.includes('cocina') || 
-      rolLower.includes('bartender') || 
-      rolLower.includes('barman') || 
-      rolLower.includes('cocinero') ||
-      user.isFreeAccess === true;
 
-    if (!isAuthorized) {
-      try { sessionStorage.setItem('yoy_auth_redirect_reason', `Rol '${user.role}' no autorizado para la vista de cocina/barra.`); } catch (e) {}
-      window.location.href = '/';
-    }
+    const urlParams = new URLSearchParams(window.location.search);
+    const queryEmpleadoId = urlParams.get('empleadoId');
+
+    const checkAndRecoverSession = async () => {
+      // Recuperación de sesión desde URL si localStorage fue limpiado por race condition
+      if (queryEmpleadoId && queryEmpleadoId !== 'sin_cocina' && !user) {
+        try {
+          await loginWithEmpleadoId(queryEmpleadoId);
+          return;
+        } catch (e) {
+          console.error("Error logging in via queryEmpleadoId en cocina:", e);
+        }
+      }
+
+      if (!user) {
+        try { sessionStorage.setItem('yoy_auth_redirect_reason', 'Acceso denegado: No hay una sesión activa de cocina/barra.'); } catch (e) {}
+        window.location.href = '/';
+        return;
+      }
+      const rolLower = (user.role || '').toLowerCase();
+      const isAuthorized = 
+        rolLower.includes('admin') || 
+        rolLower.includes('cajero') || 
+        rolLower.includes('caja') || 
+        rolLower.includes('gerente') || 
+        rolLower.includes('tecnico') || 
+        rolLower.includes('cocina') || 
+        rolLower.includes('bartender') || 
+        rolLower.includes('barman') || 
+        rolLower.includes('cocinero') ||
+        user.isFreeAccess === true;
+
+      if (!isAuthorized) {
+        try { sessionStorage.setItem('yoy_auth_redirect_reason', `Rol '${user.role}' no autorizado para la vista de cocina/barra.`); } catch (e) {}
+        window.location.href = '/';
+      }
+    };
+
+    checkAndRecoverSession();
   }, [user, loading]);
 
   const [tab, setTab] = useState('pedidos'); // pedidos | insumos | inventario
