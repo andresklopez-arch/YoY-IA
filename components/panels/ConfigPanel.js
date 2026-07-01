@@ -309,6 +309,7 @@ export default function ConfigPanel({ showToast }) {
   const [pendingAlerts, setPendingAlerts] = useState([]);
   const [loadingPending, setLoadingPending] = useState(false);
   const [telegramLogs, setTelegramLogs] = useState([]);
+  const [retryingLogIds, setRetryingLogIds] = useState({});
 
   // --- Estados de Registro de Errores (Crashes) ---
   const [crashLogs, setCrashLogs] = useState([]);
@@ -1193,6 +1194,7 @@ export default function ConfigPanel({ showToast }) {
   };
 
   const handleRetryIndividualLog = async (log) => {
+    setRetryingLogIds(prev => ({ ...prev, [log.id]: true }));
     try {
       showToast('Reintentando envío...', 'info');
       const res = await fetch('/api/telegram/send-alert', {
@@ -1214,6 +1216,8 @@ export default function ConfigPanel({ showToast }) {
       }
     } catch (err) {
       showToast(`Error de red: ${err.message}`, 'danger');
+    } finally {
+      setRetryingLogIds(prev => ({ ...prev, [log.id]: false }));
     }
   };
 
@@ -2766,6 +2770,33 @@ export default function ConfigPanel({ showToast }) {
                     </button>
                   )}
                 </div>
+                {(() => {
+                  const recentFailsCount = telegramLogs.filter(log => {
+                    if (log.status !== 'failed') return false;
+                    const logTime = log.createdAt?.seconds ? log.createdAt.seconds * 1000 : Date.now();
+                    return (Date.now() - logTime) < 15 * 60 * 1000;
+                  }).length;
+                  if (recentFailsCount >= 3) {
+                    return (
+                      <div style={{
+                        background: 'rgba(239, 68, 68, 0.12)',
+                        border: '1.5px dashed rgba(239, 68, 68, 0.3)',
+                        borderRadius: 6,
+                        padding: '8px 10px',
+                        fontSize: 9.5,
+                        color: '#fca5a5',
+                        marginBottom: 10,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6
+                      }}>
+                        <i className="ri-error-warning-line" style={{ fontSize: 13, color: '#ef4444' }} />
+                        <span><strong>Conexión inestable:</strong> Se detectaron {recentFailsCount} fallos de Telegram en los últimos 15 min. Revisa el Token, ID del chat o vinculación.</span>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 180, overflowY: 'auto', paddingRight: 4 }}>
                   {telegramLogs.length === 0 ? (
                     <div style={{ fontSize: 9.5, color: 'var(--text-muted)', textAlign: 'center', padding: '10px 0', background: 'var(--bg-elevated)', borderRadius: 6 }}>
@@ -2776,6 +2807,7 @@ export default function ConfigPanel({ showToast }) {
                       const date = log.createdAt?.seconds 
                         ? new Date(log.createdAt.seconds * 1000).toLocaleString('es-MX', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) 
                         : (log.createdAt ? new Date(log.createdAt).toLocaleTimeString() : 'Reciente');
+                      const isRetrying = !!retryingLogIds[log.id];
                       
                       return (
                         <div key={log.id} style={{ 
@@ -2794,24 +2826,28 @@ export default function ConfigPanel({ showToast }) {
                                 {log.status === 'sent' ? '✓ ENVIADO' : '✗ FALLADO'}
                               </span>
                               {log.status !== 'sent' && (
-                                <button
-                                  type="button"
-                                  onClick={() => handleRetryIndividualLog(log)}
-                                  style={{
-                                    background: 'transparent',
-                                    border: 'none',
-                                    color: 'var(--bronze-light)',
-                                    cursor: 'pointer',
-                                    fontSize: 10,
-                                    padding: '2px',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center'
-                                  }}
-                                  title="Reintentar este envío"
-                                >
-                                  <i className="ri-refresh-line" />
-                                </button>
+                                isRetrying ? (
+                                  <i className="ri-loader-4-line spin-animation" style={{ fontSize: 10, color: 'var(--text-muted)' }} />
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRetryIndividualLog(log)}
+                                    style={{
+                                      background: 'transparent',
+                                      border: 'none',
+                                      color: 'var(--bronze-light)',
+                                      cursor: 'pointer',
+                                      fontSize: 10,
+                                      padding: '2px',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center'
+                                    }}
+                                    title="Reintentar este envío"
+                                  >
+                                    <i className="ri-refresh-line" />
+                                  </button>
+                                )
                               )}
                             </div>
                             <span style={{ color: 'var(--text-muted)', fontSize: 8.5 }}>{date}</span>

@@ -23,6 +23,23 @@ function obfuscatePhone(phone) {
   return `+${start}******${end}`;
 }
 
+async function getShortChartUrl(chartConfig) {
+  try {
+    const res = await fetch('https://quickchart.io/chart/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chart: chartConfig, bkg: '#121212' })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success && data.url) return data.url;
+    }
+  } catch (err) {
+    console.warn("Fallo al acortar URL en QuickChart, usando URL larga:", err);
+  }
+  return `https://quickchart.io/chart?c=${encodeURIComponent(JSON.stringify(chartConfig))}&bkg=%23121212`;
+}
+
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -404,7 +421,7 @@ export async function GET(request) {
         }
       };
     }
-    const chartUrl = `https://quickchart.io/chart?c=${encodeURIComponent(JSON.stringify(chartConfig))}&bkg=%23121212`;
+    const chartUrl = await getShortChartUrl(chartConfig);
 
     const photoUrl = `https://api.telegram.org/bot${botToken}/sendPhoto`;
     let res = await fetch(photoUrl, {
