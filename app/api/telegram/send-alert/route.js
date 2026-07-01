@@ -209,17 +209,27 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Falta configurar o vincular el ID de Chat de Telegram.' }, { status: 400 });
     }
 
-    // Enviar el mensaje a la API de Telegram
-    const url = `https://api.telegram.org/bot${targetToken}/sendMessage`;
+    // Enviar el mensaje o foto a la API de Telegram
+    const isPhoto = !!body.photo;
+    const method = isPhoto ? 'sendPhoto' : 'sendMessage';
+    const url = `https://api.telegram.org/bot${targetToken}/${method}`;
+    const payload = isPhoto ? {
+      chat_id: targetChatId,
+      photo: body.photo,
+      caption: text,
+      parse_mode: 'Markdown',
+      reply_markup: body.reply_markup || undefined
+    } : {
+      chat_id: targetChatId,
+      text: text,
+      parse_mode: 'Markdown',
+      reply_markup: body.reply_markup || undefined
+    };
+
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: targetChatId,
-        text: text,
-        parse_mode: 'Markdown',
-        reply_markup: body.reply_markup || undefined
-      })
+      body: JSON.stringify(payload)
     });
 
     if (res.ok) {

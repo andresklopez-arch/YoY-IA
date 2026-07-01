@@ -1252,8 +1252,7 @@ export default function ConfigPanel({ showToast }) {
       };
       const chartUrl = `https://quickchart.io/chart?c=${encodeURIComponent(JSON.stringify(testChartConfig))}&bkg=%23121212`;
       
-      // Inline Markdown image trick in Telegram using zero-width space
-      const text = `[\u200B](${chartUrl})🔔 *YoY Billar - Prueba de Notificaciones*\n\nSi estás viendo este mensaje, la integración con Telegram se ha configurado correctamente en modo *${telegramConfig.mode === 'simplified' ? 'Simplificado (Bot Oficial)' : 'Personalizado'}*.\n\nEste reporte de prueba incluye una gráfica simulada de rendimiento para confirmar el correcto renderizado de imágenes en tu dispositivo.`;
+      const text = `🔔 *YoY Billar - Prueba de Notificaciones*\n\nSi estás viendo este mensaje, la integración con Telegram se ha configurado correctamente en modo *${telegramConfig.mode === 'simplified' ? 'Simplificado (Bot Oficial)' : 'Personalizado'}*.\n\nEste reporte de prueba incluye una gráfica simulada de rendimiento para confirmar el correcto renderizado de imágenes en tu dispositivo.`;
 
       const res = await fetch('/api/telegram/send-alert', {
         method: 'POST',
@@ -1263,7 +1262,8 @@ export default function ConfigPanel({ showToast }) {
           token: telegramConfig.botToken,
           chatId: telegramConfig.chatId,
           phone: telegramConfig.phone,
-          text: text
+          text: text,
+          photo: chartUrl
         })
       });
       if (res.ok) {
