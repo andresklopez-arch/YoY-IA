@@ -2364,6 +2364,7 @@ function AppContent() {
       {/* Modal de decisión al escanear QR con sesión activa */}
       {qrDecisionEmployee && (
         <div
+          className="responsive-card-overlay"
           style={{
             position: 'fixed',
             top: 0,
@@ -2379,7 +2380,31 @@ function AppContent() {
             padding: 24
           }}
         >
+          <style dangerouslySetInnerHTML={{ __html: `
+            @media (max-width: 600px) {
+              .responsive-card-overlay {
+                padding: 0 !important;
+              }
+              .responsive-card-container {
+                width: 100% !important;
+                height: 100% !important;
+                max-width: 100% !important;
+                border-radius: 0 !important;
+                border: none !important;
+                display: flex !important;
+                flex-direction: column !important;
+                justify-content: center !important;
+                padding: 32px 24px !important;
+                box-shadow: none !important;
+              }
+              .responsive-card-button {
+                padding: 18px 20px !important;
+                font-size: 15px !important;
+              }
+            }
+          `}} />
           <div
+            className="responsive-card-container"
             style={{
               background: 'var(--bg-card)',
               border: '1px solid var(--border-bronze)',
@@ -2409,6 +2434,7 @@ function AppContent() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {/* Opción 1: Registrar Entrada */}
               <button
+                className="responsive-card-button"
                 onClick={async () => {
                   const params = qrDecisionEmployee.params;
                   setQrDecisionEmployee(null);
@@ -2439,6 +2465,7 @@ function AppContent() {
 
               {/* Opción 2: Registrar Salida */}
               <button
+                className="responsive-card-button"
                 onClick={async () => {
                   const params = qrDecisionEmployee.params;
                   setQrDecisionEmployee(null);
@@ -2469,6 +2496,7 @@ function AppContent() {
 
               {/* Opción 3: Solo Cargar App / Iniciar Sesión */}
               <button
+                className="responsive-card-button"
                 onClick={async () => {
                   const params = qrDecisionEmployee.params;
                   setQrDecisionEmployee(null);

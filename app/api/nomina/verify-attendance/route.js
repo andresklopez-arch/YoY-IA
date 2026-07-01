@@ -126,8 +126,8 @@ export async function POST(request) {
       return NextResponse.json({ success: false, error: 'Código QR no válido o manipulado' }, { status: 401 });
     }
 
-    // 2. Validar expiración (5 minutos)
-    if (Date.now() > Number(expires)) {
+    // 2. Validar expiración (permitir ventana de gracia de 5 minutos tras la rotación en terminal)
+    if (Date.now() > Number(expires) + 5 * 60 * 1000) {
       return NextResponse.json({ success: false, error: 'El código QR ha expirado' }, { status: 401 });
     }
 
