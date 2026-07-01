@@ -5,7 +5,7 @@ import {
   onSnapshot, query, orderBy, where, getDocs, serverTimestamp, limit
 } from '@/lib/firestore-tenant';
 import { auth, db } from '@/lib/firebase';
-import { hashNip } from '@/lib/crypto';
+import { hashNip, obfuscateStatic } from '@/lib/crypto';
 import { getBusinessDate } from '@/lib/date-utils';
 import { QRCodeSVG } from 'qrcode.react';
 import { useAuth } from '@/lib/auth-context';
@@ -381,10 +381,18 @@ export default function NominaPanel({ showToast }) {
         const tokenJWT = await auth.currentUser.getIdToken();
         headers['Authorization'] = `Bearer ${tokenJWT}`;
       }
+      
+      const currentSalonId = user?.salonId || 'default_salon';
+      const signature = obfuscateStatic(JSON.stringify({
+        timestamp: Date.now(),
+        empleadoId,
+        salonId: currentSalonId
+      }));
+
       const res = await fetch('/api/nomina/generate-qr-token', {
         method: 'POST',
         headers,
-        body: JSON.stringify({ empleadoId })
+        body: JSON.stringify({ empleadoId, salonId: currentSalonId, signature })
       });
       const data = await res.json();
       if (!res.ok || !data.success) {

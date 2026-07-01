@@ -6,7 +6,7 @@ import { useAlertasNomina } from '@/components/panels/NominaPanel';
 import { QRCodeSVG } from 'qrcode.react';
 import { collection, query, where, onSnapshot, doc, getDoc, setDoc, addDoc, getDocs, serverTimestamp, updateDoc, orderBy, limit, writeBatch } from '@/lib/firestore-tenant';
 import { auth, db } from '@/lib/firebase';
-import { deobfuscate, obfuscate } from '@/lib/crypto';
+import { deobfuscate, obfuscate, obfuscateStatic } from '@/lib/crypto';
 import { getBusinessDate } from '@/lib/date-utils';
 
 
@@ -343,10 +343,18 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
         const tokenJWT = await auth.currentUser.getIdToken();
         headers['Authorization'] = `Bearer ${tokenJWT}`;
       }
+      
+      const currentSalonId = user?.salonId || 'default_salon';
+      const signature = obfuscateStatic(JSON.stringify({
+        timestamp: Date.now(),
+        empleadoId: focusedEmpleadoQR.id,
+        salonId: currentSalonId
+      }));
+
       const res = await fetch('/api/nomina/generate-qr-token', {
         method: 'POST',
         headers,
-        body: JSON.stringify({ empleadoId: focusedEmpleadoQR.id })
+        body: JSON.stringify({ empleadoId: focusedEmpleadoQR.id, salonId: currentSalonId, signature })
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
@@ -2197,10 +2205,18 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
                                   const tokenJWT = await auth.currentUser.getIdToken();
                                   headers['Authorization'] = `Bearer ${tokenJWT}`;
                                 }
+                                
+                                const currentSalonId = user?.salonId || 'default_salon';
+                                const signature = obfuscateStatic(JSON.stringify({
+                                  timestamp: Date.now(),
+                                  empleadoId: emp.id,
+                                  salonId: currentSalonId
+                                }));
+
                                 const res = await fetch('/api/nomina/generate-qr-token', {
                                   method: 'POST',
                                   headers,
-                                  body: JSON.stringify({ empleadoId: emp.id })
+                                  body: JSON.stringify({ empleadoId: emp.id, salonId: currentSalonId, signature })
                                 });
                                 const data = await res.json();
                                 if (!res.ok || !data.success) {

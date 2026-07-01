@@ -7,6 +7,7 @@ import { getFirestore } from 'firebase-admin/firestore';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
+import { deobfuscateStatic } from '@/lib/crypto';
 
 const SECRET = process.env.QR_SECRET || 'yoy_billar_secret_key_2026_io';
 
@@ -53,30 +54,53 @@ try {
 
 export async function POST(request) {
   try {
-    const { empleadoId } = await request.json();
+    const { empleadoId, salonId, signature } = await request.json();
     if (!empleadoId) {
       return NextResponse.json({ success: false, error: 'empleadoId es requerido' }, { status: 400 });
     }
 
     // Validación multitenant del lado del servidor (Sugerencia 2)
     if (isAdminConfigured) {
+      let verifiedSalonId = null;
       const authHeader = request.headers.get('Authorization');
-      if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        return NextResponse.json({ success: false, error: 'No autorizado. Se requiere token JWT del administrador.' }, { status: 401 });
-      }
-      
-      const tokenJWT = authHeader.split('Bearer ')[1];
-      let decodedToken;
-      try {
-        decodedToken = await getAuth().verifyIdToken(tokenJWT);
-      } catch (err) {
-        console.error("Error al verificar ID token en generate-qr-token:", err);
-        return NextResponse.json({ success: false, error: 'Token JWT inválido o expirado.' }, { status: 401 });
+
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        // Método 1: Autenticación por JWT Token de Firebase (Administradores logueados en la nube)
+        const tokenJWT = authHeader.split('Bearer ')[1];
+        try {
+          const decodedToken = await getAuth().verifyIdToken(tokenJWT);
+          verifiedSalonId = decodedToken.salonId;
+        } catch (err) {
+          console.error("Error al verificar ID token en generate-qr-token:", err);
+          return NextResponse.json({ success: false, error: 'Token JWT inválido o expirado.' }, { status: 401 });
+        }
+      } else if (signature) {
+        // Método 2: Autenticación por Firma de Cliente Encriptada (Cajeros NIP / MasterAdmin offline)
+        try {
+          const decrypted = deobfuscateStatic(signature);
+          if (decrypted && typeof decrypted === 'object') {
+            const { timestamp, empleadoId: sigEmpId, salonId: sigSalonId } = decrypted;
+            
+            // Validar ventana de tiempo de 2 minutos
+            const age = Math.abs(Date.now() - Number(timestamp));
+            if (age > 120 * 1000) {
+              return NextResponse.json({ success: false, error: 'La firma de la petición ha expirado.' }, { status: 401 });
+            }
+            if (sigEmpId !== empleadoId) {
+              return NextResponse.json({ success: false, error: 'La firma no corresponde al empleado solicitado.' }, { status: 401 });
+            }
+            verifiedSalonId = sigSalonId;
+          } else {
+            return NextResponse.json({ success: false, error: 'Firma de petición corrupta.' }, { status: 401 });
+          }
+        } catch (err) {
+          console.error("Error al decodificar firma en generate-qr-token:", err);
+          return NextResponse.json({ success: false, error: 'Firma de petición inválida.' }, { status: 401 });
+        }
       }
 
-      const adminSalonId = decodedToken.salonId;
-      if (!adminSalonId) {
-        return NextResponse.json({ success: false, error: 'El administrador no tiene un salón asociado en sus credenciales.' }, { status: 403 });
+      if (!verifiedSalonId) {
+        return NextResponse.json({ success: false, error: 'No autorizado. Se requiere token JWT del administrador o firma válida.' }, { status: 401 });
       }
 
       // Consultar el empleado para verificar su sucursal
@@ -86,8 +110,8 @@ export async function POST(request) {
       }
 
       const empData = empSnap.data();
-      if (empData.salonId !== adminSalonId) {
-        console.warn(`[Seguridad Multitenant] Intento de acceso denegado: El administrador del salón ${adminSalonId} intentó generar un QR token para el empleado del salón ${empData.salonId}`);
+      if (empData.salonId !== verifiedSalonId) {
+        console.warn(`[Seguridad Multitenant] Intento de acceso denegado: El administrador del salón ${verifiedSalonId} intentó generar un QR token para el empleado del salón ${empData.salonId}`);
         return NextResponse.json({ success: false, error: 'Acceso denegado. El empleado pertenece a otra sucursal.' }, { status: 403 });
       }
     } else {
