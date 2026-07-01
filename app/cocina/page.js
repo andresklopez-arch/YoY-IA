@@ -40,8 +40,155 @@ const DEFAULT_INSUMOS = [
   { nombre: 'Servilletas de papel', nivelActual: 15, nivelMin: 8, nivelOptimo: 30, unidad: 'paq', categoria: 'Limpieza e Insumos' }
 ];
 
+// ═══════════════════════════════════════════════════════════
+// SwipeableKitchenCard: Comanda deslizable para móviles en cocina
+// ═══════════════════════════════════════════════════════════
+function SwipeableKitchenCard({ pedido, esUrgente, tiempoTranscurrido, CAT_EMOJI, marcarAtendido, altoContraste, fontSizeMultiplier }) {
+  const [startX, setStartX] = React.useState(0);
+  const [currentX, setCurrentX] = React.useState(0);
+  const [swiping, setSwiping] = React.useState(false);
+  const [isAtendiendo, setIsAtendiendo] = React.useState(false);
+
+  const handleTouchStart = (e) => {
+    if (isAtendiendo) return;
+    setStartX(e.touches[0].clientX);
+    setSwiping(true);
+  };
+
+  const handleTouchMove = (e) => {
+    if (!swiping || isAtendiendo) return;
+    const diffX = e.touches[0].clientX - startX;
+    if (diffX > 0) {
+      setCurrentX(diffX);
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (!swiping || isAtendiendo) return;
+    setSwiping(false);
+    if (currentX > 140) {
+      setIsAtendiendo(true);
+      marcarAtendido(pedido.id);
+    } else {
+      setCurrentX(0);
+    }
+  };
+
+  return (
+    <div style={{ position: 'relative', overflow: 'hidden', borderRadius: 16, width: '100%' }}>
+      {/* Fondo verde de revelado al deslizar */}
+      <div style={{
+        position: 'absolute',
+        top: 0, left: 0, right: 0, bottom: 0,
+        background: '#22c55e',
+        display: 'flex',
+        alignItems: 'center',
+        paddingLeft: 24,
+        color: '#0d0d0f',
+        fontWeight: 900,
+        fontSize: 16,
+        opacity: Math.min(1, currentX / 140),
+        zIndex: 1
+      }}>
+        <i className="ri-checkbox-circle-fill" style={{ fontSize: 24, marginRight: 8 }} /> ¡Listo / Entregar comanda!
+      </div>
+
+      {/* Tarjeta de comanda real */}
+      <div
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        className="comanda-card"
+        style={{
+          position: 'relative',
+          zIndex: 2,
+          transform: `translateX(${currentX}px)`,
+          transition: swiping ? 'none' : 'transform 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
+          background: altoContraste ? '#000000' : 'var(--bg-card)',
+          border: altoContraste 
+            ? '3px solid #ffffff' 
+            : `1px solid ${esUrgente ? 'var(--danger)' : 'var(--border-bronze)'}`,
+          boxShadow: esUrgente ? '0 0 20px rgba(239,68,68,0.15)' : 'none',
+          borderRadius: 16, 
+          padding: 18
+        }}
+      >
+        {/* Header comanda */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, borderBottom: `1px solid ${altoContraste ? '#fff' : 'var(--border)'}`, paddingBottom: 10 }}>
+          <div>
+            <span style={{ fontSize: 18 * fontSizeMultiplier, fontWeight: 900, color: altoContraste ? '#fff' : 'var(--bronze-light)' }}>
+              Mesa {pedido.mesaId}
+            </span>
+            {pedido.cliente && 
+             !pedido.cliente.toLowerCase().startsWith('mesa ') && 
+             pedido.cliente.toLowerCase() !== 'público' && 
+             pedido.cliente.toLowerCase() !== 'publico' ? (
+              <span style={{ fontSize: 11 * fontSizeMultiplier, color: altoContraste ? '#fff' : 'var(--text-muted)', marginLeft: 8 }}>
+                ({pedido.cliente})
+              </span>
+            ) : (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 9 * fontSizeMultiplier, background: 'rgba(239, 68, 68, 0.12)', border: '1px solid rgba(239, 68, 68, 0.3)', color: 'var(--danger)', padding: '2px 6px', borderRadius: 4, fontWeight: 700, marginLeft: 8 }}>
+                <i className="ri-error-warning-line" /> SIN CLIENTE
+              </span>
+            )}
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <span style={{ fontSize: 11 * fontSizeMultiplier, color: altoContraste ? '#fff' : 'var(--text-muted)' }}>
+              Hace: <strong style={{ color: esUrgente ? 'var(--danger)' : altoContraste ? '#fff' : '#fff' }}>{tiempoTranscurrido(pedido.createdAt)}</strong>
+            </span>
+            {esUrgente && (
+              <span style={{ display: 'block', fontSize: 9 * fontSizeMultiplier, background: 'var(--danger)', color: '#fff', padding: '1px 6px', borderRadius: 4, fontWeight: 900, marginTop: 4, textAlign: 'center', textTransform: 'uppercase' }}>
+                Retrasado
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Contenido comanda */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, margin: '12px 0 16px' }}>
+          {pedido.items?.map((item, index) => (
+            <div key={index} className="comanda-item-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', border: `1px solid ${altoContraste ? '#fff' : 'rgba(255,255,255,0.03)'}`, borderRadius: 10, padding: '10px 14px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 20 * fontSizeMultiplier }}>{CAT_EMOJI[item.categoria] || '🛒'}</span>
+                <span style={{ fontSize: 14 * fontSizeMultiplier, fontWeight: 700, color: '#fff' }}>
+                  {item.nombre}
+                </span>
+              </div>
+              <span style={{ fontSize: 18 * fontSizeMultiplier, fontWeight: 900, color: altoContraste ? '#fff' : 'var(--bronze-light)', background: altoContraste ? '#222' : 'var(--bronze-subtle)', border: `1px solid ${altoContraste ? '#fff' : 'var(--border-bronze)'}`, borderRadius: 8, padding: '4px 12px' }}>
+                {item.cantidad}×
+              </span>
+            </div>
+          ))}
+        </div>
+
+        {/* Acciones botón tradicional */}
+        <button
+          onClick={() => marcarAtendido(pedido.id)}
+          disabled={isAtendiendo}
+          style={{
+            width: '100%', padding: '14px', background: altoContraste ? '#ffffff' : 'var(--bronze)', color: '#0d0d0f',
+            border: 'none', borderRadius: 12, fontSize: 14 * fontSizeMultiplier, fontWeight: 900, cursor: 'pointer',
+            transition: 'all 0.15s', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8
+          }}
+        >
+          {isAtendiendo ? (
+            <i className="ri-loader-4-line spin" />
+          ) : (
+            <>
+              <i className="ri-check-line" />
+              Listo / Atendido
+            </>
+          )}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function CocinaContent() {
   const { user, loading, logout, loginWithEmpleadoId } = useAuth();
+  const [altoContraste, setAltoContraste] = useState(false);
+  const [fontSizeMultiplier, setFontSizeMultiplier] = useState(1.0);
 
   const handleLogout = async () => {
     if (window.confirm('¿Estás seguro de que deseas cerrar sesión de cocina/barra?')) {
@@ -790,7 +937,7 @@ function CocinaContent() {
   };
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg-primary)', padding: '0 0 50px' }}>
+    <div style={{ minHeight: '100vh', background: altoContraste ? '#000000' : 'var(--bg-primary)', padding: '0 0 50px', transition: 'background 0.2s' }}>
       <style dangerouslySetInnerHTML={{ __html: `
         @keyframes transmittingRadar {
           0% {
@@ -898,6 +1045,49 @@ function CocinaContent() {
           </div>
 
           <div className="kitchen-header-buttons-row" style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            {/* Control Zoom Dinamico */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 10, padding: '4px 8px' }}>
+              <button
+                onClick={() => setFontSizeMultiplier(m => Math.max(0.8, m - 0.1))}
+                style={{ background: 'none', border: 'none', color: 'var(--text-primary)', cursor: 'pointer', fontSize: 13, fontWeight: 'bold', padding: '4px 8px' }}
+                title="Reducir letra"
+              >
+                A-
+              </button>
+              <span style={{ fontSize: 11, color: 'var(--bronze-light)', fontWeight: 'bold', userSelect: 'none' }}>
+                {Math.round(fontSizeMultiplier * 100)}%
+              </span>
+              <button
+                onClick={() => setFontSizeMultiplier(m => Math.min(1.6, m + 0.1))}
+                style={{ background: 'none', border: 'none', color: 'var(--text-primary)', cursor: 'pointer', fontSize: 13, fontWeight: 'bold', padding: '4px 8px' }}
+                title="Aumentar letra"
+              >
+                A+
+              </button>
+            </div>
+
+            {/* Selector Alto Contraste */}
+            <button
+              onClick={() => setAltoContraste(!altoContraste)}
+              style={{
+                background: altoContraste ? '#fff' : 'var(--bg-elevated)',
+                border: '1px solid var(--border)',
+                borderRadius: 10,
+                padding: '8px 14px',
+                cursor: 'pointer',
+                color: altoContraste ? '#0d0d0f' : 'var(--bronze-light)',
+                fontSize: 13,
+                fontWeight: 700,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6
+              }}
+              title="Alternar modo de alto contraste para visibilidad extrema"
+            >
+              <i className="ri-contrast-drop-2-line" />
+              {altoContraste ? 'Contraste: ON' : 'Contraste'}
+            </button>
+
             {/* Sonido Toggle */}
             <button
               className="kitchen-header-button"

@@ -26,6 +26,134 @@ const startsWithBoundary = (fullStr, subStr) => {
 // ═══════════════════════════════════════════════════════════
 // VISTA MESERO — Dashboard de pedidos y asistencias en tiempo real
 // ═══════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
+// SwipeableAlertCard: Componente táctil premium con deslizamiento lateral
+// ═══════════════════════════════════════════════════════════
+function SwipeableAlertCard({ alerta, esDemorado, esCuentaUrgente, onAtendida, loading }) {
+  const [startX, setStartX] = useState(0);
+  const [currentX, setCurrentX] = useState(0);
+  const [swiping, setSwiping] = useState(false);
+  const [isAtendiendo, setIsAtendiendo] = useState(false);
+
+  const handleTouchStart = (e) => {
+    if (loading || isAtendiendo) return;
+    setStartX(e.touches[0].clientX);
+    setSwiping(true);
+  };
+
+  const handleTouchMove = (e) => {
+    if (!swiping || loading || isAtendiendo) return;
+    const diffX = e.touches[0].clientX - startX;
+    if (diffX > 0) {
+      setCurrentX(diffX);
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (!swiping || loading || isAtendiendo) return;
+    setSwiping(false);
+    if (currentX > 120) {
+      setIsAtendiendo(true);
+      onAtendida();
+    } else {
+      setCurrentX(0);
+    }
+  };
+
+  return (
+    <div style={{ position: 'relative', overflow: 'hidden', borderRadius: 14, width: '100%' }}>
+      <div style={{
+        position: 'absolute',
+        top: 0, left: 0, right: 0, bottom: 0,
+        background: '#22c55e',
+        display: 'flex',
+        alignItems: 'center',
+        paddingLeft: 20,
+        color: '#0d0d0f',
+        fontWeight: 900,
+        fontSize: 14,
+        opacity: Math.min(1, currentX / 120),
+        zIndex: 1
+      }}>
+        <i className="ri-check-double-line" style={{ fontSize: 20, marginRight: 8 }} /> Atendiendo solicitud...
+      </div>
+
+      <div
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        style={{
+          position: 'relative',
+          zIndex: 2,
+          transform: `translateX(${currentX}px)`,
+          transition: swiping ? 'none' : 'transform 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
+          background: esDemorado ? 'rgba(239, 68, 68, 0.08)' : esCuentaUrgente ? 'rgba(34, 197, 94, 0.08)' : 'rgba(25, 25, 30, 0.95)',
+          border: esDemorado ? '1px solid #ef4444' : esCuentaUrgente ? '1.5px solid #22c55e' : '1px solid rgba(255,255,255,0.06)',
+          boxShadow: esDemorado ? '0 0 10px rgba(239, 68, 68, 0.15)' : esCuentaUrgente ? '0 0 12px rgba(34, 197, 94, 0.2)' : 'none',
+          animation: esDemorado ? 'pulse-border 2s infinite' : esCuentaUrgente ? 'pulseBorderGold 2s infinite ease-in-out' : 'none',
+          borderRadius: 14,
+          padding: 16,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: 12
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ fontSize: 32 }}>{alerta.icono || '🙋'}</div>
+          <div style={{ textAlign: 'left' }}>
+            <div style={{ fontSize: 16, fontWeight: 800, color: '#fff' }}>
+              Mesa {alerta.mesaId}
+            </div>
+            <div style={{ fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600, marginTop: 2 }}>
+              Solicitud: <span style={{ color: alerta.estado === 'listo' ? 'var(--success)' : esCuentaUrgente ? '#4ade80' : 'var(--bronze-light)' }}>
+                {alerta.estado === 'listo' ? '🍳 ¡LISTO PARA SERVIR! ' : ''}
+                {alerta.etiqueta} {alerta.tipo === 'cuenta' && alerta.totalAcumulado ? `(${alerta.totalAcumulado} MXN)` : alerta.tipo === 'pedido' && alerta.total ? `(${alerta.total} MXN)` : ''}
+              </span>
+              {esDemorado && (
+                <span style={{ fontSize: 9, background: 'rgba(239, 68, 68, 0.2)', color: '#ef4444', border: '1px solid #ef4444', borderRadius: 4, padding: '1px 4px', marginLeft: 6, fontWeight: 800, textTransform: 'uppercase' }}>
+                  ⚠️ Demorado
+                </span>
+              )}
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+              {alerta.cliente} · {alerta.createdAt?.toDate ? new Date(alerta.createdAt.toDate()).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'Ahora'}
+            </div>
+          </div>
+        </div>
+
+        <button
+          onClick={onAtendida}
+          disabled={loading || isAtendiendo}
+          style={{
+            background: esDemorado ? '#ef4444' : esCuentaUrgente ? '#22c55e' : 'var(--bg-elevated)',
+            border: `1px solid ${esDemorado ? '#ef4444' : esCuentaUrgente ? '#22c55e' : 'var(--border)'}`,
+            borderRadius: 10,
+            color: esDemorado || esCuentaUrgente ? '#0d0d0f' : 'var(--text-primary)',
+            padding: '10px 18px',
+            fontSize: 13,
+            fontWeight: 700,
+            cursor: 'pointer',
+            transition: 'all 0.15s',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6
+          }}
+        >
+          {loading || isAtendiendo ? (
+            <i className="ri-loader-4-line spin" />
+          ) : (
+            <>
+              <i className="ri-check-line" />
+              Atender
+            </>
+          )}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function MeseroContent() {
   const { user, loading, logout, loginWithEmpleadoId } = useAuth();
   
