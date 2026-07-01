@@ -226,9 +226,20 @@ export default function CajaPanel({ showToast }) {
   const [loadingMoreInventario, setLoadingMoreInventario] = useState(false);
 
   // Estados de Inteligencia y Reportes
-  const [filtroGrafico, setFiltroGrafico] = useState('semana'); // 'semana' | 'mes' | 'anio'
+  // rfFiltro: persiste en localStorage para recordar la preferencia del usuario
+  const [rfFiltro, setRfFiltroState] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('yoy_rf_filtro') || '7d';
+    }
+    return '7d';
+  });
+  const setRfFiltro = (f) => {
+    setRfFiltroState(f);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('yoy_rf_filtro', f);
+    }
+  };
   const [pronosticoRango, setPronosticoRango] = useState('24h'); // '24h' | '48h' | '72h'
-  const [rfFiltro, setRfFiltro] = useState('7d');
   const [rfModalTipo, setRfModalTipo] = useState(null);
   const [rfModalDetalleMetodo, setRfModalDetalleMetodo] = useState(null);
   const [rfSyncProgress, setRfSyncProgress] = useState(null);
@@ -1813,6 +1824,26 @@ export default function CajaPanel({ showToast }) {
       cargarDatosReporte(p);
     }
   };
+
+  // Sincronizar rfFiltro (Resumen Financiero) con periodoReporte (Reportes Operativos)
+  // Mapeo: los filtros del resumen disparan también la carga del reporte correspondiente
+  useEffect(() => {
+    const mapa = {
+      'Hoy': 'Hoy',
+      '7d': '7D',
+      '15d': '15D',
+      '1m': '30D',
+      '6m': '6M',
+      '1a': '1A',
+      'vida': '1A',          // El reporte no tiene 'vida', usamos 1A como el más amplio
+      'ultimo corte': 'Hoy'  // Último corte es siempre de hoy en adelante
+    };
+    const p = mapa[rfFiltro];
+    if (p && p !== periodoReporte) {
+      handlePeriodoReporteChange(p);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rfFiltro]);
 
   const exportarReporte = async (formato) => {
     if (!datosReporte) return;
