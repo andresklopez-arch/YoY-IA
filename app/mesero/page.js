@@ -1012,6 +1012,8 @@ function MeseroContent() {
 
       const updateData = {
         atendidoMesero: true,
+        atendidoMeseroUid: user?.uid || 'mesero',
+        atendidoMeseroNombre: user?.nombre || user?.alias || user?.name || 'Mesero',
         updatedAt: serverTimestamp(),
       };
       // Solo archivar si no es un pedido y el admin también lo atendió

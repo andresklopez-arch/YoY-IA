@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback, use, useRef } from 'react';
 import {
   collection, addDoc, onSnapshot, query,
-  where, orderBy, serverTimestamp, doc, updateDoc, setDoc, getDoc, getActiveSalonId
+  where, orderBy, serverTimestamp, doc, updateDoc, setDoc, getDoc, getActiveSalonId, getDocs
 } from '@/lib/firestore-tenant';
 import { getDocs as rawGetDocs, collection as rawCollection } from 'firebase/firestore';
 import { db, auth } from '@/lib/firebase';
@@ -1027,19 +1027,48 @@ export default function MesaClientePage({ params }) {
     }
     setEnviando(true);
     try {
-      await addDocWithTimeout(collection(db, 'mesa_pedidos'), {
-        mesaId,
-        cliente: clienteNombre || `Mesa ${mesaId}`,
-        tipo: 'asistencia',
-        tipoAsistencia: tipo.id || tipo,
-        etiqueta: tipo.label || tipo,
-        icono: tipo.icon || '🙋',
-        estado: 'pendiente',
-        clienteUid: auth.currentUser?.uid || '',
-        atendidoAdmin: false,
-        atendidoMesero: false,
-        createdAt: serverTimestamp(),
-      });
+      // Buscar si ya existe una alerta activa del mismo tipo para esta mesa
+      const q = query(
+        collection(db, 'mesa_pedidos'),
+        where('mesaId', '==', String(mesaId)),
+        where('estado', '==', 'pendiente'),
+        where('tipo', '==', 'asistencia'),
+        where('tipoAsistencia', '==', tipo.id || tipo)
+      );
+      const snap = await getDocs(q);
+
+      if (!snap.empty) {
+        // Consolidar en la alerta existente
+        const activeDoc = snap.docs[0];
+        const activeData = activeDoc.data();
+        const currentCount = activeData.contadorLlamados || 1;
+        const newCount = currentCount + 1;
+
+        await updateDoc(doc(db, 'mesa_pedidos', activeDoc.id), {
+          contadorLlamados: newCount,
+          etiqueta: `${tipo.label || tipo} (x${newCount})`,
+          atendidoAdmin: false,
+          atendidoMesero: false,
+          updatedAt: serverTimestamp(),
+          createdAt: serverTimestamp(), // Reiniciar el contador de tiempo de espera
+        });
+      } else {
+        // Crear una nueva alerta normalmente
+        await addDocWithTimeout(collection(db, 'mesa_pedidos'), {
+          mesaId,
+          cliente: clienteNombre || `Mesa ${mesaId}`,
+          tipo: 'asistencia',
+          tipoAsistencia: tipo.id || tipo,
+          etiqueta: tipo.label || tipo,
+          icono: tipo.icon || '🙋',
+          estado: 'pendiente',
+          clienteUid: auth.currentUser?.uid || '',
+          atendidoAdmin: false,
+          atendidoMesero: false,
+          createdAt: serverTimestamp(),
+        });
+      }
+
       await actualizarActividadMesa();
       setShowAsistConfirm(null);
       setExito('asistencia');
@@ -1104,18 +1133,46 @@ export default function MesaClientePage({ params }) {
 
     try {
       // 2. Enviar alerta de cuenta
-      await addDocWithTimeout(collection(db, 'mesa_pedidos'), {
-        mesaId,
-        cliente: clienteNombre || `Mesa ${mesaId}`,
-        tipo: 'cuenta',
-        etiqueta: 'Solicitud de Cuenta',
-        icono: '💳',
-        estado: 'pendiente',
-        atendidoAdmin: false,
-        atendidoMesero: false,
-        totalAcumulado,
-        createdAt: serverTimestamp(),
-      });
+      // Buscar si ya existe una alerta activa de tipo 'cuenta' para esta mesa
+      const q = query(
+        collection(db, 'mesa_pedidos'),
+        where('mesaId', '==', String(mesaId)),
+        where('estado', '==', 'pendiente'),
+        where('tipo', '==', 'cuenta')
+      );
+      const snap = await getDocs(q);
+
+      if (!snap.empty) {
+        // Consolidar en la alerta existente
+        const activeDoc = snap.docs[0];
+        const activeData = activeDoc.data();
+        const currentCount = activeData.contadorLlamados || 1;
+        const newCount = currentCount + 1;
+
+        await updateDoc(doc(db, 'mesa_pedidos', activeDoc.id), {
+          contadorLlamados: newCount,
+          etiqueta: `Solicitud de Cuenta (x${newCount})`,
+          totalAcumulado,
+          atendidoAdmin: false,
+          atendidoMesero: false,
+          updatedAt: serverTimestamp(),
+          createdAt: serverTimestamp(), // Reiniciar el contador de tiempo de espera
+        });
+      } else {
+        // Crear una nueva alerta normalmente
+        await addDocWithTimeout(collection(db, 'mesa_pedidos'), {
+          mesaId,
+          cliente: clienteNombre || `Mesa ${mesaId}`,
+          tipo: 'cuenta',
+          etiqueta: 'Solicitud de Cuenta',
+          icono: '💳',
+          estado: 'pendiente',
+          atendidoAdmin: false,
+          atendidoMesero: false,
+          totalAcumulado,
+          createdAt: serverTimestamp(),
+        });
+      }
 
       setShowSurvey(false);
       setExito('cuenta');

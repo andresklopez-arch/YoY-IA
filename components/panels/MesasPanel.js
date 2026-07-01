@@ -3084,6 +3084,8 @@ export default function MesasPanel({ showToast }) {
 
       const updateData = {
         atendidoAdmin: true,
+        atendidoAdminUid: user?.uid || 'caja',
+        atendidoAdminNombre: user?.nombre || user?.alias || 'Caja',
         updatedAt: serverTimestamp()
       };
       if (tiempoEsperaSegundos !== null) {
