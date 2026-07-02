@@ -102,7 +102,10 @@ export default function LoginScreen({ showToast }) {
         if (res.ok && data.success && data.data) {
           const decryptedList = deobfuscateStatic(data.data);
           if (Array.isArray(decryptedList)) {
-            const apiUsers = decryptedList.filter(u => u.email !== 'masteradmin@yoybillar.mx' && !u.email.startsWith('masteradmin@'));
+            const apiUsers = decryptedList.filter(u => {
+              if (u.email === 'masteradmin@yoybillar.mx' || u.email.startsWith('masteradmin@')) return false;
+              return u.salonId === activeSalonId || u.sucursal === 'all';
+            });
             list = [...list, ...apiUsers];
           }
         } else {
@@ -329,9 +332,23 @@ export default function LoginScreen({ showToast }) {
           });
           return 0;
         } else {
+          let titulo = 'Credenciales Incorrectas';
+          let mensaje = 'El usuario o contraseña ingresados no son correctos. Por favor, verifica tus datos.';
+          
+          if (err && err.message === 'Sucursal no autorizada') {
+            titulo = 'Acceso Restringido';
+            mensaje = 'Tu usuario pertenece a otra sucursal y no está autorizado para operar en esta terminal física.';
+          } else if (err && err.message === 'Usuario suspendido') {
+            titulo = 'Cuenta Suspendida';
+            mensaje = 'Esta cuenta ha sido suspendida temporalmente por la administración.';
+          } else if (err && err.message === 'NIP no registrado o inválido') {
+            titulo = 'NIP Incorrecto';
+            mensaje = 'El NIP ingresado no corresponde a ningún empleado registrado en esta sucursal.';
+          }
+
           setModalError({
-            titulo: 'Credenciales Incorrectas',
-            mensaje: 'El usuario o contraseña ingresados no son correctos. Por favor, verifica tus datos.',
+            titulo,
+            mensaje,
             intentos: nuevosIntentos
           });
           return nuevosIntentos;
