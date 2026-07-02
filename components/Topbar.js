@@ -1266,6 +1266,35 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
                 </span>
               )}
             </div>
+
+            {/* Sugerencia 2: Indicador de Sucursal / Tenant */}
+            {(() => {
+              if (typeof window !== 'undefined') {
+                const sId = window.sessionStorage.getItem('yoy_client_salon_id') || 'default_salon';
+                if (sId !== 'default_salon') {
+                  return (
+                    <div style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      fontSize: '9px',
+                      fontWeight: 900,
+                      padding: '2px 6px',
+                      borderRadius: 6,
+                      background: 'rgba(194, 155, 56, 0.1)',
+                      border: '1px solid rgba(194, 155, 56, 0.35)',
+                      color: 'var(--bronze-light)',
+                      textTransform: 'uppercase',
+                      lineHeight: 1,
+                      gap: 4
+                    }} title="Sucursal / Inquilino Multi-tenant activo">
+                      <i className="ri-building-line" style={{ fontSize: 10 }} />
+                      <span>{sId}</span>
+                    </div>
+                  );
+                }
+              }
+              return null;
+            })()}
           </div>
           {activePanel === 'mesas' && (user?.permisos?.nomina === true || user?.role === 'admin') && (
             <button

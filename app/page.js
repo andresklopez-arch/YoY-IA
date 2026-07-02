@@ -1494,6 +1494,28 @@ function AppContent() {
     checkAsistenciaAndDecide(params);
   }, [loginWithEmpleadoId, logout]);
 
+  // Sugerencia 3: Limpieza y recarga del estado ante cambios del parámetro 's' en la URL
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const checkUrlTenant = () => {
+      const params = new URLSearchParams(window.location.search);
+      const urlSalonId = params.get('s') || params.get('salonId');
+      if (urlSalonId) {
+        const storedSalonId = sessionStorage.getItem('yoy_client_salon_id');
+        if (storedSalonId && storedSalonId !== urlSalonId) {
+          console.log("Cambio de tenant detectado en caliente, recargando aplicación...");
+          sessionStorage.setItem('yoy_client_salon_id', urlSalonId);
+          window.location.reload();
+        }
+      }
+    };
+    
+    checkUrlTenant();
+    
+    window.addEventListener('popstate', checkUrlTenant);
+    return () => window.removeEventListener('popstate', checkUrlTenant);
+  }, []);
+
   // 1. Escuchar capturas de venta del mesero
   useEffect(() => {
     if (!user) return;
