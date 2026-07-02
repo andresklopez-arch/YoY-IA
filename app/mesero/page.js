@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
   collection, onSnapshot, query, where,
   orderBy, updateDoc, doc, serverTimestamp, addDoc, getDoc,
@@ -174,7 +174,7 @@ function MeseroContent() {
 
     const urlParams = new URLSearchParams(window.location.search);
     const queryEmpleadoId = urlParams.get('empleadoId');
-    const querySalonId = urlParams.get('salonId') || (typeof window !== 'undefined' && localStorage.getItem('yoy_terminal_salon_id')) || 'default_salon';
+    const querySalonId = getActiveSalonId();
     setSalonId(querySalonId);
 
     const checkAndRecoverSession = async () => {
@@ -628,12 +628,7 @@ function MeseroContent() {
     return `Vista Mesero · ${user?.alias || user?.name?.split(' ')[0] || ''}`;
   }, [activeFilterId, queryEmpleado, user]);
 
-  const mesasRef = useRef(mesas);
-  useEffect(() => {
-    mesasRef.current = mesas;
-  }, [mesas]);
-
-  const isAlertaParaMi = (alerta) => {
+  const isAlertaParaMi = useCallback((alerta) => {
     if (!activeFilterId) return false;
     
     // Si queremos ver todos los meseros
@@ -644,7 +639,7 @@ function MeseroContent() {
       const hasMesero = alerta.meseroId || (alerta.meseroIds && alerta.meseroIds.length > 0);
       if (hasMesero) return false;
       if (alerta.mesaId) {
-        const mesaAsoc = mesasRef.current?.find(m => String(m.id) === String(alerta.mesaId));
+        const mesaAsoc = mesas?.find(m => String(m.id) === String(alerta.mesaId));
         if (mesaAsoc) {
           const mesaHasMesero = mesaAsoc.meseroId || (mesaAsoc.meseroIds && mesaAsoc.meseroIds.length > 0);
           if (mesaHasMesero) return false;
@@ -663,7 +658,7 @@ function MeseroContent() {
     
     // 2. Si está asociada a una mesa
     if (alerta.mesaId) {
-      const mesaAsoc = mesasRef.current?.find(m => String(m.id) === String(alerta.mesaId));
+      const mesaAsoc = mesas?.find(m => String(m.id) === String(alerta.mesaId));
       if (mesaAsoc) {
         const isAssigned = 
           (mesaAsoc.meseroId && mesaAsoc.meseroId === activeFilterId) ||
@@ -679,7 +674,7 @@ function MeseroContent() {
     
     // 3. De lo contrario, es una alerta general (por ejemplo, "Para Llevar" sin mesero o asistencia general), notificar a todos
     return true;
-  };
+  }, [mesas, activeFilterId]);
 
   const alertasAsistenciaParaMi = alertasAsistencia.filter(isAlertaParaMi);
 

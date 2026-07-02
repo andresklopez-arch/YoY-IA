@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   collection, onSnapshot, query,
   orderBy, updateDoc, doc, serverTimestamp, addDoc, getDocs, setDoc, getDoc, deleteDoc, getActiveSalonId
@@ -216,7 +216,7 @@ function CocinaContent() {
       }
 
       if (!user) {
-        const querySalonId = urlParams.get('salonId') || (typeof window !== 'undefined' && localStorage.getItem('yoy_terminal_salon_id')) || 'default_salon';
+        const querySalonId = getActiveSalonId();
         try {
           await loginWithEmpleadoId({
             id: `cocina_general_${querySalonId}`,

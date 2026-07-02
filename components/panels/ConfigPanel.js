@@ -330,7 +330,7 @@ export default function ConfigPanel({ showToast }) {
   const fetchUsuarios = async () => {
     setLoadingUsuarios(true);
     try {
-      const activeSalonId = user?.salonId || (typeof window !== 'undefined' ? localStorage.getItem('yoy_terminal_salon_id') : null) || 'default_salon';
+      const activeSalonId = getActiveSalonId();
       let q;
       if (user?.sucursal === 'all') {
         q = query(collection(db, 'users'));
@@ -841,7 +841,7 @@ export default function ConfigPanel({ showToast }) {
 
     setSavingUser(true);
     try {
-      const activeSalonId = user?.salonId || (typeof window !== 'undefined' ? localStorage.getItem('yoy_terminal_salon_id') : null) || 'default_salon';
+      const activeSalonId = getActiveSalonId();
       const dupQuery = query(
         collection(db, 'users'),
         where('salonId', '==', activeSalonId),
