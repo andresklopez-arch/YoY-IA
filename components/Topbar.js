@@ -1412,7 +1412,7 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
                 if (a.isDropdown) {
                   setShowMeseroDropdown(!showMeseroDropdown);
                 } else if (a.href) {
-                  window.open(a.href, '_blank');
+                  window.open(`${a.href}?s=${user?.salonId || 'default_salon'}`, '_blank');
                 } else {
                   onNavigate(a.nav);
                 }
@@ -1495,7 +1495,7 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
                     <button
                       onClick={() => {
                         setShowMeseroDropdown(false);
-                        window.open('/mesero', '_blank');
+                        window.open(`/mesero?s=${user?.salonId || 'default_salon'}`, '_blank');
                       }}
                       style={{
                         background: 'transparent',
@@ -1522,7 +1522,7 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
                     <button
                       onClick={() => {
                         setShowMeseroDropdown(false);
-                        window.open('/mesero?empleadoId=sin_mesero', '_blank');
+                        window.open(`/mesero?empleadoId=sin_mesero&s=${user?.salonId || 'default_salon'}`, '_blank');
                       }}
                       style={{
                         background: 'transparent',
@@ -1561,7 +1561,7 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
                           key={m.id}
                           onClick={() => {
                             setShowMeseroDropdown(false);
-                            window.open(`/mesero?empleadoId=${m.id}`, '_blank');
+                            window.open(`/mesero?empleadoId=${m.id}&s=${user?.salonId || 'default_salon'}`, '_blank');
                           }}
                           style={{
                             background: 'transparent',

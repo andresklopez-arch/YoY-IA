@@ -1275,14 +1275,14 @@ function AppContent() {
     if (user) {
       const rolLower = (user.role || '').toLowerCase();
       if (rolLower.includes('mesero')) {
-        window.location.href = '/mesero';
+        window.location.href = `/mesero?s=${user.salonId || 'default_salon'}`;
       } else if (
         rolLower.includes('cocina') ||
         rolLower.includes('bartender') ||
         rolLower.includes('barman') ||
         rolLower.includes('cocinero')
       ) {
-        window.location.href = '/cocina';
+        window.location.href = `/cocina?s=${user.salonId || 'default_salon'}`;
       }
     }
   }, [user, isProcessingQR]);
@@ -1384,11 +1384,11 @@ function AppContent() {
 
         await new Promise((resolve) => setTimeout(resolve, 500));
 
-        // Redireccionar de inmediato a su área de trabajo
+        // Redireccionar de inmediato a su área de trabajo con salonId propagado
         if (rolLower.includes('mesero')) {
-          window.location.href = '/mesero';
+          window.location.href = `/mesero?s=${emp.salonId || 'default_salon'}`;
         } else {
-          window.location.href = '/cocina';
+          window.location.href = `/cocina?s=${emp.salonId || 'default_salon'}`;
         }
       } else {
         // Personal de soporte: no inician sesión. Mostrar pantalla visual de éxito
