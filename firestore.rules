@@ -9,6 +9,7 @@ service cloud.firestore {
         !('data' in docObj) ||
         docObj.data == null ||
         !('salonId' in docObj.data) ||
+        !('salonId' in request.auth.token) ||
         request.auth.token.salonId == docObj.data.salonId ||
         request.auth.token.email == 'masteradmin@yoybillar.mx' ||
         request.auth.token.email.matches('^masteradmin@.*')
