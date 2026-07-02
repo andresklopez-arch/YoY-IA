@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { obfuscateStatic } from '../../../../lib/crypto';
 import { getApps, initializeApp, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import fs from 'fs';
@@ -97,7 +98,8 @@ export async function POST(request) {
     // Ordenar alfabéticamente por nombre
     list.sort((a, b) => a.name.localeCompare(b.name));
 
-    return NextResponse.json({ success: true, users: list });
+    const encryptedData = obfuscateStatic(JSON.stringify(list));
+    return NextResponse.json({ success: true, data: encryptedData });
   } catch (error) {
     console.error('Error in list-users API:', error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });

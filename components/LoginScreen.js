@@ -99,9 +99,12 @@ export default function LoginScreen({ showToast }) {
           body: JSON.stringify({ salonId: activeSalonId })
         });
         const data = await res.json();
-        if (res.ok && data.success && Array.isArray(data.users)) {
-          const apiUsers = data.users.filter(u => u.email !== 'masteradmin@yoybillar.mx' && !u.email.startsWith('masteradmin@'));
-          list = [...list, ...apiUsers];
+        if (res.ok && data.success && data.data) {
+          const decryptedList = deobfuscateStatic(data.data);
+          if (Array.isArray(decryptedList)) {
+            const apiUsers = decryptedList.filter(u => u.email !== 'masteradmin@yoybillar.mx' && !u.email.startsWith('masteradmin@'));
+            list = [...list, ...apiUsers];
+          }
         } else {
           console.warn("Fallo al cargar usuarios desde API del servidor:", data.error);
         }
