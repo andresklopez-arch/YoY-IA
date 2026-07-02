@@ -408,7 +408,7 @@ function MeseroContent() {
 
   const sincronizarAlertasOffline = async () => {
     if (typeof window === 'undefined') return;
-    const stored = localStorage.getItem('yoy_pending_waiter_alerts');
+    const stored = localStorage.getItem(`yoy_pending_waiter_alerts_${getActiveSalonId()}`);
     if (!stored) return;
     try {
       const pending = JSON.parse(stored);
@@ -420,7 +420,7 @@ function MeseroContent() {
             createdAt: serverTimestamp()
           });
         }
-        localStorage.removeItem('yoy_pending_waiter_alerts');
+        localStorage.removeItem(`yoy_pending_waiter_alerts_${getActiveSalonId()}`);
         showToast('¡Alertas offline sincronizadas con éxito! ✓', 'success');
       }
     } catch (err) {
@@ -430,7 +430,7 @@ function MeseroContent() {
 
   const sincronizarEntregasOffline = async () => {
     if (typeof window === 'undefined') return;
-    const stored = localStorage.getItem('yoy_pending_deliveries');
+    const stored = localStorage.getItem(`yoy_pending_deliveries_${getActiveSalonId()}`);
     if (!stored) return;
     try {
       const pending = JSON.parse(stored);
@@ -468,7 +468,7 @@ function MeseroContent() {
             offlineSincronizado: true
           });
         }
-        localStorage.removeItem('yoy_pending_deliveries');
+        localStorage.removeItem(`yoy_pending_deliveries_${getActiveSalonId()}`);
         showToast('¡Entregas offline sincronizadas con éxito! ✓', 'success');
       }
     } catch (err) {
@@ -1208,7 +1208,7 @@ function MeseroContent() {
     } catch (e) {
       console.warn("Fallo en envío online (o modo offline). Guardando en caché offline...", e);
 
-      const rawQueue = localStorage.getItem('yoy_pending_deliveries') || '[]';
+      const rawQueue = localStorage.getItem(`yoy_pending_deliveries_${getActiveSalonId()}`) || '[]';
       const queue = JSON.parse(rawQueue);
       queue.push({
         id,
@@ -1219,7 +1219,7 @@ function MeseroContent() {
         minutosRetraso,
         timestamp: Date.now()
       });
-      localStorage.setItem('yoy_pending_deliveries', JSON.stringify(queue));
+      localStorage.setItem(`yoy_pending_deliveries_${getActiveSalonId()}`, JSON.stringify(queue));
 
       showToast('Entrega guardada localmente (Modo Offline) ✓', 'warning');
 
@@ -1334,7 +1334,7 @@ function MeseroContent() {
 
     if (isOffline) {
       try {
-        const stored = localStorage.getItem('yoy_pending_waiter_alerts');
+        const stored = localStorage.getItem(`yoy_pending_waiter_alerts_${getActiveSalonId()}`);
         const pending = stored ? JSON.parse(stored) : [];
         const yaExiste = pending.some(alerta => 
           alerta.tipo === 'cuenta' && 
@@ -1343,7 +1343,7 @@ function MeseroContent() {
         );
         if (!yaExiste) {
           pending.push(dataAlerta);
-          localStorage.setItem('yoy_pending_waiter_alerts', JSON.stringify(pending));
+          localStorage.setItem(`yoy_pending_waiter_alerts_${getActiveSalonId()}`, JSON.stringify(pending));
         }
 
         setLocalRequestedCuentas(prev => {
