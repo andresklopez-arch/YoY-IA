@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import { useAuth } from '@/lib/auth-context';
 import { useAlertasNomina } from '@/hooks/useAlertasNomina';
 import { QRCodeSVG } from 'qrcode.react';
-import { collection, query, where, onSnapshot, doc, getDoc, setDoc, addDoc, getDocs, serverTimestamp, updateDoc, orderBy, limit, writeBatch } from '@/lib/firestore-tenant';
+import { collection, query, where, onSnapshot, doc, getDoc, setDoc, addDoc, getDocs, serverTimestamp, updateDoc, orderBy, limit, writeBatch, getActiveSalonId } from '@/lib/firestore-tenant';
 import { auth, db } from '@/lib/firebase';
 import { deobfuscate, obfuscate, obfuscateStatic } from '@/lib/crypto';
 import { getBusinessDate } from '@/lib/date-utils';
@@ -141,6 +141,7 @@ const QUICK_NAV_TARGETS = [
 ];
 
 export default function Topbar({ user, activePanel, showToast, onNavigate }) {
+  const currentSalonId = getActiveSalonId();
   const { logout, loginWithEmpleadoId, offlineLockout, unlockOffline } = useAuth();
   const canAccessPanel = useCallback((panelId) => {
     if (user && user.permisos) {
@@ -240,14 +241,14 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
   }, []);
 
   useEffect(() => {
-    if (!user?.salonId) {
+    if (!currentSalonId) {
       setWorkingMeseros([]);
       return;
     }
     // 1. Escuchar empleados activos
     const qEmp = query(
       collection(db, 'nomina_empleados'), 
-      where('salonId', '==', user.salonId),
+      where('salonId', '==', currentSalonId),
       where('estado', '==', 'activo')
     );
     const unsubEmp = onSnapshot(qEmp, snapEmp => {
@@ -260,7 +261,7 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
       const fechaHoy = getBusinessDate();
       const qAsist = query(
         collection(db, 'nomina_asistencia'), 
-        where('salonId', '==', user.salonId),
+        where('salonId', '==', currentSalonId),
         where('fecha', '==', fechaHoy)
       );
       
@@ -280,7 +281,7 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
     });
 
     return unsubEmp;
-  }, [user?.salonId]);
+  }, [currentSalonId]);
 
   useEffect(() => {
     if (!showMeseroDropdown) return;
@@ -344,17 +345,17 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
         headers['Authorization'] = `Bearer ${tokenJWT}`;
       }
       
-      const currentSalonId = user?.salonId || 'default_salon';
+      const currentSalonId2 = currentSalonId || 'default_salon';
       const signature = obfuscateStatic(JSON.stringify({
         timestamp: Date.now(),
         empleadoId: focusedEmpleadoQR.id,
-        salonId: currentSalonId
+        salonId: currentSalonId2
       }));
 
       const res = await fetch('/api/nomina/generate-qr-token', {
         method: 'POST',
         headers,
-        body: JSON.stringify({ empleadoId: focusedEmpleadoQR.id, salonId: currentSalonId, signature })
+        body: JSON.stringify({ empleadoId: focusedEmpleadoQR.id, salonId: currentSalonId2, signature })
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
@@ -391,13 +392,13 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
 
   // Sugerencia 3: Mostrar los últimos 3 fichajes exitosos en tiempo real
   useEffect(() => {
-    if (!focusedEmpleadoQR || !user?.salonId) {
+    if (!focusedEmpleadoQR || !currentSalonId) {
       setRecentFichajes([]);
       return;
     }
     const q = query(
       collection(db, 'nomina_asistencia_log'),
-      where('salonId', '==', user.salonId),
+      where('salonId', '==', currentSalonId),
       where('empleadoId', '==', focusedEmpleadoQR.id)
     );
     const unsub = onSnapshot(q, snap => {
@@ -413,17 +414,17 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
       console.warn("Error listening to recent logs:", err);
     });
     return unsub;
-  }, [focusedEmpleadoQR, user?.salonId]);
+  }, [focusedEmpleadoQR, currentSalonId]);
 
   // Escuchar pases de lista de administración (Cajeros, Gerentes, Administradores)
   useEffect(() => {
-    if (!showModalPaseLista || !user?.salonId) {
+    if (!showModalPaseLista || !currentSalonId) {
       setAdminLogs([]);
       return;
     }
     const q = query(
       collection(db, 'nomina_asistencia_log'),
-      where('salonId', '==', user.salonId),
+      where('salonId', '==', currentSalonId),
       orderBy('createdAt', 'desc'),
       limit(40)
     );
@@ -438,7 +439,7 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
       console.warn("Error listening to admin logs:", err);
     });
     return unsub;
-  }, [showModalPaseLista, user?.salonId]);
+  }, [showModalPaseLista, currentSalonId]);
 
   // Manejar tecla ESC para salir del Pase de Lista
   useEffect(() => {
@@ -457,7 +458,7 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
 
 
   useEffect(() => {
-    if (!showModalPaseLista || !user?.salonId) {
+    if (!showModalPaseLista || !currentSalonId) {
       setEmpleadosPaseLista([]);
       setPaseListaError(null);
       setIsPaseListaOffline(false);
@@ -483,7 +484,7 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
 
     const q = query(
       collection(db, 'nomina_empleados'), 
-      where('salonId', '==', user.salonId),
+      where('salonId', '==', currentSalonId),
       where('estado', '==', 'activo')
     );
     const unsub = onSnapshot(q, async (snap) => {
@@ -498,11 +499,11 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
       await cargarFallbackLocal();
     });
     return unsub;
-  }, [showModalPaseLista, user?.salonId]);
+  }, [showModalPaseLista, currentSalonId]);
 
   const handlePaseListaClick = async (emp, selectedMesaIds = []) => {
     try {
-      if (!user?.salonId) {
+      if (!currentSalonId) {
         throw new Error('No se ha detectado el identificador del salón.');
       }
       const fechaHoy = getBusinessDate();
@@ -513,7 +514,7 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
 
       const q = query(
         collection(db, 'nomina_asistencia'),
-        where('salonId', '==', user.salonId),
+        where('salonId', '==', currentSalonId),
         where('empleadoId', '==', emp.id),
         where('fecha', '==', fechaHoy),
         where('turno', '==', turnoActual)
@@ -521,7 +522,7 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
       const snap = await getDocs(q);
       if (snap.empty) {
         await addDoc(collection(db, 'nomina_asistencia'), {
-          salonId: user.salonId,
+          salonId: currentSalonId,
           empleadoId: emp.id,
           fecha: fechaHoy,
           turno: turnoActual,
@@ -542,7 +543,7 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
 
       // Registrar de inmediato en la bitácora general para el panel de Reportes
       await addDoc(collection(db, 'bitacora'), {
-        salonId: user.salonId,
+        salonId: currentSalonId,
         fecha: new Date().toISOString(),
         accion: 'Asistencia Consola',
         detalle: `Pase de lista de ${emp.nombre} (${emp.rol || 'Mesero'}) registrado desde pantalla administrador por ${dispositivo}`,
@@ -623,8 +624,8 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
   };
 
   const alertasNomina = useAlertasNomina();
-  const pedidosPendientes = usePedidosPendientes(user?.salonId);
-  const pedidosCocina = usePedidosCocina(user?.salonId);
+  const pedidosPendientes = usePedidosPendientes(currentSalonId);
+  const pedidosCocina = usePedidosCocina(currentSalonId);
   const [locale, setLocale] = useState('es-MX');
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [isDismissing, setIsDismissing] = useState(false);
@@ -1412,7 +1413,7 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
                 if (a.isDropdown) {
                   setShowMeseroDropdown(!showMeseroDropdown);
                 } else if (a.href) {
-                  window.open(`${a.href}?s=${user?.salonId || 'default_salon'}`, '_blank');
+                  window.open(`${a.href}?s=${currentSalonId || 'default_salon'}`, '_blank');
                 } else {
                   onNavigate(a.nav);
                 }
@@ -1495,7 +1496,7 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
                     <button
                       onClick={() => {
                         setShowMeseroDropdown(false);
-                        window.open(`/mesero?s=${user?.salonId || 'default_salon'}`, '_blank');
+                        window.open(`/mesero?s=${currentSalonId || 'default_salon'}`, '_blank');
                       }}
                       style={{
                         background: 'transparent',
@@ -1522,7 +1523,7 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
                     <button
                       onClick={() => {
                         setShowMeseroDropdown(false);
-                        window.open(`/mesero?empleadoId=sin_mesero&s=${user?.salonId || 'default_salon'}`, '_blank');
+                        window.open(`/mesero?empleadoId=sin_mesero&s=${currentSalonId || 'default_salon'}`, '_blank');
                       }}
                       style={{
                         background: 'transparent',
@@ -1561,7 +1562,7 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
                           key={m.id}
                           onClick={() => {
                             setShowMeseroDropdown(false);
-                            window.open(`/mesero?empleadoId=${m.id}&s=${user?.salonId || 'default_salon'}`, '_blank');
+                            window.open(`/mesero?empleadoId=${m.id}&s=${currentSalonId || 'default_salon'}`, '_blank');
                           }}
                           style={{
                             background: 'transparent',
@@ -2128,7 +2129,7 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
                     </span>
                     <div style={{ background: '#fff', padding: 8, borderRadius: 10, display: 'inline-block', marginBottom: 10 }}>
                       <QRCodeSVG
-                        value={typeof window !== 'undefined' ? `${window.location.origin}/mesero?salonId=${user?.salonId || 'default_salon'}` : `https://yoy-ia-billar.vercel.app/mesero?salonId=${user?.salonId || 'default_salon'}`}
+                        value={typeof window !== 'undefined' ? `${window.location.origin}/mesero?salonId=${currentSalonId || 'default_salon'}` : `https://yoy-ia-billar.vercel.app/mesero?salonId=${currentSalonId || 'default_salon'}`}
                         size={140}
                         bgColor="#fff"
                         fgColor="#000"
@@ -2157,7 +2158,7 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
                     </span>
                     <div style={{ background: '#fff', padding: 8, borderRadius: 10, display: 'inline-block', marginBottom: 10 }}>
                       <QRCodeSVG
-                        value={typeof window !== 'undefined' ? `${window.location.origin}/cocina?salonId=${user?.salonId || 'default_salon'}` : `https://yoy-ia-billar.vercel.app/cocina?salonId=${user?.salonId || 'default_salon'}`}
+                        value={typeof window !== 'undefined' ? `${window.location.origin}/cocina?salonId=${currentSalonId || 'default_salon'}` : `https://yoy-ia-billar.vercel.app/cocina?salonId=${currentSalonId || 'default_salon'}`}
                         size={140}
                         bgColor="#fff"
                         fgColor="#000"
