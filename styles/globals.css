@@ -87,7 +87,7 @@
 }
 
 /* ── SOBREESCRITURA DE TEMA PARA MILLION DOLLAR (AZUL REY Y AGUILA) ── */
-[data-tenant="prueba_smart"] {
+[data-tenant="prueba_smart"], [data-tenant="B;B-P3BUG-B"] {
   --bronze:         #1d4ed8; /* Azul Rey / Azul Cobalto */
   --bronze-light:   #60a5fa; /* Azul Claro Brillante */
   --bronze-dark:    #1e3a8a; /* Azul Marino Oscuro */
