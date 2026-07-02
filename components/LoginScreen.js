@@ -5,20 +5,9 @@ import { db } from '@/lib/firebase';
 import { collection, getDocs, query, orderBy, addDoc } from 'firebase/firestore';
 import { getClientDomain, getAmbassadorName, getAppLogoPath } from '@/lib/tenant';
 import { obfuscateStatic, deobfuscateStatic } from '@/lib/crypto';
+import { getActiveSalonId } from '@/lib/firestore-tenant';
 
-const getActiveSalonId = () => {
-  if (typeof window === 'undefined') return 'default_salon';
-  try {
-    const session = localStorage.getItem('yoy_ia_session');
-    if (session) {
-      const parsed = JSON.parse(session);
-      if (parsed.salonId) return parsed.salonId;
-    }
-    const saved = localStorage.getItem('yoy_terminal_salon_id');
-    if (saved) return saved;
-  } catch (e) {}
-  return 'default_salon';
-};
+
 
 export default function LoginScreen({ showToast }) {
   const { login } = useAuth();
