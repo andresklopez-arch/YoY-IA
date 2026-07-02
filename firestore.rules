@@ -41,12 +41,12 @@ service cloud.firestore {
 
     // 3. Comandas, pedidos y llamadas de asistencia
     match /mesa_pedidos/{document} {
-      allow read, write: if true;
+      allow read, write: if request.auth == null || (perteneceAlSalon(resource) && perteneceAlSalon(request.resource));
     }
 
     // 4. Clientes anónimos (nombres ofuscados de los QR)
     match /clientes_anonimos/{userId} {
-      allow read, write: if true;
+      allow read, write: if request.auth == null || (perteneceAlSalon(resource) && perteneceAlSalon(request.resource));
     }
 
     // 5. Historiales, logs y auditorías
@@ -84,7 +84,7 @@ service cloud.firestore {
 
     // 7. Fila Virtual de Espera y Log de Alertas
     match /fila_espera/{document} {
-      allow read, write: if true;
+      allow read, write: if request.auth == null || (perteneceAlSalon(resource) && perteneceAlSalon(request.resource));
     }
     match /alertas_digitales_log/{document} {
       allow read, write: if request.auth != null;

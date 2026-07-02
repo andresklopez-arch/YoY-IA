@@ -186,7 +186,7 @@ function SwipeableKitchenCard({ pedido, esUrgente, tiempoTranscurrido, CAT_EMOJI
 }
 
 function CocinaContent() {
-  const { user, loading, logout, loginWithEmpleadoId } = useAuth();
+  const { user, loading, logout, loginWithEmpleadoId, tenantError } = useAuth();
   const [altoContraste, setAltoContraste] = useState(false);
   const [fontSizeMultiplier, setFontSizeMultiplier] = useState(1.0);
 
@@ -935,6 +935,54 @@ function CocinaContent() {
     if (seg < 3600) return `${Math.floor(seg / 60)}min`;
     return `${Math.floor(seg / 3600)}h`;
   };
+
+  if (tenantError) {
+    return (
+      <div style={{
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        height: '100vh', backgroundColor: '#0d0d0f', color: '#f0f0f4', fontFamily: 'var(--font-main)',
+        padding: 24, textAlign: 'center'
+      }}>
+        <div style={{
+          backgroundColor: '#141418', border: '2px solid #ef4444', borderRadius: 16,
+          padding: 32, maxWidth: 500, boxShadow: '0 8px 32px rgba(239, 68, 68, 0.15)'
+        }}>
+          <i className="ri-error-warning-fill" style={{ fontSize: 64, color: '#ef4444', display: 'block', marginBottom: 16 }} />
+          <h2 style={{ fontSize: 24, fontWeight: 700, marginBottom: 12 }}>Acceso No Autorizado</h2>
+          <p style={{ color: '#9a9aaa', fontSize: 16, lineHeight: '1.6', marginBottom: 24 }}>
+            {tenantError}
+          </p>
+          <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+            {user?.salonId && (
+              <button
+                onClick={() => {
+                  window.location.href = `/cocina?s=${user.salonId}`;
+                }}
+                style={{
+                  backgroundColor: '#1d4ed8', color: '#fff', border: 'none', borderRadius: 8,
+                  padding: '10px 20px', fontSize: 14, fontWeight: 600, cursor: 'pointer'
+                }}
+              >
+                Ir a mi sucursal
+              </button>
+            )}
+            <button
+              onClick={async () => {
+                await logout();
+                window.location.reload();
+              }}
+              style={{
+                backgroundColor: 'transparent', color: '#ef4444', border: '1px solid #ef4444',
+                borderRadius: 8, padding: '10px 20px', fontSize: 14, fontWeight: 600, cursor: 'pointer'
+              }}
+            >
+              Cerrar Sesión
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ minHeight: '100vh', background: altoContraste ? '#000000' : 'var(--bg-primary)', padding: '0 0 50px', transition: 'background 0.2s' }}>

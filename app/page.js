@@ -250,7 +250,7 @@ class PanelErrorBoundary extends Component {
 }
 
 function AppContent() {
-  const { user, loading, loginWithEmpleadoId, logout, isSuspended } = useAuth();
+  const { user, loading, loginWithEmpleadoId, logout, isSuspended, tenantError } = useAuth();
   const [minLoadingDone, setMinLoadingDone] = useState(false);
   const [imageError, setImageError] = useState(false);
   const [activePanel, setActivePanel] = useState('mesas');
@@ -1505,6 +1505,7 @@ function AppContent() {
         const storedSalonId = sessionStorage.getItem('yoy_client_salon_id');
         if (storedSalonId && storedSalonId !== urlSalonId) {
           console.log("Cambio de tenant detectado en caliente, recargando aplicación...");
+          sessionStorage.clear();
           sessionStorage.setItem('yoy_client_salon_id', urlSalonId);
           window.location.reload();
         }
@@ -2177,6 +2178,54 @@ function AppContent() {
 
           <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>
             ID del Salón: <code style={{ color: 'var(--bronze-light)' }}>{user?.salonId || 'default_salon'}</code>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (tenantError) {
+    return (
+      <div style={{
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        height: '100vh', backgroundColor: '#0d0d0f', color: '#f0f0f4', fontFamily: 'var(--font-main)',
+        padding: 24, textAlign: 'center'
+      }}>
+        <div style={{
+          backgroundColor: '#141418', border: '2px solid #ef4444', borderRadius: 16,
+          padding: 32, maxWidth: 500, boxShadow: '0 8px 32px rgba(239, 68, 68, 0.15)'
+        }}>
+          <i className="ri-error-warning-fill" style={{ fontSize: 64, color: '#ef4444', display: 'block', marginBottom: 16 }} />
+          <h2 style={{ fontSize: 24, fontWeight: 700, marginBottom: 12 }}>Acceso No Autorizado</h2>
+          <p style={{ color: '#9a9aaa', fontSize: 16, lineHeight: '1.6', marginBottom: 24 }}>
+            {tenantError}
+          </p>
+          <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+            {user?.salonId && (
+              <button
+                onClick={() => {
+                  window.location.href = `/?s=${user.salonId}`;
+                }}
+                style={{
+                  backgroundColor: '#1d4ed8', color: '#fff', border: 'none', borderRadius: 8,
+                  padding: '10px 20px', fontSize: 14, fontWeight: 600, cursor: 'pointer'
+                }}
+              >
+                Ir a mi sucursal
+              </button>
+            )}
+            <button
+              onClick={async () => {
+                await logout();
+                window.location.reload();
+              }}
+              style={{
+                backgroundColor: 'transparent', color: '#ef4444', border: '1px solid #ef4444',
+                borderRadius: 8, padding: '10px 20px', fontSize: 14, fontWeight: 600, cursor: 'pointer'
+              }}
+            >
+              Cerrar Sesión
+            </button>
           </div>
         </div>
       </div>
