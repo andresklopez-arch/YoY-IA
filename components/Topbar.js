@@ -1268,10 +1268,44 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
               )}
             </div>
 
-            {/* Sugerencia 2: Indicador de Sucursal / Tenant */}
+            {/* Sugerencia 2: Indicador / Selector de Sucursal */}
             {(() => {
               if (typeof window !== 'undefined') {
                 const sId = window.sessionStorage.getItem('yoy_client_salon_id') || 'default_salon';
+                
+                // Si el usuario es el Administrador Maestro, le damos un selector interactivo
+                if (user?.email === 'masteradmin@yoybillar.mx') {
+                  return (
+                    <select
+                      value={sId}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        window.location.href = `/?s=${val}`;
+                      }}
+                      style={{
+                        background: 'rgba(194, 155, 56, 0.12)',
+                        border: '1px solid rgba(194, 155, 56, 0.4)',
+                        borderRadius: 6,
+                        color: 'var(--bronze-light)',
+                        fontSize: '9px',
+                        fontWeight: 900,
+                        padding: '3px 8px',
+                        cursor: 'pointer',
+                        outline: 'none',
+                        textTransform: 'uppercase',
+                        fontFamily: 'inherit',
+                        lineHeight: 1,
+                        verticalAlign: 'middle'
+                      }}
+                      title="Seleccionar sucursal activa (Administrador Maestro)"
+                    >
+                      <option value="default_salon" style={{ background: 'var(--bg-elevated)', color: '#fff' }}>Alfonso Iturbide</option>
+                      <option value="prueba_smart" style={{ background: 'var(--bg-elevated)', color: '#fff' }}>Million Dollar</option>
+                    </select>
+                  );
+                }
+
+                // Para cajeros y personal de sucursal, un indicador estatico
                 if (sId !== 'default_salon') {
                   return (
                     <div style={{

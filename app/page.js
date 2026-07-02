@@ -12,7 +12,7 @@ import ConfigPanel from '@/components/panels/ConfigPanel';
 import NominaPanel from '@/components/panels/NominaPanel';
 import LoginScreen from '@/components/LoginScreen';
 import { AuthProvider, useAuth } from '@/lib/auth-context';
-import { collection, query, where, orderBy, limit, onSnapshot, doc, updateDoc, serverTimestamp, getDoc, addDoc, getDocs, setDoc } from '@/lib/firestore-tenant';
+import { collection, query, where, orderBy, limit, onSnapshot, doc, updateDoc, serverTimestamp, getDoc, addDoc, getDocs, setDoc, getActiveSalonId } from '@/lib/firestore-tenant';
 import { getAmbassadorName, getAppLogoPath } from '@/lib/tenant';
 import { db } from '@/lib/firebase';
 import { obfuscateWithKey, hashPasswordSecure } from '@/lib/crypto';
@@ -261,6 +261,57 @@ function AppContent() {
     setToasts(prev => [...prev, { id, message, type }]);
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 4000);
   };
+
+  // --- Sugerencia 2: Registrar auditoria de acceso del MasterAdmin a diferentes sucursales ---
+  useEffect(() => {
+    if (user && user.email === 'masteradmin@yoybillar.mx') {
+      const activeSalon = getActiveSalonId();
+      const audKey = `yoy_audited_salon_${activeSalon}`;
+      if (typeof window !== 'undefined' && !sessionStorage.getItem(audKey)) {
+        sessionStorage.setItem(audKey, 'true');
+        addDoc(collection(db, 'auditoria_accesos'), {
+          salonId: activeSalon,
+          email: user.email,
+          fecha: new Date().toISOString(),
+          accion: 'Visualización Multi-tenant',
+          detalle: `MasterAdmin ingresó a visualizar la consola del salón: ${activeSalon}`,
+          createdAt: serverTimestamp()
+        }).catch(err => console.error("Error writing audit log:", err));
+      }
+    }
+  }, [user]);
+
+  // --- Sugerencia 3: Cierre de sesión automático por inactividad (15 minutos) ---
+  useEffect(() => {
+    if (!user) return;
+    
+    let inactivityTimeout;
+    const INACTIVITY_LIMIT = 15 * 60 * 1000; // 15 minutos en milisegundos
+
+    const resetInactivityTimer = () => {
+      if (inactivityTimeout) clearTimeout(inactivityTimeout);
+      inactivityTimeout = setTimeout(async () => {
+        console.log("Cierre de sesión automático por inactividad de 15 minutos...");
+        showToast("Sesión cerrada automáticamente por inactividad.", "info");
+        await logout();
+        window.location.reload();
+      }, INACTIVITY_LIMIT);
+    };
+
+    const events = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart'];
+    events.forEach(event => {
+      window.addEventListener(event, resetInactivityTimer);
+    });
+
+    resetInactivityTimer();
+
+    return () => {
+      if (inactivityTimeout) clearTimeout(inactivityTimeout);
+      events.forEach(event => {
+        window.removeEventListener(event, resetInactivityTimer);
+      });
+    };
+  }, [user, logout]);
   const [showPasswordChangeReminder, setShowPasswordChangeReminder] = useState(false);
   const [isDefaultPin, setIsDefaultPin] = useState(false);
   const [isDefaultPassword, setIsDefaultPassword] = useState(false);
