@@ -1,5 +1,7 @@
 'use client';
 import { useState } from 'react';
+import { getAppLogoPath, getAmbassadorName } from '@/lib/tenant';
+import { getActiveSalonId } from '@/lib/firestore-tenant';
 
 export default function Loading() {
   const [imageError, setImageError] = useState(false);
@@ -9,8 +11,8 @@ export default function Loading() {
       <div style={{ textAlign:'center', padding: '24px' }}>
         {!imageError ? (
           <img 
-            src="/logo-largo.png" 
-            alt="YoY IA Billar By Alfonso Iturbide" 
+            src={getAppLogoPath()} 
+            alt={"YoY IA Billar By " + getAmbassadorName()} 
             onError={() => setImageError(true)}
             style={{ 
               width: 260, 
