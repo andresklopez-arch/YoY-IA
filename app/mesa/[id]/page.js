@@ -581,6 +581,10 @@ export default function MesaClientePage({ params }) {
     };
 
     sincronizarPedidosPendientes();
+    
+    // Intervalo de re-sincronizacion periodica silenciosa cada 12 segundos
+    const syncInterval = setInterval(sincronizarPedidosPendientes, 12000);
+    return () => clearInterval(syncInterval);
   }, [isOffline]);
 
   // ── Sesión anónima para evitar bloqueos de reglas de Firestore ──
@@ -750,6 +754,9 @@ export default function MesaClientePage({ params }) {
           if (foundSalonId) {
             console.log(`[Multi-Tenant Fallback] Mesa ${mesaId} encontrada en el salón: ${foundSalonId}`);
             localStorage.setItem('yoy_client_salon_id', foundSalonId);
+            if (typeof sessionStorage !== 'undefined') {
+              sessionStorage.setItem('yoy_client_salon_id', foundSalonId);
+            }
             window.location.reload();
           }
         } catch (e) {
