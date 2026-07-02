@@ -326,6 +326,30 @@ export default function LoginScreen({ showToast }) {
           padding: 32,
           boxShadow: 'var(--shadow-lg), 0 0 40px rgba(205,127,50,0.08)',
         }}>
+          {/* Logotipo y Titulo de Sucursal */}
+          <div style={{ textAlign: 'center', marginBottom: 24 }}>
+            <img 
+              src={getAppLogoPath()} 
+              alt={"Logo " + getAmbassadorName()}
+              style={{ 
+                width: 90, 
+                height: 90, 
+                objectFit: 'contain', 
+                borderRadius: '50%',
+                margin: '0 auto 12px',
+                display: 'block',
+                boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+                border: '2px solid var(--border-bronze)'
+              }}
+            />
+            <h2 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 4px 0' }}>
+              YoY IA Billar
+            </h2>
+            <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0, fontWeight: 600 }}>
+              By {getAmbassadorName()}
+            </p>
+          </div>
+
           <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             {redirectReason && (
               <div style={{
