@@ -519,14 +519,17 @@ function MeseroContent() {
         try {
           const parsed = JSON.parse(draft);
           if (parsed.capturaCarrito && Object.keys(parsed.capturaCarrito).length > 0) {
-            setCapturaMesaId(parsed.capturaMesaId);
-            setCapturaCarrito(parsed.capturaCarrito);
+            // Si el destino está bloqueado, solo cargar el borrador si coincide con la mesa elegida
+            if (!bloquearDestino || parsed.capturaMesaId === capturaMesaId) {
+              setCapturaMesaId(parsed.capturaMesaId);
+              setCapturaCarrito(parsed.capturaCarrito);
+            }
           }
           sessionStorage.removeItem('yoy_draft_mesero_carrito');
         } catch (e) {}
       }
     }
-  }, [showCapturarModal]);
+  }, [showCapturarModal, bloquearDestino, capturaMesaId]);
 
   // Escuchar mesas y cuentas en tiempo real
   useEffect(() => {
@@ -2644,34 +2647,40 @@ function MeseroContent() {
                   <label className="form-label">
                     {bloquearDestino ? 'Destino de Comanda (Asignación Fija)' : 'Seleccionar Destino de Comanda'}
                   </label>
-                  {bloquearDestino ? (
-                    <div style={{
-                      background: 'rgba(194, 155, 56, 0.08)',
-                      border: '2px solid var(--border-bronze, #C29B38)',
-                      borderRadius: 12,
-                      padding: '12px 16px',
-                      color: 'var(--bronze-light)',
-                      fontWeight: 'bold',
-                      fontSize: 15,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 10
-                    }}>
-                      {capturaMesaId.startsWith('mesa_') ? (
-                        <>
-                          <i className="ri-billiards-line" style={{ fontSize: 18 }} />
-                          <span>Mesa {capturaMesaId.replace('mesa_', '')}</span>
-                        </>
-                      ) : (
-                        <>
-                          <i className="ri-user-line" style={{ fontSize: 18 }} />
-                          <span>
-                            {cuentas.find(c => c.id === parseFloat(capturaMesaId.replace('cuenta_', '')))?.cliente || 'Cuenta Directa'}
-                          </span>
-                        </>
-                      )}
-                    </div>
-                  ) : (
+                  {bloquearDestino ? (() => {
+                    const esMesa = capturaMesaId.startsWith('mesa_');
+                    const colorDestino = esMesa ? 'var(--bronze-light)' : '#2ec55e';
+                    const bordeDestino = esMesa ? 'var(--border-bronze, #C29B38)' : 'rgba(46, 197, 94, 0.6)';
+                    const fondoDestino = esMesa ? 'rgba(194, 155, 56, 0.08)' : 'rgba(46, 197, 94, 0.08)';
+                    return (
+                      <div style={{
+                        background: fondoDestino,
+                        border: `2px solid ${bordeDestino}`,
+                        borderRadius: 12,
+                        padding: '12px 16px',
+                        color: colorDestino,
+                        fontWeight: 'bold',
+                        fontSize: 15,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 10
+                      }}>
+                        {esMesa ? (
+                          <>
+                            <i className="ri-billiards-line" style={{ fontSize: 18 }} />
+                            <span>Mesa {capturaMesaId.replace('mesa_', '')}</span>
+                          </>
+                        ) : (
+                          <>
+                            <i className="ri-user-line" style={{ fontSize: 18 }} />
+                            <span>
+                              {cuentas.find(c => c.id === parseFloat(capturaMesaId.replace('cuenta_', '')))?.cliente || 'Cuenta Directa'}
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    );
+                  })() : (
                     <select className="form-select" value={capturaMesaId} onChange={e => setCapturaMesaId(e.target.value)} style={{ width: '100%' }}>
                     {/* Mesas Ocupadas */}
                     {mesas.filter(m => {
@@ -2722,12 +2731,31 @@ function MeseroContent() {
                       <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 10, padding: '8px 12px' }}>
                         <div>
                           <div style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>{p.nombre}</div>
-                          <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>${p.precioVenta} · Stock: {p.stock}</div>
+                          <div style={{ 
+                            fontSize: 11, 
+                            color: p.stock <= 0 ? 'var(--danger)' : 'var(--text-muted)', 
+                            fontWeight: p.stock <= 0 ? 'bold' : 'normal' 
+                          }}>
+                            ${p.precioVenta} · {p.stock <= 0 ? '🚫 SIN STOCK' : `Stock: ${p.stock}`}
+                          </div>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                           <button className="btn btn-secondary btn-icon" style={{ width: 26, height: 26, minWidth: 26, padding: 0 }} onClick={() => modificarCapturaCarrito(p.id, -1)}>−</button>
                           <span style={{ fontSize: 13, fontWeight: 700, minWidth: 16, textAlign: 'center' }}>{cant}</span>
-                          <button className="btn btn-secondary btn-icon" style={{ width: 26, height: 26, minWidth: 26, padding: 0 }} onClick={() => modificarCapturaCarrito(p.id, 1)}>+</button>
+                          <button 
+                            className="btn btn-secondary btn-icon" 
+                            style={{ 
+                              width: 26, 
+                              height: 26, 
+                              minWidth: 26, 
+                              padding: 0,
+                              opacity: (cant >= p.stock || p.stock <= 0) ? 0.4 : 1
+                            }} 
+                            onClick={() => modificarCapturaCarrito(p.id, 1)}
+                            disabled={cant >= p.stock || p.stock <= 0}
+                          >
+                            +
+                          </button>
                         </div>
                       </div>
                     );
