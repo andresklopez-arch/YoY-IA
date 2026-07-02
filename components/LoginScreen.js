@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { db } from '@/lib/firebase';
-import { collection, getDocs, query, orderBy, addDoc } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, addDoc, doc, getDoc } from 'firebase/firestore';
 import { getClientDomain, getAmbassadorName, getAppLogoPath } from '@/lib/tenant';
 import { obfuscateStatic, deobfuscateStatic } from '@/lib/crypto';
 import { getActiveSalonId } from '@/lib/firestore-tenant';
@@ -21,6 +21,7 @@ export default function LoginScreen({ showToast }) {
   const [selectedEmail, setSelectedEmail] = useState('');
   const [manualEmail, setManualEmail] = useState(false);
   const [redirectReason, setRedirectReason] = useState(null);
+  const [usersLoading, setUsersLoading] = useState(true);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -80,6 +81,7 @@ export default function LoginScreen({ showToast }) {
 
   useEffect(() => {
     const fetchUsers = async () => {
+      setUsersLoading(true);
       const activeSalonId = getActiveSalonId();
       let list = [{
         id: 'masteradmin_default',
@@ -108,6 +110,7 @@ export default function LoginScreen({ showToast }) {
       }
 
       setUsersList(list);
+      setUsersLoading(false);
 
       if (typeof window !== 'undefined') {
         const lastEmailEnc = localStorage.getItem('yoy_last_selected_email');
@@ -146,6 +149,43 @@ export default function LoginScreen({ showToast }) {
       osc.stop(ctx.currentTime + 0.8);
     } catch (err) {
       console.error("Fallo al reproducir zumbador de alerta:", err);
+    }
+  };
+
+  // Enviar alerta a Telegram cuando se bloquea una terminal
+  const enviarAlertaTelegramLockout = async (targetEmail, durationSecs) => {
+    try {
+      const activeSalon = getActiveSalonId();
+      let phone = null;
+      const segRef = doc(db, 'config', 'seguridad');
+      const segSnap = await getDoc(segRef);
+      if (segSnap.exists()) {
+        phone = segSnap.data().telegramPhone || segSnap.data().telefonoAlerta;
+      }
+      if (!phone) {
+        const sucRef = doc(db, 'config', 'sucursal');
+        const sucSnap = await getDoc(sucRef);
+        if (sucSnap.exists()) {
+          phone = sucSnap.data().telefonoAlerta || sucSnap.data().telefonoContacto;
+        }
+      }
+      
+      if (phone) {
+        const hostname = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
+        const text = `⚠️ *ALERTA DE SEGURIDAD: INTENTOS DE ACCESO FALLIDOS* ⚠️\nSe ha bloqueado temporalmente una terminal por superar el limite de intentos.\n*Sucursal/ID:* ${activeSalon}\n*Terminal:* ${hostname}\n*Usuario afectado:* ${targetEmail}\n*Duracion del bloqueo:* ${durationSecs >= 60 ? (durationSecs / 60) + ' minutos' : durationSecs + ' segundos'}`;
+        
+        await fetch('/api/telegram/send-alert', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            phone: phone,
+            text: text,
+            mode: 'simplified'
+          })
+        });
+      }
+    } catch (err) {
+      console.warn("Fallo al enviar alerta de bloqueo a Telegram:", err);
     }
   };
 
@@ -277,6 +317,7 @@ export default function LoginScreen({ showToast }) {
 
           setBloqueado(true);
           setSegundosBloqueo(durationSecs);
+          enviarAlertaTelegramLockout(targetEmail, durationSecs);
           
           setModalError({
             titulo: 'Acceso Bloqueado',
@@ -350,7 +391,22 @@ export default function LoginScreen({ showToast }) {
             </p>
           </div>
 
-          <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {usersLoading && usersList.length === 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: '8px 0' }}>
+              <div style={{ height: 14, width: 120, background: 'rgba(255,255,255,0.06)', borderRadius: 4, animation: 'pulseSkeleton 1.5s infinite' }} />
+              <div style={{ height: 46, width: '100%', background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border-bronze)', borderRadius: 10, animation: 'pulseSkeleton 1.5s infinite' }} />
+              <div style={{ height: 14, width: 80, background: 'rgba(255,255,255,0.06)', borderRadius: 4, animation: 'pulseSkeleton 1.5s infinite', marginTop: 8 }} />
+              <div style={{ height: 46, width: '100%', background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border-bronze)', borderRadius: 10, animation: 'pulseSkeleton 1.5s infinite' }} />
+              <div style={{ height: 48, width: '100%', background: 'var(--bronze-glow)', borderRadius: 10, animation: 'pulseSkeleton 1.5s infinite', marginTop: 12 }} />
+              <style dangerouslySetInnerHTML={{ __html: `
+                @keyframes pulseSkeleton {
+                  0%, 100% { opacity: 0.6; }
+                  50% { opacity: 0.35; }
+                }
+              `}} />
+            </div>
+          ) : (
+            <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             {redirectReason && (
               <div style={{
                 background: 'rgba(239, 68, 68, 0.1)',
@@ -482,6 +538,7 @@ export default function LoginScreen({ showToast }) {
               )}
             </button>
           </form>
+          )}
         </div>
 
         <p style={{ textAlign: 'center', fontSize: 10, color: 'var(--text-muted)', marginTop: 20, letterSpacing: '0.1em' }}>
