@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { obfuscate, deobfuscate } from '@/lib/crypto';
 import { db } from '@/lib/firebase';
 import { doc, setDoc, onSnapshot, serverTimestamp, collection, addDoc } from 'firebase/firestore';
+import { getAmbassadorName } from '@/lib/tenant';
 
 
 
@@ -531,7 +532,7 @@ export default function TorneosPanel({ showToast }) {
     htmlContent += `
         <div class="footer">
           <p>¡Que gane el mejor!</p>
-          <p>YoY IA Billar By Alfonso Iturbide</p>
+          <p>YoY IA Billar By ${getAmbassadorName()}</p>
         </div>
         <script>
           window.onload = function() {

@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { db } from '@/lib/firebase';
 import { collection, getDocs, query, orderBy, addDoc } from 'firebase/firestore';
-import { getClientDomain } from '@/lib/tenant';
+import { getClientDomain, getAmbassadorName, getAppLogoPath } from '@/lib/tenant';
 import { obfuscateStatic, deobfuscateStatic } from '@/lib/crypto';
 
 const getActiveSalonId = () => {
@@ -472,7 +472,7 @@ export default function LoginScreen({ showToast }) {
         </div>
 
         <p style={{ textAlign: 'center', fontSize: 10, color: 'var(--text-muted)', marginTop: 20, letterSpacing: '0.1em' }}>
-          YoY IA BILLAR By Alfonso Iturbide v1.0 · Powered by IA
+          YoY IA BILLAR By {getAmbassadorName()} v1.0 · Powered by IA
         </p>
       </div>
 

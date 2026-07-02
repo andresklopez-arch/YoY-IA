@@ -5,6 +5,7 @@ import { db } from '@/lib/firebase';
 import { doc, onSnapshot, setDoc, serverTimestamp, collection, query, orderBy, limit, addDoc } from '@/lib/firestore-tenant';
 import { obfuscate, deobfuscate } from '@/lib/crypto';
 import { useAuth } from '@/lib/auth-context';
+import { getAmbassadorName } from '@/lib/tenant';
 
 // ── DATOS HISTÓRICOS IA (RECOMENDACIÓN 2) ──────────────────
 const HISTORICO_DATA = [
@@ -1065,7 +1066,7 @@ export default function BarPanel({ showToast }) {
           <div class="divider"></div>
           
           <p style="font-size: 8px; text-align: center; margin-top: 15px;">
-            Yoy IA Billar - Alfonso Iturbide<br>
+            Yoy IA Billar - ${getAmbassadorName()}<br>
             * REPORTADO POR MOTOR IA *
           </p>
           <br><br>
@@ -1184,7 +1185,7 @@ export default function BarPanel({ showToast }) {
           
           <div class="divider"></div>
           <p style="font-size: 8px; text-align: center; margin-top: 15px;">
-            Yoy IA Billar - Alfonso Iturbide<br>
+            Yoy IA Billar - ${getAmbassadorName()}<br>
             * TICKET DE REORDEN IA *
           </p>
           <br><br>
@@ -2699,7 +2700,7 @@ export default function BarPanel({ showToast }) {
                     className="btn btn-success"
                     style={{ background: '#25D366', color: '#fff', border: 'none', display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', padding: '10px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600 }}
                     onClick={() => {
-                      const msg = `YoY IA Billar By Alfonso Iturbide - Orden de Compra Sugerida IA:\n\n` + 
+                      const msg = `YoY IA Billar By ${getAmbassadorName()} - Orden de Compra Sugerida IA:\n\n` + 
                         ordenSugerida.map(o => `· *${o.nombre}*: Pedir ${o.cantidadAPedir} pz (Costo: $${o.costoTotal} MXN)`).join('\n') + 
                         `\n\n*Costo Total*: $${ordenSugerida.reduce((s,o)=>s+o.costoTotal, 0)} MXN\n` +
                         `*Ganancia Estimada*: $${ordenSugerida.reduce((s,o)=>s+o.gananciaProyectada, 0)} MXN\n` +
@@ -2791,7 +2792,7 @@ export default function BarPanel({ showToast }) {
             <div className="modal-body" style={{ fontFamily: 'monospace', fontSize: 12 }}>
               <div id="print-area" style={{ background: '#1c1917', border: '1px solid var(--border-bronze)', borderRadius: 10, padding: 20, color: '#e7e5e4', display: 'flex', flexDirection: 'column', gap: 14 }}>
                 <div style={{ textAlign: 'center', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: 10 }}>
-                  <h4 style={{ margin: '0 0 4px 0', fontSize: 15, color: 'var(--bronze-light)' }}>YOY IA BILLAR By Alfonso Iturbide & CAFE</h4>
+                  <h4 style={{ margin: '0 0 4px 0', fontSize: 15, color: 'var(--bronze-light)' }}>YOY IA BILLAR By {getAmbassadorName()} & CAFE</h4>
                   <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>SISTEMA DE CONTROL DE INVENTARIO AUTÓNOMO</div>
                   <div style={{ fontSize: 11, fontWeight: 'bold', marginTop: 6, color: 'var(--text-primary)' }}>
                     {(() => {

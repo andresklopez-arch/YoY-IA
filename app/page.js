@@ -13,6 +13,7 @@ import NominaPanel from '@/components/panels/NominaPanel';
 import LoginScreen from '@/components/LoginScreen';
 import { AuthProvider, useAuth } from '@/lib/auth-context';
 import { collection, query, where, orderBy, limit, onSnapshot, doc, updateDoc, serverTimestamp, getDoc, addDoc, getDocs, setDoc } from '@/lib/firestore-tenant';
+import { getAmbassadorName, getAppLogoPath } from '@/lib/tenant';
 import { db } from '@/lib/firebase';
 import { obfuscateWithKey, hashPasswordSecure } from '@/lib/crypto';
 import { getBusinessDate } from '@/lib/date-utils';
@@ -1742,7 +1743,7 @@ function AppContent() {
           
           <div class="divider"></div>
           <p style="font-size: 8px; text-align: center; margin-top: 15px;">
-            Yoy IA Billar - Alfonso Iturbide<br>
+            Yoy IA Billar - ${getAmbassadorName()}<br>
             * TICKET DE REORDEN AUTOMATICO *
           </p>
           <br><br>
@@ -1986,8 +1987,8 @@ function AppContent() {
         <div style={{ textAlign:'center', padding: '24px' }}>
           {!imageError ? (
             <img 
-              src="/logo-largo.png" 
-              alt="YoY IA Billar By Alfonso Iturbide" 
+              src={getAppLogoPath()} 
+              alt={"YoY IA Billar By " + getAmbassadorName()} 
               fetchpriority="high"
               loading="eager"
               onError={() => setImageError(true)}

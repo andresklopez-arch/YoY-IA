@@ -3,12 +3,13 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import {
   collection, onSnapshot, query, where,
   orderBy, updateDoc, doc, serverTimestamp, addDoc, getDoc,
-  writeBatch, getDocs, getActiveSalonId
+  writeBatch, getDocs, getActiveSalonId, setDoc
 } from '@/lib/firestore-tenant';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth-context';
 import { AuthProvider } from '@/lib/auth-context';
 import { getBusinessDate } from '@/lib/date-utils';
+import { getAmbassadorName } from '@/lib/tenant';
 
 const normalizeText = (str) => {
   if (!str) return '';
@@ -2625,7 +2626,7 @@ function MeseroContent() {
                 <i className="ri-volume-up-line" />
                 Alarma encendida
               </div>
-              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>YoY IA Billar By Alfonso Iturbide</span>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>YoY IA Billar By {getAmbassadorName()}</span>
             </div>
           </div>
         </div>

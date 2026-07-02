@@ -9,21 +9,21 @@ const outfit = Outfit({
 });
 
 export const metadata = {
-  title: 'YoY IA BILLAR By Alfonso Iturbide — Sistema de Gestión',
+  title: 'YoY IA BILLAR — Sistema de Gestión',
   description: 'La plataforma más avanzada del mundo para la gestión y administración de salones de billar con Inteligencia Artificial.',
   manifest: '/manifest.json',
   icons: { icon: '/icon.png' },
   openGraph: {
-    title: 'YoY IA BILLAR By Alfonso Iturbide — Sistema de Gestión Inteligente',
+    title: 'YoY IA BILLAR — Sistema de Gestión Inteligente',
     description: 'La plataforma más avanzada del mundo para la gestión y administración de salones de billar con Inteligencia Artificial.',
     url: 'https://yoy-ia-billar.vercel.app',
-    siteName: 'YoY IA Billar By Alfonso Iturbide',
+    siteName: 'YoY IA Billar',
     images: [
       {
         url: 'https://yoy-ia-billar.vercel.app/logo-largo.png',
         width: 800,
         height: 250,
-        alt: 'YoY IA Billar By Alfonso Iturbide Logo',
+        alt: 'YoY IA Billar Logo',
       },
     ],
     locale: 'es_MX',

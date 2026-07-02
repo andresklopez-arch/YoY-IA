@@ -155,7 +155,7 @@ function areMesasEqual(arr1, arr2) {
   }
   return true;
 }
-import { getClientDomain } from '@/lib/tenant';
+import { getClientDomain, getAmbassadorName } from '@/lib/tenant';
 
 const hashPassword = (pwd) => {
   if (!pwd) return '';
@@ -1921,7 +1921,7 @@ export default function ConfigPanel({ showToast }) {
     htmlContent += `
         <div class="footer">
           <p>¡Gracias por probar el sistema!</p>
-          <p>YoY IA by Alfonso Iturbide</p>
+          <p>YoY IA by ${getAmbassadorName()}</p>
         </div>
         <script>
           window.onload = () => {
@@ -4401,7 +4401,7 @@ export default function ConfigPanel({ showToast }) {
                 </div>
 
                 <p style={{ fontSize: 9.5, color: 'var(--text-muted)', marginTop: 14, lineHeight: 1.3, marginBottom: 0 }}>
-                  Nota: El pie de página centralizado <strong>{"\"YoY IA by Alfonso Iturbide\""}</strong> es un sello obligatorio de YoY IA y no puede ser alterado ni desactivado.
+                  Nota: El pie de página centralizado <strong>{"\"YoY IA by " + getAmbassadorName() + "\""}</strong> es un sello obligatorio de YoY IA y no puede ser alterado ni desactivado.
                 </p>
               </div>
 
@@ -4473,7 +4473,7 @@ export default function ConfigPanel({ showToast }) {
                   </div>
                   
                   <div style={{ textAlign: 'center', fontSize: '7px', color: '#666', marginTop: 4, fontStyle: 'italic' }}>
-                    YoY IA by Alfonso Iturbide
+                    YoY IA by {getAmbassadorName()}
                   </div>
                 </div>
               </div>

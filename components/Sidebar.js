@@ -1,5 +1,6 @@
 'use client';
 import { useAuth } from '@/lib/auth-context';
+import { getAppLogoPath, getAmbassadorName } from '@/lib/tenant';
 
 const NAV_ITEMS = [
   { id: 'dashboard', label: 'Dashboard', icon: 'ri-dashboard-3-line',   roles: ['admin','gerente','cajero'] },
@@ -50,7 +51,7 @@ export default function Sidebar({ activePanel, onNavigate, open, onMouseEnter, o
       {/* Logo con Logo Corto */}
       <div className="sidebar-logo" style={{ gap: 10, padding: '16px 16px', display: 'flex', alignItems: 'center', justifyContent: 'flex-start' }}>
         <img 
-          src="/logo-corto.png" 
+          src={getAppLogoPath()} 
           alt="YoY IA" 
           fetchpriority="high"
           loading="eager"
@@ -64,7 +65,7 @@ export default function Sidebar({ activePanel, onNavigate, open, onMouseEnter, o
           }} 
         />
         <div className="sidebar-logo-text">
-          <span className="sidebar-logo-name" style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.04em', color: 'var(--text-primary)' }}>YoY IA BILLAR<br/><span style={{ fontSize: 9, color: 'var(--bronze-light)', fontWeight: 800 }}>By Alfonso Iturbide</span></span>
+          <span className="sidebar-logo-name" style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.04em', color: 'var(--text-primary)' }}>YoY IA BILLAR<br/><span style={{ fontSize: 9, color: 'var(--bronze-light)', fontWeight: 800 }}>By {getAmbassadorName()}</span></span>
           <span className="sidebar-logo-sub" style={{ fontSize: 9, color: 'var(--text-muted)' }}>Gestión Inteligente</span>
         </div>
       </div>
