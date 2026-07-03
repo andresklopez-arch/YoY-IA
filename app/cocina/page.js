@@ -204,19 +204,40 @@ function CocinaContent() {
     const queryEmpleadoId = urlParams.get('empleadoId');
 
     const checkAndRecoverSession = async () => {
+      const querySalonId = getActiveSalonId();
+
+      // Limpiar el parámetro 'empleadoId' de la URL para evitar bucles infinitos
+      const cleanEmpleadoUrlParam = () => {
+        if (typeof window !== 'undefined' && window.history && window.history.replaceState) {
+          const url = new URL(window.location.href);
+          url.searchParams.delete('empleadoId');
+          window.history.replaceState({}, '', url.pathname + url.search);
+        }
+      };
+
       // Recuperación de sesión desde URL si localStorage fue limpiado por race condition
       // También sobrescribe sesiones anónimas de Firebase Auth que no correspondan al empleado
       if (queryEmpleadoId && queryEmpleadoId !== 'sin_cocina' && (!user || !user.offline)) {
         try {
           await loginWithEmpleadoId(queryEmpleadoId);
+          cleanEmpleadoUrlParam();
           return;
         } catch (e) {
           console.error("Error logging in via queryEmpleadoId en cocina:", e);
+          cleanEmpleadoUrlParam();
         }
       }
 
+      // Si el usuario actual pertenece a otra sucursal, cerrar sesión para evitar colisión de permisos
+      const isSystemAdmin = user && (user.role === 'admin' && (user.email === 'admin@yoybillar.mx' || user.email === 'masteradmin@yoybillar.mx' || user.email?.startsWith('masteradmin@') || (user.name || '').toLowerCase().includes('maestro')));
+      if (user && !isSystemAdmin && user.salonId && user.salonId !== querySalonId) {
+        console.warn(`[Cocina Tenant Isolation] Choque de sucursales. Usuario pertenece a ${user.salonId} pero la pestaña está en ${querySalonId}. Cerrando sesión...`);
+        await logout();
+        window.location.reload();
+        return;
+      }
+
       if (!user) {
-        const querySalonId = getActiveSalonId();
         try {
           await loginWithEmpleadoId({
             id: `cocina_general_${querySalonId}`,

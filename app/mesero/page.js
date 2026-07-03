@@ -178,14 +178,34 @@ function MeseroContent() {
     setSalonId(querySalonId);
 
     const checkAndRecoverSession = async () => {
+      // Limpiar el parámetro 'empleadoId' de la URL para evitar bucles infinitos de redirección
+      const cleanEmpleadoUrlParam = () => {
+        if (typeof window !== 'undefined' && window.history && window.history.replaceState) {
+          const url = new URL(window.location.href);
+          url.searchParams.delete('empleadoId');
+          window.history.replaceState({}, '', url.pathname + url.search);
+        }
+      };
+
       // Si hay empleadoId en URL y NO hay sesión offline de empleado activa → hacer login de empleado
       if (queryEmpleadoId && queryEmpleadoId !== 'sin_mesero' && queryEmpleadoId !== 'todos' && (!user || !user.offline)) {
         try {
           await loginWithEmpleadoId(queryEmpleadoId);
+          cleanEmpleadoUrlParam();
           return;
         } catch (e) {
           console.error("Error logging in via queryEmpleadoId:", e);
+          cleanEmpleadoUrlParam();
         }
+      }
+
+      // Si el usuario actual pertenece a otra sucursal, cerrar sesión para evitar bucles y colisión de permisos
+      const isSystemAdmin = user && (user.role === 'admin' && (user.email === 'admin@yoybillar.mx' || user.email === 'masteradmin@yoybillar.mx' || user.email?.startsWith('masteradmin@') || (user.name || '').toLowerCase().includes('maestro')));
+      if (user && !isSystemAdmin && user.salonId && user.salonId !== querySalonId) {
+        console.warn(`[Mesero Tenant Isolation] Choque de sucursales. Usuario pertenece a ${user.salonId} pero la pestaña está en ${querySalonId}. Cerrando sesión...`);
+        await logout();
+        window.location.reload();
+        return;
       }
 
       if (!user) {
