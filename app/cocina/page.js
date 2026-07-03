@@ -224,6 +224,11 @@ function CocinaContent() {
           return;
         } catch (e) {
           console.error("Error logging in via queryEmpleadoId en cocina:", e);
+          if (e.message === 'Sucursal no autorizada') {
+            alert("Acceso Denegado: Este empleado pertenece a otra sucursal.");
+          } else {
+            alert("Error al iniciar sesión de cocina: " + e.message);
+          }
           cleanEmpleadoUrlParam();
         }
       }

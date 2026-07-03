@@ -195,6 +195,11 @@ function MeseroContent() {
           return;
         } catch (e) {
           console.error("Error logging in via queryEmpleadoId:", e);
+          if (e.message === 'Sucursal no autorizada') {
+            alert("Acceso Denegado: Este mesero pertenece a otra sucursal.");
+          } else {
+            alert("Error al iniciar sesión de mesero: " + e.message);
+          }
           cleanEmpleadoUrlParam();
         }
       }
