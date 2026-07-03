@@ -164,6 +164,7 @@ export default function MesaClientePage({ params }) {
   const [dbConnected, setDbConnected] = useState(false);
   const [showTechDetails, setShowTechDetails] = useState(false);
   const [salonNombre, setSalonNombre] = useState('YoY IA Billar');
+  const [salonLogoUrl, setSalonLogoUrl] = useState('');
 
   // Control de dispositivo único y encuestas
   const [isSecondaryDevice, setIsSecondaryDevice] = useState(false);
@@ -686,13 +687,16 @@ export default function MesaClientePage({ params }) {
     return unsub;
   }, []);
 
-  // ── Leer nombre del salón en tiempo real desde la colección 'salones' ──
+  // ── Leer configuración de la sucursal (Nombre y Logo) en tiempo real ──
   useEffect(() => {
     const salonId = getActiveSalonId();
-    const unsub = onSnapshot(doc(db, 'salones', salonId), snap => {
-      if (snap.exists() && snap.data().nombre) {
-        setSalonNombre(snap.data().nombre);
+    const unsub = onSnapshot(doc(db, 'config', 'sucursal'), snap => {
+      if (snap.exists()) {
+        const data = snap.data();
+        if (data.nombre) setSalonNombre(data.nombre);
+        if (data.logoUrl) setSalonLogoUrl(data.logoUrl);
       } else {
+        // Fallback si el documento no está inicializado
         if (salonId === 'prueba_smart') setSalonNombre('Million Dollar');
         else if (salonId === 'default_salon') setSalonNombre('Alfonso Iturbide');
         else {
@@ -700,7 +704,7 @@ export default function MesaClientePage({ params }) {
         }
       }
     }, err => {
-      console.warn("Fallo al obtener nombre de salon en tiempo real:", err);
+      console.warn("Fallo al obtener sucursal en tiempo real:", err);
       if (salonId === 'prueba_smart') setSalonNombre('Million Dollar');
       else if (salonId === 'default_salon') setSalonNombre('Alfonso Iturbide');
       else {
@@ -1640,7 +1644,15 @@ export default function MesaClientePage({ params }) {
       {/* HEADER */}
       <header className="mc-header">
         <div className="mc-header-logo">
-          <div className="mc-header-logo-icon">🎱</div>
+          {salonLogoUrl ? (
+            <img 
+              src={salonLogoUrl} 
+              alt="Logo" 
+              style={{ width: 34, height: 34, borderRadius: 8, objectFit: 'cover', border: '1px solid var(--border)' }} 
+            />
+          ) : (
+            <div className="mc-header-logo-icon">🎱</div>
+          )}
           <div>
             <div className="mc-header-title">
               YoY IA BILLAR 

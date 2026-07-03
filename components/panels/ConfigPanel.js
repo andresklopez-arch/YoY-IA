@@ -2423,6 +2423,7 @@ export default function ConfigPanel({ showToast }) {
                   { label: 'Nombre del Negocio', key: 'nombre', type: 'text' },
                   { label: 'Dirección', key: 'direccion', type: 'text' },
                   { label: 'Teléfono', key: 'telefono', type: 'text' },
+                  { label: 'URL del Logotipo (Imagen)', key: 'logoUrl', type: 'text' },
                   { label: 'Meta de Ingresos Mensual ($)', key: 'metaMensual', type: 'number' },
                 ].map(f => (
                   <div key={f.key} className="form-group" style={{ gap: 4 }}>
