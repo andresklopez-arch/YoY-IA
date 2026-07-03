@@ -2439,21 +2439,33 @@ export default function ConfigPanel({ showToast }) {
                 ))}
                 
                 {/* Selector de color e imagen */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, background: 'rgba(194, 155, 56, 0.04)', padding: 10, borderRadius: 10, border: '1px dashed var(--border)' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, background: 'rgba(194, 155, 56, 0.04)', padding: 10, borderRadius: 10, border: '1px dashed var(--border)' }}>
                   <div className="form-group" style={{ gap: 4 }}>
-                    <label className="form-label" style={{ fontSize: 11 }}>Color de Acento de la Marca</label>
-                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <label className="form-label" style={{ fontSize: 10.5 }}>Color de Acento</label>
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                       <input 
                         type="color" 
                         value={sucursal.accentColor || '#c29b38'} 
                         onChange={e => setSucursal(p => ({ ...p, accentColor: e.target.value }))}
-                        style={{ width: 40, height: 32, padding: 0, border: 'none', background: 'transparent', cursor: 'pointer' }}
+                        style={{ width: 34, height: 28, padding: 0, border: 'none', background: 'transparent', cursor: 'pointer' }}
                       />
-                      <span style={{ fontSize: 11, fontFamily: 'monospace' }}>{sucursal.accentColor || '#c29b38'}</span>
+                      <span style={{ fontSize: 9.5, fontFamily: 'monospace' }}>{sucursal.accentColor || '#c29b38'}</span>
                     </div>
                   </div>
                   <div className="form-group" style={{ gap: 4 }}>
-                    <label className="form-label" style={{ fontSize: 11 }}>Cargar Logotipo Local</label>
+                    <label className="form-label" style={{ fontSize: 10.5 }}>Color de Fondo</label>
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      <input 
+                        type="color" 
+                        value={sucursal.bgColor || '#0d0d0d'} 
+                        onChange={e => setSucursal(p => ({ ...p, bgColor: e.target.value }))}
+                        style={{ width: 34, height: 28, padding: 0, border: 'none', background: 'transparent', cursor: 'pointer' }}
+                      />
+                      <span style={{ fontSize: 9.5, fontFamily: 'monospace' }}>{sucursal.bgColor || '#0d0d0d'}</span>
+                    </div>
+                  </div>
+                  <div className="form-group" style={{ gap: 4 }}>
+                    <label className="form-label" style={{ fontSize: 10.5 }}>Cargar Logo Local</label>
                     <input 
                       type="file" 
                       accept="image/*" 
@@ -2471,7 +2483,7 @@ export default function ConfigPanel({ showToast }) {
                           reader.readAsDataURL(file);
                         }
                       }}
-                      style={{ fontSize: 10, color: 'var(--text-muted)' }}
+                      style={{ fontSize: 9.5, color: 'var(--text-muted)', width: '100%' }}
                     />
                   </div>
                 </div>

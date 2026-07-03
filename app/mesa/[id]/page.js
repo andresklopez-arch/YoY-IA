@@ -166,6 +166,18 @@ export default function MesaClientePage({ params }) {
   const [salonNombre, setSalonNombre] = useState('YoY IA Billar');
   const [salonLogoUrl, setSalonLogoUrl] = useState('');
   const [salonAccentColor, setSalonAccentColor] = useState('#c29b38');
+  const [salonBgColor, setSalonBgColor] = useState('#0d0d0d');
+
+  // Precargar logotipo de caché local en el primer render para carga instantánea offline (Sugerencia 2)
+  useEffect(() => {
+    try {
+      const salonId = getActiveSalonId();
+      const cachedLogo = localStorage.getItem('yoy_client_logo_' + salonId);
+      if (cachedLogo) {
+        setSalonLogoUrl(cachedLogo);
+      }
+    } catch (e) {}
+  }, []);
 
   // Control de dispositivo único y encuestas
   const [isSecondaryDevice, setIsSecondaryDevice] = useState(false);
@@ -695,8 +707,14 @@ export default function MesaClientePage({ params }) {
       if (snap.exists()) {
         const data = snap.data();
         if (data.nombre) setSalonNombre(data.nombre);
-        if (data.logoUrl) setSalonLogoUrl(data.logoUrl);
+        if (data.logoUrl) {
+          setSalonLogoUrl(data.logoUrl);
+          try {
+            localStorage.setItem('yoy_client_logo_' + salonId, data.logoUrl);
+          } catch (e) {}
+        }
         if (data.accentColor) setSalonAccentColor(data.accentColor);
+        if (data.bgColor) setSalonBgColor(data.bgColor);
       } else {
         // Fallback si el documento no está inicializado
         if (salonId === 'prueba_smart') setSalonNombre('Million Dollar');
@@ -1639,6 +1657,7 @@ export default function MesaClientePage({ params }) {
         :root {
           --cl-bronze-light: ${salonAccentColor} !important;
           --cl-bronze: ${salonAccentColor} !important;
+          --bg-base: ${salonBgColor} !important;
         }
         @keyframes pulseAlert {
           0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5); }
