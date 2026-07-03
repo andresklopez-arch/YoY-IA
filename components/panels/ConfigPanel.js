@@ -2437,6 +2437,45 @@ export default function ConfigPanel({ showToast }) {
                     />
                   </div>
                 ))}
+                
+                {/* Selector de color e imagen */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, background: 'rgba(194, 155, 56, 0.04)', padding: 10, borderRadius: 10, border: '1px dashed var(--border)' }}>
+                  <div className="form-group" style={{ gap: 4 }}>
+                    <label className="form-label" style={{ fontSize: 11 }}>Color de Acento de la Marca</label>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <input 
+                        type="color" 
+                        value={sucursal.accentColor || '#c29b38'} 
+                        onChange={e => setSucursal(p => ({ ...p, accentColor: e.target.value }))}
+                        style={{ width: 40, height: 32, padding: 0, border: 'none', background: 'transparent', cursor: 'pointer' }}
+                      />
+                      <span style={{ fontSize: 11, fontFamily: 'monospace' }}>{sucursal.accentColor || '#c29b38'}</span>
+                    </div>
+                  </div>
+                  <div className="form-group" style={{ gap: 4 }}>
+                    <label className="form-label" style={{ fontSize: 11 }}>Cargar Logotipo Local</label>
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      onChange={e => {
+                        const file = e.target.files[0];
+                        if (file) {
+                          if (file.size > 200000) {
+                            alert("La imagen es muy grande. Sube una imagen menor a 200KB.");
+                            return;
+                          }
+                          const reader = new FileReader();
+                          reader.onload = (event) => {
+                            setSucursal(p => ({ ...p, logoUrl: event.target.result }));
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                      style={{ fontSize: 10, color: 'var(--text-muted)' }}
+                    />
+                  </div>
+                </div>
+
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                   <div className="form-group" style={{ gap: 4 }}>
                     <label className="form-label">Apertura</label>

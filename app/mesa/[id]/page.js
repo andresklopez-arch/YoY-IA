@@ -165,6 +165,7 @@ export default function MesaClientePage({ params }) {
   const [showTechDetails, setShowTechDetails] = useState(false);
   const [salonNombre, setSalonNombre] = useState('YoY IA Billar');
   const [salonLogoUrl, setSalonLogoUrl] = useState('');
+  const [salonAccentColor, setSalonAccentColor] = useState('#c29b38');
 
   // Control de dispositivo único y encuestas
   const [isSecondaryDevice, setIsSecondaryDevice] = useState(false);
@@ -687,7 +688,7 @@ export default function MesaClientePage({ params }) {
     return unsub;
   }, []);
 
-  // ── Leer configuración de la sucursal (Nombre y Logo) en tiempo real ──
+  // ── Leer configuración de la sucursal (Nombre, Logo y Color) en tiempo real ──
   useEffect(() => {
     const salonId = getActiveSalonId();
     const unsub = onSnapshot(doc(db, 'config', 'sucursal'), snap => {
@@ -695,6 +696,7 @@ export default function MesaClientePage({ params }) {
         const data = snap.data();
         if (data.nombre) setSalonNombre(data.nombre);
         if (data.logoUrl) setSalonLogoUrl(data.logoUrl);
+        if (data.accentColor) setSalonAccentColor(data.accentColor);
       } else {
         // Fallback si el documento no está inicializado
         if (salonId === 'prueba_smart') setSalonNombre('Million Dollar');
@@ -1634,6 +1636,10 @@ export default function MesaClientePage({ params }) {
       {/* LINK a Google Fonts Inter */}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap');
+        :root {
+          --cl-bronze-light: ${salonAccentColor} !important;
+          --cl-bronze: ${salonAccentColor} !important;
+        }
         @keyframes pulseAlert {
           0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5); }
           70% { transform: scale(1.08); box-shadow: 0 0 0 20px rgba(239, 68, 68, 0); }
