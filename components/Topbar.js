@@ -210,6 +210,33 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
   const [workingMeseros, setWorkingMeseros] = useState([]);
   const [isOnline, setIsOnline] = useState(true);
   const [cantAlertasOffline, setCantAlertasOffline] = useState(0);
+  const [salonesList, setSalonesList] = useState([]);
+
+  useEffect(() => {
+    if (user?.email === 'masteradmin@yoybillar.mx') {
+      const unsub = onSnapshot(collection(db, 'salones'), snap => {
+        const list = [];
+        snap.forEach(docSnap => {
+          list.push({ id: docSnap.id, ...docSnap.data() });
+        });
+        if (list.length === 0) {
+          setSalonesList([
+            { id: 'default_salon', nombre: 'Alfonso Iturbide' },
+            { id: 'prueba_smart', nombre: 'Million Dollar' }
+          ]);
+        } else {
+          setSalonesList(list);
+        }
+      }, err => {
+        console.warn("Fallo al suscribir a salones para MasterAdmin:", err);
+        setSalonesList([
+          { id: 'default_salon', nombre: 'Alfonso Iturbide' },
+          { id: 'prueba_smart', nombre: 'Million Dollar' }
+        ]);
+      });
+      return unsub;
+    }
+  }, [user]);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -1299,8 +1326,18 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
                       }}
                       title="Seleccionar sucursal activa (Administrador Maestro)"
                     >
-                      <option value="default_salon" style={{ background: 'var(--bg-elevated)', color: '#fff' }}>Alfonso Iturbide</option>
-                      <option value="prueba_smart" style={{ background: 'var(--bg-elevated)', color: '#fff' }}>Million Dollar</option>
+                      {salonesList.length > 0 ? (
+                        salonesList.map(salon => (
+                          <option key={salon.id} value={salon.id} style={{ background: 'var(--bg-elevated)', color: '#fff' }}>
+                            {salon.nombre || salon.id}
+                          </option>
+                        ))
+                      ) : (
+                        <>
+                          <option value="default_salon" style={{ background: 'var(--bg-elevated)', color: '#fff' }}>Alfonso Iturbide</option>
+                          <option value="prueba_smart" style={{ background: 'var(--bg-elevated)', color: '#fff' }}>Million Dollar</option>
+                        </>
+                      )}
                     </select>
                   );
                 }

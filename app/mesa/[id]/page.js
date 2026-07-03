@@ -1617,7 +1617,24 @@ export default function MesaClientePage({ params }) {
         <div className="mc-header-logo">
           <div className="mc-header-logo-icon">🎱</div>
           <div>
-            <div className="mc-header-title">YoY IA BILLAR <span style={{ fontSize: 9, color: 'var(--cl-bronze-light)', fontWeight: 800, display: 'block', marginTop: 1 }}>By Alfonso Iturbide</span></div>
+            <div className="mc-header-title">
+              YoY IA BILLAR 
+              <span style={{ fontSize: 9, color: 'var(--cl-bronze-light)', fontWeight: 800, display: 'block', marginTop: 1 }}>
+                By {(() => {
+                  const salonId = getActiveSalonId();
+                  if (!salonId || salonId === 'default_salon' || salonId === 'default') {
+                    return 'Alfonso Iturbide';
+                  }
+                  if (salonId === 'prueba_smart') {
+                    return 'Million Dollar';
+                  }
+                  return salonId
+                    .split('_')
+                    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                    .join(' ');
+                })()}
+              </span>
+            </div>
             <div className="mc-header-sub" style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               <div style={{ display: 'flex', alignItems: 'center' }}>
                 <span className="mc-live-dot" style={{ marginRight: 4 }} />
