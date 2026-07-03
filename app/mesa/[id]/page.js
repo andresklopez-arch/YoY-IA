@@ -163,6 +163,7 @@ export default function MesaClientePage({ params }) {
   const [authError, setAuthError] = useState('');
   const [dbConnected, setDbConnected] = useState(false);
   const [showTechDetails, setShowTechDetails] = useState(false);
+  const [salonNombre, setSalonNombre] = useState('YoY IA Billar');
 
   // Control de dispositivo único y encuestas
   const [isSecondaryDevice, setIsSecondaryDevice] = useState(false);
@@ -681,6 +682,30 @@ export default function MesaClientePage({ params }) {
       }
     }, err => {
       console.error("Error al cargar renta_extras en tiempo real para cliente:", err);
+    });
+    return unsub;
+  }, []);
+
+  // ── Leer nombre del salón en tiempo real desde la colección 'salones' ──
+  useEffect(() => {
+    const salonId = getActiveSalonId();
+    const unsub = onSnapshot(doc(db, 'salones', salonId), snap => {
+      if (snap.exists() && snap.data().nombre) {
+        setSalonNombre(snap.data().nombre);
+      } else {
+        if (salonId === 'prueba_smart') setSalonNombre('Million Dollar');
+        else if (salonId === 'default_salon') setSalonNombre('Alfonso Iturbide');
+        else {
+          setSalonNombre(salonId.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '));
+        }
+      }
+    }, err => {
+      console.warn("Fallo al obtener nombre de salon en tiempo real:", err);
+      if (salonId === 'prueba_smart') setSalonNombre('Million Dollar');
+      else if (salonId === 'default_salon') setSalonNombre('Alfonso Iturbide');
+      else {
+        setSalonNombre(salonId.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '));
+      }
     });
     return unsub;
   }, []);
@@ -1620,19 +1645,7 @@ export default function MesaClientePage({ params }) {
             <div className="mc-header-title">
               YoY IA BILLAR 
               <span style={{ fontSize: 9, color: 'var(--cl-bronze-light)', fontWeight: 800, display: 'block', marginTop: 1 }}>
-                By {(() => {
-                  const salonId = getActiveSalonId();
-                  if (!salonId || salonId === 'default_salon' || salonId === 'default') {
-                    return 'Alfonso Iturbide';
-                  }
-                  if (salonId === 'prueba_smart') {
-                    return 'Million Dollar';
-                  }
-                  return salonId
-                    .split('_')
-                    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-                    .join(' ');
-                })()}
+                By {salonNombre}
               </span>
             </div>
             <div className="mc-header-sub" style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
