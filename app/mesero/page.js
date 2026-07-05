@@ -204,12 +204,11 @@ function MeseroContent() {
         }
       }
 
-      // Si el usuario actual pertenece a otra sucursal, cerrar sesión para evitar bucles y colisión de permisos
+      // Si el usuario actual pertenece a otra sucursal, redirigir a su sucursal correspondiente para evitar bucles de deslogueo
       const isSystemAdmin = user && (user.role === 'admin' && (user.email === 'admin@yoybillar.mx' || user.email === 'masteradmin@yoybillar.mx' || user.email?.startsWith('masteradmin@') || (user.name || '').toLowerCase().includes('maestro')));
       if (user && !isSystemAdmin && user.salonId && user.salonId !== querySalonId) {
-        console.warn(`[Mesero Tenant Isolation] Choque de sucursales. Usuario pertenece a ${user.salonId} pero la pestaña está en ${querySalonId}. Cerrando sesión...`);
-        await logout();
-        window.location.reload();
+        console.warn(`[Mesero Tenant Isolation] Redirección automática por choque de sucursales: de ${querySalonId} a ${user.salonId}`);
+        window.location.href = `/mesero?s=${user.salonId}`;
         return;
       }
 
@@ -1606,7 +1605,6 @@ function MeseroContent() {
             <button
               onClick={async () => {
                 await logout();
-                window.location.reload();
               }}
               style={{
                 backgroundColor: 'transparent', color: '#ef4444', border: '1px solid #ef4444',
