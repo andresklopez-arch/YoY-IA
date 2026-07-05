@@ -265,13 +265,7 @@ function MeseroContent() {
         }
       }
 
-      // Si el usuario actual pertenece a otra sucursal, redirigir a su sucursal correspondiente para evitar bucles de deslogueo
-      const isSystemAdmin = user && (user.role === 'admin' && (user.email === 'admin@yoybillar.mx' || user.email === 'masteradmin@yoybillar.mx' || user.email?.startsWith('masteradmin@') || (user.name || '').toLowerCase().includes('maestro')));
-      if (user && !isSystemAdmin && user.salonId && user.salonId !== querySalonId) {
-        console.warn(`[Mesero Tenant Isolation] Redirección automática por choque de sucursales: de ${querySalonId} a ${user.salonId}`);
-        window.location.href = `/mesero?s=${user.salonId}`;
-        return;
-      }
+
 
       if (!user) {
         // En lugar de redirigir forzosamente, cargamos el listado de meseros del salón para permitir el acceso interactivo
