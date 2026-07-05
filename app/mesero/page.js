@@ -162,6 +162,67 @@ function MeseroContent() {
   const [loadingWaiters, setLoadingWaiters] = useState(false);
   const [salonId, setSalonId] = useState('default_salon');
 
+  // Estados de marca y diseño dinámico (Sugerencia 2)
+  const [salonNombre, setSalonNombre] = useState('');
+  const [salonLogoUrl, setSalonLogoUrl] = useState('');
+  const [salonAccentColor, setSalonAccentColor] = useState('#c29b38');
+  const [salonBgColor, setSalonBgColor] = useState('#0d0d0d');
+
+  // Precargar logotipo de caché local en el primer render para carga instantánea offline
+  useEffect(() => {
+    try {
+      const sId = getActiveSalonId();
+      const cachedLogo = localStorage.getItem('yoy_client_logo_' + sId);
+      if (cachedLogo) {
+        setSalonLogoUrl(cachedLogo);
+      }
+    } catch (e) {}
+  }, []);
+
+  // Suscribirse en tiempo real a la configuración de la sucursal (marca y colores)
+  useEffect(() => {
+    const sId = getActiveSalonId();
+    const unsub = onSnapshot(doc(db, 'config', 'sucursal'), snap => {
+      if (snap.exists()) {
+        const data = snap.data();
+        if (data.nombre) setSalonNombre(data.nombre);
+        if (data.logoUrl) {
+          setSalonLogoUrl(data.logoUrl);
+          try {
+            localStorage.setItem('yoy_client_logo_' + sId, data.logoUrl);
+          } catch (e) {}
+        }
+        if (data.accentColor) setSalonAccentColor(data.accentColor);
+        if (data.bgColor) setSalonBgColor(data.bgColor);
+      }
+    }, err => {
+      console.warn("Fallo al obtener config sucursal en mesero:", err);
+    });
+    return unsub;
+  }, []);
+
+  // Persistencia de filtro de mesero seleccionado para cajero/gerente (Sugerencia 1)
+  useEffect(() => {
+    if (loading) return;
+    const urlParams = new URLSearchParams(window.location.search);
+    const queryId = urlParams.get('empleadoId');
+    const sId = getActiveSalonId();
+    if (!queryId) {
+      try {
+        const savedFilter = localStorage.getItem('yoy_mesero_selected_filter_' + sId);
+        const rolLower = (user?.role || '').toLowerCase();
+        const isStaff = rolLower.includes('admin') || rolLower.includes('cajero') || rolLower.includes('caja') || rolLower.includes('gerente') || rolLower.includes('tecnico') || user?.isFreeAccess;
+        if (savedFilter && isStaff) {
+          window.location.href = `/mesero?s=${sId}&empleadoId=${savedFilter}`;
+        }
+      } catch (e) {}
+    } else {
+      try {
+        localStorage.setItem('yoy_mesero_selected_filter_' + sId, queryId);
+      } catch (e) {}
+    }
+  }, [user, loading]);
+
   const handleLogout = async () => {
     if (window.confirm('¿Estás seguro de que deseas cerrar sesión de mesero?')) {
       await logout();
@@ -1626,8 +1687,17 @@ function MeseroContent() {
       <div className="waiter-header-box" style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border-bronze)', padding: '16px 20px', position: 'sticky', top: 0, zIndex: 10 }}>
         <div className="waiter-header-flex" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', maxWidth: 900, margin: '0 auto' }}>
           <div className="waiter-header-title-box">
-            <h1 style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--bronze-light)', lineHeight: 1 }}>
-              🎱 {displayTitle}
+            <h1 style={{ display: 'flex', alignItems: 'center', gap: 10, fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--bronze-light)', lineHeight: 1 }}>
+              {salonLogoUrl ? (
+                <img 
+                  src={salonLogoUrl} 
+                  alt="Logo" 
+                  style={{ width: 28, height: 28, borderRadius: 6, objectFit: 'cover', border: '1px solid var(--border)' }} 
+                />
+              ) : (
+                <span>🎱</span>
+              )}
+              {displayTitle}
               {isOffline && (
                 <span style={{ fontSize: 10, background: 'var(--danger)', color: '#fff', padding: '3px 8px', borderRadius: 10, fontWeight: 700, letterSpacing: 'normal' }}>
                   OFFLINE
@@ -1636,7 +1706,7 @@ function MeseroContent() {
             </h1>
             {user && (
               <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.4)', marginTop: 4, display: 'flex', flexWrap: 'wrap', gap: '8px 12px', fontFamily: 'monospace' }}>
-                <span style={{ color: 'var(--success)' }}>🏢 Salón: {getActiveSalonId()}</span>
+                <span style={{ color: 'var(--success)' }}>🏢 Salón: {salonNombre || getActiveSalonId()}</span>
                 <span>📋 Mesas: {mesas.length}</span>
                 <span>💰 Cuentas: {cuentas.length}</span>
                 <span>👤 Rol: {user.role}</span>
@@ -1863,6 +1933,11 @@ function MeseroContent() {
 
         {/* CSS para animaciones, grilla responsiva y scroll */}
         <style>{`
+          :root {
+            --cl-bronze-light: ${salonAccentColor} !important;
+            --cl-bronze: ${salonAccentColor} !important;
+            --bg-primary: ${salonBgColor} !important;
+          }
           @keyframes wiggle {
             0%, 100% { transform: rotate(0deg); }
             15% { transform: rotate(-15deg); }
