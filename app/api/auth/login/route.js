@@ -75,10 +75,6 @@ export async function POST(request) {
       .limit(1)
       .get();
       
-    if (usersSnap.empty) {
-      return NextResponse.json({ error: 'Usuario no registrado' }, { status: 401 });
-    }
-
     const userDoc = !usersSnap.empty ? usersSnap.docs[0] : null;
     const userData = userDoc ? userDoc.data() : null;
     const isMaster = formattedEmail === 'masteradmin@yoybillar.mx' || formattedEmail.startsWith('masteradmin@');
@@ -147,7 +143,7 @@ export async function POST(request) {
 
     // 4. Sincronizar los datos en Firebase Auth (crear o actualizar)
     const authParams = {
-      displayName: userData.name || userData.nombre || formattedEmail.split('@')[0]
+      displayName: (userData ? (userData.name || userData.nombre) : null) || formattedEmail.split('@')[0]
     };
     
     if (password && password.length >= 6) {
