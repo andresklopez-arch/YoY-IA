@@ -205,7 +205,7 @@ function MeseroContent() {
   useEffect(() => {
     if (loading) return;
     const urlParams = new URLSearchParams(window.location.search);
-    const queryId = urlParams.get('empleadoId');
+    const queryId = urlParams.get('filtroEmpleadoId');
     const sId = getActiveSalonId();
     if (!queryId) {
       try {
@@ -213,7 +213,7 @@ function MeseroContent() {
         const rolLower = (user?.role || '').toLowerCase();
         const isStaff = rolLower.includes('admin') || rolLower.includes('cajero') || rolLower.includes('caja') || rolLower.includes('gerente') || rolLower.includes('tecnico') || user?.isFreeAccess;
         if (savedFilter && isStaff) {
-          window.location.href = `/mesero?s=${sId}&empleadoId=${savedFilter}`;
+          window.location.href = `/mesero?s=${sId}&filtroEmpleadoId=${savedFilter}`;
         }
       } catch (e) {}
     } else {
@@ -666,7 +666,7 @@ function MeseroContent() {
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
-    const queryId = urlParams.get('empleadoId');
+    const queryId = urlParams.get('filtroEmpleadoId');
     if (queryId) {
       if (queryId === 'sin_mesero') {
         setQueryEmpleado({ id: 'sin_mesero', nombre: 'Sin Mesero', alias: 'Sin Mesero' });
@@ -688,7 +688,7 @@ function MeseroContent() {
     const isStaff = rolLower.includes('admin') || rolLower.includes('cajero') || rolLower.includes('caja') || rolLower.includes('gerente') || rolLower.includes('tecnico') || user.isFreeAccess;
 
     const urlParams = new URLSearchParams(window.location.search);
-    const queryId = urlParams.get('empleadoId');
+    const queryId = urlParams.get('filtroEmpleadoId');
 
     if (isStaff) {
       if (!queryId || queryId === 'todos') {

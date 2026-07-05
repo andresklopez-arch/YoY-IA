@@ -1594,7 +1594,7 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
                     <button
                       onClick={() => {
                         setShowMeseroDropdown(false);
-                        window.open(`/mesero?empleadoId=sin_mesero&s=${currentSalonId || 'default_salon'}`, '_blank');
+                        window.open(`/mesero?filtroEmpleadoId=sin_mesero&s=${currentSalonId || 'default_salon'}`, '_blank');
                       }}
                       style={{
                         background: 'transparent',
@@ -1633,7 +1633,7 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
                           key={m.id}
                           onClick={() => {
                             setShowMeseroDropdown(false);
-                            window.open(`/mesero?empleadoId=${m.id}&s=${currentSalonId || 'default_salon'}`, '_blank');
+                            window.open(`/mesero?filtroEmpleadoId=${m.id}&s=${currentSalonId || 'default_salon'}`, '_blank');
                           }}
                           style={{
                             background: 'transparent',
