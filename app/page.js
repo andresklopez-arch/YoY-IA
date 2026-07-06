@@ -435,7 +435,13 @@ function AppContent() {
   
   // Alertas de asistencia pendientes para popup principal
   const [alertasAsistencia, setAlertasAsistencia] = useState([]);
-  const [sonidoAdmin, setSonidoAdmin] = useState(true);
+  const [sonidoAdmin, setSonidoAdmin] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('yoy_sonido_admin');
+      return saved !== 'false';
+    }
+    return true;
+  });
   const [insumosBajos, setInsumosBajos] = useState([]);
   const [iaPrevisiones, setIaPrevisiones] = useState({});
   const [cocinaSolicitudes, setCocinaSolicitudes] = useState([]);
@@ -2293,6 +2299,8 @@ function AppContent() {
           onNavigate={(panel) => {
             setActivePanel(panel);
           }}
+          sonidoAdmin={sonidoAdmin}
+          setSonidoAdmin={setSonidoAdmin}
         />
         {/* Banner de Contraseña Temporal (MasterAdmin) */}
         {showPasswordChangeReminder && !dismissedSessionReminder && (

@@ -140,7 +140,7 @@ const QUICK_NAV_TARGETS = [
   { href: '/cocina' },
 ];
 
-export default function Topbar({ user, activePanel, showToast, onNavigate }) {
+export default function Topbar({ user, activePanel, showToast, onNavigate, sonidoAdmin = true, setSonidoAdmin }) {
   const currentSalonId = getActiveSalonId();
   const { logout, loginWithEmpleadoId, offlineLockout, unlockOffline } = useAuth();
   const canAccessPanel = useCallback((panelId) => {
@@ -1707,6 +1707,30 @@ export default function Topbar({ user, activePanel, showToast, onNavigate }) {
             {dateStr}
           </div>
         </div>
+
+        {/* Switch de Sonido Admin */}
+        <button
+          onClick={() => {
+            if (typeof setSonidoAdmin === 'function') {
+              const nextVal = !sonidoAdmin;
+              setSonidoAdmin(nextVal);
+              try {
+                localStorage.setItem('yoy_sonido_admin', String(nextVal));
+              } catch (e) {}
+              showToast(nextVal ? 'Alerta sonora activada 🔊' : 'Alerta sonora silenciada 🔇', 'info');
+            }
+          }}
+          style={{
+            background: sonidoAdmin ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)',
+            border: `1px solid ${sonidoAdmin ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)'}`,
+            borderRadius: 10, width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: 'pointer', color: sonidoAdmin ? 'var(--success)' : 'var(--danger)',
+            fontSize: 16, transition: 'all 0.2s'
+          }}
+          title={sonidoAdmin ? 'Silenciar sonidos del Administrador' : 'Activar sonidos del Administrador'}
+        >
+          <i className={sonidoAdmin ? 'ri-volume-up-line' : 'ri-volume-mute-line'} />
+        </button>
 
         {/* Notificaciones Botón (Abre Drawer Lateral) */}
         <button
