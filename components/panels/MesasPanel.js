@@ -1,4 +1,5 @@
 'use client';
+import { increment } from 'firebase/firestore';
 import { useState, useEffect, useRef, useMemo, Component } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
@@ -6463,6 +6464,48 @@ export default function MesasPanel({ showToast }) {
         const motivoTexto = motivo ? ` — Motivo: ${motivo}` : '';
         showToast(`Cortesía registrada para ${clientName}${motivoTexto}`, 'warning');
         registrarEvento('Cortesía $0', `Mesa ${mesaId} cerrada en $0 por ${clientName}${motivoTexto}`);
+      }
+
+      // ── ACTUALIZAR HORAS DE USO EN MANTENIMIENTO PREVENTIVO ──
+      try {
+        const activeSalonId = getActiveSalonId();
+        const horasDeUso = tiempo ? (tiempo / 3600000) : (mesa && mesa.inicio ? (Date.now() - mesa.inicio) / 3600000 : 0);
+        if (horasDeUso > 0) {
+          const maintRef = doc(db, 'mantenimiento_mesas', `${activeSalonId}_mesa_${mesaId}`);
+          const maintSnap = await getDoc(maintRef);
+          
+          if (maintSnap.exists()) {
+            const currentHours = maintSnap.data().horasUso || 0;
+            const newHours = currentHours + horasDeUso;
+            const limitHours = maintSnap.data().horasLimite || 150;
+            const nextEstado = newHours >= limitHours ? 'requiere_mantenimiento' : (newHours >= limitHours * 0.75 ? 'limite_cercano' : 'excelente');
+            
+            await updateDoc(maintRef, {
+              horasUso: newHours,
+              estado: nextEstado,
+              updatedAt: serverTimestamp()
+            });
+
+            // Disparar Telegram si el estado pasó a requiere_mantenimiento y antes no lo estaba
+            if (nextEstado === 'requiere_mantenimiento' && maintSnap.data().estado !== 'requiere_mantenimiento') {
+              try {
+                await fetch('/api/telegram/attendance-alert', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    salonId: activeSalonId,
+                    type: 'mantenimiento',
+                    message: `⚠️ *Alerta de Mantenimiento Preventivo*\nMesa: *${mesa ? mesa.nombre : 'Mesa ' + mesaId}*\nUso acumulado: *${newHours.toFixed(1)}h* / Límite: *${limitHours}h*\nSe sugiere realizar mantenimiento pronto.`
+                  })
+                });
+              } catch (errTele) {
+                console.error("Error al disparar Telegram preventivo:", errTele);
+              }
+            }
+          }
+        }
+      } catch (errMaint) {
+        console.error("Error al actualizar horas de uso en mantenimiento preventivo:", errMaint);
       }
 
       setCobroExito({

@@ -233,6 +233,308 @@ export default function ConfigPanel({ showToast }) {
     mesasRef.current = mesas;
   }, [mesas]);
   const [nuevaMesa, setNuevaMesa] = useState({ id: '', nombre: '', tarifa: '', tipo: 'Pool' });
+
+  // --- Estados del Motor IA de Mantenimiento e Insumos Fijos ---
+  const [mantenimientoMesas, setMantenimientoMesas] = useState([]);
+  const [inventarioFijo, setInventarioFijo] = useState([]);
+  const [loadingMantenimiento, setLoadingMantenimiento] = useState(true);
+  const [savingMantenimiento, setSavingMantenimiento] = useState(false);
+
+  // Modales Mantenimiento
+  const [showMaintModal, setShowMaintModal] = useState(false);
+  const [selectedMaintMesa, setSelectedMaintMesa] = useState(null);
+  const [maintObs, setMaintObs] = useState('');
+  const [maintTipo, setMaintTipo] = useState('Completo');
+
+  const [showHoursModal, setShowHoursModal] = useState(false);
+  const [selectedHoursMesa, setSelectedHoursMesa] = useState(null);
+  const [maintHoursLimit, setMaintHoursLimit] = useState(150);
+
+  const fetchMantenimientoDatos = async () => {
+    const salonId = getActiveSalonId();
+    if (!salonId) return;
+    setLoadingMantenimiento(true);
+    try {
+      const queryMesas = query(collection(db, 'mantenimiento_mesas'), where('salonId', '==', salonId));
+      const snapMesas = await getDocs(queryMesas);
+      let listMesas = [];
+      snapMesas.forEach(d => {
+        listMesas.push({ id: d.id, ...d.data() });
+      });
+
+      if (mesasRef.current && mesasRef.current.length > 0) {
+        const batch = writeBatch(db);
+        let updatedList = [...listMesas];
+        let hasNew = false;
+        
+        mesasRef.current.forEach(m => {
+          const idStr = String(m.id);
+          const existe = listMesas.find(lm => String(lm.idMesa) === idStr);
+          if (!existe) {
+            hasNew = true;
+            const newDocRef = doc(db, 'mantenimiento_mesas', `${salonId}_mesa_${idStr}`);
+            const newMesaData = {
+              idMesa: m.id,
+              nombre: m.nombre || `Mesa ${m.id}`,
+              horasUso: 0,
+              horasLimite: 150,
+              estado: 'excelente',
+              fechaUltimoMantenimiento: new Date().toISOString(),
+              historial: [],
+              salonId: salonId,
+              updatedAt: serverTimestamp()
+            };
+            batch.set(newDocRef, newMesaData);
+            updatedList.push({ id: `${salonId}_mesa_${idStr}`, ...newMesaData });
+          }
+        });
+        
+        if (hasNew) {
+          await batch.commit();
+        }
+        listMesas = updatedList;
+      }
+      setMantenimientoMesas(listMesas.sort((a, b) => a.idMesa - b.idMesa));
+
+      const queryFijo = query(collection(db, 'inventario_fijo'), where('salonId', '==', salonId));
+      const snapFijo = await getDocs(queryFijo);
+      let listFijo = [];
+      snapFijo.forEach(d => {
+        listFijo.push({ id: d.id, ...d.data() });
+      });
+
+      if (listFijo.length === 0) {
+        const batch = writeBatch(db);
+        const defaultItems = [
+          { key: 'tacos', nombre: 'Tacos de Juego (Pool/Carambola)', cantidadTotal: 12, cantidadRepuesto: 4, estadoGeneral: 'excelente' },
+          { key: 'bolas', nombre: 'Juegos de Bolas de Billar', cantidadTotal: 8, cantidadRepuesto: 2, estadoGeneral: 'excelente' },
+          { key: 'tizas', nombre: 'Tizas de Mesa (Master/Pioneer)', cantidadTotal: 30, cantidadRepuesto: 10, estadoGeneral: 'excelente' },
+          { key: 'panos', nombre: 'Paños de Repuesto (Gorina/Rapide)', cantidadTotal: 2, cantidadRepuesto: 2, estadoGeneral: 'excelente' },
+        ];
+
+        defaultItems.forEach(item => {
+          const docId = `${salonId}_fijo_${item.key}`;
+          const itemData = {
+            key: item.key,
+            nombre: item.nombre,
+            cantidadTotal: item.cantidadTotal,
+            cantidadRepuesto: item.cantidadRepuesto,
+            estadoGeneral: item.estadoGeneral,
+            ultimaRevision: new Date().toISOString(),
+            proximaRevision: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+            salonId: salonId,
+            updatedAt: serverTimestamp()
+          };
+          batch.set(doc(db, 'inventario_fijo', docId), itemData);
+          listFijo.push({ id: docId, ...itemData });
+        });
+        await batch.commit();
+      }
+      setInventarioFijo(listFijo);
+    } catch (e) {
+      console.error("Error cargando mantenimiento:", e);
+      showToast('Error cargando mantenimiento', 'danger');
+    } finally {
+      setLoadingMantenimiento(false);
+    }
+  };
+
+  useEffect(() => {
+    if (mesas.length > 0) {
+      fetchMantenimientoDatos();
+    }
+  }, [mesas.length]);
+
+  const abrirModalHoras = (m) => {
+    setSelectedHoursMesa(m);
+    setMaintHoursLimit(m.horasLimite || 150);
+    setShowHoursModal(true);
+  };
+
+  const guardarHorasLimite = async () => {
+    if (!selectedHoursMesa) return;
+    setSavingMantenimiento(true);
+    try {
+      const docRef = doc(db, 'mantenimiento_mesas', selectedHoursMesa.id);
+      await setDoc(docRef, {
+        horasLimite: Number(maintHoursLimit),
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+      showToast('Horas límite actualizadas', 'success');
+      setShowHoursModal(false);
+      fetchMantenimientoDatos();
+    } catch (e) {
+      console.error(e);
+      showToast('Error al actualizar límite', 'danger');
+    } finally {
+      setSavingMantenimiento(false);
+    }
+  };
+
+  const abrirModalMantenimiento = (m) => {
+    setSelectedMaintMesa(m);
+    setMaintObs('');
+    setMaintTipo('Completo');
+    setShowMaintModal(true);
+  };
+
+  const registrarMantenimientoFisico = async () => {
+    if (!selectedMaintMesa) return;
+    setSavingMantenimiento(true);
+    try {
+      const docRef = doc(db, 'mantenimiento_mesas', selectedMaintMesa.id);
+      const nuevoHistorial = [
+        ...(selectedMaintMesa.historial || []),
+        {
+          fecha: new Date().toISOString(),
+          operador: user?.nombre || user?.alias || 'Administrador',
+          observaciones: maintObs,
+          tipo: maintTipo,
+          horasUsoAlRegistrar: selectedMaintMesa.horasUso || 0
+        }
+      ];
+
+      await setDoc(docRef, {
+        horasUso: 0,
+        estado: 'excelente',
+        fechaUltimoMantenimiento: new Date().toISOString(),
+        historial: nuevoHistorial,
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+
+      await addDoc(collection(db, 'bitacora'), {
+        salonId: getActiveSalonId(),
+        fecha: new Date().toISOString(),
+        tipo: 'mantenimiento',
+        operador: user?.nombre || user?.alias || 'Administrador',
+        rolOperador: user?.role || 'admin',
+        accion: 'Mantenimiento de Mesa',
+        detalle: `Mesa "${selectedMaintMesa.nombre}": mantenimiento de tipo "${maintTipo}" completado. Observaciones: ${maintObs}`,
+        monto: 0
+      });
+
+      // Disparar Telegram si está habilitado
+      try {
+        const activeSalonId = getActiveSalonId();
+        await fetch('/api/telegram/attendance-alert', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            salonId: activeSalonId,
+            type: 'mantenimiento',
+            message: `⚙️ *Mantenimiento Registrado*\nMesa: ${selectedMaintMesa.nombre}\nTipo: ${maintTipo}\nOperador: ${user?.nombre || 'Administrador'}\nObservaciones: ${maintObs}`
+          })
+        });
+      } catch (errTele) {
+        console.error("Error al notificar por telegram:", errTele);
+      }
+
+      showToast('Mantenimiento registrado y uso reiniciado ✓', 'success');
+      setShowMaintModal(false);
+      fetchMantenimientoDatos();
+    } catch (e) {
+      console.error(e);
+      showToast('Error al registrar mantenimiento', 'danger');
+    } finally {
+      setSavingMantenimiento(false);
+    }
+  };
+
+  const handleUpdateFijoField = (id, field, value) => {
+    setInventarioFijo(p => p.map(item => item.id === id ? { ...item, [field]: value } : item));
+  };
+
+  const guardarFijoFila = async (item) => {
+    setSavingMantenimiento(true);
+    try {
+      const docRef = doc(db, 'inventario_fijo', item.id);
+      await setDoc(docRef, {
+        cantidadTotal: Number(item.cantidadTotal),
+        cantidadRepuesto: Number(item.cantidadRepuesto),
+        estadoGeneral: item.estadoGeneral,
+        ultimaRevision: new Date().toISOString(),
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+
+      // Disparar Telegram si entra en estado desgastado
+      if (item.estadoGeneral === 'desgastado') {
+        try {
+          const activeSalonId = getActiveSalonId();
+          await fetch('/api/telegram/attendance-alert', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              salonId: activeSalonId,
+              type: 'mantenimiento',
+              message: `⚠️ *Alerta de Desgaste de Equipo*\nInsumo Fijo: ${item.nombre}\nEstado: DESGASTADO🔴\nSe sugiere programar cambio físico o reposición.`
+            })
+          });
+        } catch (errTele) {
+          console.error("Error telegram:", errTele);
+        }
+      }
+
+      showToast(`${item.nombre} actualizado correctamente`, 'success');
+      fetchMantenimientoDatos();
+    } catch (e) {
+      console.error(e);
+      showToast('Error al guardar insumo fijo', 'danger');
+    } finally {
+      setSavingMantenimiento(false);
+    }
+  };
+
+  const generarSugerenciasIA = () => {
+    const sugerencias = [];
+    mantenimientoMesas.forEach(m => {
+      const pct = Math.round((m.horasUso / (m.horasLimite || 150)) * 100);
+      if (pct >= 100) {
+        sugerencias.push({
+          color: 'var(--danger)',
+          icon: '🔴',
+          titulo: `Mesa ${m.idMesa} requiere mantenimiento urgente`,
+          mensaje: `Ha superado el límite recomendado con ${m.horasUso.toFixed(1)} horas acumuladas de juego. Se sugiere rectificar nivelación, verificar bandas y cepillar/rotar paño.`
+        });
+      } else if (pct >= 75) {
+        sugerencias.push({
+          color: 'var(--warning)',
+          icon: '🟡',
+          titulo: `Mesa ${m.idMesa} cercana al límite de uso`,
+          mensaje: `Se encuentra al ${pct}% de desgaste de paño (${m.horasUso.toFixed(1)}h de uso). Programe mantenimiento preventivo próximamente.`
+        });
+      }
+    });
+
+    inventarioFijo.forEach(item => {
+      if (item.estadoGeneral === 'desgastado') {
+        sugerencias.push({
+          color: 'var(--danger)',
+          icon: '🔴',
+          titulo: `${item.nombre} reporta desgaste generalizado`,
+          mensaje: `El estado general está marcado como "Desgastado". Se sugiere realizar cambio físico, reponer casquillos de tacos o reemplazar tizas para evitar quejas de clientes.`
+        });
+      }
+      if (item.cantidadRepuesto === 0) {
+        sugerencias.push({
+          color: 'var(--warning)',
+          icon: '🟡',
+          titulo: `Sin stock de repuesto para ${item.nombre}`,
+          mensaje: `No hay unidades de respaldo en bodega. Sugerimos realizar compra de insumos de repuesto.`
+        });
+      }
+    });
+
+    if (sugerencias.length === 0) {
+      sugerencias.push({
+        color: 'var(--success)',
+        icon: '🟢',
+        titulo: 'Todos los equipos y mesas en estado óptimo',
+        mensaje: 'El motor IA no detecta desgastes críticos ni retrasos en mantenimientos programados. ¡Excelente control preventivo!'
+      });
+    }
+
+    return sugerencias;
+  };
   const [editingMesaId, setEditingMesaId] = useState(null);
   const [customMesaTipo, setCustomMesaTipo] = useState('');
   const [showCustomTipoInput, setShowCustomTipoInput] = useState(false);
@@ -4532,6 +4834,259 @@ export default function ConfigPanel({ showToast }) {
             </div>
           </div>
         </div>
+
+        {/* ⚒️ Motor IA de Mantenimiento e Insumos Fijos */}
+        <div className="card" style={{ padding: '16px 20px', marginTop: 16 }}>
+          <div className="card-header" style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h3 className="card-title" style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14 }}>
+              <i className="ri-tools-line" style={{ color: 'var(--bronze-light)' }} />
+              <span>Motor IA de Mantenimiento de Mesas e Insumos</span>
+            </h3>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={fetchMantenimientoDatos}
+              disabled={loadingMantenimiento}
+              style={{ fontSize: 10, padding: '4px 8px' }}
+            >
+              <i className="ri-refresh-line" /> {loadingMantenimiento ? 'Cargando...' : 'Sincronizar'}
+            </button>
+          </div>
+
+          {loadingMantenimiento ? (
+            <div style={{ textAlign: 'center', padding: 24, color: 'var(--text-muted)' }}>
+              <i className="ri-loader-4-line ri-spin" style={{ fontSize: 24, display: 'block', marginBottom: 8 }} />
+              Cargando datos del motor de mantenimiento...
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+              
+              {/* Fila 1: Motor IA Recomendaciones */}
+              <div style={{
+                background: 'linear-gradient(135deg, rgba(205,127,50,0.1), rgba(26,26,32,0.6))',
+                border: '1px solid rgba(205,127,50,0.25)',
+                borderRadius: 12, padding: 14,
+                boxShadow: 'var(--shadow-sm)'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                  <span style={{ fontSize: 18 }}>🤖</span>
+                  <h4 style={{ margin: 0, fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--bronze-light)' }}>
+                    Recomendaciones y Diagnóstico de la IA
+                  </h4>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {generarSugerenciasIA().map((sug, idx) => (
+                    <div key={idx} style={{
+                      display: 'flex', gap: 10, alignItems: 'flex-start',
+                      background: 'rgba(255,255,255,0.01)', borderLeft: `3px solid ${sug.color}`,
+                      padding: '8px 12px', borderRadius: '0 8px 8px 0', fontSize: 11
+                    }}>
+                      <span style={{ color: sug.color }}>{sug.icon}</span>
+                      <div style={{ flex: 1, lineHeight: 1.4 }}>
+                        <strong style={{ color: '#fff' }}>{sug.titulo}</strong> {sug.mensaje}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Fila 2: Grid de Dos Columnas */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(450px, 1fr))', gap: 16 }}>
+                
+                {/* Mesas de Juego */}
+                <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 12, padding: 14 }}>
+                  <h4 style={{ fontSize: 12, fontWeight: 700, marginBottom: 12, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <i className="ri-play-circle-line" /> Control de Mesas por Horas de Uso
+                  </h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    {mantenimientoMesas.map(m => {
+                      const porcentaje = Math.min(100, Math.round((m.horasUso / (m.horasLimite || 150)) * 100));
+                      let colorBarra = 'var(--success)';
+                      if (porcentaje >= 75 && porcentaje < 100) colorBarra = 'var(--warning)';
+                      if (porcentaje >= 100) colorBarra = 'var(--danger)';
+
+                      return (
+                        <div key={m.id} style={{ background: 'var(--bg-base)', border: '1px solid var(--border)', borderRadius: 8, padding: 10 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                            <span style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>{m.nombre}</span>
+                            <div style={{ display: 'flex', gap: 8 }}>
+                              <button
+                                type="button"
+                                className="btn btn-secondary btn-xs"
+                                onClick={() => abrirModalHoras(m)}
+                                style={{ fontSize: 9, padding: '2px 6px' }}
+                              >
+                                Límite: {m.horasLimite || 150}h
+                              </button>
+                              <button
+                                type="button"
+                                className="btn btn-primary btn-xs"
+                                onClick={() => abrirModalMantenimiento(m)}
+                                style={{ fontSize: 9, padding: '2px 6px' }}
+                              >
+                                Mantenimiento
+                              </button>
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>
+                            <span>Uso actual: <strong>{m.horasUso?.toFixed(1) || '0.0'}h</strong></span>
+                            <span>Desgaste: <strong>{porcentaje}%</strong></span>
+                          </div>
+                          <div style={{ width: '100%', height: 6, background: 'rgba(255,255,255,0.05)', borderRadius: 3, overflow: 'hidden' }}>
+                            <div style={{ width: `${porcentaje}%`, height: '100%', background: colorBarra, transition: 'width 0.3s ease' }} />
+                          </div>
+                          {m.fechaUltimoMantenimiento && (
+                            <span style={{ fontSize: 8, color: 'var(--text-muted)', marginTop: 4, display: 'block' }}>
+                              Último mantenimiento: {new Date(m.fechaUltimoMantenimiento).toLocaleDateString()}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Inventario Fijo */}
+                <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 12, padding: 14 }}>
+                  <h4 style={{ fontSize: 12, fontWeight: 700, marginBottom: 12, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <i className="ri-archive-line" /> Inventario Fijo y Herramientas Operacionales
+                  </h4>
+                  <div style={{ overflowX: 'auto' }}>
+                    <table className="table" style={{ width: '100%', fontSize: 11 }}>
+                      <thead>
+                        <tr>
+                          <th>Insumo/Herramienta</th>
+                          <th style={{ textAlign: 'center' }}>Total Salón</th>
+                          <th style={{ textAlign: 'center' }}>Repuestos</th>
+                          <th style={{ textAlign: 'center' }}>Estado</th>
+                          <th style={{ width: 60 }}></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {inventarioFijo.map(item => (
+                          <tr key={item.id}>
+                            <td style={{ fontWeight: 600, color: '#fff' }}>{item.nombre}</td>
+                            <td style={{ textAlign: 'center' }}>
+                              <input
+                                type="number"
+                                value={item.cantidadTotal}
+                                onChange={e => handleUpdateFijoField(item.id, 'cantidadTotal', Number(e.target.value))}
+                                style={{ width: 45, background: 'var(--bg-base)', border: '1px solid var(--border)', color: '#fff', textAlign: 'center', borderRadius: 4, fontSize: 10, padding: 2 }}
+                              />
+                            </td>
+                            <td style={{ textAlign: 'center' }}>
+                              <input
+                                type="number"
+                                value={item.cantidadRepuesto}
+                                onChange={e => handleUpdateFijoField(item.id, 'cantidadRepuesto', Number(e.target.value))}
+                                style={{ width: 45, background: 'var(--bg-base)', border: '1px solid var(--border)', color: '#fff', textAlign: 'center', borderRadius: 4, fontSize: 10, padding: 2 }}
+                              />
+                            </td>
+                            <td style={{ textAlign: 'center' }}>
+                              <select
+                                value={item.estadoGeneral}
+                                onChange={e => handleUpdateFijoField(item.id, 'estadoGeneral', e.target.value)}
+                                style={{ background: 'var(--bg-base)', border: '1px solid var(--border)', color: '#fff', borderRadius: 4, fontSize: 10, padding: 2 }}
+                              >
+                                <option value="excelente">🟢 Excelente</option>
+                                <option value="regular">🟡 Regular</option>
+                                <option value="desgastado">🔴 Desgastado</option>
+                              </select>
+                            </td>
+                            <td>
+                              <button
+                                type="button"
+                                className="btn btn-secondary btn-xs"
+                                onClick={() => guardarFijoFila(item)}
+                                disabled={savingMantenimiento}
+                                style={{ fontSize: 9, padding: '2px 6px' }}
+                              >
+                                Guardar
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+              </div>
+
+            </div>
+          )}
+        </div>
+
+        {/* ── MODALES DE MANTENIMIENTO ── */}
+        {showHoursModal && (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(5px)' }}>
+            <div className="card" style={{ width: '100%', maxWidth: 400, padding: 24, border: '1px solid var(--border-bronze)', boxShadow: 'var(--shadow-bronze)', animation: 'fadeIn 0.2s' }}>
+              <h4 style={{ fontSize: 14, fontWeight: 700, marginBottom: 16 }}>Configurar Horas Límite - {selectedHoursMesa?.nombre}</h4>
+              <div className="form-group" style={{ marginBottom: 20 }}>
+                <label className="form-label">Horas de Juego Recomendadas</label>
+                <input
+                  type="number"
+                  className="form-input"
+                  value={maintHoursLimit}
+                  onChange={e => setMaintHoursLimit(Number(e.target.value))}
+                  placeholder="150"
+                  style={{ fontSize: 12 }}
+                />
+                <span style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>
+                  Al superar este umbral, la IA generará una alerta de mantenimiento preventivo.
+                </span>
+              </div>
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                <button className="btn btn-secondary btn-sm" onClick={() => setShowHoursModal(false)} disabled={savingMantenimiento}>Cancelar</button>
+                <button className="btn btn-primary btn-sm" onClick={guardarHorasLimite} disabled={savingMantenimiento}>
+                  {savingMantenimiento ? 'Guardando...' : 'Guardar Límite'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showMaintModal && (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(5px)' }}>
+            <div className="card" style={{ width: '100%', maxWidth: 450, padding: 24, border: '1px solid var(--border-bronze)', boxShadow: 'var(--shadow-bronze)', animation: 'fadeIn 0.2s' }}>
+              <h4 style={{ fontSize: 14, fontWeight: 700, marginBottom: 16 }}>Registrar Mantenimiento Físico - {selectedMaintMesa?.nombre}</h4>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20 }}>
+                <div className="form-group">
+                  <label className="form-label">Tipo de Trabajo Realizado</label>
+                  <select
+                    className="form-select"
+                    value={maintTipo}
+                    onChange={e => setMaintTipo(e.target.value)}
+                    style={{ fontSize: 12, padding: '6px 10px', height: 'auto', background: 'var(--bg-base)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
+                  >
+                    <option value="Completo">🛠️ Servicio Completo (Paño, Bandas y Nivelación)</option>
+                    <option value="Cambio de Paño">🧶 Cambio de Paño de Mesa</option>
+                    <option value="Nivelación">📏 Nivelación de Pizarra</option>
+                    <option value="Mantenimiento de Bandas">🛞 Ajuste/Cambio de Bandas de Goma</option>
+                    <option value="Limpieza y Cepillado">🧹 Limpieza Profunda y Cepillado</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Observaciones y Notas</label>
+                  <textarea
+                    className="form-input"
+                    rows="3"
+                    value={maintObs}
+                    onChange={e => setMaintObs(e.target.value)}
+                    placeholder="Escribe detalles del mantenimiento (ej. paño nuevo marca Gorina, se calibró nivel central, etc.)"
+                    style={{ fontSize: 12, resize: 'none', padding: '8px 10px' }}
+                  />
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                <button className="btn btn-secondary btn-sm" onClick={() => setShowMaintModal(false)} disabled={savingMantenimiento}>Cancelar</button>
+                <button className="btn btn-primary btn-sm" onClick={registrarMantenimientoFisico} disabled={savingMantenimiento}>
+                  {savingMantenimiento ? 'Registrando...' : 'Confirmar & Reiniciar Horas'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
             {/* Modal de Crear Usuario */}
       {showAddUserModal && (

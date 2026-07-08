@@ -154,7 +154,24 @@ const sendTelegramAlert = async (text, tgData, salonId) => {
 
 export async function POST(request) {
   try {
-    const { empleadoId, tipo, nombre, rol, dispositivo } = await request.json();
+    const body = await request.json();
+
+    // Soporte para notificaciones de mantenimiento directo
+    if (body.type === 'mantenimiento') {
+      const { salonId, message } = body;
+      const tgSnap = await fetchDocument('config', `telegram_${salonId || 'default_salon'}`);
+      if (!tgSnap.exists()) {
+        return NextResponse.json({ success: true, message: 'Sin configuración de Telegram' });
+      }
+      const tgData = tgSnap.data();
+      if (!tgData.enabled) {
+        return NextResponse.json({ success: true, message: 'Alertas desactivadas globalmente' });
+      }
+      await sendTelegramAlert(message, tgData, salonId);
+      return NextResponse.json({ success: true, message: 'Alerta de mantenimiento enviada a Telegram' });
+    }
+
+    const { empleadoId, tipo, nombre, rol, dispositivo } = body;
 
     if (!empleadoId || !tipo || !nombre) {
       return NextResponse.json({ success: false, error: 'Parámetros incompletos' }, { status: 400 });
