@@ -247,6 +247,23 @@ export default function ConfigPanel({ showToast }) {
     autoNotify: false
   });
 
+  // Modales de historial, ROI y agregación de equipos fijos
+  const [showAddEquipmentModal, setShowAddEquipmentModal] = useState(false);
+  const [newEquipment, setNewEquipment] = useState({
+    nombre: '',
+    cantidadTotal: 1,
+    cantidadRepuesto: 0,
+    estadoGeneral: 'excelente',
+    proximaRevisionDias: 30
+  });
+
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [selectedHistoryItem, setSelectedHistoryItem] = useState(null);
+  const [selectedHistoryType, setSelectedHistoryType] = useState('mesa'); // mesa o fijo
+  const [newHistCost, setNewHistCost] = useState(0);
+  const [newHistObs, setNewHistObs] = useState('');
+  const [newHistTipo, setNewHistTipo] = useState('Preventivo');
+
   // Modales Mantenimiento
   const [showMaintModal, setShowMaintModal] = useState(false);
   const [selectedMaintMesa, setSelectedMaintMesa] = useState(null);
@@ -394,6 +411,135 @@ export default function ConfigPanel({ showToast }) {
     } finally {
       setSavingMantenimiento(false);
     }
+  };
+
+  const guardarNuevoEquipo = async () => {
+    if (!newEquipment.nombre) return;
+    setSavingMantenimiento(true);
+    try {
+      const salonId = getActiveSalonId();
+      const uniqueKey = 'equipo_' + Date.now();
+      const docId = `${salonId}_fijo_${uniqueKey}`;
+      const pMaintDate = new Date(Date.now() + Number(newEquipment.proximaRevisionDias) * 24 * 60 * 60 * 1000).toISOString();
+
+      await setDoc(doc(db, 'inventario_fijo', docId), {
+        key: uniqueKey,
+        nombre: newEquipment.nombre,
+        cantidadTotal: Number(newEquipment.cantidadTotal),
+        cantidadRepuesto: Number(newEquipment.cantidadRepuesto),
+        estadoGeneral: newEquipment.estadoGeneral,
+        horasUltimaRevision: horasGlobalesSalon,
+        ultimaRevision: new Date().toISOString(),
+        proximaRevision: pMaintDate,
+        inversionMantenimiento: 0,
+        ingresosEstimados: 0,
+        historial: [],
+        salonId: salonId,
+        updatedAt: serverTimestamp()
+      });
+
+      showToast(`${newEquipment.nombre} agregado al inventario fijo ✓`, 'success');
+      setShowAddEquipmentModal(false);
+      setNewEquipment({ nombre: '', cantidadTotal: 1, cantidadRepuesto: 0, estadoGeneral: 'excelente', proximaRevisionDias: 30 });
+      fetchMantenimientoDatos();
+    } catch (e) {
+      console.error(e);
+      showToast('Error al agregar equipo', 'danger');
+    } finally {
+      setSavingMantenimiento(false);
+    }
+  };
+
+  const registrarHistMantenimiento = async () => {
+    if (!selectedHistoryItem) return;
+    setSavingMantenimiento(true);
+    try {
+      const costNum = Number(newHistCost) || 0;
+      const docRef = doc(db, selectedHistoryType === 'mesa' ? 'mantenimiento_mesas' : 'inventario_fijo', selectedHistoryItem.id);
+      
+      const nuevoMantenimiento = {
+        fecha: new Date().toISOString(),
+        operador: user?.nombre || user?.alias || 'Administrador',
+        tipo: newHistTipo,
+        costo: costNum,
+        observaciones: newHistObs
+      };
+
+      const updatedHistorial = [...(selectedHistoryItem.historial || []), nuevoMantenimiento];
+      const nextInversion = (selectedHistoryItem.inversionMantenimiento || 0) + costNum;
+
+      if (selectedHistoryType === 'mesa') {
+        const pMaint = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(); // 30 días default
+        const pCorrective = new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString(); // 180 días default
+
+        await setDoc(docRef, {
+          horasUso: 0,
+          estado: 'excelente',
+          inversionMantenimiento: nextInversion,
+          fechaUltimoMantenimiento: new Date().toISOString(),
+          proximaFechaMantenimiento: pMaint,
+          proximaFechaCorrectiva: pCorrective,
+          historial: updatedHistorial,
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+
+        // Bitácora
+        await addDoc(collection(db, 'bitacora'), {
+          salonId: getActiveSalonId(),
+          fecha: new Date().toISOString(),
+          tipo: 'mantenimiento',
+          operador: user?.nombre || user?.alias || 'Administrador',
+          rolOperador: user?.role || 'admin',
+          accion: 'Mantenimiento Mesa (Historial)',
+          detalle: `Mesa "${selectedHistoryItem.nombre}": Mantenimiento "${newHistTipo}" con costo de ${costNum} MXN. Observaciones: ${newHistObs}`,
+          monto: costNum
+        });
+      } else {
+        const nextProximaRevision = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(); // 30 días default
+
+        await setDoc(docRef, {
+          estadoGeneral: 'excelente',
+          inversionMantenimiento: nextInversion,
+          horasUltimaRevision: horasGlobalesSalon,
+          proximaRevision: nextProximaRevision,
+          ultimaRevision: new Date().toISOString(),
+          historial: updatedHistorial,
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+
+        // Bitácora
+        await addDoc(collection(db, 'bitacora'), {
+          salonId: getActiveSalonId(),
+          fecha: new Date().toISOString(),
+          tipo: 'mantenimiento',
+          operador: user?.nombre || user?.alias || 'Administrador',
+          rolOperador: user?.role || 'admin',
+          accion: 'Mantenimiento Insumo (Historial)',
+          detalle: `Equipo "${selectedHistoryItem.nombre}": Mantenimiento "${newHistTipo}" con costo de ${costNum} MXN. Observaciones: ${newHistObs}`,
+          monto: costNum
+        });
+      }
+
+      showToast('Mantenimiento agregado e inversión actualizada ✓', 'success');
+      setShowHistoryModal(false);
+      setNewHistCost(0);
+      setNewHistObs('');
+      fetchMantenimientoDatos();
+    } catch (e) {
+      console.error(e);
+      showToast('Error al registrar mantenimiento', 'danger');
+    } finally {
+      setSavingMantenimiento(false);
+    }
+  };
+
+  const abrirModalHistorial = (item, type) => {
+    setSelectedHistoryItem(item);
+    setSelectedHistoryType(type);
+    setNewHistCost(0);
+    setNewHistObs('');
+    setNewHistTipo(type === 'mesa' ? 'Completo' : 'Revisión General');
+    setShowHistoryModal(true);
   };
 
   useEffect(() => {
@@ -5026,16 +5172,31 @@ export default function ConfigPanel({ showToast }) {
                       if (porcentaje >= 75 && porcentaje < 100) colorBarra = 'var(--warning)';
                       if (porcentaje >= 100) colorBarra = 'var(--danger)';
 
+                      // Validar si tiene mantenimiento calendarizado programado o vencido
+                      const pMaintDate = m.proximaFechaMantenimiento ? new Date(m.proximaFechaMantenimiento) : null;
+                      const isCalendarMaintOverdue = pMaintDate ? pMaintDate.getTime() <= Date.now() : false;
+
                       return (
-                        <div key={m.id} style={{ background: 'var(--bg-base)', border: '1px solid var(--border)', borderRadius: 8, padding: 10 }}>
+                        <div key={m.id} style={{ 
+                          background: 'var(--bg-base)', 
+                          border: isCalendarMaintOverdue ? '1px dashed var(--danger)' : '1px solid var(--border)', 
+                          borderRadius: 8, padding: 10,
+                          boxShadow: isCalendarMaintOverdue ? '0 0 8px rgba(239, 68, 68, 0.15)' : 'none'
+                        }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                            <span style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>{m.nombre}</span>
-                            <div style={{ display: 'flex', gap: 8 }}>
+                            <span 
+                              onClick={() => abrirModalHistorial(m, 'mesa')}
+                              style={{ fontSize: 12, fontWeight: 700, color: '#fff', cursor: 'pointer', textDecoration: 'underline' }}
+                              title="Ver Ficha Técnica, ROI e Historial"
+                            >
+                              {m.nombre} {isCalendarMaintOverdue && <span style={{ color: 'var(--danger)', fontSize: 10 }}>⚠️ Vencido</span>}
+                            </span>
+                            <div style={{ display: 'flex', gap: 6 }}>
                               <button
                                 type="button"
                                 className="btn btn-secondary btn-xs"
                                 onClick={() => abrirModalHoras(m)}
-                                style={{ fontSize: 9, padding: '2px 6px' }}
+                                style={{ fontSize: 9, padding: '2px 4px' }}
                               >
                                 Límite: {m.horasLimite || 150}h
                               </button>
@@ -5043,29 +5204,55 @@ export default function ConfigPanel({ showToast }) {
                                 type="button"
                                 className="btn btn-primary btn-xs"
                                 onClick={() => abrirModalMantenimiento(m)}
-                                style={{ fontSize: 9, padding: '2px 6px' }}
+                                style={{ fontSize: 9, padding: '2px 4px' }}
                               >
-                                Mantenimiento
+                                Servicio
                               </button>
                             </div>
                           </div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>
-                            <span>Uso actual: <strong>{m.horasUso?.toFixed(1) || '0.0'}h</strong></span>
-                            <span>Desgaste: <strong>{porcentaje}%</strong></span>
+
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--text-muted)', marginBottom: 2 }}>
+                            <span>Uso: <strong>{m.horasUso?.toFixed(1) || '0.0'}h</strong> ({porcentaje}%)</span>
+                            <span>Inversión: <strong style={{ color: 'var(--bronze-light)' }}>${m.inversionMantenimiento || 0}</strong></span>
                           </div>
-                          <div style={{ width: '100%', height: 6, background: 'rgba(255,255,255,0.05)', borderRadius: 3, overflow: 'hidden' }}>
+
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>
+                            <span>Ingresos: <strong style={{ color: '#fff' }}>${m.ingresosAcumulados || 0}</strong></span>
+                            <span>
+                              ROI:{' '}
+                              <strong style={{ color: (m.ingresosAcumulados || 0) >= (m.inversionMantenimiento || 0) ? 'var(--success)' : 'var(--danger)' }}>
+                                {(() => {
+                                  const inv = m.inversionMantenimiento || 0;
+                                  const ing = m.ingresosAcumulados || 0;
+                                  if (inv === 0) return '100%';
+                                  return `${(((ing - inv) / inv) * 100).toFixed(0)}%`;
+                                })()}
+                              </strong>
+                            </span>
+                          </div>
+
+                          <div style={{ width: '100%', height: 6, background: 'rgba(255,255,255,0.05)', borderRadius: 3, overflow: 'hidden', marginBottom: 6 }}>
                             <div style={{ width: `${porcentaje}%`, height: '100%', background: colorBarra, transition: 'width 0.3s ease' }} />
                           </div>
+
                           {m.fechaUltimoMantenimiento && (() => {
                             const pred = calcularPrediccionMesa(m);
                             return (
-                              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: 8.5 }}>
-                                <span style={{ color: 'var(--text-muted)' }}>
-                                  Último: {new Date(m.fechaUltimoMantenimiento).toLocaleDateString()}
-                                </span>
-                                <span style={{ color: pred.diasRestantes <= 7 ? 'var(--danger)' : 'var(--bronze-light)', fontWeight: 600 }}>
-                                  📅 Sugerido: {pred.fechaEstimada.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })} ({pred.diasRestantes}d)
-                                </span>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: 8.5 }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                  <span style={{ color: 'var(--text-muted)' }}>
+                                    Último: {new Date(m.fechaUltimoMantenimiento).toLocaleDateString()}
+                                  </span>
+                                  <span style={{ color: pred.diasRestantes <= 7 ? 'var(--danger)' : 'var(--bronze-light)', fontWeight: 600 }}>
+                                    📅 Sugerido: {pred.fechaEstimada.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })} ({pred.diasRestantes}d)
+                                  </span>
+                                </div>
+                                {pMaintDate && (
+                                  <div style={{ color: isCalendarMaintOverdue ? 'var(--danger)' : 'var(--text-muted)', display: 'flex', justifyContent: 'space-between', borderTop: '1px solid rgba(255,255,255,0.03)', paddingTop: 2 }}>
+                                    <span>Límite programado:</span>
+                                    <span>{pMaintDate.toLocaleDateString()}</span>
+                                  </div>
+                                )}
                               </div>
                             );
                           })()}
@@ -5077,9 +5264,19 @@ export default function ConfigPanel({ showToast }) {
 
                 {/* Inventario Fijo */}
                 <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 12, padding: 14 }}>
-                  <h4 style={{ fontSize: 12, fontWeight: 700, marginBottom: 12, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <i className="ri-archive-line" /> Inventario Fijo y Herramientas Operacionales
-                  </h4>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                    <h4 style={{ fontSize: 12, fontWeight: 700, margin: 0, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <i className="ri-archive-line" /> Inventario Fijo y Herramientas Operacionales
+                    </h4>
+                    <button
+                      type="button"
+                      className="btn btn-primary btn-xs"
+                      onClick={() => setShowAddEquipmentModal(true)}
+                      style={{ fontSize: 9, padding: '2px 6px' }}
+                    >
+                      ➕ Agregar
+                    </button>
+                  </div>
                   <div style={{ overflowX: 'auto' }}>
                     <table className="table" style={{ width: '100%', fontSize: 11 }}>
                       <thead>
@@ -5101,7 +5298,27 @@ export default function ConfigPanel({ showToast }) {
                           return (
                             <tr key={item.id}>
                               <td>
-                                <div style={{ fontWeight: 600, color: '#fff' }}>{item.nombre}</div>
+                                <span 
+                                  onClick={() => abrirModalHistorial(item, 'fijo')}
+                                  style={{ fontWeight: 600, color: '#fff', cursor: 'pointer', textDecoration: 'underline' }}
+                                  title="Ver Historial & ROI de Insumo"
+                                >
+                                  {item.nombre}
+                                </span>
+                                {item.inversionMantenimiento > 0 && (
+                                  <div style={{ fontSize: 8.5, color: 'var(--text-muted)', marginTop: 2 }}>
+                                    Inversión: <strong>${item.inversionMantenimiento}</strong>
+                                  </div>
+                                )}
+                                {item.proximaRevision && (() => {
+                                  const pDate = new Date(item.proximaRevision);
+                                  const isOverdue = pDate.getTime() <= Date.now();
+                                  return (
+                                    <div style={{ fontSize: 8.5, color: isOverdue ? 'var(--danger)' : 'var(--text-muted)', marginTop: 2 }}>
+                                      📅 Límite: <strong>{pDate.toLocaleDateString()}</strong> {isOverdue && '⚠️'}
+                                    </div>
+                                  );
+                                })()}
                                 {isPredictive && (
                                   <div style={{ fontSize: 8.5, color: pctDesgaste >= 75 ? 'var(--warning)' : 'var(--text-muted)', marginTop: 2 }}>
                                     Desgaste estimado: <strong>{pctDesgaste}%</strong> ({horasDesdeRev.toFixed(1)}h/{limitUso}h)
@@ -5312,6 +5529,201 @@ export default function ConfigPanel({ showToast }) {
                 <button className="btn btn-primary btn-sm" onClick={registrarMantenimientoFisico} disabled={savingMantenimiento}>
                   {savingMantenimiento ? 'Registrando...' : 'Confirmar & Reiniciar Horas'}
                 </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal: Agregar Nuevo Equipo Fijo */}
+        {showAddEquipmentModal && (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(5px)' }}>
+            <div className="card" style={{ width: '100%', maxWidth: 450, padding: 24, border: '1px solid var(--border-bronze)', boxShadow: 'var(--shadow-bronze)', animation: 'fadeIn 0.2s' }}>
+              <h4 style={{ fontSize: 14, fontWeight: 700, marginBottom: 16 }}>➕ Agregar Nuevo Equipo u Herramienta</h4>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20 }}>
+                <div className="form-group">
+                  <label className="form-label">Nombre del Equipo / Herramienta</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={newEquipment.nombre}
+                    onChange={e => setNewEquipment(p => ({ ...p, nombre: e.target.value }))}
+                    placeholder="Ej. Mesa de Ping Pong Premium"
+                    style={{ fontSize: 12 }}
+                  />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <div className="form-group">
+                    <label className="form-label">Total en Salón</label>
+                    <input
+                      type="number"
+                      className="form-input"
+                      value={newEquipment.cantidadTotal}
+                      onChange={e => setNewEquipment(p => ({ ...p, cantidadTotal: Number(e.target.value) }))}
+                      style={{ fontSize: 12 }}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Repuestos (Bodega)</label>
+                    <input
+                      type="number"
+                      className="form-input"
+                      value={newEquipment.cantidadRepuesto}
+                      onChange={e => setNewEquipment(p => ({ ...p, cantidadRepuesto: Number(e.target.value) }))}
+                      style={{ fontSize: 12 }}
+                    />
+                  </div>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Frecuencia sugerida de revisión (Días)</label>
+                  <input
+                    type="number"
+                    className="form-input"
+                    value={newEquipment.proximaRevisionDias}
+                    onChange={e => setNewEquipment(p => ({ ...p, proximaRevisionDias: Number(e.target.value) }))}
+                    placeholder="30"
+                    style={{ fontSize: 12 }}
+                  />
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                <button className="btn btn-secondary btn-sm" onClick={() => setShowAddEquipmentModal(false)} disabled={savingMantenimiento}>Cancelar</button>
+                <button className="btn btn-primary btn-sm" onClick={guardarNuevoEquipo} disabled={savingMantenimiento || !newEquipment.nombre}>
+                  {savingMantenimiento ? 'Guardando...' : 'Agregar Equipo'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal: Ficha Técnica, ROI e Historial de Mantenimientos */}
+        {showHistoryModal && selectedHistoryItem && (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(5px)' }}>
+            <div className="card" style={{ width: '100%', maxWidth: 550, maxHeight: '90vh', overflowY: 'auto', padding: 24, border: '1px solid var(--border-bronze)', boxShadow: 'var(--shadow-bronze)', animation: 'fadeIn 0.2s', display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h4 style={{ fontSize: 14, fontWeight: 700, margin: 0, color: 'var(--bronze-light)' }}>
+                  📋 Ficha Técnica & Retorno de Inversión (ROI)
+                </h4>
+                <button 
+                  onClick={() => setShowHistoryModal(false)}
+                  style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 18 }}
+                >
+                  <i className="ri-close-line" />
+                </button>
+              </div>
+
+              {/* Encabezado del Equipo */}
+              <div style={{ background: 'var(--bg-base)', border: '1px solid var(--border)', borderRadius: 8, padding: 12 }}>
+                <div style={{ fontSize: 15, fontWeight: 800, color: '#fff' }}>{selectedHistoryItem.nombre}</div>
+                <div style={{ fontSize: 10.5, color: 'var(--text-muted)', marginTop: 2 }}>
+                  Tipo de Registro: <strong>{selectedHistoryType === 'mesa' ? 'Mesa de Billar' : 'Equipo/Insumo Operacional'}</strong>
+                </div>
+              </div>
+
+              {/* Indicadores Financieros / ROI */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+                <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)', borderRadius: 8, padding: 10, textAlign: 'center' }}>
+                  <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>Ingresos Generados</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#fff', marginTop: 2 }}>
+                    ${selectedHistoryItem.ingresosAcumulados || 0} MXN
+                  </div>
+                </div>
+                <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)', borderRadius: 8, padding: 10, textAlign: 'center' }}>
+                  <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>Inversión Realizada</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--bronze-light)', marginTop: 2 }}>
+                    ${selectedHistoryItem.inversionMantenimiento || 0} MXN
+                  </div>
+                </div>
+                <div style={{ 
+                  background: (selectedHistoryItem.ingresosAcumulados || 0) >= (selectedHistoryItem.inversionMantenimiento || 0) ? 'rgba(74, 222, 128, 0.05)' : 'rgba(239, 68, 68, 0.05)', 
+                  border: `1px solid ${(selectedHistoryItem.ingresosAcumulados || 0) >= (selectedHistoryItem.inversionMantenimiento || 0) ? 'var(--success)' : 'var(--danger)'}`, 
+                  borderRadius: 8, padding: 10, textAlign: 'center' 
+                }}>
+                  <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>Retorno (ROI)</div>
+                  <div style={{ 
+                    fontSize: 13, fontWeight: 700, 
+                    color: (selectedHistoryItem.ingresosAcumulados || 0) >= (selectedHistoryItem.inversionMantenimiento || 0) ? 'var(--success)' : 'var(--danger)', 
+                    marginTop: 2 
+                  }}>
+                    {(() => {
+                      const inv = selectedHistoryItem.inversionMantenimiento || 0;
+                      const ing = selectedHistoryItem.ingresosAcumulados || 0;
+                      if (inv === 0) return '100%';
+                      return `${(((ing - inv) / inv) * 100).toFixed(0)}%`;
+                    })()}
+                  </div>
+                </div>
+              </div>
+
+              {/* Registro de Nuevo Mantenimiento Físico / Gasto */}
+              <div style={{ border: '1px dashed var(--border)', borderRadius: 8, padding: 12 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, marginBottom: 8, color: '#fff' }}>🛠️ Registrar Nuevo Mantenimiento / Compra</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: 10, marginBottom: 8 }}>
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <input
+                      type="text"
+                      className="form-input"
+                      value={newHistTipo}
+                      onChange={e => setNewHistTipo(e.target.value)}
+                      placeholder="Tipo de Trabajo (Ej. Rectificación de Banda)"
+                      style={{ fontSize: 11, padding: '4px 8px', background: 'var(--bg-base)', border: '1px solid var(--border)', color: '#fff', borderRadius: 4 }}
+                    />
+                  </div>
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <input
+                      type="number"
+                      className="form-input"
+                      value={newHistCost}
+                      onChange={e => setNewHistCost(Number(e.target.value))}
+                      placeholder="Costo ($)"
+                      style={{ fontSize: 11, padding: '4px 8px', background: 'var(--bg-base)', border: '1px solid var(--border)', color: '#fff', borderRadius: 4 }}
+                    />
+                  </div>
+                </div>
+                <div className="form-group" style={{ margin: 0, marginBottom: 8 }}>
+                  <textarea
+                    className="form-input"
+                    rows="2"
+                    value={newHistObs}
+                    onChange={e => setNewHistObs(e.target.value)}
+                    placeholder="Observaciones y detalles de las piezas cambiadas..."
+                    style={{ fontSize: 11, padding: '6px 8px', background: 'var(--bg-base)', border: '1px solid var(--border)', color: '#fff', borderRadius: 4, resize: 'none' }}
+                  />
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-primary btn-xs"
+                  onClick={registrarHistMantenimiento}
+                  disabled={savingMantenimiento}
+                  style={{ width: '100%', fontSize: 10 }}
+                >
+                  Registrar Gasto de Mantenimiento & Reiniciar Alertas
+                </button>
+              </div>
+
+              {/* Listado del Historial */}
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, marginBottom: 8, color: '#fff' }}>📖 Historial de Trabajos Realizados</div>
+                {(!selectedHistoryItem.historial || selectedHistoryItem.historial.length === 0) ? (
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)', textAlign: 'center', padding: '16px 0', border: '1px solid rgba(255,255,255,0.02)', borderRadius: 6 }}>
+                    No hay mantenimientos anteriores registrados para este equipo.
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 180, overflowY: 'auto' }}>
+                    {selectedHistoryItem.historial.map((hist, idx) => (
+                      <div key={idx} style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid var(--border)', borderRadius: 6, padding: 8 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, fontWeight: 700, color: 'var(--bronze-light)' }}>
+                          <span>{hist.tipo}</span>
+                          <span>${hist.costo || 0} MXN</span>
+                        </div>
+                        <div style={{ fontSize: 9.5, color: '#fff', marginTop: 4 }}>{hist.observaciones}</div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 8, color: 'var(--text-muted)', marginTop: 4 }}>
+                          <span>Operador: {hist.operador}</span>
+                          <span>Fecha: {new Date(hist.fecha).toLocaleString()}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>

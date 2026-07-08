@@ -6491,11 +6491,12 @@ export default function MesasPanel({ showToast }) {
             const limitHours = maintSnap.data().horasLimite || 150;
             const nextEstado = newHours >= limitHours ? 'requiere_mantenimiento' : (newHours >= limitHours * 0.75 ? 'limite_cercano' : 'excelente');
             
-            await updateDoc(maintRef, {
+            await setDoc(maintRef, {
               horasUso: newHours,
               estado: nextEstado,
+              ingresosAcumulados: increment(costoMesa || 0),
               updatedAt: serverTimestamp()
-            });
+            }, { merge: true });
 
             // Disparar Telegram si el estado pasó a requiere_mantenimiento y antes no lo estaba
             if (nextEstado === 'requiere_mantenimiento' && maintSnap.data().estado !== 'requiere_mantenimiento') {
