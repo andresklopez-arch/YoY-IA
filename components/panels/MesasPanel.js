@@ -6466,6 +6466,31 @@ export default function MesasPanel({ showToast }) {
         registrarEvento('Cortesía $0', `Mesa ${mesaId} cerrada en $0 por ${clientName}${motivoTexto}`);
       }
 
+      // ── AUTO-LIMPIEZA DE ALERTAS DE ASISTENCIA AL CERRAR LA MESA ──
+      try {
+        const qAlerts = query(
+          collection(db, 'mesa_pedidos'),
+          where('mesaId', '==', mesaId),
+          where('estado', 'in', ['pendiente', 'listo', 'en_camino', 'entregado'])
+        );
+        const snapAlerts = await getDocs(qAlerts);
+        if (!snapAlerts.empty) {
+          const batchAlerts = writeBatch(db);
+          snapAlerts.forEach(docAlerta => {
+            batchAlerts.update(docAlerta.ref, {
+              estado: 'atendido',
+              atendidoAdmin: true,
+              atendidoMesero: true,
+              updatedAt: serverTimestamp()
+            });
+          });
+          await batchAlerts.commit();
+          console.log(`Auto-limpieza exitosa de ${snapAlerts.size} alertas de asistencia para la Mesa ${mesaId}`);
+        }
+      } catch (errAlertClean) {
+        console.error("Error al limpiar alertas de la mesa cerrada:", errAlertClean);
+      }
+
       // ── ACTUALIZAR HORAS DE USO EN MANTENIMIENTO PREVENTIVO ──
       try {
         const activeSalonId = getActiveSalonId();

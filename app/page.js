@@ -1640,8 +1640,8 @@ function AppContent() {
         }
       });
 
-      // Filtrar sólo las que no han sido atendidas por el administrador
-      const filtered = items.filter(alerta => !alerta.atendidoAdmin);
+      // Filtrar sólo las alertas verdaderamente urgentes en estado 'pendiente' que no han sido atendidas por el admin
+      const filtered = items.filter(alerta => alerta.estado === 'pendiente' && !alerta.atendidoAdmin);
       setAlertasAsistencia(filtered);
     });
     return unsub;
