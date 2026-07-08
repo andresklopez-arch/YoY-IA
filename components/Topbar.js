@@ -1465,9 +1465,9 @@ export default function Topbar({ user, activePanel, showToast, onNavigate, sonid
         {[
           { label: 'Mesa', icon: 'ri-play-circle-line', color: 'var(--success)', nav: 'mesas', shortcut: 'Alt + 1' },
           { label: 'INTELIGENCIA', icon: 'ri-money-dollar-box-line', color: 'var(--bronze-light)', nav: 'caja', shortcut: 'Alt + 2' },
-          { label: 'Inventario', icon: 'ri-archive-line', color: 'var(--blue-light)', nav: 'bar', badge: stockAlerts.length, shortcut: 'Alt + 3' },
+          { label: 'Inventario', icon: 'ri-archive-line', color: 'var(--blue-light)', nav: 'bar', badge: stockAlerts.filter(n => Array.isArray(dismissedAlerts) && !dismissedAlerts.includes(n.id)).length, shortcut: 'Alt + 3' },
           { label: 'Torneos', icon: 'ri-trophy-line', color: '#ffd700', nav: 'torneos', shortcut: 'Alt + 4' },
-          { label: 'Nómina', icon: 'ri-briefcase-4-line', color: 'var(--bronze-light)', nav: 'nomina', badge: alertasNomina.length, shortcut: 'Alt + 5' },
+          { label: 'Nómina', icon: 'ri-briefcase-4-line', color: 'var(--bronze-light)', nav: 'nomina', badge: alertasNomina.filter((n, i) => Array.isArray(dismissedAlerts) && !dismissedAlerts.includes('nomina_' + i)).length, shortcut: 'Alt + 5' },
           { label: 'Ajustes', icon: 'ri-settings-4-line', color: 'var(--text-muted)', nav: 'config', shortcut: 'Alt + 6' },
           { label: 'Mesero', icon: 'ri-customer-service-2-line', color: 'var(--success)', isDropdown: true, badge: pedidosPendientes, shortcut: 'Alt + 7' },
           { label: 'Cocina', icon: 'ri-restaurant-line', color: 'var(--blue-light)', href: '/cocina', badge: pedidosCocina, shortcut: 'Alt + 8' },
