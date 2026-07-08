@@ -239,6 +239,13 @@ export default function ConfigPanel({ showToast }) {
   const [inventarioFijo, setInventarioFijo] = useState([]);
   const [loadingMantenimiento, setLoadingMantenimiento] = useState(true);
   const [savingMantenimiento, setSavingMantenimiento] = useState(false);
+  const [horasGlobalesSalon, setHorasGlobalesSalon] = useState(0);
+  const [maintProvider, setMaintProvider] = useState({
+    nombre: '',
+    contacto: '',
+    chatId: '',
+    autoNotify: false
+  });
 
   // Modales Mantenimiento
   const [showMaintModal, setShowMaintModal] = useState(false);
@@ -306,10 +313,10 @@ export default function ConfigPanel({ showToast }) {
       if (listFijo.length === 0) {
         const batch = writeBatch(db);
         const defaultItems = [
-          { key: 'tacos', nombre: 'Tacos de Juego (Pool/Carambola)', cantidadTotal: 12, cantidadRepuesto: 4, estadoGeneral: 'excelente' },
-          { key: 'bolas', nombre: 'Juegos de Bolas de Billar', cantidadTotal: 8, cantidadRepuesto: 2, estadoGeneral: 'excelente' },
-          { key: 'tizas', nombre: 'Tizas de Mesa (Master/Pioneer)', cantidadTotal: 30, cantidadRepuesto: 10, estadoGeneral: 'excelente' },
-          { key: 'panos', nombre: 'Paños de Repuesto (Gorina/Rapide)', cantidadTotal: 2, cantidadRepuesto: 2, estadoGeneral: 'excelente' },
+          { key: 'tacos', nombre: 'Tacos de Juego (Pool/Carambola)', cantidadTotal: 12, cantidadRepuesto: 4, estadoGeneral: 'excelente', horasUltimaRevision: 0 },
+          { key: 'bolas', nombre: 'Juegos de Bolas de Billar', cantidadTotal: 8, cantidadRepuesto: 2, estadoGeneral: 'excelente', horasUltimaRevision: 0 },
+          { key: 'tizas', nombre: 'Tizas de Mesa (Master/Pioneer)', cantidadTotal: 30, cantidadRepuesto: 10, estadoGeneral: 'excelente', horasUltimaRevision: 0 },
+          { key: 'panos', nombre: 'Paños de Repuesto (Gorina/Rapide)', cantidadTotal: 2, cantidadRepuesto: 2, estadoGeneral: 'excelente', horasUltimaRevision: 0 },
         ];
 
         defaultItems.forEach(item => {
@@ -320,6 +327,7 @@ export default function ConfigPanel({ showToast }) {
             cantidadTotal: item.cantidadTotal,
             cantidadRepuesto: item.cantidadRepuesto,
             estadoGeneral: item.estadoGeneral,
+            horasUltimaRevision: item.horasUltimaRevision,
             ultimaRevision: new Date().toISOString(),
             proximaRevision: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
             salonId: salonId,
@@ -331,11 +339,60 @@ export default function ConfigPanel({ showToast }) {
         await batch.commit();
       }
       setInventarioFijo(listFijo);
+
+      // Cargar horas de juego globales de la sucursal
+      const globalSnap = await getDoc(doc(db, 'config', 'mantenimiento_global'));
+      if (globalSnap.exists()) {
+        setHorasGlobalesSalon(globalSnap.data().horasJuegoGlobales || 0);
+      }
+
+      // Cargar configuración del proveedor de mantenimiento
+      const provSnap = await getDoc(doc(db, 'config', 'mantenimiento_provider'));
+      if (provSnap.exists()) {
+        setMaintProvider(provSnap.data());
+      }
     } catch (e) {
       console.error("Error cargando mantenimiento:", e);
       showToast('Error cargando mantenimiento', 'danger');
     } finally {
       setLoadingMantenimiento(false);
+    }
+  };
+
+  const guardarMaintProvider = async () => {
+    setSavingMantenimiento(true);
+    try {
+      await setDoc(doc(db, 'config', 'mantenimiento_provider'), {
+        ...maintProvider,
+        updatedAt: serverTimestamp()
+      });
+      showToast('Proveedor de mantenimiento actualizado ✓', 'success');
+      fetchMantenimientoDatos();
+    } catch (e) {
+      console.error(e);
+      showToast('Error al guardar proveedor', 'danger');
+    } finally {
+      setSavingMantenimiento(false);
+    }
+  };
+
+  const registrarRevisionInsumoFijo = async (item) => {
+    setSavingMantenimiento(true);
+    try {
+      const docRef = doc(db, 'inventario_fijo', item.id);
+      await setDoc(docRef, {
+        horasUltimaRevision: horasGlobalesSalon,
+        estadoGeneral: 'excelente',
+        ultimaRevision: new Date().toISOString(),
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+      showToast(`Revision física registrada para ${item.nombre} ✓`, 'success');
+      fetchMantenimientoDatos();
+    } catch (e) {
+      console.error(e);
+      showToast('Error al registrar revisión', 'danger');
+    } finally {
+      setSavingMantenimiento(false);
     }
   };
 
@@ -547,6 +604,29 @@ export default function ConfigPanel({ showToast }) {
     });
 
     inventarioFijo.forEach(item => {
+      // Cálculo predictivo de desgaste en base a horas globales jugadas
+      if (item.key === 'tacos' || item.key === 'tizas') {
+        const horasDesdeRev = horasGlobalesSalon - (item.horasUltimaRevision || 0);
+        const limitUso = item.key === 'tacos' ? 150 : 100;
+        const pctDesgaste = Math.min(100, Math.round((horasDesdeRev / limitUso) * 100));
+        
+        if (pctDesgaste >= 100) {
+          sugerencias.push({
+            color: 'var(--danger)',
+            icon: '🔴',
+            titulo: `IA: Tacos y casquillos requieren rectificación inmediata`,
+            mensaje: `El salón acumuló ${horasDesdeRev.toFixed(1)}h de juego totales desde la última revisión. Se sugiere cambiar casquillos o renovar tizas en mesas.`
+          });
+        } else if (pctDesgaste >= 75) {
+          sugerencias.push({
+            color: 'var(--warning)',
+            icon: '🟡',
+            titulo: `IA: Desgaste preventivo de casquillos/tizas cercano al límite`,
+            mensaje: `El salón acumuló ${horasDesdeRev.toFixed(1)}h de juego totales (${pctDesgaste}% de vida útil estimada). Planifique revisión física de tacos esta semana.`
+          });
+        }
+      }
+
       if (item.estadoGeneral === 'desgastado') {
         sugerencias.push({
           color: 'var(--danger)',
@@ -4931,8 +5011,8 @@ export default function ConfigPanel({ showToast }) {
                 </div>
               </div>
 
-              {/* Fila 2: Grid de Dos Columnas */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(450px, 1fr))', gap: 16 }}>
+              {/* Fila 2: Grid de Tres Columnas (Mesas, Inventario, Proveedor) */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: 16 }}>
                 
                 {/* Mesas de Juego */}
                 <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 12, padding: 14 }}>
@@ -5012,52 +5092,152 @@ export default function ConfigPanel({ showToast }) {
                         </tr>
                       </thead>
                       <tbody>
-                        {inventarioFijo.map(item => (
-                          <tr key={item.id}>
-                            <td style={{ fontWeight: 600, color: '#fff' }}>{item.nombre}</td>
-                            <td style={{ textAlign: 'center' }}>
-                              <input
-                                type="number"
-                                value={item.cantidadTotal}
-                                onChange={e => handleUpdateFijoField(item.id, 'cantidadTotal', Number(e.target.value))}
-                                style={{ width: 45, background: 'var(--bg-base)', border: '1px solid var(--border)', color: '#fff', textAlign: 'center', borderRadius: 4, fontSize: 10, padding: 2 }}
-                              />
-                            </td>
-                            <td style={{ textAlign: 'center' }}>
-                              <input
-                                type="number"
-                                value={item.cantidadRepuesto}
-                                onChange={e => handleUpdateFijoField(item.id, 'cantidadRepuesto', Number(e.target.value))}
-                                style={{ width: 45, background: 'var(--bg-base)', border: '1px solid var(--border)', color: '#fff', textAlign: 'center', borderRadius: 4, fontSize: 10, padding: 2 }}
-                              />
-                            </td>
-                            <td style={{ textAlign: 'center' }}>
-                              <select
-                                value={item.estadoGeneral}
-                                onChange={e => handleUpdateFijoField(item.id, 'estadoGeneral', e.target.value)}
-                                style={{ background: 'var(--bg-base)', border: '1px solid var(--border)', color: '#fff', borderRadius: 4, fontSize: 10, padding: 2 }}
-                              >
-                                <option value="excelente">🟢 Excelente</option>
-                                <option value="regular">🟡 Regular</option>
-                                <option value="desgastado">🔴 Desgastado</option>
-                              </select>
-                            </td>
-                            <td>
-                              <button
-                                type="button"
-                                className="btn btn-secondary btn-xs"
-                                onClick={() => guardarFijoFila(item)}
-                                disabled={savingMantenimiento}
-                                style={{ fontSize: 9, padding: '2px 6px' }}
-                              >
-                                Guardar
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
+                        {inventarioFijo.map(item => {
+                          const isPredictive = item.key === 'tacos' || item.key === 'tizas';
+                          const limitUso = item.key === 'tacos' ? 150 : 100;
+                          const horasDesdeRev = horasGlobalesSalon - (item.horasUltimaRevision || 0);
+                          const pctDesgaste = Math.min(100, Math.round((horasDesdeRev / limitUso) * 100));
+
+                          return (
+                            <tr key={item.id}>
+                              <td>
+                                <div style={{ fontWeight: 600, color: '#fff' }}>{item.nombre}</div>
+                                {isPredictive && (
+                                  <div style={{ fontSize: 8.5, color: pctDesgaste >= 75 ? 'var(--warning)' : 'var(--text-muted)', marginTop: 2 }}>
+                                    Desgaste estimado: <strong>{pctDesgaste}%</strong> ({horasDesdeRev.toFixed(1)}h/{limitUso}h)
+                                  </div>
+                                )}
+                              </td>
+                              <td style={{ textAlign: 'center' }}>
+                                <input
+                                  type="number"
+                                  value={item.cantidadTotal}
+                                  onChange={e => handleUpdateFijoField(item.id, 'cantidadTotal', Number(e.target.value))}
+                                  style={{ width: 45, background: 'var(--bg-base)', border: '1px solid var(--border)', color: '#fff', textAlign: 'center', borderRadius: 4, fontSize: 10, padding: 2 }}
+                                />
+                              </td>
+                              <td style={{ textAlign: 'center' }}>
+                                <input
+                                  type="number"
+                                  value={item.cantidadRepuesto}
+                                  onChange={e => handleUpdateFijoField(item.id, 'cantidadRepuesto', Number(e.target.value))}
+                                  style={{ width: 45, background: 'var(--bg-base)', border: '1px solid var(--border)', color: '#fff', textAlign: 'center', borderRadius: 4, fontSize: 10, padding: 2 }}
+                                />
+                              </td>
+                              <td style={{ textAlign: 'center' }}>
+                                <select
+                                  value={item.estadoGeneral}
+                                  onChange={e => handleUpdateFijoField(item.id, 'estadoGeneral', e.target.value)}
+                                  style={{ background: 'var(--bg-base)', border: '1px solid var(--border)', color: '#fff', borderRadius: 4, fontSize: 10, padding: 2 }}
+                                >
+                                  <option value="excelente">🟢 Excelente</option>
+                                  <option value="regular">🟡 Regular</option>
+                                  <option value="desgastado">🔴 Desgastado</option>
+                                </select>
+                              </td>
+                              <td>
+                                <div style={{ display: 'flex', gap: 4 }}>
+                                  <button
+                                    type="button"
+                                    className="btn btn-secondary btn-xs"
+                                    onClick={() => guardarFijoFila(item)}
+                                    disabled={savingMantenimiento}
+                                    style={{ fontSize: 9, padding: '2px 4px' }}
+                                    title="Guardar cantidades y estado"
+                                  >
+                                    <i className="ri-save-line" />
+                                  </button>
+                                  {isPredictive && (
+                                    <button
+                                      type="button"
+                                      className="btn btn-primary btn-xs"
+                                      onClick={() => registrarRevisionInsumoFijo(item)}
+                                      disabled={savingMantenimiento}
+                                      style={{ fontSize: 9, padding: '2px 4px' }}
+                                      title="Registrar mantenimiento de insumo (Reset horas)"
+                                    >
+                                      <i className="ri-history-line" />
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
+                </div>
+
+                {/* Proveedor / Técnico de Mantenimiento */}
+                <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 12, padding: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <h4 style={{ fontSize: 12, fontWeight: 700, margin: 0, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <i className="ri-user-settings-line" style={{ color: 'var(--bronze-light)' }} /> Técnico de Mantenimiento Designado
+                  </h4>
+                  
+                  <div className="form-group" style={{ margin: 0, gap: 4 }}>
+                    <label className="form-label" style={{ fontSize: 10 }}>Nombre del Proveedor / Técnico</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      value={maintProvider.nombre || ''}
+                      onChange={e => setMaintProvider(p => ({ ...p, nombre: e.target.value }))}
+                      placeholder="Ej. Juan Pérez (Servicios Billar)"
+                      style={{ fontSize: 11, padding: '6px 10px', background: 'var(--bg-base)', border: '1px solid var(--border)', color: '#fff', borderRadius: 6 }}
+                    />
+                  </div>
+
+                  <div className="form-group" style={{ margin: 0, gap: 4 }}>
+                    <label className="form-label" style={{ fontSize: 10 }}>Teléfono / Contacto</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      value={maintProvider.contacto || ''}
+                      onChange={e => setMaintProvider(p => ({ ...p, contacto: e.target.value }))}
+                      placeholder="Ej. 55-9876-5432"
+                      style={{ fontSize: 11, padding: '6px 10px', background: 'var(--bg-base)', border: '1px solid var(--border)', color: '#fff', borderRadius: 6 }}
+                    />
+                  </div>
+
+                  <div className="form-group" style={{ margin: 0, gap: 4 }}>
+                    <label className="form-label" style={{ fontSize: 10 }}>Telegram Chat ID</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      value={maintProvider.chatId || ''}
+                      onChange={e => setMaintProvider(p => ({ ...p, chatId: e.target.value }))}
+                      placeholder="Ej. 987654321"
+                      style={{ fontSize: 11, padding: '6px 10px', background: 'var(--bg-base)', border: '1px solid var(--border)', color: '#fff', borderRadius: 6 }}
+                    />
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
+                    <div>
+                      <div style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--text-secondary)' }}>Auto-Notificar Telegram</div>
+                      <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>Enviar orden de servicio directa al proveedor</div>
+                    </div>
+                    <div
+                      onClick={() => setMaintProvider(p => ({ ...p, autoNotify: !p.autoNotify }))}
+                      style={{
+                        width: 34, height: 18, borderRadius: 9, cursor: 'pointer', transition: 'all 0.2s',
+                        background: maintProvider.autoNotify ? 'var(--bronze)' : 'var(--bg-elevated)',
+                        border: `1px solid ${maintProvider.autoNotify ? 'var(--bronze)' : 'var(--border)'}`,
+                        position: 'relative',
+                      }}
+                    >
+                      <div style={{ width: 12, height: 12, borderRadius: '50%', background: '#fff', position: 'absolute', top: 2, left: maintProvider.autoNotify ? 20 : 2, transition: 'left 0.2s' }} />
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={guardarMaintProvider}
+                    disabled={savingMantenimiento}
+                    style={{ width: '100%', height: 32, fontSize: 11, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 6 }}
+                  >
+                    <i className="ri-save-line" /> {savingMantenimiento ? 'Guardando...' : 'Guardar Configuración'}
+                  </button>
                 </div>
 
               </div>

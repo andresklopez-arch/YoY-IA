@@ -6471,6 +6471,17 @@ export default function MesasPanel({ showToast }) {
         const activeSalonId = getActiveSalonId();
         const horasDeUso = tiempo ? (tiempo / 3600000) : (mesa && mesa.inicio ? (Date.now() - mesa.inicio) / 3600000 : 0);
         if (horasDeUso > 0) {
+          // Actualizar acumulado global del salón para control preventivo de insumos fijos
+          try {
+            const globalRef = doc(db, 'config', 'mantenimiento_global');
+            await setDoc(globalRef, {
+              horasJuegoGlobales: increment(horasDeUso),
+              updatedAt: serverTimestamp()
+            }, { merge: true });
+          } catch (errGlobal) {
+            console.error("Error al actualizar horas globales de juego del salón:", errGlobal);
+          }
+
           const maintRef = doc(db, 'mantenimiento_mesas', `${activeSalonId}_mesa_${mesaId}`);
           const maintSnap = await getDoc(maintRef);
           
@@ -6489,6 +6500,7 @@ export default function MesasPanel({ showToast }) {
             // Disparar Telegram si el estado pasó a requiere_mantenimiento y antes no lo estaba
             if (nextEstado === 'requiere_mantenimiento' && maintSnap.data().estado !== 'requiere_mantenimiento') {
               try {
+                // Alerta al Admin
                 await fetch('/api/telegram/attendance-alert', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
@@ -6498,6 +6510,22 @@ export default function MesasPanel({ showToast }) {
                     message: `⚠️ *Alerta de Mantenimiento Preventivo*\nMesa: *${mesa ? mesa.nombre : 'Mesa ' + mesaId}*\nUso acumulado: *${newHours.toFixed(1)}h* / Límite: *${limitHours}h*\nSe sugiere realizar mantenimiento pronto.`
                   })
                 });
+
+                // Alerta Directa al Proveedor de Mantenimiento si aplica
+                const provRef = doc(db, 'config', 'mantenimiento_proveedor');
+                const provSnap = await getDoc(provRef);
+                if (provSnap.exists() && provSnap.data().autoNotify && provSnap.data().chatId) {
+                  const provData = provSnap.data();
+                  await fetch('/api/telegram/attendance-alert', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      salonId: activeSalonId,
+                      type: 'mantenimiento',
+                      message: `✈️ *[Orden de Servicio YoY Billar]*\n\nHola *${provData.nombre || 'Proveedor'}*, se requiere mantenimiento preventivo para la Mesa *${mesa ? mesa.nombre : 'Mesa ' + mesaId}*.\n\n🛠️ *Detalles del servicio sugerido*:\n• Servicio: Nivelación, bandas y paño\n• Horas jugadas: *${newHours.toFixed(1)}h*\n\nPor favor envíanos una cotización.`
+                    })
+                  });
+                }
               } catch (errTele) {
                 console.error("Error al disparar Telegram preventivo:", errTele);
               }
