@@ -357,6 +357,35 @@ export default function ConfigPanel({ showToast }) {
       }
       setInventarioFijo(listFijo);
 
+      // Sincronizar stock con inventario general de ventas/insumos (config/inventario)
+      try {
+        const invGenSnap = await getDoc(doc(db, 'config', 'inventario'));
+        if (invGenSnap.exists()) {
+          const prodList = invGenSnap.data().productos || [];
+          const tacoProd = prodList.find(p => p.nombre.toLowerCase().includes('taco'));
+          const tizaProd = prodList.find(p => p.nombre.toLowerCase().includes('tiza'));
+          const bolaProd = prodList.find(p => p.nombre.toLowerCase().includes('bola') || p.nombre.toLowerCase().includes('juego de bola'));
+          
+          let listFijoUpdated = listFijo.map(item => {
+            let stockMatch = null;
+            if (item.key === 'tacos' && tacoProd) stockMatch = tacoProd.stock;
+            if (item.key === 'tizas' && tizaProd) stockMatch = tizaProd.stock;
+            if (item.key === 'bolas' && bolaProd) stockMatch = bolaProd.stock;
+            
+            if (stockMatch !== null && item.cantidadTotal !== stockMatch) {
+              const docRef = doc(db, 'inventario_fijo', item.id);
+              setDoc(docRef, { cantidadTotal: Number(stockMatch), updatedAt: serverTimestamp() }, { merge: true });
+              return { ...item, cantidadTotal: Number(stockMatch) };
+            }
+            return item;
+          });
+          listFijo = listFijoUpdated;
+          setInventarioFijo(listFijo);
+        }
+      } catch (errSync) {
+        console.error("Error al sincronizar inventario fijo con el general:", errSync);
+      }
+
       // Cargar horas de juego globales de la sucursal
       const globalSnap = await getDoc(doc(db, 'config', 'mantenimiento_global'));
       if (globalSnap.exists()) {
@@ -5289,6 +5318,50 @@ export default function ConfigPanel({ showToast }) {
                         </tr>
                       </thead>
                       <tbody>
+                        {/* 1. Renderizar Mesas Activas en el Inventario Unificado */}
+                        {mantenimientoMesas.map(m => {
+                          const porcentaje = Math.min(100, Math.round((m.horasUso / (m.horasLimite || 150)) * 100));
+                          return (
+                            <tr key={`table_row_mesa_${m.id}`}>
+                              <td>
+                                <span 
+                                  onClick={() => abrirModalHistorial(m, 'mesa')}
+                                  style={{ fontWeight: 600, color: 'var(--bronze-light)', cursor: 'pointer', textDecoration: 'underline' }}
+                                  title="Ver Historial & ROI de la Mesa"
+                                >
+                                  {m.nombre} (Mesa)
+                                </span>
+                                <div style={{ fontSize: 8.5, color: 'var(--text-muted)', marginTop: 2 }}>
+                                  Uso: <strong>{m.horasUso?.toFixed(1) || '0.0'}h</strong> ({porcentaje}%)
+                                </div>
+                              </td>
+                              <td style={{ textAlign: 'center', fontSize: 10, color: '#fff' }}>1</td>
+                              <td style={{ textAlign: 'center', fontSize: 10, color: 'var(--text-muted)' }}>-</td>
+                              <td style={{ textAlign: 'center' }}>
+                                <span style={{ 
+                                  padding: '2px 6px', borderRadius: 4, fontSize: 9, fontWeight: 700,
+                                  background: m.estado === 'excelente' ? 'rgba(74, 222, 128, 0.1)' : (m.estado === 'limite_cercano' ? 'rgba(250, 204, 21, 0.1)' : 'rgba(239, 68, 68, 0.1)'),
+                                  color: m.estado === 'excelente' ? 'var(--success)' : (m.estado === 'limite_cercano' ? 'var(--warning)' : 'var(--danger)')
+                                }}>
+                                  {m.estado === 'excelente' ? '🟢 Excelente' : (m.estado === 'limite_cercano' ? '🟡 Regular' : '🔴 Servicio')}
+                                </span>
+                              </td>
+                              <td>
+                                <button
+                                  type="button"
+                                  className="btn btn-primary btn-xs"
+                                  onClick={() => abrirModalMantenimiento(m)}
+                                  style={{ fontSize: 9, padding: '2px 6px' }}
+                                  title="Registrar servicio de mesa"
+                                >
+                                  <i className="ri-tools-line" />
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+
+                        {/* 2. Renderizar Insumos Fijos y Equipos habituales */}
                         {inventarioFijo.map(item => {
                           const isPredictive = item.key === 'tacos' || item.key === 'tizas';
                           const limitUso = item.key === 'tacos' ? 150 : 100;
