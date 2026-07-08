@@ -484,10 +484,43 @@ export default function ConfigPanel({ showToast }) {
     }
   };
 
+  const calcularPrediccionMesa = (m) => {
+    const limite = m.horasLimite || 150;
+    const uso = m.horasUso || 0;
+    const fechaUlt = m.fechaUltimoMantenimiento ? new Date(m.fechaUltimoMantenimiento) : null;
+    
+    if (uso >= limite) {
+      return { diasRestantes: 0, fechaEstimada: new Date(), tasaUsoDiario: 3.5, mensaje: '⚠️ Límite superado. Requiere servicio inmediato.' };
+    }
+
+    let tasaUsoDiario = 3.5;
+    
+    if (fechaUlt) {
+      const diasTranscurridos = (Date.now() - fechaUlt.getTime()) / (1000 * 60 * 60 * 24);
+      if (diasTranscurridos >= 3 && uso >= 5) {
+        tasaUsoDiario = uso / diasTranscurridos;
+        if (tasaUsoDiario < 0.5) tasaUsoDiario = 0.5;
+      }
+    }
+
+    const horasRestantes = limite - uso;
+    const diasRestantes = Math.max(1, Math.round(horasRestantes / tasaUsoDiario));
+    const fechaEstimada = new Date(Date.now() + diasRestantes * 24 * 60 * 60 * 1000);
+
+    return {
+      diasRestantes,
+      fechaEstimada,
+      tasaUsoDiario,
+      mensaje: `Sugerido el ${fechaEstimada.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })} (en ${diasRestantes} días)`
+    };
+  };
+
   const generarSugerenciasIA = () => {
     const sugerencias = [];
     mantenimientoMesas.forEach(m => {
       const pct = Math.round((m.horasUso / (m.horasLimite || 150)) * 100);
+      const pred = calcularPrediccionMesa(m);
+      
       if (pct >= 100) {
         sugerencias.push({
           color: 'var(--danger)',
@@ -500,7 +533,15 @@ export default function ConfigPanel({ showToast }) {
           color: 'var(--warning)',
           icon: '🟡',
           titulo: `Mesa ${m.idMesa} cercana al límite de uso`,
-          mensaje: `Se encuentra al ${pct}% de desgaste de paño (${m.horasUso.toFixed(1)}h de uso). Programe mantenimiento preventivo próximamente.`
+          mensaje: `Se encuentra al ${pct}% de desgaste de paño (${m.horasUso.toFixed(1)}h de uso). Se estima que llegará al límite el ${pred.fechaEstimada.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })} (en ${pred.diasRestantes} días).`
+        });
+      } else if (pct >= 25) {
+        sugerencias.push({
+          color: 'var(--bronze-light)',
+          icon: '📅',
+          titulo: `Proyección IA: Mesa ${m.idMesa}`,
+          textStyle: { fontStyle: 'italic' },
+          mensaje: `Uso diario promedio: ${pred.tasaUsoDiario.toFixed(1)}h/día. Próximo mantenimiento sugerido: ${pred.fechaEstimada.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })} (en ${pred.diasRestantes} días).`
         });
       }
     });
@@ -4935,11 +4976,19 @@ export default function ConfigPanel({ showToast }) {
                           <div style={{ width: '100%', height: 6, background: 'rgba(255,255,255,0.05)', borderRadius: 3, overflow: 'hidden' }}>
                             <div style={{ width: `${porcentaje}%`, height: '100%', background: colorBarra, transition: 'width 0.3s ease' }} />
                           </div>
-                          {m.fechaUltimoMantenimiento && (
-                            <span style={{ fontSize: 8, color: 'var(--text-muted)', marginTop: 4, display: 'block' }}>
-                              Último mantenimiento: {new Date(m.fechaUltimoMantenimiento).toLocaleDateString()}
-                            </span>
-                          )}
+                          {m.fechaUltimoMantenimiento && (() => {
+                            const pred = calcularPrediccionMesa(m);
+                            return (
+                              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: 8.5 }}>
+                                <span style={{ color: 'var(--text-muted)' }}>
+                                  Último: {new Date(m.fechaUltimoMantenimiento).toLocaleDateString()}
+                                </span>
+                                <span style={{ color: pred.diasRestantes <= 7 ? 'var(--danger)' : 'var(--bronze-light)', fontWeight: 600 }}>
+                                  📅 Sugerido: {pred.fechaEstimada.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })} ({pred.diasRestantes}d)
+                                </span>
+                              </div>
+                            );
+                          })()}
                         </div>
                       );
                     })}
