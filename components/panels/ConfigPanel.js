@@ -286,12 +286,32 @@ export default function ConfigPanel({ showToast }) {
         listMesas.push({ id: d.id, ...d.data() });
       });
 
-      if (mesasRef.current && mesasRef.current.length > 0) {
+      // Cargar catálogo de mesas en caliente desde Firestore para evitar depender de estados asíncronos
+      const catalogRef = doc(db, 'config', 'mesas_estado');
+      const catalogSnap = await getDoc(catalogRef);
+      let catalogMesas = [];
+      if (catalogSnap.exists()) {
+        catalogMesas = catalogSnap.data().mesas || [];
+      } else {
+        // Fallback default si el documento no se ha inicializado
+        catalogMesas = [
+          { id: 1, nombre: 'Mesa 1' },
+          { id: 2, nombre: 'Mesa 2' },
+          { id: 3, nombre: 'Mesa 3' },
+          { id: 4, nombre: 'Mesa 4' },
+          { id: 5, nombre: 'Mesa 5' },
+          { id: 6, nombre: 'Mesa 6' },
+          { id: 7, nombre: 'Mesa 7' },
+          { id: 8, nombre: 'Mesa 8' }
+        ];
+      }
+
+      if (catalogMesas.length > 0) {
         const batch = writeBatch(db);
         let updatedList = [...listMesas];
         let hasNew = false;
         
-        mesasRef.current.forEach(m => {
+        catalogMesas.forEach(m => {
           const idStr = String(m.id);
           const existe = listMesas.find(lm => String(lm.idMesa) === idStr);
           if (!existe) {
@@ -304,8 +324,12 @@ export default function ConfigPanel({ showToast }) {
               horasLimite: 150,
               estado: 'excelente',
               fechaUltimoMantenimiento: new Date().toISOString(),
+              proximaFechaMantenimiento: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+              proximaFechaCorrectiva: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString(),
               historial: [],
               salonId: salonId,
+              inversionMantenimiento: 0,
+              ingresosAcumulados: 0,
               updatedAt: serverTimestamp()
             };
             batch.set(newDocRef, newMesaData);
@@ -327,34 +351,7 @@ export default function ConfigPanel({ showToast }) {
         listFijo.push({ id: d.id, ...d.data() });
       });
 
-      if (listFijo.length === 0) {
-        const batch = writeBatch(db);
-        const defaultItems = [
-          { key: 'tacos', nombre: 'Tacos de Juego (Pool/Carambola)', cantidadTotal: 12, cantidadRepuesto: 4, estadoGeneral: 'excelente', horasUltimaRevision: 0 },
-          { key: 'bolas', nombre: 'Juegos de Bolas de Billar', cantidadTotal: 8, cantidadRepuesto: 2, estadoGeneral: 'excelente', horasUltimaRevision: 0 },
-          { key: 'tizas', nombre: 'Tizas de Mesa (Master/Pioneer)', cantidadTotal: 30, cantidadRepuesto: 10, estadoGeneral: 'excelente', horasUltimaRevision: 0 },
-          { key: 'panos', nombre: 'Paños de Repuesto (Gorina/Rapide)', cantidadTotal: 2, cantidadRepuesto: 2, estadoGeneral: 'excelente', horasUltimaRevision: 0 },
-        ];
-
-        defaultItems.forEach(item => {
-          const docId = `${salonId}_fijo_${item.key}`;
-          const itemData = {
-            key: item.key,
-            nombre: item.nombre,
-            cantidadTotal: item.cantidadTotal,
-            cantidadRepuesto: item.cantidadRepuesto,
-            estadoGeneral: item.estadoGeneral,
-            horasUltimaRevision: item.horasUltimaRevision,
-            ultimaRevision: new Date().toISOString(),
-            proximaRevision: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-            salonId: salonId,
-            updatedAt: serverTimestamp()
-          };
-          batch.set(doc(db, 'inventario_fijo', docId), itemData);
-          listFijo.push({ id: docId, ...itemData });
-        });
-        await batch.commit();
-      }
+      // No autocreamos nada para que el inventario fijo se llene manualmente
       setInventarioFijo(listFijo);
 
       // Sincronizar stock con inventario general de ventas/insumos (config/inventario)
@@ -572,10 +569,8 @@ export default function ConfigPanel({ showToast }) {
   };
 
   useEffect(() => {
-    if (mesas.length > 0) {
-      fetchMantenimientoDatos();
-    }
-  }, [mesas.length]);
+    fetchMantenimientoDatos();
+  }, []);
 
   const abrirModalHoras = (m) => {
     setSelectedHoursMesa(m);
