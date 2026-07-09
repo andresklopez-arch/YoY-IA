@@ -13,16 +13,16 @@ export default function ModalLicencia({
   isCheckingOnline 
 }) {
   const [copiado, setCopiado] = useState(false);
-  const [adminOpen, setAdminOpen] = useState(false);
+   const [adminOpen, setAdminOpen] = useState(false);
+  const [mostrarContactoRenovacion, setMostrarContactoRenovacion] = useState(false);
   
   // States para controles administrativos
   const [nuevaFecha, setNuevaFecha] = useState('');
   const [nuevoStatus, setNuevoStatus] = useState(licencia?.status || 'activa');
   const [guardandoAdmin, setGuardandoAdmin] = useState(false);
 
-  const isMasterAdmin = user?.email === 'masteradmin@yoybillar.mx' || 
-                        user?.email?.startsWith('masteradmin@') || 
-                        (user?.role || '').toLowerCase() === 'masteradmin';
+  // Acceso restringido exclusivamente al desarrollador de ALR SaaS
+  const isMasterAdmin = user?.email === 'masteradmin@yoybillar.mx';
 
   const salonId = getActiveSalonId();
 
@@ -114,8 +114,8 @@ export default function ModalLicencia({
       position: 'fixed',
       top: 0,
       left: 0,
-      right: 0,
-      bottom: 0,
+      width: '100vw',
+      height: '100vh',
       backgroundColor: 'rgba(0, 0, 0, 0.85)',
       backdropFilter: 'blur(8px)',
       display: 'flex',
@@ -270,9 +270,6 @@ export default function ModalLicencia({
                 }} />
               </div>
               
-              <p style={{ margin: '8px 0 0 0', fontSize: 9.5, color: '#aaa', lineHeight: 1.4 }}>
-                * Por seguridad, el sistema debe conectarse a internet al menos una vez cada 15 días. Si excede este lapso sin sincronizar, se bloqueará automáticamente.
-              </p>
             </div>
 
             {/* Sincronizar en caliente */}
@@ -307,6 +304,65 @@ export default function ModalLicencia({
                 </>
               )}
             </button>
+
+            {/* Botón de Renovación para administradores locales */}
+            {!isMasterAdmin && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <button
+                  onClick={() => setMostrarContactoRenovacion(!mostrarContactoRenovacion)}
+                  style={{
+                    width: '100%',
+                    background: 'linear-gradient(135deg, #c29b38, #8a6515)',
+                    border: 'none',
+                    borderRadius: 12,
+                    color: '#000',
+                    padding: '10px 16px',
+                    fontSize: 12,
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 8,
+                    transition: 'all 0.2s',
+                    boxShadow: '0 4px 12px rgba(194, 155, 56, 0.2)'
+                  }}
+                >
+                  🔑 Renovar Licencia
+                </button>
+
+                {mostrarContactoRenovacion && (
+                  <div style={{
+                    background: 'rgba(194, 155, 56, 0.05)',
+                    border: '1px solid rgba(194, 155, 56, 0.15)',
+                    borderRadius: 12,
+                    padding: 14,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 8,
+                    animation: 'slideDown 0.2s ease-out'
+                  }}>
+                    <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--bronze-light)', textTransform: 'uppercase' }}>
+                      Datos de Contacto para Renovación
+                    </div>
+                    <div style={{ fontSize: 12, color: '#ddd', lineHeight: 1.4 }}>
+                      Para renovar el servicio anual de su sucursal, comuníquese con el desarrollador de <strong>ALR SaaS</strong>:
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4 }}>
+                      <div style={{ fontSize: 12, color: '#eee', display: 'flex', gap: 6 }}>
+                        <span>📞</span> <strong>WhatsApp/Tel:</strong> <span>+52 (449) 462-8226</span>
+                      </div>
+                      <div style={{ fontSize: 12, color: '#eee', display: 'flex', gap: 6 }}>
+                        <span>✉️</span> <strong>Email:</strong> <span>soporte@alrsaas.mx</span>
+                      </div>
+                    </div>
+                    <div style={{ fontSize: 10, color: '#888', fontStyle: 'italic', marginTop: 4 }}>
+                      * Proporcione su número de licencia activa al contactar al desarrollador.
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Panel Administrativo Exclusivo de ALR SaaS */}
             {isMasterAdmin && (
