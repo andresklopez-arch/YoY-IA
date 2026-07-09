@@ -2,6 +2,7 @@
 import { useState, useEffect, Component, useRef, useMemo } from 'react';
 import Topbar from '@/components/Topbar';
 import ToastContainer from '@/components/ToastContainer';
+import { useLicenciaSaaS } from '@/hooks/useLicenciaSaaS';
 import MesasPanel from '@/components/panels/MesasPanel';
 import CajaPanel from '@/components/panels/CajaPanel';
 import BarPanel from '@/components/panels/BarPanel';
@@ -252,6 +253,7 @@ class PanelErrorBoundary extends Component {
 function AppContent() {
   const { user, loading, loginWithEmpleadoId, logout, isSuspended, tenantError } = useAuth();
   const [minLoadingDone, setMinLoadingDone] = useState(false);
+  const { isBloqueada, motivoBloqueo, loading: licenciaLoading, refrescarLicencia } = useLicenciaSaaS();
   const [imageError, setImageError] = useState(false);
   const [activePanel, setActivePanel] = useState('mesas');
   const [toasts, setToasts] = useState([]);
@@ -2086,6 +2088,88 @@ function AppContent() {
             filter: drop-shadow(0 0 15px rgba(205,127,50,0.25));
           }
         `}</style>
+      </div>
+    );
+  }
+
+  // Bloqueo global e infranqueable de Licencia ALR SaaS
+  if (!licenciaLoading && isBloqueada) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        background: 'radial-gradient(circle at center, #1a0f0f 0%, #0d0d0d 100%)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: '#fff',
+        padding: 24,
+        fontFamily: 'system-ui, sans-serif'
+      }}>
+        <div style={{
+          width: '100%',
+          maxWidth: 520,
+          background: 'rgba(25, 10, 10, 0.9)',
+          border: '2px solid #ef4444',
+          borderRadius: 20,
+          padding: 32,
+          boxShadow: '0 25px 50px -12px rgba(239, 68, 68, 0.25)',
+          textAlign: 'center',
+          animation: 'shakeLock 1s ease-in-out'
+        }}>
+          <style>{`
+            @keyframes shakeLock {
+              0%, 100% { transform: translateX(0); }
+              10%, 30%, 50%, 70%, 90% { transform: translateX(-6px); }
+              20%, 40%, 60%, 80% { transform: translateX(6px); }
+            }
+          `}</style>
+          
+          <span style={{ fontSize: 56, display: 'block', marginBottom: 16 }}>🔒</span>
+          
+          <span style={{ 
+            background: 'rgba(239, 68, 68, 0.15)',
+            border: '1px solid rgba(239, 68, 68, 0.3)',
+            color: '#ef4444',
+            padding: '6px 12px',
+            borderRadius: 8,
+            fontSize: 12,
+            fontWeight: 800,
+            letterSpacing: '0.08em',
+            textTransform: 'uppercase'
+          }}>
+            ALR SaaS Security Lock
+          </span>
+          
+          <h2 style={{ fontSize: 24, fontWeight: 900, marginTop: 20, marginBottom: 12, color: '#fca5a5' }}>
+            Acceso al Sistema Restringido
+          </h2>
+          
+          <p style={{ fontSize: 14, color: '#f3f4f6', lineHeight: 1.6, background: 'rgba(0,0,0,0.3)', padding: 16, borderRadius: 10, border: '1px solid rgba(255,255,255,0.05)', marginBottom: 24 }}>
+            {motivoBloqueo}
+          </p>
+          
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <button
+              onClick={() => refrescarLicencia(true)}
+              style={{
+                background: 'linear-gradient(135deg, #ef4444, #b91c1c)',
+                border: 'none',
+                borderRadius: 10,
+                color: '#fff',
+                padding: '12px 24px',
+                fontSize: 13,
+                fontWeight: 800,
+                cursor: 'pointer',
+                boxShadow: '0 4px 15px rgba(239, 68, 68, 0.3)'
+              }}
+            >
+              🔄 Re-intentar Validación en Línea
+            </button>
+            <p style={{ margin: 0, fontSize: 11, color: '#888' }}>
+              Para desbloquear, asegúrese de contar con conexión a internet y pulse re-intentar.
+            </p>
+          </div>
+        </div>
       </div>
     );
   }

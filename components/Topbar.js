@@ -3,6 +3,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '@/lib/auth-context';
 import { useAlertasNomina } from '@/hooks/useAlertasNomina';
+import { useLicenciaSaaS } from '@/hooks/useLicenciaSaaS';
+import ModalLicencia from './panels/ModalLicencia';
 import { QRCodeSVG } from 'qrcode.react';
 import { collection, query, where, onSnapshot, doc, getDoc, setDoc, addDoc, getDocs, serverTimestamp, updateDoc, orderBy, limit, writeBatch, getActiveSalonId } from '@/lib/firestore-tenant';
 import { auth, db } from '@/lib/firebase';
@@ -209,6 +211,8 @@ export default function Topbar({ user, activePanel, showToast, onNavigate, sonid
   const [showMeseroDropdown, setShowMeseroDropdown] = useState(false);
   const [workingMeseros, setWorkingMeseros] = useState([]);
   const [isOnline, setIsOnline] = useState(true);
+  const { licencia, diasRestantes, diasOffline, isCheckingOnline, refrescarLicencia } = useLicenciaSaaS();
+  const [showModalLicencia, setShowModalLicencia] = useState(false);
   const [cantAlertasOffline, setCantAlertasOffline] = useState(0);
   const [salonesList, setSalonesList] = useState([]);
 
@@ -1254,32 +1258,57 @@ export default function Topbar({ user, activePanel, showToast, onNavigate, sonid
 
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'center', gap: 4 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{ 
-              width: 6, 
-              height: 6, 
-              borderRadius: '50%', 
-              background: isOnline ? '#22c55e' : '#ef4444', 
-              boxShadow: `0 0 6px ${isOnline ? '#22c55e' : '#ef4444'}`, 
-              animation: isOnline ? 'pulse 1.4s infinite' : 'none' 
-            }} />
+            {/* Animación y keyframes de estilo inline */}
+            <style>{`
+              @keyframes pulseYellow {
+                0% { transform: scale(1); opacity: 1; box-shadow: 0 0 0 0 rgba(234, 179, 8, 0.7); }
+                70% { transform: scale(1.05); opacity: 0.9; box-shadow: 0 0 0 6px rgba(234, 179, 8, 0); }
+                100% { transform: scale(1); opacity: 1; box-shadow: 0 0 0 0 rgba(234, 179, 8, 0); }
+              }
+              @keyframes pulseRedFast {
+                0% { transform: scale(1); opacity: 1; box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.8); }
+                50% { transform: scale(1.1); opacity: 0.8; box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
+                100% { transform: scale(1); opacity: 1; box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+              }
+            `}</style>
+            
+            <div 
+              style={{ 
+                width: 6, 
+                height: 6, 
+                borderRadius: '50%', 
+                background: isOnline ? (diasRestantes <= 7 ? '#ef4444' : diasRestantes <= 30 ? '#eab308' : '#22c55e') : '#ef4444', 
+                boxShadow: `0 0 6px ${isOnline ? (diasRestantes <= 7 ? '#ef4444' : diasRestantes <= 30 ? '#eab308' : '#22c55e') : '#ef4444'}`, 
+                animation: isOnline ? (diasRestantes <= 7 ? 'pulseRedFast 0.6s infinite' : diasRestantes <= 30 ? 'pulseYellow 1.4s infinite' : 'pulse 1.4s infinite') : 'none',
+                cursor: 'pointer'
+              }} 
+              onClick={() => setShowModalLicencia(true)}
+              title={diasRestantes <= 30 ? `Licencia expira en ${diasRestantes} días. Haz clic para renovar.` : 'Ver Estado de Licencia SaaS'}
+            />
             <span style={{ fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--bronze-light)', lineHeight: 1 }}>
               {PANEL_LABELS[activePanel] || activePanel}
             </span>
-            <div style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              fontSize: '8px',
-              fontWeight: 800,
-              padding: '2px 5px',
-              borderRadius: 6,
-              background: isOnline ? 'rgba(34, 197, 94, 0.08)' : 'rgba(239, 68, 68, 0.08)',
-              border: `1px solid ${isOnline ? 'rgba(34, 197, 94, 0.25)' : 'rgba(239, 68, 68, 0.25)'}`,
-              color: isOnline ? '#22c55e' : '#ef4444',
-              textTransform: 'uppercase',
-              marginLeft: 4,
-              lineHeight: 1,
-              gap: 4
-            }}>
+            <div 
+              onClick={() => setShowModalLicencia(true)}
+              title={diasRestantes <= 30 ? `Licencia expira en ${diasRestantes} días. Haz clic para renovar.` : 'Click para ver licencia ALR SaaS'}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                fontSize: '8px',
+                fontWeight: 800,
+                padding: '2px 5px',
+                borderRadius: 6,
+                background: isOnline ? (diasRestantes <= 7 ? 'rgba(239, 68, 68, 0.15)' : diasRestantes <= 30 ? 'rgba(234, 179, 8, 0.15)' : 'rgba(34, 197, 94, 0.08)') : 'rgba(239, 68, 68, 0.08)',
+                border: `1px solid ${isOnline ? (diasRestantes <= 7 ? '#ef4444' : diasRestantes <= 30 ? '#eab308' : 'rgba(34, 197, 94, 0.25)') : 'rgba(239, 68, 68, 0.25)'}`,
+                color: isOnline ? (diasRestantes <= 7 ? '#ef4444' : diasRestantes <= 30 ? '#eab308' : '#22c55e') : '#ef4444',
+                textTransform: 'uppercase',
+                marginLeft: 4,
+                lineHeight: 1,
+                gap: 4,
+                cursor: 'pointer',
+                animation: isOnline ? (diasRestantes <= 7 ? 'pulseRedFast 0.6s infinite' : diasRestantes <= 30 ? 'pulseYellow 1.4s infinite' : 'none') : 'none'
+              }}
+            >
               <span>{isOnline ? 'ONLINE' : 'OFFLINE'}</span>
               {cantAlertasOffline > 0 && (
                 <span style={{
@@ -2719,6 +2748,18 @@ export default function Topbar({ user, activePanel, showToast, onNavigate, sonid
           )}
         </>,
         document.body
+      )}
+
+      {showModalLicencia && (
+        <ModalLicencia
+          user={user}
+          licencia={licencia}
+          diasRestantes={diasRestantes}
+          diasOffline={diasOffline}
+          isCheckingOnline={isCheckingOnline}
+          refrescarLicencia={refrescarLicencia}
+          onClose={() => setShowModalLicencia(false)}
+        />
       )}
 
     </header>
