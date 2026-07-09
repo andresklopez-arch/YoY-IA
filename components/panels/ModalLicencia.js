@@ -4,10 +4,7 @@ import { useState } from 'react';
 export default function ModalLicencia({ 
   licencia, 
   diasRestantes, 
-  diasOffline, 
-  onClose, 
-  refrescarLicencia, 
-  isCheckingOnline 
+  onClose
 }) {
   const [copiado, setCopiado] = useState(false);
 
@@ -161,65 +158,6 @@ export default function ModalLicencia({
                 <span>Expira: {licencia.fechaVencimiento ? new Date(licencia.fechaVencimiento).toLocaleDateString() : '—'}</span>
               </div>
             </div>
-
-            {/* Estado Offline */}
-            <div style={{ 
-              background: 'rgba(255, 255, 255, 0.02)',
-              border: '1px solid rgba(255, 255, 255, 0.05)',
-              borderRadius: 12,
-              padding: 14
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                <span style={{ fontSize: 10, textTransform: 'uppercase', color: '#888', fontWeight: 700, letterSpacing: '0.05em' }}>
-                  Operación Fuera de Línea (Offline)
-                </span>
-                <span style={{ fontSize: 11, fontWeight: 700, color: diasOffline >= 10 ? 'var(--danger)' : '#aaa' }}>
-                  {diasOffline} / 15 días
-                </span>
-              </div>
-              
-              <div style={{ width: '100%', height: 6, background: 'rgba(255, 255, 255, 0.08)', borderRadius: 3, overflow: 'hidden' }}>
-                <div style={{ 
-                  width: `${Math.max(0, Math.min(100, (diasOffline / 15) * 100))}%`, 
-                  height: '100%', 
-                  background: diasOffline >= 10 ? 'var(--danger)' : 'var(--bronze-light)',
-                  borderRadius: 3
-                }} />
-              </div>
-            </div>
-
-            {/* Sincronizar en caliente */}
-            <button
-              onClick={() => refrescarLicencia(true)}
-              disabled={isCheckingOnline}
-              style={{
-                width: '100%',
-                background: 'linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03))',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
-                borderRadius: 12,
-                color: '#fff',
-                padding: '10px 16px',
-                fontSize: 12,
-                fontWeight: 700,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 8,
-                transition: 'all 0.2s'
-              }}
-            >
-              {isCheckingOnline ? (
-                <>
-                  <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true" style={{ width: 14, height: 14 }}></span>
-                  Validando con ALR SaaS...
-                </>
-              ) : (
-                <>
-                  🔄 Validar y Sincronizar Licencia
-                </>
-              )}
-            </button>
           </div>
         ) : (
           <div style={{ textAlign: 'center', padding: 20 }}>
