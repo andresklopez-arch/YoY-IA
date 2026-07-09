@@ -160,6 +160,18 @@ export async function POST(request) {
       lastUpdated: ahoraIso
     });
 
+    // 5. Registrar en la bitácora de aprovisionamiento global para auditoría de ALR SaaS
+    await db.collection('provisioning_logs').add({
+      salonId: cleanSalonId,
+      nombre: nombre.trim(),
+      embajador: (embajador || 'Alfonso Iturbide').trim(),
+      numeroLicencia: numLic,
+      fechaVencimiento: vencimientoIso,
+      creadoPor: decodedToken.email,
+      fecha: ahoraIso,
+      status: 'completado'
+    });
+
     console.log(`[ALR SaaS] Salón ${cleanSalonId} creado, licenciado por 1 año e inicializado correctamente.`);
 
     return NextResponse.json({
