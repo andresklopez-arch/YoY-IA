@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { doc, getDoc, setDoc, getActiveSalonId } from '@/lib/firestore-tenant';
+import { doc, getDoc, setDoc, getActiveSalonId, collection, query, where, getDocs } from '@/lib/firestore-tenant';
 import { db } from '@/lib/firebase';
 import { obfuscate, deobfuscate } from '@/lib/crypto';
 
@@ -152,6 +152,35 @@ export function useLicenciaSaaS() {
         await setDoc(docRef, licenciaData);
       }
 
+      // Validar si la licencia está duplicada en otro salón (antipiratería)
+      const qDup = query(
+        collection(db, 'licencias_saas'),
+        where('numeroLicencia', '==', licenciaData.numeroLicencia)
+      );
+      const snapDup = await getDocs(qDup);
+      let duplicada = false;
+      snapDup.forEach(docSnap => {
+        if (docSnap.id !== salonId) {
+          duplicada = true;
+        }
+      });
+
+      if (duplicada) {
+        setIsBloqueada(true);
+        setMotivoBloqueo('ERROR DE LICENCIA DUPLICADA: Se detectó que este número de licencia está siendo utilizado simultáneamente por otra sucursal activa. El acceso ha sido restringido por ALR SaaS por motivos de seguridad.');
+        setLoading(false);
+        setIsCheckingOnline(false);
+        
+        // Alerta urgente a Telegram
+        const msgText = `🚨 [ALR SaaS PIRATERÍA DETECTADA]\n` +
+                        `• Intento de clonación de licencia detectado.\n` +
+                        `• Licencia: ${licenciaData.numeroLicencia}\n` +
+                        `• Salón Intruso: ${salonId}\n` +
+                        `• Estado: ACCESO BLOQUEADO`;
+        notificarTelegram(msgText, licenciaData.numeroLicencia);
+        return;
+      }
+
       const ahoraIso = new Date().toISOString();
       // Guardar en local encriptado
       localStorage.setItem('yoy_licencia_cache', obfuscate(JSON.stringify(licenciaData)));
@@ -188,7 +217,7 @@ export function useLicenciaSaaS() {
       setLoading(false);
       setIsCheckingOnline(false);
     }
-  }, [salonId, procesarLicenciaData]);
+  }, [salonId, procesarLicenciaData, notificarTelegram]);
 
   useEffect(() => {
     refrescarLicencia();
