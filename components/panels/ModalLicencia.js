@@ -1,10 +1,7 @@
 'use client';
 import { useState } from 'react';
-import { doc, updateDoc, setDoc, getActiveSalonId } from '@/lib/firestore-tenant';
-import { db } from '@/lib/firebase';
 
 export default function ModalLicencia({ 
-  user, 
   licencia, 
   diasRestantes, 
   diasOffline, 
@@ -13,94 +10,12 @@ export default function ModalLicencia({
   isCheckingOnline 
 }) {
   const [copiado, setCopiado] = useState(false);
-   const [adminOpen, setAdminOpen] = useState(false);
-  const [mostrarContactoRenovacion, setMostrarContactoRenovacion] = useState(false);
-  
-  // States para controles administrativos
-  const [nuevaFecha, setNuevaFecha] = useState('');
-  const [nuevoStatus, setNuevoStatus] = useState(licencia?.status || 'activa');
-  const [guardandoAdmin, setGuardandoAdmin] = useState(false);
-
-  // Acceso restringido exclusivamente al desarrollador de ALR SaaS
-  const isMasterAdmin = user?.email === 'masteradmin@yoybillar.mx';
-
-  const salonId = getActiveSalonId();
 
   const handleCopiarClave = () => {
     if (licencia?.numeroLicencia) {
       navigator.clipboard.writeText(licencia.numeroLicencia);
       setCopiado(true);
       setTimeout(() => setCopiado(false), 2000);
-    }
-  };
-
-  const handleGuardarCambiosAdmin = async () => {
-    if (!salonId || !licencia) return;
-    setGuardandoAdmin(true);
-    try {
-      const docRef = doc(db, 'licencias_saas', salonId);
-      const updates = {
-        status: nuevoStatus,
-        updatedAt: new Date().toISOString()
-      };
-      if (nuevaFecha) {
-        updates.fechaVencimiento = new Date(nuevaFecha).toISOString();
-      }
-      await updateDoc(docRef, updates);
-      alert("Cambios guardados con éxito en la licencia ALR SaaS.");
-      await refrescarLicencia(true);
-    } catch (e) {
-      console.error(e);
-      alert("Error al actualizar la licencia en Firebase.");
-    } finally {
-      setGuardandoAdmin(false);
-    }
-  };
-
-  const handleRenovarUnAno = async () => {
-    if (!salonId || !licencia) return;
-    if (!confirm("¿Confirmas la renovación de la licencia por 1 año a partir de hoy?")) return;
-    setGuardandoAdmin(true);
-    try {
-      const docRef = doc(db, 'licencias_saas', salonId);
-      const nuevaFechaVencimiento = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
-      await updateDoc(docRef, {
-        fechaVencimiento: nuevaFechaVencimiento,
-        status: 'activa',
-        ultimaSincronizacion: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      });
-      alert("Licencia renovada por 1 año exitosamente.");
-      await refrescarLicencia(true);
-    } catch (e) {
-      console.error(e);
-      alert("Error al renovar la licencia.");
-    } finally {
-      setGuardandoAdmin(false);
-    }
-  };
-
-  const handleRegenerarClave = async () => {
-    if (!salonId || !licencia) return;
-    if (!confirm("¿Deseas regenerar el número de licencia? Esto cambiará la clave activa del cliente.")) return;
-    setGuardandoAdmin(true);
-    try {
-      const docRef = doc(db, 'licencias_saas', salonId);
-      const randKey1 = Math.random().toString(36).substring(2, 6).toUpperCase();
-      const randKey2 = Math.random().toString(36).substring(2, 6).toUpperCase();
-      const nuevaClave = `ALR-2026-${randKey1}-${randKey2}`;
-      
-      await updateDoc(docRef, {
-        numeroLicencia: nuevaClave,
-        updatedAt: new Date().toISOString()
-      });
-      alert(`Nueva licencia generada con éxito: ${nuevaClave}`);
-      await refrescarLicencia(true);
-    } catch (e) {
-      console.error(e);
-      alert("Error al regenerar la clave.");
-    } finally {
-      setGuardandoAdmin(false);
     }
   };
 
@@ -127,6 +42,8 @@ export default function ModalLicencia({
       <div style={{
         width: '100%',
         maxWidth: 480,
+        maxHeight: '90vh',
+        overflowY: 'auto',
         background: 'linear-gradient(135deg, rgba(30, 30, 30, 0.95), rgba(15, 15, 15, 0.95))',
         border: '1px solid rgba(255, 255, 255, 0.08)',
         borderRadius: 16,
@@ -269,7 +186,6 @@ export default function ModalLicencia({
                   borderRadius: 3
                 }} />
               </div>
-              
             </div>
 
             {/* Sincronizar en caliente */}
@@ -304,201 +220,6 @@ export default function ModalLicencia({
                 </>
               )}
             </button>
-
-            {/* Botón de Renovación para administradores locales */}
-            {!isMasterAdmin && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <button
-                  onClick={() => setMostrarContactoRenovacion(!mostrarContactoRenovacion)}
-                  style={{
-                    width: '100%',
-                    background: 'linear-gradient(135deg, #c29b38, #8a6515)',
-                    border: 'none',
-                    borderRadius: 12,
-                    color: '#000',
-                    padding: '10px 16px',
-                    fontSize: 12,
-                    fontWeight: 800,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 8,
-                    transition: 'all 0.2s',
-                    boxShadow: '0 4px 12px rgba(194, 155, 56, 0.2)'
-                  }}
-                >
-                  🔑 Renovar Licencia
-                </button>
-
-                {mostrarContactoRenovacion && (
-                  <div style={{
-                    background: 'rgba(194, 155, 56, 0.05)',
-                    border: '1px solid rgba(194, 155, 56, 0.15)',
-                    borderRadius: 12,
-                    padding: 14,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 8,
-                    animation: 'slideDown 0.2s ease-out'
-                  }}>
-                    <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--bronze-light)', textTransform: 'uppercase' }}>
-                      Datos de Contacto para Renovación
-                    </div>
-                    <div style={{ fontSize: 12, color: '#ddd', lineHeight: 1.4 }}>
-                      Para renovar el servicio anual de su sucursal, comuníquese con el desarrollador de <strong>ALR SaaS</strong>:
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4 }}>
-                      <div style={{ fontSize: 12, color: '#eee', display: 'flex', gap: 6 }}>
-                        <span>📞</span> <strong>WhatsApp/Tel:</strong> <span>+52 (449) 462-8226</span>
-                      </div>
-                      <div style={{ fontSize: 12, color: '#eee', display: 'flex', gap: 6 }}>
-                        <span>✉️</span> <strong>Email:</strong> <span>soporte@alrsaas.mx</span>
-                      </div>
-                    </div>
-                    <div style={{ fontSize: 10, color: '#888', fontStyle: 'italic', marginTop: 4 }}>
-                      * Proporcione su número de licencia activa al contactar al desarrollador.
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Panel Administrativo Exclusivo de ALR SaaS */}
-            {isMasterAdmin && (
-              <div style={{ 
-                borderTop: '1px solid rgba(255, 255, 255, 0.1)',
-                paddingTop: 16,
-                marginTop: 8
-              }}>
-                <button
-                  onClick={() => setAdminOpen(!adminOpen)}
-                  style={{
-                    width: '100%',
-                    background: 'transparent',
-                    border: 'none',
-                    color: 'var(--bronze-light)',
-                    fontSize: 12,
-                    fontWeight: 800,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '4px 0'
-                  }}
-                >
-                  <span>🛠️ CONTROL ALR SaaS (ADMIN)</span>
-                  <span>{adminOpen ? '▲' : '▼'}</span>
-                </button>
-
-                {adminOpen && (
-                  <div style={{ 
-                    display: 'flex', 
-                    flexDirection: 'column', 
-                    gap: 12, 
-                    marginTop: 12,
-                    padding: 12,
-                    background: 'rgba(194, 155, 56, 0.05)',
-                    borderRadius: 10,
-                    border: '1px dashed rgba(194, 155, 56, 0.2)'
-                  }}>
-                    {/* Status */}
-                    <div className="form-group" style={{ gap: 4 }}>
-                      <label style={{ fontSize: 10, fontWeight: 700, color: '#aaa', textTransform: 'uppercase' }}>Estado de Licencia</label>
-                      <select 
-                        value={nuevoStatus}
-                        onChange={e => setNuevoStatus(e.target.value)}
-                        style={{
-                          background: '#151515',
-                          border: '1px solid rgba(255,255,255,0.15)',
-                          color: '#fff',
-                          padding: '6px 10px',
-                          borderRadius: 6,
-                          fontSize: 12
-                        }}
-                      >
-                        <option value="activa">Activa (Operación normal)</option>
-                        <option value="suspendida">Suspendida (Bloqueo temp)</option>
-                        <option value="bloqueada">Bloqueada (Bloqueo permanente)</option>
-                      </select>
-                    </div>
-
-                    {/* Extender Vencimiento */}
-                    <div className="form-group" style={{ gap: 4 }}>
-                      <label style={{ fontSize: 10, fontWeight: 700, color: '#aaa', textTransform: 'uppercase' }}>Extender Vencimiento</label>
-                      <input 
-                        type="date"
-                        value={nuevaFecha}
-                        onChange={e => setNuevaFecha(e.target.value)}
-                        style={{
-                          background: '#151515',
-                          border: '1px solid rgba(255,255,255,0.15)',
-                          color: '#fff',
-                          padding: '6px 10px',
-                          borderRadius: 6,
-                          fontSize: 12
-                        }}
-                      />
-                    </div>
-
-                    {/* Botones de acción */}
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 4 }}>
-                      <button
-                        onClick={handleGuardarCambiosAdmin}
-                        disabled={guardandoAdmin}
-                        style={{
-                          background: 'var(--bronze-light)',
-                          color: '#000',
-                          border: 'none',
-                          borderRadius: 6,
-                          padding: '8px 12px',
-                          fontSize: 11,
-                          fontWeight: 700,
-                          cursor: 'pointer'
-                        }}
-                      >
-                        {guardandoAdmin ? 'Guardando...' : 'Aplicar Modifs'}
-                      </button>
-                      <button
-                        onClick={handleRenovarUnAno}
-                        disabled={guardandoAdmin}
-                        style={{
-                          background: '#22c55e',
-                          color: '#000',
-                          border: 'none',
-                          borderRadius: 6,
-                          padding: '8px 12px',
-                          fontSize: 11,
-                          fontWeight: 700,
-                          cursor: 'pointer'
-                        }}
-                      >
-                        Renovar 1 Año
-                      </button>
-                    </div>
-
-                    <button
-                      onClick={handleRegenerarClave}
-                      disabled={guardandoAdmin}
-                      style={{
-                        width: '100%',
-                        background: 'rgba(239, 68, 68, 0.15)',
-                        border: '1px solid rgba(239, 68, 68, 0.3)',
-                        color: '#ef4444',
-                        borderRadius: 6,
-                        padding: '6px 12px',
-                        fontSize: 10.5,
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                        marginTop: 4
-                      }}
-                    >
-                      Regenerar Clave de Licencia
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
           </div>
         ) : (
           <div style={{ textAlign: 'center', padding: 20 }}>
