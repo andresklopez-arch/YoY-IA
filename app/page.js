@@ -266,7 +266,7 @@ function AppContent() {
 
   // --- Sugerencia 2: Registrar auditoria de acceso del MasterAdmin a diferentes sucursales ---
   useEffect(() => {
-    if (user && user.email === 'masteradmin@yoybillar.mx') {
+    if (user && (user.email === 'masteradmin@yoybillar.mx' || user.email?.startsWith('masteradmin@'))) {
       const activeSalon = getActiveSalonId();
       const audKey = `yoy_audited_salon_${activeSalon}`;
       if (typeof window !== 'undefined' && !sessionStorage.getItem(audKey)) {

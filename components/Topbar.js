@@ -217,7 +217,7 @@ export default function Topbar({ user, activePanel, showToast, onNavigate, sonid
   const [salonesList, setSalonesList] = useState([]);
 
   useEffect(() => {
-    if (user?.email === 'masteradmin@yoybillar.mx') {
+    if (user?.email === 'masteradmin@yoybillar.mx' || user?.email?.startsWith('masteradmin@')) {
       const unsub = onSnapshot(collection(db, 'salones'), snap => {
         const list = [];
         snap.forEach(docSnap => {
@@ -1330,7 +1330,7 @@ export default function Topbar({ user, activePanel, showToast, onNavigate, sonid
                 const sId = window.sessionStorage.getItem('yoy_client_salon_id') || 'default_salon';
                 
                 // Si el usuario es el Administrador Maestro, le damos un selector interactivo
-                if (user?.email === 'masteradmin@yoybillar.mx') {
+                if (user?.email === 'masteradmin@yoybillar.mx' || user?.email?.startsWith('masteradmin@')) {
                   return (
                     <select
                       value={sId}
