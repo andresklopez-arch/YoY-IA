@@ -14,6 +14,29 @@ export function useLicenciaSaaS() {
 
   const salonId = getActiveSalonId();
 
+  const notificarTelegram = useCallback(async (msg, numLic) => {
+    if (!salonId) return;
+    // Evitar spammear en exceso usando un flag diario en localStorage
+    const hoy = new Date().toLocaleDateString();
+    const storageKey = `yoy_licencia_notif_${salonId}_${numLic}`;
+    if (localStorage.getItem(storageKey) === hoy) return; 
+
+    try {
+      await fetch('/api/telegram/send-alert', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: msg,
+          salonId: salonId
+        })
+      });
+      localStorage.setItem(storageKey, hoy);
+      console.log("Notificación de licenciamiento enviada por Telegram.");
+    } catch (e) {
+      console.error("Error al enviar alerta de licenciamiento por Telegram:", e);
+    }
+  }, [salonId]);
+
   const procesarLicenciaData = useCallback((data, lastOnlineIso) => {
     if (!data) return;
 
@@ -52,13 +75,49 @@ export function useLicenciaSaaS() {
 
     setIsBloqueada(bloqueada);
     setMotivoBloqueo(motivo);
-  }, []);
+
+    // ── Alertas Automáticas en Telegram (Sugerencia 1) ──
+    if (rest <= 5 || offDays >= 10) {
+      const msgText = `🚨 [ALR SaaS Alert]\n` +
+                      `• Sucursal: ${salonId}\n` +
+                      `• Licencia: ${data.numeroLicencia}\n` +
+                      `• Estado: ${data.status}\n` +
+                      `• Días Restantes: ${rest} días\n` +
+                      `• Días Offline: ${offDays} días\n` +
+                      `• Motivo: ${bloqueada ? 'SISTEMA BLOQUEADO' : 'Cercano al vencimiento / Fuera de línea'}`;
+      notificarTelegram(msgText, data.numeroLicencia);
+    }
+  }, [salonId, notificarTelegram]);
 
   const refrescarLicencia = useCallback(async (forzarLoading = false) => {
     if (!salonId) {
       setLoading(false);
       return;
     }
+
+    // ── Cifrado Anti-Manipulación de Reloj (Sugerencia 2) ──
+    const ahora = new Date();
+    const cachedLastTime = localStorage.getItem('yoy_licencia_last_time');
+    if (cachedLastTime) {
+      try {
+        const lastTimeDec = deobfuscate(cachedLastTime);
+        if (lastTimeDec) {
+          const lastTimeDate = new Date(lastTimeDec);
+          if (ahora.getTime() < lastTimeDate.getTime()) {
+            // El usuario retrasó la hora de la computadora para intentar engañar la expiración
+            setIsBloqueada(true);
+            setMotivoBloqueo('ERROR DE INTEGRIDAD DETECTADO: Se detectó una manipulación o retraso no autorizado en el reloj de la computadora local. Por favor, restablezca la hora correcta en su sistema operativo y re-inicie la aplicación para re-habilitar el acceso.');
+            setLoading(false);
+            setIsCheckingOnline(false);
+            return;
+          }
+        }
+      } catch (e) {
+        console.error("Error al validar integridad de reloj:", e);
+      }
+    }
+    // Si la hora es válida y normal, persistimos la nueva marca de tiempo cifrada
+    localStorage.setItem('yoy_licencia_last_time', obfuscate(ahora.toISOString()));
 
     if (forzarLoading) setLoading(true);
     setIsCheckingOnline(true);
