@@ -3031,53 +3031,19 @@ export default function ConfigPanel({ showToast }) {
                   </div>
                 ))}
                 
-                {/* Selector de color e imagen */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, background: 'rgba(194, 155, 56, 0.04)', padding: 10, borderRadius: 10, border: '1px dashed var(--border)' }}>
-                  <div className="form-group" style={{ gap: 4 }}>
-                    <label className="form-label" style={{ fontSize: 10.5 }}>Color de Acento</label>
-                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                      <input 
-                        type="color" 
-                        value={sucursal.accentColor || '#c29b38'} 
-                        onChange={e => setSucursal(p => ({ ...p, accentColor: e.target.value }))}
-                        style={{ width: 34, height: 28, padding: 0, border: 'none', background: 'transparent', cursor: 'pointer' }}
-                      />
-                      <span style={{ fontSize: 9.5, fontFamily: 'monospace' }}>{sucursal.accentColor || '#c29b38'}</span>
-                    </div>
-                  </div>
+                {/* Selector de color de fondo */}
+                <div style={{ background: 'rgba(194, 155, 56, 0.04)', padding: 10, borderRadius: 10, border: '1px dashed var(--border)' }}>
                   <div className="form-group" style={{ gap: 4 }}>
                     <label className="form-label" style={{ fontSize: 10.5 }}>Color de Fondo</label>
-                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                       <input 
                         type="color" 
                         value={sucursal.bgColor || '#0d0d0d'} 
                         onChange={e => setSucursal(p => ({ ...p, bgColor: e.target.value }))}
-                        style={{ width: 34, height: 28, padding: 0, border: 'none', background: 'transparent', cursor: 'pointer' }}
+                        style={{ width: 40, height: 30, padding: 0, border: 'none', background: 'transparent', cursor: 'pointer' }}
                       />
-                      <span style={{ fontSize: 9.5, fontFamily: 'monospace' }}>{sucursal.bgColor || '#0d0d0d'}</span>
+                      <span style={{ fontSize: 11, fontFamily: 'monospace', fontWeight: 600 }}>{sucursal.bgColor || '#0d0d0d'}</span>
                     </div>
-                  </div>
-                  <div className="form-group" style={{ gap: 4 }}>
-                    <label className="form-label" style={{ fontSize: 10.5 }}>Cargar Logo Local</label>
-                    <input 
-                      type="file" 
-                      accept="image/*" 
-                      onChange={e => {
-                        const file = e.target.files[0];
-                        if (file) {
-                          if (file.size > 200000) {
-                            alert("La imagen es muy grande. Sube una imagen menor a 200KB.");
-                            return;
-                          }
-                          const reader = new FileReader();
-                          reader.onload = (event) => {
-                            setSucursal(p => ({ ...p, logoUrl: event.target.result }));
-                          };
-                          reader.readAsDataURL(file);
-                        }
-                      }}
-                      style={{ fontSize: 9.5, color: 'var(--text-muted)', width: '100%' }}
-                    />
                   </div>
                 </div>
 
