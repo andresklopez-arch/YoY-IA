@@ -717,17 +717,23 @@ export default function MesaClientePage({ params }) {
         if (data.bgColor) setSalonBgColor(data.bgColor);
       } else {
         // Fallback si el documento no está inicializado
-        if (salonId === 'prueba_smart') setSalonNombre('Million Dollar');
-        else if (salonId === 'default_salon') setSalonNombre('Alfonso Iturbide');
-        else {
+        const sIdLower = (salonId || '').toLowerCase();
+        if (sIdLower.includes('million') || sIdLower.includes('prueba_smart') || sIdLower.includes('p3bug')) {
+          setSalonNombre('Million Dollar');
+        } else if (sIdLower.includes('alfonso') || sIdLower === 'default_salon') {
+          setSalonNombre('Alfonso Iturbide');
+        } else {
           setSalonNombre(salonId.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '));
         }
       }
     }, err => {
       console.warn("Fallo al obtener sucursal en tiempo real:", err);
-      if (salonId === 'prueba_smart') setSalonNombre('Million Dollar');
-      else if (salonId === 'default_salon') setSalonNombre('Alfonso Iturbide');
-      else {
+      const sIdLower = (salonId || '').toLowerCase();
+      if (sIdLower.includes('million') || sIdLower.includes('prueba_smart') || sIdLower.includes('p3bug')) {
+        setSalonNombre('Million Dollar');
+      } else if (sIdLower.includes('alfonso') || sIdLower === 'default_salon') {
+        setSalonNombre('Alfonso Iturbide');
+      } else {
         setSalonNombre(salonId.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '));
       }
     });
