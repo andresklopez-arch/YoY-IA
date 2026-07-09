@@ -3,6 +3,14 @@ import { doc, getDoc, setDoc, getActiveSalonId, collection, query, where, getDoc
 import { db } from '@/lib/firebase';
 import { obfuscate, deobfuscate } from '@/lib/crypto';
 
+const obtenerFingerprint = () => {
+  if (typeof window === 'undefined') return '';
+  const ua = navigator.userAgent || '';
+  const lang = navigator.language || '';
+  const screenSpec = typeof screen !== 'undefined' ? `${screen.width}x${screen.height}_${screen.colorDepth}` : '';
+  return `${ua}_${lang}_${screenSpec}`;
+};
+
 export function useLicenciaSaaS() {
   const [licencia, setLicencia] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -62,9 +70,19 @@ export function useLicenciaSaaS() {
     if (data.status === 'suspendida') {
       bloqueada = true;
       motivo = 'LICENCIA SUSPENDIDA: Tu suscripción de servicio ha sido suspendida. Por favor, contacta a soporte de ALR SaaS.';
+      // Autodestrucción del caché local para evitar evasión offline
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('yoy_licencia_cache');
+        localStorage.removeItem('yoy_licencia_last_online');
+      }
     } else if (data.status === 'bloqueada') {
       bloqueada = true;
       motivo = 'SISTEMA BLOQUEADO: Este software ha sido bloqueado por el administrador del sistema a través de ALR SaaS.';
+      // Autodestrucción del caché local para evitar evasión offline
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('yoy_licencia_cache');
+        localStorage.removeItem('yoy_licencia_last_online');
+      }
     } else if (rest <= 0) {
       bloqueada = true;
       motivo = 'LICENCIA VENCIDA: Tu período de licencia anual ha expirado. Por favor, realiza la renovación a través de ALR SaaS.';
@@ -146,7 +164,8 @@ export function useLicenciaSaaS() {
           status: 'activa',
           diasOfflineMaximo: 15,
           salonId: salonId,
-          ultimaSincronizacion: ahoraIso
+          ultimaSincronizacion: ahoraIso,
+          dispositivoFirma: obtenerFingerprint()
         };
 
         await setDoc(docRef, licenciaData);
@@ -179,6 +198,17 @@ export function useLicenciaSaaS() {
                         `• Estado: ACCESO BLOQUEADO`;
         notificarTelegram(msgText, licenciaData.numeroLicencia);
         return;
+      }
+
+      // Validar cambio de huella de dispositivo/navegador (Auditoría)
+      const firmaActual = obtenerFingerprint();
+      if (licenciaData.dispositivoFirma && licenciaData.dispositivoFirma !== firmaActual) {
+        const msgText = `⚠️ [ALR SaaS AUDITORÍA DISPOSITIVO]\n` +
+                        `• Cambio de dispositivo/navegador en "${salonId}".\n` +
+                        `• Licencia: ${licenciaData.numeroLicencia}\n` +
+                        `• Firma Original: ${licenciaData.dispositivoFirma.substring(0, 45)}...\n` +
+                        `• Firma Actual: ${firmaActual.substring(0, 45)}...`;
+        notificarTelegram(msgText, licenciaData.numeroLicencia);
       }
 
       const ahoraIso = new Date().toISOString();
