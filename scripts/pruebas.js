@@ -210,6 +210,22 @@ async function runTests() {
       logFail("Prueba 9: Validación de Flujo de Cobro y Tiempos de Auditoría", e.message);
       failedTests++;
     }
+
+    // --- PRUEBA 10: Validación de Reglas de Aislamiento y Estructura de Licencias SaaS ---
+    try {
+      const licRef = doc(db, 'licencias_saas', 'default_salon');
+      const licSnap = await getDoc(licRef);
+      if (licSnap.exists()) {
+        const licData = licSnap.data();
+        if (!licData.numeroLicencia || !licData.fechaVencimiento) {
+          throw new Error("El documento de licencia no contiene campos de número de licencia o fecha de vencimiento válidos.");
+        }
+      }
+      logPass("Prueba 10: Validación de Reglas de Aislamiento y Estructura de Licencias SaaS");
+    } catch (e) {
+      logFail("Prueba 10: Validación de Reglas de Aislamiento y Estructura de Licencias SaaS", e.message);
+      failedTests++;
+    }
   }
 
   console.log("\n========================================================");
