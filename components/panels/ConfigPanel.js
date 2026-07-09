@@ -916,6 +916,29 @@ export default function ConfigPanel({ showToast }) {
   const [logSearchQuery, setLogSearchQuery] = useState('');
   const [logPanelFilter, setLogPanelFilter] = useState('todos');
 
+  // --- Estados de Registro de Aprovisionamiento (ALR SaaS) ---
+  const [provisioningLogs, setProvisioningLogs] = useState([]);
+  const [loadingProvisioning, setLoadingProvisioning] = useState(false);
+
+  useEffect(() => {
+    if (user && isMasterUser(user.email)) {
+      setLoadingProvisioning(true);
+      const q = query(collection(db, 'provisioning_logs'), orderBy('fecha', 'desc'), limit(15));
+      const unsub = onSnapshot(q, snap => {
+        const list = [];
+        snap.forEach(docSnap => {
+          list.push({ id: docSnap.id, ...docSnap.data() });
+        });
+        setProvisioningLogs(list);
+        setLoadingProvisioning(false);
+      }, err => {
+        console.warn("Fallo al suscribir a bitácora de aprovisionamiento:", err);
+        setLoadingProvisioning(false);
+      });
+      return () => unsub();
+    }
+  }, [user]);
+
   // --- Estados de Extras de Renta de Mesas ---
   const [rentaExtras, setRentaExtras] = useState([]);
   const [savingRentaExtras, setSavingRentaExtras] = useState(false);
@@ -3417,6 +3440,52 @@ export default function ConfigPanel({ showToast }) {
                 })()
               )}
             </div>
+
+            {/* Bitácora de Aprovisionamiento SaaS (Sugerencia 1) */}
+            {user && isMasterUser(user.email) && (
+              <div className="card" style={{ padding: '12px 14px', marginTop: 12 }}>
+                <div className="card-header" style={{ marginBottom: 12 }}>
+                  <h3 className="card-title" style={{ color: 'var(--bronze)' }}>
+                    <i className="ri-database-2-line" style={{ marginRight: 6 }} />Bitácora de Aprovisionamiento SaaS
+                  </h3>
+                </div>
+                <p style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 12, lineHeight: 1.4 }}>
+                  Historial de sucursales creadas y licenciadas automáticamente por ALR SaaS.
+                </p>
+                {loadingProvisioning ? (
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', padding: '12px 0' }}>Cargando bitácora...</div>
+                ) : provisioningLogs.length === 0 ? (
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', padding: '16px 0' }}>
+                    No hay registros de aprovisionamiento recientes.
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 300, overflowY: 'auto' }}>
+                    {provisioningLogs.map((log) => {
+                      const dateStr = log.fecha ? new Date(log.fecha).toLocaleString() : 'Desconocida';
+                      return (
+                        <div key={log.id} style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 10px', fontSize: 11 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+                            <span style={{ fontWeight: 800, color: 'var(--success)', textTransform: 'uppercase' }}>
+                              Salón: {log.salonId}
+                            </span>
+                            <span style={{ color: 'var(--text-muted)', fontSize: 9.5 }}>{dateStr}</span>
+                          </div>
+                          <div style={{ marginTop: 4, fontWeight: 700, color: 'var(--text-main)', textAlign: 'left' }}>
+                            {log.nombre}
+                          </div>
+                          <div style={{ marginTop: 4, fontSize: 9.5, color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', gap: 2 }}>
+                            <span><strong>Embajador:</strong> {log.embajador}</span>
+                            <span><strong>Licencia:</strong> <code style={{ color: 'var(--bronze-light)' }}>{log.numeroLicencia}</code></span>
+                            <span><strong>Vence:</strong> {log.fechaVencimiento ? new Date(log.fechaVencimiento).toLocaleDateString() : ''}</span>
+                            <span><strong>Creado por:</strong> {log.creadoPor}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
             </div>
 
             {/* COLUMNA 2 */}

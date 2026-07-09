@@ -172,6 +172,36 @@ export async function POST(request) {
       status: 'completado'
     });
 
+    // 6. Enviar alerta a Telegram de la directiva (Sugerencia 2)
+    try {
+      const masterTgDoc = await db.collection('config').doc('telegram').get();
+      if (masterTgDoc.exists) {
+        const tgData = masterTgDoc.data();
+        if (tgData.enabled && tgData.botToken && tgData.chatId) {
+          const messageText = `🚀 *[ALR SaaS] Nuevo Salón Aprovisionado*\n\n` +
+                              `• *ID:* \`${cleanSalonId}\`\n` +
+                              `• *Nombre:* ${nombre.trim()}\n` +
+                              `• *Embajador:* ${embajador || 'Alfonso Iturbide'}\n` +
+                              `• *Licencia:* \`${numLic}\`\n` +
+                              `• *Vencimiento:* ${vencimientoIso.split('T')[0]}\n` +
+                              `• *Creado por:* ${decodedToken.email}`;
+          
+          await fetch(`https://api.telegram.org/bot${tgData.botToken}/sendMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              chat_id: tgData.chatId,
+              text: messageText,
+              parse_mode: 'Markdown'
+            })
+          });
+          console.log("[Telegram Master Alert] Alerta de creación de salón enviada.");
+        }
+      }
+    } catch (tgErr) {
+      console.warn("Fallo al enviar alerta de creación de salón a Telegram:", tgErr.message);
+    }
+
     console.log(`[ALR SaaS] Salón ${cleanSalonId} creado, licenciado por 1 año e inicializado correctamente.`);
 
     return NextResponse.json({
