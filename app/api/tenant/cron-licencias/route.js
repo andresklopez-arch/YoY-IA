@@ -129,6 +129,39 @@ export async function GET(request) {
 
           results.expiradasNuevas.push(lic.salonId);
           hasChanges = true;
+        } else {
+          // Si expira pronto (menos de 7 días, pero aún no expiró)
+          const diasParaVencer = Math.ceil((vencimiento - ahora) / (1000 * 60 * 60 * 24));
+          if (diasParaVencer > 0 && diasParaVencer <= 7 && !lic.bloqueada) {
+            // Evitar spam diario: notificar solo a los 7, 3 y 1 días restantes
+            if (diasParaVencer === 7 || diasParaVencer === 3 || diasParaVencer === 1) {
+              try {
+                const masterTgDoc = await db.collection('config').doc('telegram').get();
+                if (masterTgDoc.exists) {
+                  const tgData = masterTgDoc.data();
+                  if (tgData.enabled && tgData.botToken && tgData.chatId) {
+                    const messageText = `⏳ *[ALR SaaS] Licencia Próxima a Vencer*\n\n` +
+                                        `• *ID:* \`${lic.salonId}\`\n` +
+                                        `• *Licencia:* \`${lic.numeroLicencia || 'N/A'}\`\n` +
+                                        `• *Vence en:* *${diasParaVencer} día(s)* (${lic.fechaVencimiento.split('T')[0]})\n` +
+                                        `• *Acción:* Se recomienda renovar la licencia desde ALR SaaS para evitar la interrupción del servicio.`;
+                    
+                    await fetch(`https://api.telegram.org/bot${tgData.botToken}/sendMessage`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        chat_id: tgData.chatId,
+                        text: messageText,
+                        parse_mode: 'Markdown'
+                      })
+                    });
+                  }
+                }
+              } catch (tgErr) {
+                console.warn("Fallo al enviar alerta preventiva de expiración a Telegram:", tgErr.message);
+              }
+            }
+          }
         }
       }
     }

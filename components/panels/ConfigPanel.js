@@ -920,7 +920,32 @@ export default function ConfigPanel({ showToast }) {
   const [provisioningLogs, setProvisioningLogs] = useState([]);
   const [loadingProvisioning, setLoadingProvisioning] = useState(false);
   const [embajadorFilter, setEmbajadorFilter] = useState('todos');
+  const [salonSearchQuery, setSalonSearchQuery] = useState('');
   const [renewingSalonId, setRenewingSalonId] = useState(null);
+
+  const handleExportCSV = () => {
+    if (provisioningLogs.length === 0) return;
+    const headers = ['Fecha', 'Salon ID', 'Nombre', 'Embajador', 'Licencia', 'Vencimiento', 'Operador', 'Status'];
+    const rows = provisioningLogs.map(log => [
+      log.fecha ? new Date(log.fecha).toLocaleString() : '',
+      log.salonId,
+      log.nombre || '',
+      log.embajador || '',
+      log.numeroLicencia || '',
+      log.fechaVencimiento ? new Date(log.fechaVencimiento).toLocaleDateString() : '',
+      log.creadoPor || '',
+      log.status || ''
+    ]);
+    const csvContent = "data:text/csv;charset=utf-8,\uFEFF" 
+      + [headers.join(','), ...rows.map(e => e.map(val => `"${String(val).replace(/"/g, '""')}"`).join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `bitacora_aprovisionamiento_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   const handleRenewLicense = async (salonId) => {
     if (!window.confirm(`¿Estás seguro de que deseas renovar la licencia del salón "${salonId}" por 1 año más?`)) {
@@ -3475,18 +3500,38 @@ export default function ConfigPanel({ showToast }) {
             {/* Bitácora de Aprovisionamiento SaaS (Sugerencia 1) */}
             {user && isMasterUser(user.email) && (
               <div className="card" style={{ padding: '12px 14px', marginTop: 12 }}>
-                <div className="card-header" style={{ marginBottom: 12 }}>
+                <div className="card-header" style={{ marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <h3 className="card-title" style={{ color: 'var(--bronze)' }}>
                     <i className="ri-database-2-line" style={{ marginRight: 6 }} />Bitácora de Aprovisionamiento SaaS
                   </h3>
+                  {!loadingProvisioning && provisioningLogs.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleExportCSV}
+                      className="btn btn-secondary btn-xs"
+                      style={{ fontSize: 10, padding: '3px 8px', display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer', background: 'none', border: '1px solid var(--border)', color: 'var(--text-main)', borderRadius: 6 }}
+                    >
+                      <i className="ri-download-line" /> Exportar CSV
+                    </button>
+                  )}
                 </div>
                 <p style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 12, lineHeight: 1.4 }}>
                   Historial de sucursales creadas y licenciadas automáticamente por ALR SaaS.
                 </p>
-                {/* Filtro por Embajador (Sugerencia 3) */}
+                {/* Filtro por Embajador y Buscador de Salón (Sugerencia 2 & 3) */}
                 {!loadingProvisioning && provisioningLogs.length > 0 && (
-                  <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
-                    <div style={{ flex: 1 }}>
+                  <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+                    <div style={{ flex: 1, minWidth: 120 }}>
+                      <input
+                        type="text"
+                        className="form-input"
+                        placeholder="Buscar salón por ID o nombre..."
+                        value={salonSearchQuery}
+                        onChange={e => setSalonSearchQuery(e.target.value)}
+                        style={{ fontSize: 11, padding: '5px 10px', height: 'auto', background: 'var(--bg-elevated)', color: 'var(--text-main)', border: '1px solid var(--border)', borderRadius: 6, width: '100%' }}
+                      />
+                    </div>
+                    <div style={{ width: 140 }}>
                       <select
                         className="form-input"
                         value={embajadorFilter}
@@ -3511,7 +3556,11 @@ export default function ConfigPanel({ showToast }) {
                 ) : (
                   (() => {
                     const filteredProvLogs = provisioningLogs.filter(log => {
-                      return embajadorFilter === 'todos' || log.embajador === embajadorFilter;
+                      const matchesEmbajador = embajadorFilter === 'todos' || log.embajador === embajadorFilter;
+                      const matchesSearch = salonSearchQuery.trim() === '' || 
+                        log.salonId.toLowerCase().includes(salonSearchQuery.toLowerCase()) ||
+                        (log.nombre && log.nombre.toLowerCase().includes(salonSearchQuery.toLowerCase()));
+                      return matchesEmbajador && matchesSearch;
                     });
 
                     if (filteredProvLogs.length === 0) {
