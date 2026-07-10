@@ -919,6 +919,37 @@ export default function ConfigPanel({ showToast }) {
   // --- Estados de Registro de Aprovisionamiento (ALR SaaS) ---
   const [provisioningLogs, setProvisioningLogs] = useState([]);
   const [loadingProvisioning, setLoadingProvisioning] = useState(false);
+  const [embajadorFilter, setEmbajadorFilter] = useState('todos');
+  const [renewingSalonId, setRenewingSalonId] = useState(null);
+
+  const handleRenewLicense = async (salonId) => {
+    if (!window.confirm(`¿Estás seguro de que deseas renovar la licencia del salón "${salonId}" por 1 año más?`)) {
+      return;
+    }
+    setRenewingSalonId(salonId);
+    try {
+      if (!auth.currentUser) throw new Error("No hay usuario autenticado.");
+      const token = await auth.currentUser.getIdToken();
+      const res = await fetch('/api/tenant/renew-license', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ salonId })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Error al renovar licencia');
+      }
+      showToast(`Licencia de "${salonId}" renovada exitosamente hasta ${new Date(data.fechaVencimiento).toLocaleDateString()}`, 'success');
+    } catch (err) {
+      console.error(err);
+      showToast(err.message || 'Error al renovar la licencia', 'danger');
+    } finally {
+      setRenewingSalonId(null);
+    }
+  };
 
   useEffect(() => {
     if (user && isMasterUser(user.email)) {
@@ -3452,6 +3483,25 @@ export default function ConfigPanel({ showToast }) {
                 <p style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 12, lineHeight: 1.4 }}>
                   Historial de sucursales creadas y licenciadas automáticamente por ALR SaaS.
                 </p>
+                {/* Filtro por Embajador (Sugerencia 3) */}
+                {!loadingProvisioning && provisioningLogs.length > 0 && (
+                  <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
+                    <div style={{ flex: 1 }}>
+                      <select
+                        className="form-input"
+                        value={embajadorFilter}
+                        onChange={e => setEmbajadorFilter(e.target.value)}
+                        style={{ fontSize: 11, padding: '5px 10px', height: 'auto', background: 'var(--bg-elevated)', color: 'var(--text-main)', border: '1px solid var(--border)', borderRadius: 6, width: '100%' }}
+                      >
+                        <option value="todos">Todos los Embajadores</option>
+                        {Array.from(new Set(provisioningLogs.map(l => l.embajador).filter(Boolean))).map(emb => (
+                          <option key={emb} value={emb}>{emb}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                )}
+
                 {loadingProvisioning ? (
                   <div style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', padding: '12px 0' }}>Cargando bitácora...</div>
                 ) : provisioningLogs.length === 0 ? (
@@ -3459,30 +3509,77 @@ export default function ConfigPanel({ showToast }) {
                     No hay registros de aprovisionamiento recientes.
                   </div>
                 ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 300, overflowY: 'auto' }}>
-                    {provisioningLogs.map((log) => {
-                      const dateStr = log.fecha ? new Date(log.fecha).toLocaleString() : 'Desconocida';
+                  (() => {
+                    const filteredProvLogs = provisioningLogs.filter(log => {
+                      return embajadorFilter === 'todos' || log.embajador === embajadorFilter;
+                    });
+
+                    if (filteredProvLogs.length === 0) {
                       return (
-                        <div key={log.id} style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 10px', fontSize: 11 }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
-                            <span style={{ fontWeight: 800, color: 'var(--success)', textTransform: 'uppercase' }}>
-                              Salón: {log.salonId}
-                            </span>
-                            <span style={{ color: 'var(--text-muted)', fontSize: 9.5 }}>{dateStr}</span>
-                          </div>
-                          <div style={{ marginTop: 4, fontWeight: 700, color: 'var(--text-main)', textAlign: 'left' }}>
-                            {log.nombre}
-                          </div>
-                          <div style={{ marginTop: 4, fontSize: 9.5, color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', gap: 2 }}>
-                            <span><strong>Embajador:</strong> {log.embajador}</span>
-                            <span><strong>Licencia:</strong> <code style={{ color: 'var(--bronze-light)' }}>{log.numeroLicencia}</code></span>
-                            <span><strong>Vence:</strong> {log.fechaVencimiento ? new Date(log.fechaVencimiento).toLocaleDateString() : ''}</span>
-                            <span><strong>Creado por:</strong> {log.creadoPor}</span>
-                          </div>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', padding: '16px 0' }}>
+                          No hay salones para el embajador seleccionado.
                         </div>
                       );
-                    })}
-                  </div>
+                    }
+
+                    return (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 300, overflowY: 'auto' }}>
+                        {filteredProvLogs.map((log) => {
+                          const dateStr = log.fecha ? new Date(log.fecha).toLocaleString() : 'Desconocida';
+                          return (
+                            <div key={log.id} style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 10px', fontSize: 11 }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+                                <span style={{ 
+                                  fontWeight: 800, 
+                                  color: log.status === 'expirada' ? 'var(--danger)' : log.status === 'renovacion' ? 'var(--bronze-light)' : 'var(--success)', 
+                                  textTransform: 'uppercase' 
+                                }}>
+                                  Salón: {log.salonId} {log.status === 'renovacion' && '(Renovado)'} {log.status === 'expirada' && '(Expirado)'}
+                                </span>
+                                <span style={{ color: 'var(--text-muted)', fontSize: 9.5 }}>{dateStr}</span>
+                              </div>
+                              <div style={{ marginTop: 4, fontWeight: 700, color: 'var(--text-main)', textAlign: 'left' }}>
+                                {log.nombre}
+                              </div>
+                              <div style={{ marginTop: 4, fontSize: 9.5, color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                <span><strong>Embajador:</strong> {log.embajador}</span>
+                                <span><strong>Licencia:</strong> <code style={{ color: 'var(--bronze-light)' }}>{log.numeroLicencia}</code></span>
+                                <span><strong>Vence:</strong> {log.fechaVencimiento ? new Date(log.fechaVencimiento).toLocaleDateString() : ''}</span>
+                                <span><strong>Operador:</strong> {log.creadoPor}</span>
+                              </div>
+                              
+                              {/* Botón de Renovación Directa (Sugerencia 2) */}
+                              {log.status !== 'expirada' && (
+                                <div style={{ marginTop: 8, display: 'flex', justifyContent: 'flex-end' }}>
+                                  <button
+                                    type="button"
+                                    className="btn btn-secondary btn-xs"
+                                    disabled={renewingSalonId === log.salonId}
+                                    onClick={() => handleRenewLicense(log.salonId)}
+                                    style={{ 
+                                      fontSize: 10, 
+                                      padding: '3px 8px', 
+                                      display: 'flex', 
+                                      alignItems: 'center', 
+                                      gap: 4, 
+                                      cursor: 'pointer',
+                                      background: 'rgba(197, 168, 128, 0.1)',
+                                      border: '1px solid rgba(197, 168, 128, 0.3)',
+                                      color: 'var(--bronze-light)',
+                                      borderRadius: 6
+                                    }}
+                                  >
+                                    <i className={renewingSalonId === log.salonId ? "ri-loader-4-line ri-spin" : "ri-restart-line"} />
+                                    {renewingSalonId === log.salonId ? "Renovando..." : "Renovar 1 Año"}
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()
                 )}
               </div>
             )}
