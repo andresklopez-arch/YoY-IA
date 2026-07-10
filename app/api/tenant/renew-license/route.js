@@ -68,7 +68,7 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Token JWT inválido o expirado.' }, { status: 401 });
     }
 
-    const { salonId } = await request.json();
+    const { salonId, periodo } = await request.json();
 
     if (!salonId) {
       return NextResponse.json({ error: 'Faltan parámetros requeridos: salonId' }, { status: 400 });
@@ -87,9 +87,18 @@ export async function POST(request) {
     const licData = licSnap.data();
     const ahoraIso = new Date().toISOString();
     
-    // Extender licencia por 1 año
+    // Extender licencia por el período especificado (Sugerencia 3)
     const vencimiento = new Date();
-    vencimiento.setFullYear(vencimiento.getFullYear() + 1);
+    let labelPeriodo = '1 Año';
+    if (periodo === '6m') {
+      vencimiento.setMonth(vencimiento.getMonth() + 6);
+      labelPeriodo = '6 Meses';
+    } else if (periodo === '2y') {
+      vencimiento.setFullYear(vencimiento.getFullYear() + 2);
+      labelPeriodo = '2 Años';
+    } else {
+      vencimiento.setFullYear(vencimiento.getFullYear() + 1); // 1y por defecto
+    }
     const vencimientoIso = vencimiento.toISOString();
 
     // 3. Actualizar licencia
@@ -123,7 +132,8 @@ export async function POST(request) {
       fechaVencimiento: vencimientoIso,
       creadoPor: decodedToken.email,
       fecha: ahoraIso,
-      status: 'renovacion'
+      status: 'renovacion',
+      periodo: periodo || '1y'
     });
 
     // 5. Enviar alerta a Telegram de la directiva (Sugerencia 2)
@@ -132,7 +142,7 @@ export async function POST(request) {
       if (masterTgDoc.exists) {
         const tgData = masterTgDoc.data();
         if (tgData.enabled && tgData.botToken && tgData.chatId) {
-          const messageText = `♻️ *[ALR SaaS] Licencia Renovada*\n\n` +
+          const messageText = `♻️ *[ALR SaaS] Licencia Renovada (${labelPeriodo})*\n\n` +
                               `• *ID:* \`${cleanSalonId}\`\n` +
                               `• *Nombre:* ${nombre}\n` +
                               `• *Embajador:* ${embajador}\n` +

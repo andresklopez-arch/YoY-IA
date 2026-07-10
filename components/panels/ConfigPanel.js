@@ -922,6 +922,7 @@ export default function ConfigPanel({ showToast }) {
   const [embajadorFilter, setEmbajadorFilter] = useState('todos');
   const [salonSearchQuery, setSalonSearchQuery] = useState('');
   const [renewingSalonId, setRenewingSalonId] = useState(null);
+  const [renewalPeriods, setRenewalPeriods] = useState({});
 
   const handleExportCSV = () => {
     if (provisioningLogs.length === 0) return;
@@ -948,7 +949,9 @@ export default function ConfigPanel({ showToast }) {
   };
 
   const handleRenewLicense = async (salonId) => {
-    if (!window.confirm(`¿Estás seguro de que deseas renovar la licencia del salón "${salonId}" por 1 año más?`)) {
+    const periodo = renewalPeriods[salonId] || '1y';
+    const labelPeriodo = periodo === '6m' ? '6 meses' : periodo === '2y' ? '2 años' : '1 año';
+    if (!window.confirm(`¿Estás seguro de que deseas renovar la licencia del salón "${salonId}" por ${labelPeriodo}?`)) {
       return;
     }
     setRenewingSalonId(salonId);
@@ -961,7 +964,7 @@ export default function ConfigPanel({ showToast }) {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ salonId })
+        body: JSON.stringify({ salonId, periodo })
       });
       const data = await res.json();
       if (!res.ok) {
@@ -3518,6 +3521,37 @@ export default function ConfigPanel({ showToast }) {
                 <p style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 12, lineHeight: 1.4 }}>
                   Historial de sucursales creadas y licenciadas automáticamente por ALR SaaS.
                 </p>
+                {/* Métricas rápidas (Sugerencia 1) */}
+                {!loadingProvisioning && provisioningLogs.length > 0 && (() => {
+                  const filteredProvLogs = provisioningLogs.filter(log => {
+                    const matchesEmbajador = embajadorFilter === 'todos' || log.embajador === embajadorFilter;
+                    const matchesSearch = salonSearchQuery.trim() === '' || 
+                      log.salonId.toLowerCase().includes(salonSearchQuery.toLowerCase()) ||
+                      (log.nombre && log.nombre.toLowerCase().includes(salonSearchQuery.toLowerCase()));
+                    return matchesEmbajador && matchesSearch;
+                  });
+                  const totalSucursales = filteredProvLogs.length;
+                  const totalActivas = filteredProvLogs.filter(l => l.status !== 'expirada').length;
+                  const totalExpiradas = filteredProvLogs.filter(l => l.status === 'expirada').length;
+
+                  return (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 12 }}>
+                      <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 8, padding: '6px 8px', textAlign: 'center' }}>
+                        <div style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Sucursales</div>
+                        <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text-main)' }}>{totalSucursales}</div>
+                      </div>
+                      <div style={{ background: 'rgba(34,197,94,0.05)', border: '1px solid rgba(34,197,94,0.15)', borderRadius: 8, padding: '6px 8px', textAlign: 'center' }}>
+                        <div style={{ fontSize: 9, color: 'var(--success)', textTransform: 'uppercase' }}>Activas</div>
+                        <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--success)' }}>{totalActivas}</div>
+                      </div>
+                      <div style={{ background: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.15)', borderRadius: 8, padding: '6px 8px', textAlign: 'center' }}>
+                        <div style={{ fontSize: 9, color: 'var(--danger)', textTransform: 'uppercase' }}>Expiradas</div>
+                        <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--danger)' }}>{totalExpiradas}</div>
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 {/* Filtro por Embajador y Buscador de Salón (Sugerencia 2 & 3) */}
                 {!loadingProvisioning && provisioningLogs.length > 0 && (
                   <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
@@ -3566,7 +3600,7 @@ export default function ConfigPanel({ showToast }) {
                     if (filteredProvLogs.length === 0) {
                       return (
                         <div style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', padding: '16px 0' }}>
-                          No hay salones para el embajador seleccionado.
+                          No hay salones para los filtros seleccionados.
                         </div>
                       );
                     }
@@ -3578,13 +3612,24 @@ export default function ConfigPanel({ showToast }) {
                           return (
                             <div key={log.id} style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 10px', fontSize: 11 }}>
                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
-                                <span style={{ 
-                                  fontWeight: 800, 
-                                  color: log.status === 'expirada' ? 'var(--danger)' : log.status === 'renovacion' ? 'var(--bronze-light)' : 'var(--success)', 
-                                  textTransform: 'uppercase' 
-                                }}>
-                                  Salón: {log.salonId} {log.status === 'renovacion' && '(Renovado)'} {log.status === 'expirada' && '(Expirado)'}
-                                </span>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                  <span style={{ 
+                                    fontWeight: 800, 
+                                    color: log.status === 'expirada' ? 'var(--danger)' : log.status === 'renovacion' ? 'var(--bronze-light)' : 'var(--success)', 
+                                    textTransform: 'uppercase' 
+                                  }}>
+                                    Salón: {log.salonId} {log.status === 'renovacion' && '(Renovado)'} {log.status === 'expirada' && '(Expirado)'}
+                                  </span>
+                                  {/* Redirección directa al salón con sus credenciales (Sugerencia 2) */}
+                                  <button
+                                    type="button"
+                                    onClick={() => window.open(`/?s=${log.salonId}`, '_blank')}
+                                    style={{ background: 'none', border: 'none', color: 'var(--bronze-light)', cursor: 'pointer', padding: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                                    title="Abrir panel operativo de esta sucursal"
+                                  >
+                                    <i className="ri-external-link-line" style={{ fontSize: 12 }} />
+                                  </button>
+                                </div>
                                 <span style={{ color: 'var(--text-muted)', fontSize: 9.5 }}>{dateStr}</span>
                               </div>
                               <div style={{ marginTop: 4, fontWeight: 700, color: 'var(--text-main)', textAlign: 'left' }}>
@@ -3597,9 +3642,25 @@ export default function ConfigPanel({ showToast }) {
                                 <span><strong>Operador:</strong> {log.creadoPor}</span>
                               </div>
                               
-                              {/* Botón de Renovación Directa (Sugerencia 2) */}
+                              {/* Botón de Renovación Directa con Período Personalizado (Sugerencia 2 & 3) */}
                               {log.status !== 'expirada' && (
-                                <div style={{ marginTop: 8, display: 'flex', justifyContent: 'flex-end' }}>
+                                <div style={{ marginTop: 8, display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 6 }}>
+                                  <select
+                                    value={renewalPeriods[log.salonId] || '1y'}
+                                    onChange={(e) => setRenewalPeriods(prev => ({ ...prev, [log.salonId]: e.target.value }))}
+                                    style={{ 
+                                      fontSize: 10, 
+                                      padding: '3px 6px', 
+                                      background: 'var(--bg-main)', 
+                                      color: 'var(--text-main)', 
+                                      border: '1px solid var(--border)', 
+                                      borderRadius: 6 
+                                    }}
+                                  >
+                                    <option value="6m">6 Meses</option>
+                                    <option value="1y">1 Año</option>
+                                    <option value="2y">2 Años</option>
+                                  </select>
                                   <button
                                     type="button"
                                     className="btn btn-secondary btn-xs"
@@ -3619,7 +3680,7 @@ export default function ConfigPanel({ showToast }) {
                                     }}
                                   >
                                     <i className={renewingSalonId === log.salonId ? "ri-loader-4-line ri-spin" : "ri-restart-line"} />
-                                    {renewingSalonId === log.salonId ? "Renovando..." : "Renovar 1 Año"}
+                                    {renewingSalonId === log.salonId ? "Renovando..." : "Renovar"}
                                   </button>
                                 </div>
                               )}
