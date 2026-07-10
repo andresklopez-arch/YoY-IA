@@ -921,8 +921,44 @@ export default function ConfigPanel({ showToast }) {
   const [loadingProvisioning, setLoadingProvisioning] = useState(false);
   const [embajadorFilter, setEmbajadorFilter] = useState('todos');
   const [salonSearchQuery, setSalonSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('todos');
   const [renewingSalonId, setRenewingSalonId] = useState(null);
+  const [blockingSalonId, setBlockingSalonId] = useState(null);
   const [renewalPeriods, setRenewalPeriods] = useState({});
+
+  const handleBlockLicense = async (salonId) => {
+    const confirmation = window.prompt(`⚠️ ¿Estás seguro de que deseas BLOQUEAR manualmente el salón "${salonId}"?\n\nPara confirmar, escribe la palabra BLOQUEAR a continuación:`);
+    if (confirmation !== 'BLOQUEAR') {
+      if (confirmation !== null) {
+        showToast('Confirmación incorrecta. Operación cancelada.', 'warning');
+      }
+      return;
+    }
+    const motivo = window.prompt('Escribe el motivo del bloqueo (opcional):') || 'Bloqueado manualmente por el administrador maestro';
+    setBlockingSalonId(salonId);
+    try {
+      if (!auth.currentUser) throw new Error("No hay usuario autenticado.");
+      const token = await auth.currentUser.getIdToken();
+      const res = await fetch('/api/tenant/block-license', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ salonId, motivo })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Error al bloquear licencia');
+      }
+      showToast(`El salón "${salonId}" ha sido bloqueado exitosamente.`, 'success');
+    } catch (err) {
+      console.error(err);
+      showToast(err.message || 'Error al bloquear la licencia', 'danger');
+    } finally {
+      setBlockingSalonId(null);
+    }
+  };
 
   const handleExportCSV = () => {
     if (provisioningLogs.length === 0) return;
@@ -3528,11 +3564,21 @@ export default function ConfigPanel({ showToast }) {
                     const matchesSearch = salonSearchQuery.trim() === '' || 
                       log.salonId.toLowerCase().includes(salonSearchQuery.toLowerCase()) ||
                       (log.nombre && log.nombre.toLowerCase().includes(salonSearchQuery.toLowerCase()));
-                    return matchesEmbajador && matchesSearch;
+                    const isExpirado = log.status === 'expirada' || (log.fechaVencimiento && new Date(log.fechaVencimiento) < new Date());
+                    const matchesStatus = statusFilter === 'todos' || 
+                      (statusFilter === 'activos' && !isExpirado) || 
+                      (statusFilter === 'expirados' && isExpirado);
+                    return matchesEmbajador && matchesSearch && matchesStatus;
                   });
                   const totalSucursales = filteredProvLogs.length;
-                  const totalActivas = filteredProvLogs.filter(l => l.status !== 'expirada').length;
-                  const totalExpiradas = filteredProvLogs.filter(l => l.status === 'expirada').length;
+                  const totalActivas = filteredProvLogs.filter(l => {
+                    const isExpirado = l.status === 'expirada' || (l.fechaVencimiento && new Date(l.fechaVencimiento) < new Date());
+                    return !isExpirado;
+                  }).length;
+                  const totalExpiradas = filteredProvLogs.filter(l => {
+                    const isExpirado = l.status === 'expirada' || (l.fechaVencimiento && new Date(l.fechaVencimiento) < new Date());
+                    return isExpirado;
+                  }).length;
 
                   return (
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 12 }}>
@@ -3565,14 +3611,26 @@ export default function ConfigPanel({ showToast }) {
                         style={{ fontSize: 11, padding: '5px 10px', height: 'auto', background: 'var(--bg-elevated)', color: 'var(--text-main)', border: '1px solid var(--border)', borderRadius: 6, width: '100%' }}
                       />
                     </div>
-                    <div style={{ width: 140 }}>
+                    <div style={{ width: 120 }}>
+                      <select
+                        className="form-input"
+                        value={statusFilter}
+                        onChange={e => setStatusFilter(e.target.value)}
+                        style={{ fontSize: 11, padding: '5px 10px', height: 'auto', background: 'var(--bg-elevated)', color: 'var(--text-main)', border: '1px solid var(--border)', borderRadius: 6, width: '100%' }}
+                      >
+                        <option value="todos">Todos Estatus</option>
+                        <option value="activos">Activas</option>
+                        <option value="expirados">Expiradas</option>
+                      </select>
+                    </div>
+                    <div style={{ width: 130 }}>
                       <select
                         className="form-input"
                         value={embajadorFilter}
                         onChange={e => setEmbajadorFilter(e.target.value)}
                         style={{ fontSize: 11, padding: '5px 10px', height: 'auto', background: 'var(--bg-elevated)', color: 'var(--text-main)', border: '1px solid var(--border)', borderRadius: 6, width: '100%' }}
                       >
-                        <option value="todos">Todos los Embajadores</option>
+                        <option value="todos">Todos Embajadores</option>
                         {Array.from(new Set(provisioningLogs.map(l => l.embajador).filter(Boolean))).map(emb => (
                           <option key={emb} value={emb}>{emb}</option>
                         ))}
@@ -3594,7 +3652,11 @@ export default function ConfigPanel({ showToast }) {
                       const matchesSearch = salonSearchQuery.trim() === '' || 
                         log.salonId.toLowerCase().includes(salonSearchQuery.toLowerCase()) ||
                         (log.nombre && log.nombre.toLowerCase().includes(salonSearchQuery.toLowerCase()));
-                      return matchesEmbajador && matchesSearch;
+                      const isExpirado = log.status === 'expirada' || (log.fechaVencimiento && new Date(log.fechaVencimiento) < new Date());
+                      const matchesStatus = statusFilter === 'todos' || 
+                        (statusFilter === 'activos' && !isExpirado) || 
+                        (statusFilter === 'expirados' && isExpirado);
+                      return matchesEmbajador && matchesSearch && matchesStatus;
                     });
 
                     if (filteredProvLogs.length === 0) {
@@ -3609,16 +3671,29 @@ export default function ConfigPanel({ showToast }) {
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 300, overflowY: 'auto' }}>
                         {filteredProvLogs.map((log) => {
                           const dateStr = log.fecha ? new Date(log.fecha).toLocaleString() : 'Desconocida';
+                          
+                          // Semáforo de Vencimientos (Sugerencia 1)
+                          const vencimiento = log.fechaVencimiento ? new Date(log.fechaVencimiento) : null;
+                          const ahora = new Date();
+                          const diffMs = vencimiento ? (vencimiento - ahora) : 0;
+                          const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+                          let colorVencimiento = 'var(--success)';
+                          if (diffDays <= 0 || log.status === 'expirada' || log.status === 'bloqueado') {
+                            colorVencimiento = 'var(--danger)';
+                          } else if (diffDays <= 30) {
+                            colorVencimiento = '#f59e0b'; // Naranja
+                          }
+
                           return (
                             <div key={log.id} style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 10px', fontSize: 11 }}>
                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                   <span style={{ 
                                     fontWeight: 800, 
-                                    color: log.status === 'expirada' ? 'var(--danger)' : log.status === 'renovacion' ? 'var(--bronze-light)' : 'var(--success)', 
+                                    color: (log.status === 'expirada' || log.status === 'bloqueado') ? 'var(--danger)' : log.status === 'renovacion' ? 'var(--bronze-light)' : 'var(--success)', 
                                     textTransform: 'uppercase' 
                                   }}>
-                                    Salón: {log.salonId} {log.status === 'renovacion' && '(Renovado)'} {log.status === 'expirada' && '(Expirado)'}
+                                    Salón: {log.salonId} {log.status === 'renovacion' && '(Renovado)'} {log.status === 'expirada' && '(Expirado)'} {log.status === 'bloqueado' && '(Bloqueado)'}
                                   </span>
                                   {/* Redirección directa al salón con sus credenciales (Sugerencia 2) */}
                                   <button
@@ -3638,34 +3713,26 @@ export default function ConfigPanel({ showToast }) {
                               <div style={{ marginTop: 4, fontSize: 9.5, color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', gap: 2 }}>
                                 <span><strong>Embajador:</strong> {log.embajador}</span>
                                 <span><strong>Licencia:</strong> <code style={{ color: 'var(--bronze-light)' }}>{log.numeroLicencia}</code></span>
-                                <span><strong>Vence:</strong> {log.fechaVencimiento ? new Date(log.fechaVencimiento).toLocaleDateString() : ''}</span>
+                                <span>
+                                  <strong>Vence:</strong>{' '}
+                                  <span style={{ color: colorVencimiento, fontWeight: (diffDays <= 30 || log.status === 'expirada' || log.status === 'bloqueado') ? 700 : 'normal' }}>
+                                    {log.fechaVencimiento ? new Date(log.fechaVencimiento).toLocaleDateString() : ''}
+                                    {diffDays > 0 && diffDays <= 30 && log.status !== 'bloqueado' && ` (${diffDays} días restantes)`}
+                                    {(diffDays <= 0 || log.status === 'expirada') && ' (Expirado)'}
+                                    {log.status === 'bloqueado' && ' (Bloqueado Manualmente)'}
+                                  </span>
+                                </span>
                                 <span><strong>Operador:</strong> {log.creadoPor}</span>
                               </div>
                               
-                              {/* Botón de Renovación Directa con Período Personalizado (Sugerencia 2 & 3) */}
-                              {log.status !== 'expirada' && (
-                                <div style={{ marginTop: 8, display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 6 }}>
-                                  <select
-                                    value={renewalPeriods[log.salonId] || '1y'}
-                                    onChange={(e) => setRenewalPeriods(prev => ({ ...prev, [log.salonId]: e.target.value }))}
-                                    style={{ 
-                                      fontSize: 10, 
-                                      padding: '3px 6px', 
-                                      background: 'var(--bg-main)', 
-                                      color: 'var(--text-main)', 
-                                      border: '1px solid var(--border)', 
-                                      borderRadius: 6 
-                                    }}
-                                  >
-                                    <option value="6m">6 Meses</option>
-                                    <option value="1y">1 Año</option>
-                                    <option value="2y">2 Años</option>
-                                  </select>
+                              {/* Botón de Renovación Directa con Período Personalizado y Bloqueo Manual (Sugerencia 2 & 3) */}
+                              {log.status !== 'expirada' && log.status !== 'bloqueado' && (
+                                <div style={{ marginTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                                   <button
                                     type="button"
                                     className="btn btn-secondary btn-xs"
-                                    disabled={renewingSalonId === log.salonId}
-                                    onClick={() => handleRenewLicense(log.salonId)}
+                                    disabled={blockingSalonId === log.salonId}
+                                    onClick={() => handleBlockLicense(log.salonId)}
                                     style={{ 
                                       fontSize: 10, 
                                       padding: '3px 8px', 
@@ -3673,15 +3740,54 @@ export default function ConfigPanel({ showToast }) {
                                       alignItems: 'center', 
                                       gap: 4, 
                                       cursor: 'pointer',
-                                      background: 'rgba(197, 168, 128, 0.1)',
-                                      border: '1px solid rgba(197, 168, 128, 0.3)',
-                                      color: 'var(--bronze-light)',
+                                      background: 'rgba(239, 68, 68, 0.05)',
+                                      border: '1px solid rgba(239, 68, 68, 0.2)',
+                                      color: 'var(--danger)',
                                       borderRadius: 6
                                     }}
                                   >
-                                    <i className={renewingSalonId === log.salonId ? "ri-loader-4-line ri-spin" : "ri-restart-line"} />
-                                    {renewingSalonId === log.salonId ? "Renovando..." : "Renovar"}
+                                    <i className={blockingSalonId === log.salonId ? "ri-loader-4-line ri-spin" : "ri-lock-line"} />
+                                    {blockingSalonId === log.salonId ? "Bloqueando..." : "Bloquear"}
                                   </button>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <select
+                                      value={renewalPeriods[log.salonId] || '1y'}
+                                      onChange={(e) => setRenewalPeriods(prev => ({ ...prev, [log.salonId]: e.target.value }))}
+                                      style={{ 
+                                        fontSize: 10, 
+                                        padding: '3px 6px', 
+                                        background: 'var(--bg-main)', 
+                                        color: 'var(--text-main)', 
+                                        border: '1px solid var(--border)', 
+                                        borderRadius: 6 
+                                      }}
+                                    >
+                                      <option value="6m">6 Meses</option>
+                                      <option value="1y">1 Año</option>
+                                      <option value="2y">2 Años</option>
+                                    </select>
+                                    <button
+                                      type="button"
+                                      className="btn btn-secondary btn-xs"
+                                      disabled={renewingSalonId === log.salonId}
+                                      onClick={() => handleRenewLicense(log.salonId)}
+                                      style={{ 
+                                        fontSize: 10, 
+                                        padding: '3px 8px', 
+                                        display: 'flex', 
+                                        alignItems: 'center', 
+                                        gap: 4, 
+                                        cursor: 'pointer',
+                                        background: 'rgba(197, 168, 128, 0.1)',
+                                        border: '1px solid rgba(197, 168, 128, 0.3)',
+                                        color: 'var(--bronze-light)',
+                                        borderRadius: 6
+                                      }}
+                                    >
+                                      <i className={renewingSalonId === log.salonId ? "ri-loader-4-line ri-spin" : "ri-restart-line"} />
+                                      {renewingSalonId === log.salonId ? "Renovando..." : "Renovar"}
+                                    </button>
+                                  </div>
                                 </div>
                               )}
                             </div>
