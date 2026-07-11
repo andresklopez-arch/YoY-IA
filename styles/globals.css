@@ -136,14 +136,20 @@ input, select, textarea {
 }
 
 /* ── SCROLLBAR PERSONALIZADO ─────────────────────────────── */
+* {
+  scroll-behavior: smooth;
+}
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: var(--bg-surface); }
 ::-webkit-scrollbar-thumb {
-  background: var(--bronze-dark);
+  background: rgba(139, 94, 30, 0.55); /* --bronze-dark con opacidad reducida por defecto */
   border-radius: var(--r-full);
   border: 2px solid var(--bg-surface);
+  transition: background 0.25s ease;
 }
-::-webkit-scrollbar-thumb:hover { background: var(--bronze); }
+::-webkit-scrollbar-thumb:hover { 
+  background: var(--bronze); 
+}
 
 /* ── TIPOGRAFÍA ──────────────────────────────────────────── */
 .text-display {

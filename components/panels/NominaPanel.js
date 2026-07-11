@@ -508,6 +508,13 @@ export default function NominaPanel({ showToast }) {
 
   const [showPagarModal, setShowPagarModal] = useState(null);
   const [descontarCaja, setDescontarCaja] = useState(false);
+  
+  const scrollRefLogs = useRef(null);
+  const scrollLogs = (offset) => {
+    if (scrollRefLogs.current) {
+      scrollRefLogs.current.scrollBy({ top: offset, behavior: 'smooth' });
+    }
+  };
 
   const [showPresupModal, setShowPresupModal] = useState(false);
   const [presupForm, setPresupForm] = useState({});
@@ -1915,7 +1922,29 @@ export default function NominaPanel({ showToast }) {
                   {/* Historial de Fichajes Detallado */}
                   <div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                      <div style={{ fontSize: 9, fontWeight: 700, color: '#fff', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Registros ({empLogs.length})</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <div style={{ fontSize: 9, fontWeight: 700, color: '#fff', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Registros ({empLogs.length})</div>
+                        {empLogs.length > 3 && (
+                          <div style={{ display: 'flex', gap: 4 }}>
+                            <button 
+                              className="btn btn-secondary" 
+                              onClick={() => scrollLogs(-80)} 
+                              style={{ width: 20, height: 20, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, borderRadius: '4px' }}
+                              title="Subir lista"
+                            >
+                              <i className="ri-arrow-up-s-line" />
+                            </button>
+                            <button 
+                              className="btn btn-secondary" 
+                              onClick={() => scrollLogs(80)} 
+                              style={{ width: 20, height: 20, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, borderRadius: '4px' }}
+                              title="Bajar lista"
+                            >
+                              <i className="ri-arrow-down-s-line" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
                       <button 
                         className="btn btn-secondary btn-xs" 
                         onClick={() => exportarCSVEmpleado(fichajeResumenEmpleado, sortedCron)} 
@@ -1925,7 +1954,7 @@ export default function NominaPanel({ showToast }) {
                       </button>
                     </div>
                     
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 220, overflowY: 'auto', paddingRight: 4 }}>
+                    <div ref={scrollRefLogs} style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 220, overflowY: 'auto', paddingRight: 4 }}>
                       {empLogs.map(log => {
                         const d = log.createdAt?.toDate ? log.createdAt.toDate() : new Date(log.createdAt || Date.now());
                         const hora = d.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
