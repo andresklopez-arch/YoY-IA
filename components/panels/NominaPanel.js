@@ -744,11 +744,13 @@ export default function NominaPanel({ showToast }) {
       const esRolConPermisos = rolSeleccionado === 'Gerente' || rolSeleccionado === 'Cajero';
       const permisosFinal = esRolConPermisos ? (formEmpleado.permisos || {}) : {};
 
+      const currentSalonId = user?.salonId || 'default_salon';
       // Sanitizar datos para eliminar cualquier valor 'undefined' que Firestore no admita
       const dataRaw = { 
         ...formEmpleado, 
         nip: finalNip, 
         permisos: permisosFinal,
+        salonId: currentSalonId,
         updatedAt: serverTimestamp() 
       };
       const data = {};

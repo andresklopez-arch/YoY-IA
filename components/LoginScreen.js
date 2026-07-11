@@ -259,7 +259,8 @@ export default function LoginScreen({ showToast }) {
     }
     setLoading(true);
     const targetEmail = loginMethod === 'nip' ? `NIP-${nip}` : (usersList.length > 0 && !manualEmail ? selectedEmail : email);
-    const esNip = /^\d{4,8}$/.test(password);
+    const usuarioSeleccionado = usersList.find(u => u.email === targetEmail);
+    const esEmpleado = usuarioSeleccionado ? usuarioSeleccionado.tipo === 'empleado' : false;
     
     try {
       let userSession = null;
@@ -274,10 +275,11 @@ export default function LoginScreen({ showToast }) {
           setLoading(false);
           return;
         }
-        if (esNip) {
-          // Si ingresó dígitos como NIP en el campo de contraseña, autenticar por NIP
+        if (esEmpleado) {
+          // Si el usuario seleccionado es un empleado de nómina, autenticar por NIP
           userSession = await login(password, '');
         } else {
+          // Si es un usuario convencional del sistema, autenticar por contraseña tradicional
           userSession = await login(targetEmail, password);
         }
       }

@@ -73,10 +73,9 @@ export async function POST(request) {
       .where('sucursal', '==', 'all')
       .get();
 
-    // Query active employees from Nomina for this salon
+    // Query active employees from Nomina
     const empSnap = await db
       .collection('nomina_empleados')
-      .where('salonId', '==', salonId)
       .where('estado', '==', 'activo')
       .get();
 
@@ -94,7 +93,8 @@ export async function POST(request) {
           email: data.email,
           role: data.role || data.rol || 'usuario',
           alias: data.alias || (data.email ? data.email.split('@')[0] : 'usuario'),
-          salonId: data.salonId || 'default_salon'
+          salonId: data.salonId || 'default_salon',
+          tipo: 'usuario'
         });
       });
     };
@@ -104,6 +104,10 @@ export async function POST(request) {
         if (seenIds.has(doc.id)) return;
         seenIds.add(doc.id);
         const data = doc.data();
+        
+        // Si tiene salonId y no coincide con el actual, ignorar (soporte a empleados existentes sin sucursal)
+        if (data.salonId && data.salonId !== salonId) return;
+        
         // Solo agregar empleados que tengan NIP asignado para iniciar sesión
         if (!data.nip) return;
         list.push({
@@ -112,7 +116,8 @@ export async function POST(request) {
           email: data.email || `${data.nombre.toLowerCase()}@yoybillar.mx`,
           role: data.rol || 'mesero',
           alias: data.nombre,
-          salonId: data.salonId || 'default_salon'
+          salonId: data.salonId || salonId,
+          tipo: 'empleado'
         });
       });
     };
