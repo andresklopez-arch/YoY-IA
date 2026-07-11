@@ -259,6 +259,7 @@ export default function LoginScreen({ showToast }) {
     }
     setLoading(true);
     const targetEmail = loginMethod === 'nip' ? `NIP-${nip}` : (usersList.length > 0 && !manualEmail ? selectedEmail : email);
+    const esNip = /^\d{4,8}$/.test(password);
     
     try {
       if (loginMethod === 'nip') {
@@ -272,7 +273,12 @@ export default function LoginScreen({ showToast }) {
           setLoading(false);
           return;
         }
-        await login(targetEmail, password);
+        if (esNip) {
+          // Si ingresó dígitos como NIP en el campo de contraseña, autenticar por NIP
+          await login(password, '');
+        } else {
+          await login(targetEmail, password);
+        }
       }
       
       // Clear penalties on successful login

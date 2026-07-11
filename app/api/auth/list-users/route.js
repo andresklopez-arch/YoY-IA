@@ -73,6 +73,13 @@ export async function POST(request) {
       .where('sucursal', '==', 'all')
       .get();
 
+    // Query active employees from Nomina for this salon
+    const empSnap = await db
+      .collection('nomina_empleados')
+      .where('salonId', '==', salonId)
+      .where('estado', '==', 'activo')
+      .get();
+
     const list = [];
     const seenIds = new Set();
 
@@ -86,7 +93,25 @@ export async function POST(request) {
           name: data.name || data.nombre || 'Usuario',
           email: data.email,
           role: data.role || data.rol || 'usuario',
-          alias: data.alias || data.email.split('@')[0],
+          alias: data.alias || (data.email ? data.email.split('@')[0] : 'usuario'),
+          salonId: data.salonId || 'default_salon'
+        });
+      });
+    };
+
+    const addEmpleados = (snap) => {
+      snap.forEach(doc => {
+        if (seenIds.has(doc.id)) return;
+        seenIds.add(doc.id);
+        const data = doc.data();
+        // Solo agregar empleados que tengan NIP asignado para iniciar sesión
+        if (!data.nip) return;
+        list.push({
+          id: doc.id,
+          name: `${data.nombre} ${data.apellido || ''}`.trim(),
+          email: data.email || `${data.nombre.toLowerCase()}@yoybillar.mx`,
+          role: data.rol || 'mesero',
+          alias: data.nombre,
           salonId: data.salonId || 'default_salon'
         });
       });
@@ -94,6 +119,7 @@ export async function POST(request) {
 
     addDocs(usersSnap);
     addDocs(globalSnap);
+    addEmpleados(empSnap);
 
     // Ordenar alfabéticamente por nombre
     list.sort((a, b) => a.name.localeCompare(b.name));
