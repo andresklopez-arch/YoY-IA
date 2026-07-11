@@ -748,11 +748,22 @@ export default function NominaPanel({ showToast }) {
       // Sanitizar datos para eliminar cualquier valor 'undefined' que Firestore no admita
       const dataRaw = { 
         ...formEmpleado, 
-        nip: finalNip, 
         permisos: permisosFinal,
         salonId: currentSalonId,
         updatedAt: serverTimestamp() 
       };
+
+      if (editandoEmpleado) {
+        if (!formEmpleado.nip) {
+          // Si está editando y dejó el NIP vacío, no sobrescribir el NIP existente en la base de datos
+          delete dataRaw.nip;
+        } else {
+          dataRaw.nip = finalNip;
+        }
+      } else {
+        dataRaw.nip = finalNip;
+      }
+
       const data = {};
       Object.entries(dataRaw).forEach(([key, val]) => {
         if (val !== undefined) {
@@ -1795,7 +1806,7 @@ export default function NominaPanel({ showToast }) {
                           className="btn btn-secondary" 
                           onClick={() => {
                             setEditandoEmpleado(fichajeResumenEmpleado.id);
-                            setFormEmpleado({ nip: '', ...fichajeResumenEmpleado });
+                            setFormEmpleado({ ...fichajeResumenEmpleado, nip: '' });
                             setActiveQrToken('');
                             setActiveQrExpires(0);
                             setShowEmpModal(true);
@@ -2033,7 +2044,16 @@ export default function NominaPanel({ showToast }) {
                     style={{ background: 'rgba(255,255,255,0.05)', color: '#aaa', cursor: 'not-allowed' }} 
                   />
                 </F>
-                <F label="Código NIP (Ingreso Cajero)"><input className="form-input" type="text" maxLength={6} value={formEmpleado.nip} onChange={e => setFormEmpleado(p => ({ ...p, nip: e.target.value }))} placeholder="Código numérico (4-6 dígitos)" /></F>
+                <F label="Código NIP (Ingreso Cajero)">
+                  <input 
+                    className="form-input" 
+                    type="text" 
+                    maxLength={6} 
+                    value={formEmpleado.nip} 
+                    onChange={e => setFormEmpleado(p => ({ ...p, nip: e.target.value }))} 
+                    placeholder={editandoEmpleado ? "Definido (dejar vacío para no cambiar)" : "Código numérico (4-6 dígitos)"} 
+                  />
+                </F>
               </div>
 
               {/* Permisos (Solo visibles para Gerente y Cajero) */}
