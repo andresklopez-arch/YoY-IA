@@ -108,7 +108,7 @@ export async function POST(request) {
       }
 
       const empData = empSnap.data();
-      if (empData.salonId !== verifiedSalonId) {
+      if (empData.salonId && empData.salonId !== verifiedSalonId) {
         console.warn(`[Seguridad Multitenant] Intento de acceso denegado: El administrador del salón ${verifiedSalonId} intentó generar un QR token para el empleado del salón ${empData.salonId}`);
         return NextResponse.json({ success: false, error: 'Acceso denegado. El empleado pertenece a otra sucursal.' }, { status: 403 });
       }
@@ -124,10 +124,34 @@ export async function POST(request) {
 
     // Actualizar token en Firestore usando Admin SDK (tiene permisos completos en el servidor)
     try {
-      await getFirestore().collection('nomina_empleados').doc(empleadoId).update({
+      const updateData = {
         qrToken: token,
         qrTokenExpires: expires
-      });
+      };
+      // Si el empleado no tiene sucursal, migrarlo en caliente
+      if (isAdminConfigured) {
+        const empSnap = await getFirestore().collection('nomina_empleados').doc(empleadoId).get();
+        if (empSnap.exists && !empSnap.data().salonId) {
+          const authHeader = request.headers.get('Authorization');
+          let currentSalonId = null;
+          if (authHeader && authHeader.startsWith('Bearer ')) {
+            const tokenJWT = authHeader.split('Bearer ')[1];
+            try {
+              const decodedToken = await getAuth().verifyIdToken(tokenJWT);
+              currentSalonId = decodedToken.salonId;
+            } catch (e) {}
+          } else if (signature) {
+            try {
+              const decrypted = deobfuscateStatic(signature);
+              currentSalonId = decrypted?.salonId;
+            } catch (e) {}
+          }
+          if (currentSalonId) {
+            updateData.salonId = currentSalonId;
+          }
+        }
+      }
+      await getFirestore().collection('nomina_empleados').doc(empleadoId).update(updateData);
     } catch (updateErr) {
       // Si la actualización falla, devolver el token igualmente (es secundario)
       console.warn('Advertencia: No se pudo actualizar qrToken en Firestore:', updateErr.message);
