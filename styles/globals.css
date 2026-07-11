@@ -136,11 +136,12 @@ input, select, textarea {
 }
 
 /* ── SCROLLBAR PERSONALIZADO ─────────────────────────────── */
-::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: var(--bg-surface); }
 ::-webkit-scrollbar-thumb {
   background: var(--bronze-dark);
   border-radius: var(--r-full);
+  border: 2px solid var(--bg-surface);
 }
 ::-webkit-scrollbar-thumb:hover { background: var(--bronze); }
 
