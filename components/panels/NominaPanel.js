@@ -2017,6 +2017,20 @@ export default function NominaPanel({ showToast }) {
                   </select>
                 </F>
                 <F label="Sueldo Base ($)"><input className="form-input" type="number" value={formEmpleado.sueldoBase} onChange={e => setFormEmpleado(p => ({ ...p, sueldoBase: e.target.value }))} placeholder="0.00" /></F>
+                <F label="Sueldo Diario de Referencia ($)">
+                  <input 
+                    className="form-input" 
+                    type="text" 
+                    value={(() => {
+                      const base = Number(formEmpleado.sueldoBase) || 0;
+                      const freq = formEmpleado.frecuenciaPago || 'quincenal';
+                      const div = freq === 'semanal' ? 7 : (freq === 'mensual' ? 30 : 15);
+                      return base > 0 ? (base / div).toFixed(2) : '0.00';
+                    })()} 
+                    disabled 
+                    style={{ background: 'rgba(255,255,255,0.05)', color: '#aaa', cursor: 'not-allowed' }} 
+                  />
+                </F>
                 <F label="Código NIP (Ingreso Cajero)"><input className="form-input" type="text" maxLength={6} value={formEmpleado.nip} onChange={e => setFormEmpleado(p => ({ ...p, nip: e.target.value }))} placeholder="Código numérico (4-6 dígitos)" /></F>
               </div>
 
