@@ -262,12 +262,13 @@ export default function LoginScreen({ showToast }) {
     const esNip = /^\d{4,8}$/.test(password);
     
     try {
+      let userSession = null;
       if (loginMethod === 'nip') {
         if (!nip) {
           setLoading(false);
           return;
         }
-        await login(nip, '');
+        userSession = await login(nip, '');
       } else {
         if (!targetEmail || !password) {
           setLoading(false);
@@ -275,9 +276,27 @@ export default function LoginScreen({ showToast }) {
         }
         if (esNip) {
           // Si ingresó dígitos como NIP en el campo de contraseña, autenticar por NIP
-          await login(password, '');
+          userSession = await login(password, '');
         } else {
-          await login(targetEmail, password);
+          userSession = await login(targetEmail, password);
+        }
+      }
+
+      // Redirección inmediata según el rol (mesero y cocina)
+      if (userSession) {
+        const rolLower = (userSession.role || '').toLowerCase();
+        const activeSalonId = getActiveSalonId() || 'default_salon';
+        if (rolLower.includes('mesero')) {
+          window.location.href = `/mesero?s=${activeSalonId}`;
+          return;
+        } else if (
+          rolLower.includes('cocina') ||
+          rolLower.includes('bartender') ||
+          rolLower.includes('barman') ||
+          rolLower.includes('cocinero')
+        ) {
+          window.location.href = `/cocina?s=${activeSalonId}`;
+          return;
         }
       }
       
