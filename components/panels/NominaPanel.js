@@ -586,15 +586,21 @@ export default function NominaPanel({ showToast }) {
         comisionMesas = comisionesEmp.reduce((s, c) => s + (Number(c.comisionMesa) || 0), 0);
         comisionBar = comisionesEmp.reduce((s, c) => s + (Number(c.comisionBar) || 0), 0);
       } else {
-        if (emp.comisionMesas > 0 && ventasMesas > 0) {
-          comisionMesas = emp.comisionMesasTipo === 'porcentaje'
-            ? (ventasMesas * Number(emp.comisionMesas)) / 100
-            : Number(emp.comisionMesas) * diasTrabajados;
-        }
-        if (emp.comisionBar > 0 && ventasBar > 0) {
-          comisionBar = emp.comisionBarTipo === 'porcentaje'
-            ? (ventasBar * Number(emp.comisionBar)) / 100
-            : Number(emp.comisionBar) * diasTrabajados;
+        const empRol = (emp.rol || '').toLowerCase();
+        const esServicioDirecto = empRol.includes('mesero') || empRol.includes('bartender') || empRol.includes('mesera') || empRol.includes('barman');
+        
+        // Los meseros y bartenders sólo comisionan de mesas que atendieron individualmente (cargadas en comisionesEmp)
+        if (!esServicioDirecto && diasTrabajados > 0) {
+          if (emp.comisionMesas > 0 && ventasMesas > 0) {
+            comisionMesas = emp.comisionMesasTipo === 'porcentaje'
+              ? (ventasMesas * Number(emp.comisionMesas)) / 100
+              : Number(emp.comisionMesas) * diasTrabajados;
+          }
+          if (emp.comisionBar > 0 && ventasBar > 0) {
+            comisionBar = emp.comisionBarTipo === 'porcentaje'
+              ? (ventasBar * Number(emp.comisionBar)) / 100
+              : Number(emp.comisionBar) * diasTrabajados;
+          }
         }
       }
 
