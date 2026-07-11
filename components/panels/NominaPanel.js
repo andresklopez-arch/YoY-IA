@@ -984,7 +984,12 @@ export default function NominaPanel({ showToast }) {
 
   const getAsistenciaDia = () => {
     const fecha = today();
-    const hoyAsist = asistencias.filter(a => a.fecha === fecha);
+    // Obtener los IDs de los empleados activos actualmente cargados en el estado
+    const activeEmpIds = new Set(empleados.map(e => e.id));
+    
+    // Filtrar la asistencia para incluir sólo registros del día de hoy y de empleados que aún existen
+    const hoyAsist = asistencias.filter(a => a.fecha === fecha && activeEmpIds.has(a.empleadoId));
+    
     const pres = hoyAsist.filter(a => a.estado === 'presente').length;
     const aus = hoyAsist.filter(a => a.estado === 'ausente').length;
     const tard = hoyAsist.filter(a => a.estado === 'tardanza').length;
